@@ -1,0 +1,235 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  getFoodCategories, addFoodCategory, updateFoodCategory, deleteFoodCategory,
+} from "@/lib/firestore/food";
+import { useToast } from "@/components/ui/toast";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { FoodCategory } from "@/types";
+import { UtensilsCrossed, Plus, Trash2, Pencil, X } from "lucide-react";
+
+export default function AdminFoodPage() {
+  const { appUser } = useAuth();
+  const { showToast } = useToast();
+
+  const [categories, setCategories] = useState<FoodCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<FoodCategory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FoodCategory | null>(null);
+
+  const [formName, setFormName] = useState("");
+  const [formOptions, setFormOptions] = useState<string[]>([]);
+  const [optionInput, setOptionInput] = useState("");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      setCategories(await getFoodCategories());
+    } catch {
+      showToast("حدث خطأ أثناء التحميل", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openAdd() {
+    setEditTarget(null);
+    setFormName("");
+    setFormOptions([]);
+    setOptionInput("");
+    setShowForm(true);
+  }
+
+  function openEdit(cat: FoodCategory) {
+    setEditTarget(cat);
+    setFormName(cat.name);
+    setFormOptions([...cat.options]);
+    setOptionInput("");
+    setShowForm(true);
+  }
+
+  function addOption() {
+    const v = optionInput.trim();
+    if (!v || formOptions.includes(v)) return;
+    setFormOptions((prev) => [...prev, v]);
+    setOptionInput("");
+  }
+
+  async function handleSave() {
+    if (!appUser || !formName.trim()) return;
+    setSaving(true);
+    try {
+      if (editTarget) {
+        await updateFoodCategory(editTarget.id, { name: formName.trim(), options: formOptions });
+        showToast("تم تحديث الصنف");
+      } else {
+        await addFoodCategory({ name: formName.trim(), options: formOptions, createdBy: appUser.uid });
+        showToast("تم إضافة الصنف");
+      }
+      setShowForm(false);
+      load();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setSaving(true);
+    try {
+      await deleteFoodCategory(deleteTarget.id);
+      showToast("تم حذف الصنف");
+      setDeleteTarget(null);
+      load();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">أصناف الأكل</h2>
+          <p className="text-sm text-slate-500">{categories.length} صنف مضاف</p>
+        </div>
+        <Button onClick={openAdd}>
+          <Plus size={16} /> إضافة صنف
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" />
+        </div>
+      ) : categories.length === 0 ? (
+        <Card className="flex flex-col items-center py-12 text-slate-400">
+          <UtensilsCrossed size={40} className="mb-3 opacity-40" />
+          <p>لم تتم إضافة أي أصناف بعد</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categories.map((cat) => (
+            <Card key={cat.id}>
+              <div className="flex items-start justify-between mb-3">
+                <p className="font-bold text-slate-800 text-base">{cat.name}</p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => openEdit(cat)}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(cat)}
+                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+              {cat.options.length === 0 ? (
+                <p className="text-xs text-slate-400">لا توجد خيارات</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {cat.options.map((opt) => (
+                    <span
+                      key={opt}
+                      className="bg-blue-50 text-blue-700 text-xs px-2.5 py-1 rounded-full font-medium"
+                    >
+                      {opt}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Add / Edit Modal */}
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editTarget ? `تعديل: ${editTarget.name}` : "إضافة صنف جديد"}
+      >
+        <div className="space-y-4">
+          <Input
+            label="اسم الصنف"
+            value={formName}
+            onChange={(e) => setFormName(e.target.value)}
+            placeholder="مثال: كبسة، مندي، مشاوي..."
+          />
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-2">الخيارات</label>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={optionInput}
+                onChange={(e) => setOptionInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOption(); } }}
+                placeholder="اكتب خياراً واضغط Enter أو إضافة..."
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button type="button" variant="outline" onClick={addOption} size="sm">
+                <Plus size={14} />
+              </Button>
+            </div>
+            {formOptions.length === 0 ? (
+              <p className="text-xs text-slate-400">لا توجد خيارات — الصنف سيُضاف بدون خيارات</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {formOptions.map((opt) => (
+                  <span
+                    key={opt}
+                    className="flex items-center gap-1 bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full font-medium"
+                  >
+                    {opt}
+                    <button
+                      type="button"
+                      onClick={() => setFormOptions((prev) => prev.filter((o) => o !== opt))}
+                      className="text-blue-400 hover:text-red-500 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>إلغاء</Button>
+            <Button onClick={handleSave} loading={saving} disabled={!formName.trim()}>
+              {editTarget ? "حفظ التغييرات" : "إضافة الصنف"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="حذف الصنف"
+        message={`هل أنت متأكد من حذف صنف "${deleteTarget?.name}"؟`}
+        confirmLabel="حذف"
+        loading={saving}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,20 @@
+{
+  "name": "نظام إدارة الحفلات",
+  "short_name": "إدارة الحفلات",
+  "description": "نظام متكامل لإدارة الحفلات والفعاليات",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e40af",
+  "orientation": "portrait-primary",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
