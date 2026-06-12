@@ -85,24 +85,6 @@ export default function WarehouseManagerWarehousePage() {
 
   const filtered = filterType ? items.filter((i) => i.type === filterType) : items;
 
-  const FormContent = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Input label="اسم المادة" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="مثال: كرسي، طاولة..." />
-      <div className="grid grid-cols-2 gap-3">
-        <Input label="الإجمالي" type="number" min={1} value={form.totalCount} onChange={(e) => setForm({ ...form, totalCount: e.target.value })} required />
-        <Input label="المتوفر" type="number" min={0} value={form.availableCount} onChange={(e) => setForm({ ...form, availableCount: e.target.value })} required />
-      </div>
-      <Select label="النوع" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}>
-        <option value="internal">داخلي (من المخزن)</option>
-        <option value="external">خارجي (مستأجر)</option>
-      </Select>
-      <div className="flex gap-3 justify-end pt-2">
-        <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>إلغاء</Button>
-        <Button type="submit" loading={saving}>{editTarget ? "حفظ" : "إضافة"}</Button>
-      </div>
-    </form>
-  );
-
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -163,8 +145,40 @@ export default function WarehouseManagerWarehousePage() {
         </div>
       )}
 
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="إضافة مادة جديد"><FormContent /></Modal>
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="تعديل المادة"><FormContent /></Modal>
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="إضافة مادة جديد">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input label="اسم المادة" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="مثال: كرسي، طاولة..." />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="الإجمالي" type="number" min={1} value={form.totalCount} onChange={(e) => setForm({ ...form, totalCount: e.target.value })} required />
+            <Input label="المتوفر" type="number" min={0} value={form.availableCount} onChange={(e) => setForm({ ...form, availableCount: e.target.value })} required />
+          </div>
+          <Select label="النوع" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}>
+            <option value="internal">داخلي (من المخزن)</option>
+            <option value="external">خارجي (مستأجر)</option>
+          </Select>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>إلغاء</Button>
+            <Button type="submit" loading={saving}>إضافة</Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="تعديل المادة">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input label="اسم المادة" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="مثال: كرسي، طاولة..." />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="الإجمالي" type="number" min={1} value={form.totalCount} onChange={(e) => setForm({ ...form, totalCount: e.target.value })} required />
+            <Input label="المتوفر" type="number" min={0} value={form.availableCount} onChange={(e) => setForm({ ...form, availableCount: e.target.value })} required />
+          </div>
+          <Select label="النوع" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}>
+            <option value="internal">داخلي (من المخزن)</option>
+            <option value="external">خارجي (مستأجر)</option>
+          </Select>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>إلغاء</Button>
+            <Button type="submit" loading={saving}>حفظ</Button>
+          </div>
+        </form>
+      </Modal>
       <ConfirmModal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="حذف المادة" message={`هل أنت متأكد من حذف "${deleteTarget?.name}"؟`} confirmLabel="حذف" loading={saving} />
     </div>
   );
