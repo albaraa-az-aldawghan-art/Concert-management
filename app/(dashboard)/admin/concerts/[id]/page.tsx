@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, markConcertAsPaid } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, markConcertAsPaid, updateDeposit } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
@@ -34,6 +34,8 @@ export default function AdminConcertDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const [showConfirmPay, setShowConfirmPay] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [additionalDeposit, setAdditionalDeposit] = useState("");
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
@@ -102,6 +104,29 @@ export default function AdminConcertDetailPage() {
       await deleteConcertFood(deleteFoodTarget.id);
       showToast("تم حذف الصنف من الحفلة");
       setDeleteFoodTarget(null);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddDeposit() {
+    if (!concert || !additionalDeposit) return;
+    const added = parseFloat(additionalDeposit);
+    if (isNaN(added) || added <= 0) return;
+    const newTotal = (concert.deposit ?? 0) + added;
+    if (newTotal > concert.price) {
+      showToast("العربون لا يتجاوز سعر الحفلة", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateDeposit(concert.id, newTotal);
+      showToast("تم تحديث العربون");
+      setShowDepositModal(false);
+      setAdditionalDeposit("");
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -260,7 +285,17 @@ export default function AdminConcertDetailPage() {
             <p className="font-bold text-slate-800 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
           </div>
           <div className="bg-blue-50 rounded-xl px-4 py-3">
-            <p className="text-xs text-slate-400 mb-0.5">العربون المدفوع</p>
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-xs text-slate-400">العربون المدفوع</p>
+              {!concert.isPaid && (
+                <button
+                  onClick={() => { setAdditionalDeposit(""); setShowDepositModal(true); }}
+                  className="text-xs text-blue-600 hover:underline font-medium"
+                >
+                  تعديل
+                </button>
+              )}
+            </div>
             <p className="font-bold text-blue-700 text-lg">
               {concert.deposit ? `${concert.deposit.toLocaleString("ar-SA")} ريال` : "—"}
             </p>
@@ -484,6 +519,51 @@ export default function AdminConcertDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Deposit Modal */}
+      <Modal open={showDepositModal} onClose={() => setShowDepositModal(false)} title="تعديل العربون">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-400 mb-0.5">العربون الحالي</p>
+              <p className="font-bold text-slate-800">{(concert.deposit ?? 0).toLocaleString("ar-SA")} ريال</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-400 mb-0.5">المتبقي الحالي</p>
+              <p className="font-bold text-orange-700">{((concert.price ?? 0) - (concert.deposit ?? 0)).toLocaleString("ar-SA")} ريال</p>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">المبلغ الإضافي المدفوع (ريال)</label>
+            <input
+              type="number"
+              min={1}
+              step="0.01"
+              value={additionalDeposit}
+              onChange={(e) => setAdditionalDeposit(e.target.value)}
+              placeholder="مثال: 500"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+          </div>
+          {additionalDeposit && parseFloat(additionalDeposit) > 0 && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm">
+              <div className="flex justify-between mb-1">
+                <span className="text-slate-500">العربون الجديد</span>
+                <span className="font-bold text-blue-700">{((concert.deposit ?? 0) + parseFloat(additionalDeposit)).toLocaleString("ar-SA")} ريال</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">المبلغ المتبقي</span>
+                <span className="font-bold text-orange-700">{((concert.price ?? 0) - (concert.deposit ?? 0) - parseFloat(additionalDeposit)).toLocaleString("ar-SA")} ريال</span>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowDepositModal(false)}>إلغاء</Button>
+            <Button onClick={handleAddDeposit} loading={saving} disabled={!additionalDeposit || parseFloat(additionalDeposit) <= 0}>تأكيد</Button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmModal
         open={showConfirmPay}

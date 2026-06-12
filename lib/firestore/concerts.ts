@@ -125,6 +125,10 @@ export async function supervisorDeliverToWarehouse(concertId: string, uid: strin
   });
 }
 
+export async function updateDeposit(concertId: string, newDeposit: number) {
+  await updateDoc(doc(db, "concerts", concertId), { deposit: newDeposit });
+}
+
 export async function markConcertAsPaid(concertId: string, uid: string) {
   await updateDoc(doc(db, "concerts", concertId), {
     isPaid: true,
