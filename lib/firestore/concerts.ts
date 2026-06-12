@@ -17,12 +17,13 @@ import { Concert, ConcertItem } from "@/types";
 import { WarehouseRequest } from "@/types";
 
 export async function createConcert(
-  data: Omit<Concert, "id" | "createdAt" | "deliveryApproved" | "deliveryApprovedBy" | "deliveryApprovedAt" | "returnApproved" | "returnApprovedBy" | "returnApprovedAt" | "supervisorDeliveredToWarehouse" | "supervisorDeliveredToWarehouseAt" | "warehouseReturnConfirmed" | "warehouseReturnConfirmedBy" | "warehouseReturnConfirmedAt">
+  data: Omit<Concert, "id" | "createdAt" | "deliveryApproved" | "deliveryApprovedBy" | "deliveryApprovedAt" | "returnApproved" | "returnApprovedBy" | "returnApprovedAt" | "supervisorDeliveredToWarehouse" | "supervisorDeliveredToWarehouseAt" | "warehouseReturnConfirmed" | "warehouseReturnConfirmedBy" | "warehouseReturnConfirmedAt" | "isPaid" | "paidAt" | "paidBy">
 ): Promise<Concert> {
   const ref = await addDoc(collection(db, "concerts"), {
     ...data,
     location: data.location ?? null,
     price: data.price,
+    deposit: data.deposit ?? null,
     clientName: data.clientName ?? null,
     clientPhone: data.clientPhone ?? null,
     clientPhone2: data.clientPhone2 ?? null,
@@ -38,6 +39,9 @@ export async function createConcert(
     warehouseReturnConfirmed: false,
     warehouseReturnConfirmedBy: null,
     warehouseReturnConfirmedAt: null,
+    isPaid: false,
+    paidAt: null,
+    paidBy: null,
     createdAt: Timestamp.now(),
   });
   const snap = await getDoc(ref);
@@ -118,6 +122,14 @@ export async function supervisorDeliverToWarehouse(concertId: string, uid: strin
   await updateDoc(doc(db, "concerts", concertId), {
     supervisorDeliveredToWarehouse: true,
     supervisorDeliveredToWarehouseAt: Timestamp.now(),
+  });
+}
+
+export async function markConcertAsPaid(concertId: string, uid: string) {
+  await updateDoc(doc(db, "concerts", concertId), {
+    isPaid: true,
+    paidAt: Timestamp.now(),
+    paidBy: uid,
   });
 }
 

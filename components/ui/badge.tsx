@@ -45,6 +45,8 @@ export function StatusBadge({ status }: { status: string }) {
     has_missing: { label: "به مفقودات", variant: "red" },
     internal: { label: "داخلي", variant: "indigo" },
     external: { label: "خارجي", variant: "orange" },
+    paid: { label: "تم الدفع", variant: "green" },
+    unpaid: { label: "لم يُدفع بعد", variant: "yellow" },
   };
 
   const c = config[status] ?? { label: status, variant: "gray" as BadgeVariant };

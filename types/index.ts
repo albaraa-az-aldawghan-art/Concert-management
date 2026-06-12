@@ -51,6 +51,10 @@ export interface Concert {
   warehouseReturnConfirmed: boolean;
   warehouseReturnConfirmedBy: string | null;
   warehouseReturnConfirmedAt: Timestamp | null;
+  deposit: number | null;
+  isPaid: boolean;
+  paidAt: Timestamp | null;
+  paidBy: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }

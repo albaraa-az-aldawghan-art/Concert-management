@@ -50,6 +50,7 @@ export default function NewConcertPage() {
     name: "",
     date: "",
     price: "",
+    deposit: "",
     clientName: "",
     clientPhone: "",
     clientPhone2: "",
@@ -152,6 +153,7 @@ export default function NewConcertPage() {
         name: form.name,
         date: Timestamp.fromDate(new Date(form.date)),
         price: parseFloat(form.price),
+        deposit: form.deposit ? parseFloat(form.deposit) : null,
         location,
         clientName: form.clientName || null,
         clientPhone: form.clientPhone || null,
@@ -234,6 +236,15 @@ export default function NewConcertPage() {
                 placeholder="0.00"
               />
             </div>
+            <Input
+              label="العربون (ريال)"
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.deposit}
+              onChange={(e) => setForm({ ...form, deposit: e.target.value })}
+              placeholder="0.00 (اختياري)"
+            />
             <Input
               label="اسم العميل"
               value={form.clientName}

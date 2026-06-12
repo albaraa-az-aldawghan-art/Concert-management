@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, markConcertAsPaid } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
@@ -15,7 +15,7 @@ import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminConcertDetailPage() {
@@ -32,6 +32,8 @@ export default function AdminConcertDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteItemTarget, setDeleteItemTarget] = useState<ConcertItem | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [showConfirmPay, setShowConfirmPay] = useState(false);
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
@@ -100,6 +102,21 @@ export default function AdminConcertDetailPage() {
       await deleteConcertFood(deleteFoodTarget.id);
       showToast("تم حذف الصنف من الحفلة");
       setDeleteFoodTarget(null);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleMarkAsPaid() {
+    if (!appUser || !concert) return;
+    setSaving(true);
+    try {
+      await markConcertAsPaid(concert.id, appUser.uid);
+      showToast("تم تسجيل الدفع الكامل");
+      setShowConfirmPay(false);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -227,6 +244,47 @@ export default function AdminConcertDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Payment */}
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-slate-700">
+            <Banknote size={16} className="text-emerald-600" />
+            <span className="font-bold">الدفع</span>
+          </div>
+          <StatusBadge status={concert.isPaid ? "paid" : "unpaid"} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="bg-slate-50 rounded-xl px-4 py-3">
+            <p className="text-xs text-slate-400 mb-0.5">السعر الكلي</p>
+            <p className="font-bold text-slate-800 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl px-4 py-3">
+            <p className="text-xs text-slate-400 mb-0.5">العربون المدفوع</p>
+            <p className="font-bold text-blue-700 text-lg">
+              {concert.deposit ? `${concert.deposit.toLocaleString("ar-SA")} ريال` : "—"}
+            </p>
+          </div>
+          <div className={`rounded-xl px-4 py-3 ${concert.isPaid ? "bg-green-50" : "bg-orange-50"}`}>
+            <p className="text-xs text-slate-400 mb-0.5">المبلغ المتبقي</p>
+            <p className={`font-bold text-lg ${concert.isPaid ? "text-green-700 line-through" : "text-orange-700"}`}>
+              {concert.isPaid
+                ? "مدفوع بالكامل"
+                : `${((concert.price ?? 0) - (concert.deposit ?? 0)).toLocaleString("ar-SA")} ريال`}
+            </p>
+          </div>
+        </div>
+        {concert.isPaid ? (
+          <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+            <CheckCircle2 size={16} />
+            <span className="text-sm font-medium">تم تسجيل الدفع الكامل — {formatDateTime(concert.paidAt)}</span>
+          </div>
+        ) : (
+          <Button onClick={() => setShowConfirmPay(true)} className="w-full sm:w-auto">
+            <CheckCircle2 size={16} /> تسجيل الدفع الكامل
+          </Button>
+        )}
+      </Card>
 
       {/* Approvals */}
       <Card>
@@ -426,6 +484,16 @@ export default function AdminConcertDetailPage() {
           </div>
         </Card>
       )}
+
+      <ConfirmModal
+        open={showConfirmPay}
+        onClose={() => setShowConfirmPay(false)}
+        onConfirm={handleMarkAsPaid}
+        title="تأكيد الدفع الكامل"
+        message={`هل تأكد أن العميل دفع المبلغ الكامل (${concert.price?.toLocaleString("ar-SA")} ريال)؟ لا يمكن التراجع عن هذا الإجراء.`}
+        confirmLabel="تأكيد الدفع"
+        loading={saving}
+      />
 
       <ConfirmModal
         open={!!deleteItemTarget}
