@@ -114,6 +114,22 @@ export interface ConcertFood {
   createdBy: string;
 }
 
+export type PaymentMethod = "card" | "cash" | "bank_transfer";
+
+export interface ConcertPayment {
+  id: string;
+  concertId: string;
+  method: PaymentMethod;
+  amount: number;
+  date: string;
+  cardType: "visa" | "mada" | null;
+  receiverName: string | null;
+  bankName: string | null;
+  senderName: string | null;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
 export interface MissingItem {
   id: string;
   concertId: string;

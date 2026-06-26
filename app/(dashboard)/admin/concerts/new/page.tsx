@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createConcert, addConcertItem } from "@/lib/firestore/concerts";
+import { createConcert, addConcertItem, addConcertPaymentRecord } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUsersByRole } from "@/lib/firestore/users";
 import { getFoodCategories, addConcertFood } from "@/lib/firestore/food";
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { WarehouseItem, AppUser, FoodCategory } from "@/types";
+import { WarehouseItem, AppUser, FoodCategory, PaymentMethod } from "@/types";
 import { Timestamp } from "firebase/firestore";
-import { Plus, Trash2, Package, UtensilsCrossed } from "lucide-react";
+import { Plus, Trash2, Package, UtensilsCrossed, CreditCard, Banknote, Landmark } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const LocationPickerDynamic = dynamic(
@@ -27,6 +27,28 @@ interface SelectedItem {
   itemName: string;
   type: "internal" | "external";
   count: number;
+}
+
+interface PaymentEntry {
+  method: PaymentMethod;
+  amount: number;
+  date: string;
+  cardType: "visa" | "mada" | null;
+  receiverName: string | null;
+  bankName: string | null;
+  senderName: string | null;
+}
+
+const METHOD_LABELS: Record<PaymentMethod, string> = {
+  card: "شبكة",
+  cash: "كاش",
+  bank_transfer: "تحويل بنكي",
+};
+
+function getPaymentDetail(p: PaymentEntry): string {
+  if (p.method === "card") return p.cardType === "visa" ? "فيزا" : "مدى";
+  if (p.method === "cash") return p.receiverName || "";
+  return [p.bankName, p.senderName].filter(Boolean).join(" — ");
 }
 
 interface Location {
@@ -65,6 +87,17 @@ export default function NewConcertPage() {
   const [selectedFood, setSelectedFood] = useState<{ categoryId: string; categoryName: string; selectedOption: string; quantity: string; notes: string }[]>([]);
   const [foodForm, setFoodForm] = useState({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
 
+  const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
+  const [paymentForm, setPaymentForm] = useState({
+    method: "card" as PaymentMethod,
+    amount: "",
+    date: "",
+    cardType: "visa" as "visa" | "mada",
+    receiverName: "",
+    bankName: "",
+    senderName: "",
+  });
+
   useEffect(() => {
     async function load() {
       const [items, sups, emps, foodCats] = await Promise.all([
@@ -80,6 +113,21 @@ export default function NewConcertPage() {
     }
     load();
   }, []);
+
+  function addPaymentEntry() {
+    if (!paymentForm.amount || !paymentForm.date) return;
+    const entry: PaymentEntry = {
+      method: paymentForm.method,
+      amount: parseFloat(paymentForm.amount),
+      date: paymentForm.date,
+      cardType: paymentForm.method === "card" ? paymentForm.cardType : null,
+      receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
+      bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
+      senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
+    };
+    setPaymentEntries((prev) => [...prev, entry]);
+    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
+  }
 
   function addFoodItem() {
     const cat = foodCategories.find((c) => c.id === foodForm.categoryId);
@@ -149,11 +197,13 @@ export default function NewConcertPage() {
 
     setSaving(true);
     try {
+      const depositTotal = paymentEntries.reduce((sum, p) => sum + p.amount, 0);
+
       const concert = await createConcert({
         name: form.name,
         date: Timestamp.fromDate(new Date(form.date)),
         price: parseFloat(form.price),
-        deposit: form.deposit ? parseFloat(form.deposit) : null,
+        deposit: depositTotal > 0 ? depositTotal : (form.deposit ? parseFloat(form.deposit) : null),
         location,
         clientName: form.clientName || null,
         clientPhone: form.clientPhone || null,
@@ -184,6 +234,19 @@ export default function NewConcertPage() {
             selectedOption: f.selectedOption,
             quantity: f.quantity ? parseInt(f.quantity) : null,
             notes: f.notes.trim() || null,
+            createdBy: appUser.uid,
+          })
+        ),
+        ...paymentEntries.map((p) =>
+          addConcertPaymentRecord({
+            concertId: concert.id,
+            method: p.method,
+            amount: p.amount,
+            date: p.date,
+            cardType: p.cardType,
+            receiverName: p.receiverName,
+            bankName: p.bankName,
+            senderName: p.senderName,
             createdBy: appUser.uid,
           })
         ),
@@ -245,7 +308,7 @@ export default function NewConcertPage() {
               onChange={(e) => setForm({ ...form, deposit: e.target.value })}
               placeholder="0.00 (اختياري)"
             />
-            {form.price && form.deposit && parseFloat(form.price) > 0 && (
+            {form.price && parseFloat(form.price) > 0 && paymentEntries.length === 0 && form.deposit && (
               <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-sm">
                 <span className="text-slate-500 font-medium">المبلغ المتبقي</span>
                 <span className="font-bold text-orange-700 text-base">
@@ -281,6 +344,126 @@ export default function NewConcertPage() {
         {/* Map */}
         <Card>
           <LocationPickerDynamic value={location} onChange={setLocation} />
+        </Card>
+
+        {/* Payment Methods */}
+        <Card>
+          <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+            <Banknote size={16} className="text-emerald-600" />
+            طريقة الدفع
+            <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
+          </h3>
+
+          {/* Method Tabs */}
+          <div className="flex gap-2 mb-4">
+            {(["card", "cash", "bank_transfer"] as PaymentMethod[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentForm({ ...paymentForm, method: m })}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                  paymentForm.method === m
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {m === "card" && <CreditCard size={14} />}
+                {m === "cash" && <Banknote size={14} />}
+                {m === "bank_transfer" && <Landmark size={14} />}
+                {METHOD_LABELS[m]}
+              </button>
+            ))}
+          </div>
+
+          {/* Method-specific fields */}
+          <div className="space-y-3 mb-3">
+            {paymentForm.method === "card" && (
+              <Select
+                label="نوع الكارد"
+                value={paymentForm.cardType}
+                onChange={(e) => setPaymentForm({ ...paymentForm, cardType: e.target.value as "visa" | "mada" })}
+              >
+                <option value="visa">فيزا</option>
+                <option value="mada">مدى</option>
+              </Select>
+            )}
+            {paymentForm.method === "cash" && (
+              <Input
+                label="اسم المستلم"
+                value={paymentForm.receiverName}
+                onChange={(e) => setPaymentForm({ ...paymentForm, receiverName: e.target.value })}
+                placeholder="اسم الشخص المستلم للمبلغ"
+              />
+            )}
+            {paymentForm.method === "bank_transfer" && (
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="اسم البنك"
+                  value={paymentForm.bankName}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })}
+                  placeholder="مثال: الراجحي"
+                />
+                <Input
+                  label="اسم المحول"
+                  value={paymentForm.senderName}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, senderName: e.target.value })}
+                  placeholder="اسم المحول"
+                />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="المبلغ (ريال)"
+                type="number"
+                min={1}
+                step="0.01"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                placeholder="0.00"
+              />
+              <Input
+                label="التاريخ"
+                type="date"
+                value={paymentForm.date}
+                onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <Button type="button" variant="outline" onClick={addPaymentEntry} disabled={!paymentForm.amount || !paymentForm.date} className="w-full mb-3">
+            <Plus size={16} /> إضافة دفعة
+          </Button>
+
+          {paymentEntries.length > 0 && (
+            <div className="space-y-2">
+              {paymentEntries.map((p, i) => (
+                <div key={i} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5">
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{METHOD_LABELS[p.method]}</span>
+                      <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("ar-SA")} ريال</span>
+                    </div>
+                    <p className="text-xs text-slate-400">{p.date}{getPaymentDetail(p) ? ` — ${getPaymentDetail(p)}` : ""}</p>
+                  </div>
+                  <button type="button" onClick={() => setPaymentEntries((prev) => prev.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <div className="flex justify-between px-1 pt-1 text-sm">
+                <span className="text-slate-500">إجمالي الدفعات</span>
+                <span className="font-bold text-emerald-700">{paymentEntries.reduce((s, p) => s + p.amount, 0).toLocaleString("ar-SA")} ريال</span>
+              </div>
+              {form.price && parseFloat(form.price) > 0 && (
+                <div className="flex justify-between px-1 text-sm">
+                  <span className="text-slate-500">المتبقي</span>
+                  <span className="font-bold text-orange-700">
+                    {(parseFloat(form.price) - paymentEntries.reduce((s, p) => s + p.amount, 0)).toLocaleString("ar-SA")} ريال
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Items */}

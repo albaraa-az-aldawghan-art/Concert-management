@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { increaseAvailableCount } from "@/lib/firestore/warehouse";
-import { Concert, ConcertItem } from "@/types";
+import { Concert, ConcertItem, ConcertPayment } from "@/types";
 import { WarehouseRequest } from "@/types";
 
 export async function createConcert(
@@ -152,6 +152,38 @@ export async function confirmWarehouseReturn(concertId: string, uid: string) {
     warehouseReturnConfirmedBy: uid,
     warehouseReturnConfirmedAt: Timestamp.now(),
   });
+}
+
+// Concert Payments
+export async function getConcertPayments(concertId: string): Promise<ConcertPayment[]> {
+  const snap = await getDocs(
+    query(collection(db, "concert_payments"), where("concertId", "==", concertId))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as ConcertPayment))
+    .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+}
+
+export async function addConcertPayment(
+  data: Omit<ConcertPayment, "id" | "createdAt">
+): Promise<void> {
+  await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
+  const payments = await getConcertPayments(data.concertId);
+  const total = payments.reduce((sum, p) => sum + p.amount, 0);
+  await updateDoc(doc(db, "concerts", data.concertId), { deposit: total });
+}
+
+export async function addConcertPaymentRecord(
+  data: Omit<ConcertPayment, "id" | "createdAt">
+): Promise<void> {
+  await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
+}
+
+export async function deleteConcertPayment(paymentId: string, concertId: string): Promise<void> {
+  await deleteDoc(doc(db, "concert_payments", paymentId));
+  const payments = await getConcertPayments(concertId);
+  const total = payments.reduce((sum, p) => sum + p.amount, 0);
+  await updateDoc(doc(db, "concerts", concertId), { deposit: total });
 }
 
 // Concert Items

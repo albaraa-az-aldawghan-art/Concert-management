@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, markConcertAsPaid, updateDeposit } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, markConcertAsPaid, getConcertPayments, addConcertPayment, deleteConcertPayment } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
@@ -13,9 +13,21 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CheckCircle2 } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CheckCircle2, CreditCard, Landmark } from "lucide-react";
+
+const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
+const METHOD_COLORS: Record<PaymentMethod, string> = {
+  card: "bg-blue-100 text-blue-700",
+  cash: "bg-green-100 text-green-700",
+  bank_transfer: "bg-purple-100 text-purple-700",
+};
+function getPaymentDetail(p: ConcertPayment): string {
+  if (p.method === "card") return p.cardType === "visa" ? "فيزا" : "مدى";
+  if (p.method === "cash") return p.receiverName || "";
+  return [p.bankName, p.senderName].filter(Boolean).join(" — ");
+}
 import Link from "next/link";
 
 export default function AdminConcertDetailPage() {
@@ -34,8 +46,18 @@ export default function AdminConcertDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const [showConfirmPay, setShowConfirmPay] = useState(false);
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [additionalDeposit, setAdditionalDeposit] = useState("");
+  const [payments, setPayments] = useState<ConcertPayment[]>([]);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState<ConcertPayment | null>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    method: "card" as PaymentMethod,
+    amount: "",
+    date: "",
+    cardType: "visa" as "visa" | "mada",
+    receiverName: "",
+    bankName: "",
+    senderName: "",
+  });
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
@@ -49,18 +71,20 @@ export default function AdminConcertDetailPage() {
 
   async function loadData() {
     setLoading(true);
-    const [concertData, itemsData, missingData, foodCats, foodItems] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id),
       getMissingItemsByConcert(id),
       getFoodCategories(),
       getConcertFood(id),
+      getConcertPayments(id),
     ]);
     setConcert(concertData);
     setItems(itemsData);
     setMissing(missingData);
     setFoodCategories(foodCats);
     setConcertFood(foodItems);
+    setPayments(paymentsData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
@@ -112,21 +136,41 @@ export default function AdminConcertDetailPage() {
     }
   }
 
-  async function handleAddDeposit() {
-    if (!concert || !additionalDeposit) return;
-    const added = parseFloat(additionalDeposit);
-    if (isNaN(added) || added <= 0) return;
-    const newTotal = (concert.deposit ?? 0) + added;
-    if (newTotal > concert.price) {
-      showToast("العربون لا يتجاوز سعر الحفلة", "error");
-      return;
-    }
+  async function handleAddPayment() {
+    if (!appUser || !concert || !paymentForm.amount || !paymentForm.date) return;
+    const amt = parseFloat(paymentForm.amount);
+    if (isNaN(amt) || amt <= 0) return;
     setSaving(true);
     try {
-      await updateDeposit(concert.id, newTotal);
-      showToast("تم تحديث العربون");
-      setShowDepositModal(false);
-      setAdditionalDeposit("");
+      await addConcertPayment({
+        concertId: concert.id,
+        method: paymentForm.method,
+        amount: amt,
+        date: paymentForm.date,
+        cardType: paymentForm.method === "card" ? paymentForm.cardType : null,
+        receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
+        bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
+        senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
+        createdBy: appUser.uid,
+      });
+      showToast("تمت إضافة الدفعة");
+      setShowPaymentForm(false);
+      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeletePayment() {
+    if (!deletePaymentTarget || !concert) return;
+    setSaving(true);
+    try {
+      await deleteConcertPayment(deletePaymentTarget.id, concert.id);
+      showToast("تم حذف الدفعة");
+      setDeletePaymentTarget(null);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -285,17 +329,7 @@ export default function AdminConcertDetailPage() {
             <p className="font-bold text-slate-800 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
           </div>
           <div className="bg-blue-50 rounded-xl px-4 py-3">
-            <div className="flex items-center justify-between mb-0.5">
-              <p className="text-xs text-slate-400">العربون المدفوع</p>
-              {!concert.isPaid && (
-                <button
-                  onClick={() => { setAdditionalDeposit(""); setShowDepositModal(true); }}
-                  className="text-xs text-blue-600 hover:underline font-medium"
-                >
-                  تعديل
-                </button>
-              )}
-            </div>
+            <p className="text-xs text-slate-400 mb-0.5">إجمالي المدفوع</p>
             <p className="font-bold text-blue-700 text-lg">
               {concert.deposit ? `${concert.deposit.toLocaleString("ar-SA")} ريال` : "—"}
             </p>
@@ -310,14 +344,51 @@ export default function AdminConcertDetailPage() {
           </div>
         </div>
         {concert.isPaid ? (
-          <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 mb-4">
             <CheckCircle2 size={16} />
             <span className="text-sm font-medium">تم تسجيل الدفع الكامل — {formatDateTime(concert.paidAt)}</span>
           </div>
         ) : (
-          <Button onClick={() => setShowConfirmPay(true)} className="w-full sm:w-auto">
-            <CheckCircle2 size={16} /> تسجيل الدفع الكامل
-          </Button>
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <Button onClick={() => setShowPaymentForm(true)} variant="outline">
+              <Plus size={16} /> إضافة دفعة
+            </Button>
+            <Button onClick={() => setShowConfirmPay(true)}>
+              <CheckCircle2 size={16} /> تسجيل الدفع الكامل
+            </Button>
+          </div>
+        )}
+
+        {/* Payment Records */}
+        {payments.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 mb-2">سجل الدفعات</p>
+            {payments.map((p) => (
+              <div key={p.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    {p.method === "card" && <CreditCard size={13} className="text-blue-500" />}
+                    {p.method === "cash" && <Banknote size={13} className="text-green-500" />}
+                    {p.method === "bank_transfer" && <Landmark size={13} className="text-purple-500" />}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${METHOD_COLORS[p.method]}`}>{METHOD_LABELS[p.method]}</span>
+                    <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("ar-SA")} ريال</span>
+                  </div>
+                  <p className="text-xs text-slate-400 pr-5">
+                    {p.date}
+                    {getPaymentDetail(p) && ` — ${getPaymentDetail(p)}`}
+                  </p>
+                </div>
+                {!concert.isPaid && (
+                  <button
+                    onClick={() => setDeletePaymentTarget(p)}
+                    className="text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </Card>
 
@@ -520,50 +591,94 @@ export default function AdminConcertDetailPage() {
         </Card>
       )}
 
-      {/* Deposit Modal */}
-      <Modal open={showDepositModal} onClose={() => setShowDepositModal(false)} title="تعديل العربون">
+      {/* Add Payment Modal */}
+      <Modal open={showPaymentForm} onClose={() => setShowPaymentForm(false)} title="إضافة دفعة">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-slate-50 rounded-xl px-4 py-3">
-              <p className="text-xs text-slate-400 mb-0.5">العربون الحالي</p>
-              <p className="font-bold text-slate-800">{(concert.deposit ?? 0).toLocaleString("ar-SA")} ريال</p>
-            </div>
-            <div className="bg-slate-50 rounded-xl px-4 py-3">
-              <p className="text-xs text-slate-400 mb-0.5">المتبقي الحالي</p>
-              <p className="font-bold text-orange-700">{((concert.price ?? 0) - (concert.deposit ?? 0)).toLocaleString("ar-SA")} ريال</p>
-            </div>
+          {/* Method Tabs */}
+          <div className="flex gap-2">
+            {(["card", "cash", "bank_transfer"] as PaymentMethod[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentForm({ ...paymentForm, method: m })}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                  paymentForm.method === m
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {m === "card" && <CreditCard size={14} />}
+                {m === "cash" && <Banknote size={14} />}
+                {m === "bank_transfer" && <Landmark size={14} />}
+                {METHOD_LABELS[m]}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700 block mb-1.5">المبلغ الإضافي المدفوع (ريال)</label>
-            <input
-              type="number"
-              min={1}
-              step="0.01"
-              value={additionalDeposit}
-              onChange={(e) => setAdditionalDeposit(e.target.value)}
-              placeholder="مثال: 500"
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
-          {additionalDeposit && parseFloat(additionalDeposit) > 0 && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm">
-              <div className="flex justify-between mb-1">
-                <span className="text-slate-500">العربون الجديد</span>
-                <span className="font-bold text-blue-700">{((concert.deposit ?? 0) + parseFloat(additionalDeposit)).toLocaleString("ar-SA")} ريال</span>
+
+          {paymentForm.method === "card" && (
+            <Select label="نوع الكارد" value={paymentForm.cardType} onChange={(e) => setPaymentForm({ ...paymentForm, cardType: e.target.value as "visa" | "mada" })}>
+              <option value="visa">فيزا</option>
+              <option value="mada">مدى</option>
+            </Select>
+          )}
+          {paymentForm.method === "cash" && (
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">اسم المستلم</label>
+              <input type="text" value={paymentForm.receiverName} onChange={(e) => setPaymentForm({ ...paymentForm, receiverName: e.target.value })} placeholder="اسم الشخص المستلم" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          )}
+          {paymentForm.method === "bank_transfer" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">اسم البنك</label>
+                <input type="text" value={paymentForm.bankName} onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })} placeholder="مثال: الراجحي" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">المبلغ المتبقي</span>
-                <span className="font-bold text-orange-700">{((concert.price ?? 0) - (concert.deposit ?? 0) - parseFloat(additionalDeposit)).toLocaleString("ar-SA")} ريال</span>
+              <div>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">اسم المحول</label>
+                <input type="text" value={paymentForm.senderName} onChange={(e) => setPaymentForm({ ...paymentForm, senderName: e.target.value })} placeholder="اسم المحول" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">المبلغ (ريال)</label>
+              <input type="number" min={1} step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">التاريخ</label>
+              <input type="date" value={paymentForm.date} onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          {paymentForm.amount && concert && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">المتبقي بعد الدفعة</span>
+                <span className="font-bold text-orange-700">
+                  {((concert.price ?? 0) - (concert.deposit ?? 0) - parseFloat(paymentForm.amount || "0")).toLocaleString("ar-SA")} ريال
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 justify-end pt-1">
-            <Button variant="secondary" type="button" onClick={() => setShowDepositModal(false)}>إلغاء</Button>
-            <Button onClick={handleAddDeposit} loading={saving} disabled={!additionalDeposit || parseFloat(additionalDeposit) <= 0}>تأكيد</Button>
+            <Button variant="secondary" type="button" onClick={() => setShowPaymentForm(false)}>إلغاء</Button>
+            <Button onClick={handleAddPayment} loading={saving} disabled={!paymentForm.amount || !paymentForm.date}>تأكيد الدفعة</Button>
           </div>
         </div>
       </Modal>
+
+      {/* Delete Payment */}
+      <ConfirmModal
+        open={!!deletePaymentTarget}
+        onClose={() => setDeletePaymentTarget(null)}
+        onConfirm={handleDeletePayment}
+        title="حذف الدفعة"
+        message={`هل أنت متأكد من حذف دفعة بمبلغ ${deletePaymentTarget?.amount.toLocaleString("ar-SA")} ريال؟`}
+        confirmLabel="حذف"
+        loading={saving}
+      />
 
       <ConfirmModal
         open={showConfirmPay}
