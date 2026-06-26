@@ -86,7 +86,7 @@ export default function AdminConcertDetailPage() {
         notes: foodForm.notes.trim() || null,
         createdBy: appUser.uid,
       });
-      showToast("تم إضافة الصنف للحفلة");
+      showToast("تم إضافة قسم المأكولات للحفلة");
       setShowFoodForm(false);
       setFoodForm({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
       loadData();
@@ -102,7 +102,7 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       await deleteConcertFood(deleteFoodTarget.id);
-      showToast("تم حذف الصنف من الحفلة");
+      showToast("تم حذف قسم المأكولات من الحفلة");
       setDeleteFoodTarget(null);
       loadData();
     } catch {
@@ -586,14 +586,14 @@ export default function AdminConcertDetailPage() {
       />
 
       {/* Add Food Modal */}
-      <Modal open={showFoodForm} onClose={() => setShowFoodForm(false)} title="إضافة صنف أكل للحفلة">
+      <Modal open={showFoodForm} onClose={() => setShowFoodForm(false)} title="إضافة قسم مأكولات للحفلة">
         <div className="space-y-4">
           <Select
-            label="الصنف"
+            label="قسم المأكولات"
             value={foodForm.categoryId}
             onChange={(e) => setFoodForm({ ...foodForm, categoryId: e.target.value, selectedOption: "" })}
             required
-            placeholder="اختر صنفاً..."
+            placeholder="اختر قسم مأكولات..."
           >
             {foodCategories.map((cat) => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -605,11 +605,11 @@ export default function AdminConcertDetailPage() {
             if (!cat || cat.options.length === 0) return null;
             return (
               <Select
-                label="الخيار"
+                label="الصنف"
                 value={foodForm.selectedOption}
                 onChange={(e) => setFoodForm({ ...foodForm, selectedOption: e.target.value })}
                 required
-                placeholder="اختر خياراً..."
+                placeholder="اختر صنفاً..."
               >
                 {cat.options.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -659,7 +659,7 @@ export default function AdminConcertDetailPage() {
         open={!!deleteFoodTarget}
         onClose={() => setDeleteFoodTarget(null)}
         onConfirm={handleDeleteFood}
-        title="حذف صنف الأكل"
+        title="حذف قسم المأكولات"
         message={`هل أنت متأكد من حذف "${deleteFoodTarget?.categoryName} — ${deleteFoodTarget?.selectedOption}" من الحفلة؟`}
         confirmLabel="حذف"
         loading={saving}

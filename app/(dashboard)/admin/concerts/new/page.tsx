@@ -360,7 +360,7 @@ export default function NewConcertPage() {
                 <Select
                   value={foodForm.categoryId}
                   onChange={(e) => setFoodForm({ ...foodForm, categoryId: e.target.value, selectedOption: "" })}
-                  placeholder="اختر صنفاً..."
+                  placeholder="اختر قسم مأكولات..."
                 >
                   {foodCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -375,7 +375,7 @@ export default function NewConcertPage() {
                     <Select
                       value={foodForm.selectedOption}
                       onChange={(e) => setFoodForm({ ...foodForm, selectedOption: e.target.value })}
-                      placeholder="اختر خياراً..."
+                      placeholder="اختر صنفاً..."
                     >
                       {cat.options.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>

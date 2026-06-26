@@ -70,10 +70,10 @@ export default function AdminFoodPage() {
     try {
       if (editTarget) {
         await updateFoodCategory(editTarget.id, { name: formName.trim(), options: formOptions });
-        showToast("تم تحديث الصنف");
+        showToast("تم تحديث قسم المأكولات");
       } else {
         await addFoodCategory({ name: formName.trim(), options: formOptions, createdBy: appUser.uid });
-        showToast("تم إضافة الصنف");
+        showToast("تم إضافة قسم المأكولات");
       }
       setShowForm(false);
       load();
@@ -89,7 +89,7 @@ export default function AdminFoodPage() {
     setSaving(true);
     try {
       await deleteFoodCategory(deleteTarget.id);
-      showToast("تم حذف الصنف");
+      showToast("تم حذف قسم المأكولات");
       setDeleteTarget(null);
       load();
     } catch {
@@ -104,10 +104,10 @@ export default function AdminFoodPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">أصناف الأكل</h2>
-          <p className="text-sm text-slate-500">{categories.length} صنف مضاف</p>
+          <p className="text-sm text-slate-500">{categories.length} قسم مضاف</p>
         </div>
         <Button onClick={openAdd}>
-          <Plus size={16} /> إضافة صنف
+          <Plus size={16} /> إضافة قسم مأكولات
         </Button>
       </div>
 
@@ -142,7 +142,7 @@ export default function AdminFoodPage() {
                 </div>
               </div>
               {cat.options.length === 0 ? (
-                <p className="text-xs text-slate-400">لا توجد خيارات</p>
+                <p className="text-xs text-slate-400">لا توجد أصناف</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {cat.options.map((opt) => (
@@ -164,25 +164,25 @@ export default function AdminFoodPage() {
       <Modal
         open={showForm}
         onClose={() => setShowForm(false)}
-        title={editTarget ? `تعديل: ${editTarget.name}` : "إضافة صنف جديد"}
+        title={editTarget ? `تعديل: ${editTarget.name}` : "إضافة قسم مأكولات جديد"}
       >
         <div className="space-y-4">
           <Input
-            label="اسم الصنف"
+            label="اسم قسم المأكولات"
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
             placeholder="مثال: كبسة، مندي، مشاوي..."
           />
 
           <div>
-            <label className="text-sm font-semibold text-slate-700 block mb-2">الخيارات</label>
+            <label className="text-sm font-semibold text-slate-700 block mb-2">الأصناف</label>
             <div className="flex gap-2 mb-3">
               <input
                 type="text"
                 value={optionInput}
                 onChange={(e) => setOptionInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOption(); } }}
-                placeholder="اكتب خياراً واضغط Enter أو إضافة..."
+                placeholder="اكتب صنفاً واضغط Enter أو إضافة..."
                 className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <Button type="button" variant="outline" onClick={addOption} size="sm">
@@ -190,7 +190,7 @@ export default function AdminFoodPage() {
               </Button>
             </div>
             {formOptions.length === 0 ? (
-              <p className="text-xs text-slate-400">لا توجد خيارات — الصنف سيُضاف بدون خيارات</p>
+              <p className="text-xs text-slate-400">لا توجد أصناف — القسم سيُضاف بدون أصناف</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {formOptions.map((opt) => (
@@ -215,7 +215,7 @@ export default function AdminFoodPage() {
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" type="button" onClick={() => setShowForm(false)}>إلغاء</Button>
             <Button onClick={handleSave} loading={saving} disabled={!formName.trim()}>
-              {editTarget ? "حفظ التغييرات" : "إضافة الصنف"}
+              {editTarget ? "حفظ التغييرات" : "إضافة قسم المأكولات"}
             </Button>
           </div>
         </div>
@@ -225,8 +225,8 @@ export default function AdminFoodPage() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="حذف الصنف"
-        message={`هل أنت متأكد من حذف صنف "${deleteTarget?.name}"؟`}
+        title="حذف قسم المأكولات"
+        message={`هل أنت متأكد من حذف قسم المأكولات "${deleteTarget?.name}"؟`}
         confirmLabel="حذف"
         loading={saving}
       />
