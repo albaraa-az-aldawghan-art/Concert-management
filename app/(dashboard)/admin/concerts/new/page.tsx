@@ -84,6 +84,7 @@ export default function NewConcertPage() {
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [selectedFood, setSelectedFood] = useState<{ categoryId: string; categoryName: string; selectedOption: string; quantity: string; notes: string }[]>([]);
   const [foodForm, setFoodForm] = useState({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
+  const [foodFormKey, setFoodFormKey] = useState(0);
 
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [paymentForm, setPaymentForm] = useState({
@@ -139,6 +140,7 @@ export default function NewConcertPage() {
       notes: foodForm.notes,
     }]);
     setFoodForm({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
+    setFoodFormKey((k) => k + 1);
   }
 
   function removeFoodItem(index: number) {
@@ -518,9 +520,10 @@ export default function NewConcertPage() {
               <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
             </h3>
 
-            <div key={selectedFood.length} className="flex flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-2 mb-3">
               <div className="flex-1 min-w-[140px]">
                 <Select
+                  key={`cat-${foodFormKey}`}
                   value={foodForm.categoryId}
                   onChange={(e) => setFoodForm({ ...foodForm, categoryId: e.target.value, selectedOption: "" })}
                   placeholder="اختر قسم مأكولات..."
@@ -536,6 +539,7 @@ export default function NewConcertPage() {
                 return (
                   <div className="flex-1 min-w-[140px]">
                     <Select
+                      key={`opt-${foodFormKey}`}
                       value={foodForm.selectedOption}
                       onChange={(e) => setFoodForm({ ...foodForm, selectedOption: e.target.value })}
                       placeholder="اختر صنفاً..."
@@ -548,6 +552,7 @@ export default function NewConcertPage() {
                 );
               })()}
               <input
+                key={`qty-${foodFormKey}`}
                 type="number"
                 min={1}
                 value={foodForm.quantity}
