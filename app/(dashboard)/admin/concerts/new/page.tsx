@@ -72,7 +72,6 @@ export default function NewConcertPage() {
     name: "",
     date: "",
     price: "",
-    deposit: "",
     clientName: "",
     clientPhone: "",
     clientPhone2: "",
@@ -203,7 +202,7 @@ export default function NewConcertPage() {
         name: form.name,
         date: Timestamp.fromDate(new Date(form.date)),
         price: parseFloat(form.price),
-        deposit: depositTotal > 0 ? depositTotal : (form.deposit ? parseFloat(form.deposit) : null),
+        deposit: depositTotal > 0 ? depositTotal : null,
         location,
         clientName: form.clientName || null,
         clientPhone: form.clientPhone || null,
@@ -299,23 +298,6 @@ export default function NewConcertPage() {
                 placeholder="0.00"
               />
             </div>
-            <Input
-              label="العربون (ريال)"
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.deposit}
-              onChange={(e) => setForm({ ...form, deposit: e.target.value })}
-              placeholder="0.00 (اختياري)"
-            />
-            {form.price && parseFloat(form.price) > 0 && paymentEntries.length === 0 && form.deposit && (
-              <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-sm">
-                <span className="text-slate-500 font-medium">المبلغ المتبقي</span>
-                <span className="font-bold text-orange-700 text-base">
-                  {(parseFloat(form.price) - parseFloat(form.deposit || "0")).toLocaleString("ar-SA")} ريال
-                </span>
-              </div>
-            )}
             <Input
               label="اسم العميل"
               value={form.clientName}
