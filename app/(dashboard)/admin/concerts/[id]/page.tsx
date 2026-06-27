@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark } from "lucide-react";
 
@@ -30,6 +31,11 @@ function getPaymentDetail(p: ConcertPayment): string {
   return [p.bankName, p.senderName].filter(Boolean).join(" — ");
 }
 import Link from "next/link";
+
+const LocationPickerDynamic = dynamic(
+  () => import("@/components/map/LocationPicker").then((m) => m.LocationPicker),
+  { ssr: false, loading: () => <div className="h-72 bg-slate-100 rounded-xl animate-pulse" /> }
+);
 
 export default function AdminConcertDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +59,10 @@ export default function AdminConcertDetailPage() {
   const [showEditEmployees, setShowEditEmployees] = useState(false);
   const [editSupervisorIds, setEditSupervisorIds] = useState<string[]>([]);
   const [editEmployeeIds, setEditEmployeeIds] = useState<string[]>([]);
+  const [showEditPrice, setShowEditPrice] = useState(false);
+  const [editPrice, setEditPrice] = useState("");
+  const [showEditLocation, setShowEditLocation] = useState(false);
+  const [editLocation, setEditLocation] = useState<ConcertLocation | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
@@ -237,6 +247,38 @@ export default function AdminConcertDetailPage() {
     }
   }
 
+  async function handleSavePrice() {
+    if (!concert) return;
+    const price = parseFloat(editPrice);
+    if (isNaN(price) || price <= 0) { showToast("يرجى إدخال سعر صحيح", "error"); return; }
+    setSaving(true);
+    try {
+      await updateConcert(concert.id, { price });
+      showToast("تم تحديث سعر الحفلة");
+      setShowEditPrice(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveLocation() {
+    if (!concert) return;
+    setSaving(true);
+    try {
+      await updateConcert(concert.id, { location: editLocation });
+      showToast("تم تحديث الموقع");
+      setShowEditLocation(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveSupervisors() {
     if (!concert) return;
     if (editSupervisorIds.length === 0) { showToast("يرجى اختيار مشرف واحد على الأقل", "error"); return; }
@@ -315,16 +357,26 @@ export default function AdminConcertDetailPage() {
           <p className="font-semibold text-slate-800">{formatDate(concert.date)}</p>
         </Card>
         <Card>
-          <div className="flex items-center gap-2 text-slate-500 mb-1">
-            <BadgeDollarSign size={15} />
-            <span className="text-xs font-medium">سعر الحفلة</span>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-slate-500">
+              <BadgeDollarSign size={15} />
+              <span className="text-xs font-medium">سعر الحفلة</span>
+            </div>
+            <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+              <Pencil size={13} />
+            </button>
           </div>
           <p className="font-bold text-green-700 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
         </Card>
         <Card>
-          <div className="flex items-center gap-2 text-slate-500 mb-1">
-            <MapPin size={15} />
-            <span className="text-xs font-medium">الموقع</span>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-slate-500">
+              <MapPin size={15} />
+              <span className="text-xs font-medium">الموقع</span>
+            </div>
+            <button onClick={() => { setEditLocation(concert.location ?? null); setShowEditLocation(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+              <Pencil size={13} />
+            </button>
           </div>
           <p className="text-sm text-slate-700 line-clamp-2">{concert.location?.address || "—"}</p>
         </Card>
@@ -867,6 +919,40 @@ export default function AdminConcertDetailPage() {
         confirmLabel="حذف"
         loading={saving}
       />
+
+      {/* Edit Price Modal */}
+      <Modal open={showEditPrice} onClose={() => setShowEditPrice(false)} title="تعديل سعر الحفلة">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">السعر الجديد (ريال)</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditPrice(false)}>إلغاء</Button>
+            <Button onClick={handleSavePrice} loading={saving} disabled={!editPrice}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Location Modal */}
+      <Modal open={showEditLocation} onClose={() => setShowEditLocation(false)} title="تعديل الموقع">
+        <div className="space-y-4">
+          <LocationPickerDynamic value={editLocation} onChange={setEditLocation} />
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditLocation(false)}>إلغاء</Button>
+            <Button onClick={handleSaveLocation} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Supervisors Modal */}
       <Modal open={showEditSupervisors} onClose={() => setShowEditSupervisors(false)} title="تعديل المشرفين">
