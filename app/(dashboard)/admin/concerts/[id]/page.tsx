@@ -446,61 +446,76 @@ export default function AdminConcertDetailPage() {
         </Card>
       </div>
 
-      {/* Hall & Transport Costs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-slate-500">
-              <BadgeDollarSign size={15} />
-              <span className="text-xs font-medium">مبلغ القاعة</span>
-            </div>
-            <button
-              onClick={() => {
-                setEditHallCostType(concert.hallCostType ?? "none");
-                setEditHallCostValue(String(concert.hallCostValue ?? ""));
-                setShowEditHallCost(true);
-              }}
-              className="text-slate-300 hover:text-blue-500 transition-colors"
-            >
-              <Pencil size={13} />
-            </button>
-          </div>
-          {concert.hallCostType === "percentage" ? (
-            <div>
-              <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
-              <p className="text-xs text-slate-400">
-                = {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال
-              </p>
-            </div>
-          ) : concert.hallCostType === "fixed" ? (
-            <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
-          ) : (
-            <p className="text-slate-400 text-sm">—</p>
+      {/* Hall & Transport Costs — only when set */}
+      {(concert.hallCostType || concert.transportCost) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {concert.hallCostType && (
+            <Card>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <BadgeDollarSign size={15} />
+                  <span className="text-xs font-medium">مبلغ القاعة</span>
+                </div>
+                <button
+                  onClick={() => { setEditHallCostType(concert.hallCostType ?? "none"); setEditHallCostValue(String(concert.hallCostValue ?? "")); setShowEditHallCost(true); }}
+                  className="text-slate-300 hover:text-blue-500 transition-colors"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+              {concert.hallCostType === "percentage" ? (
+                <div>
+                  <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
+                  <p className="text-xs text-slate-400">= {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال</p>
+                </div>
+              ) : (
+                <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
+              )}
+            </Card>
           )}
-        </Card>
-        <Card>
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-slate-500">
-              <BadgeDollarSign size={15} />
-              <span className="text-xs font-medium">تكلفة النقل</span>
-            </div>
-            <button
-              onClick={() => {
-                setEditTransportCost(String(concert.transportCost ?? ""));
-                setShowEditTransport(true);
-              }}
-              className="text-slate-300 hover:text-blue-500 transition-colors"
-            >
-              <Pencil size={13} />
-            </button>
-          </div>
           {concert.transportCost ? (
-            <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
-          ) : (
-            <p className="text-slate-400 text-sm">—</p>
+            <Card>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <BadgeDollarSign size={15} />
+                  <span className="text-xs font-medium">تكلفة النقل</span>
+                </div>
+                <button
+                  onClick={() => { setEditTransportCost(String(concert.transportCost ?? "")); setShowEditTransport(true); }}
+                  className="text-slate-300 hover:text-blue-500 transition-colors"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+              <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
+            </Card>
+          ) : null}
+        </div>
+      )}
+
+      {/* Add missing cost buttons */}
+      {(!concert.hallCostType || !concert.transportCost) && (
+        <div className="flex gap-3 flex-wrap">
+          {!concert.hallCostType && (
+            <button
+              onClick={() => { setEditHallCostType("none"); setEditHallCostValue(""); setShowEditHallCost(true); }}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              <Plus size={13} />
+              إضافة مبلغ القاعة
+            </button>
           )}
-        </Card>
-      </div>
+          {!concert.transportCost && (
+            <button
+              onClick={() => { setEditTransportCost(""); setShowEditTransport(true); }}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              <Plus size={13} />
+              إضافة تكلفة النقل
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Client Info */}
       {(concert.clientName || concert.clientPhone || concert.clientPhone2) && (
