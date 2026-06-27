@@ -193,6 +193,7 @@ export default function NewConcertPage() {
 
     if (form.supervisorIds.length === 0) { showToast("يرجى اختيار مشرف واحد على الأقل", "error"); return; }
     if (selectedItems.length === 0) { showToast("يرجى إضافة مادة واحدة على الأقل", "error"); return; }
+    if (paymentEntries.length === 0) { showToast("يرجى إضافة دفعة واحدة على الأقل", "error"); return; }
 
     setSaving(true);
     try {
@@ -333,7 +334,8 @@ export default function NewConcertPage() {
           <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
             <Banknote size={16} className="text-emerald-600" />
             طريقة الدفع
-            <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
+            <span className="text-red-500">*</span>
+            <span className="text-slate-400 text-xs font-normal">(دفعة واحدة على الأقل)</span>
           </h3>
 
           {/* Method Tabs */}
