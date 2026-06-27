@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
+import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark } from "lucide-react";
 
@@ -41,8 +42,11 @@ export default function AdminConcertDetailPage() {
   const [missing, setMissing] = useState<MissingItem[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
+  const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteItemTarget, setDeleteItemTarget] = useState<ConcertItem | null>(null);
+  const [showItemForm, setShowItemForm] = useState(false);
+  const [itemForm, setItemForm] = useState({ itemId: "", count: "1" });
   const [saving, setSaving] = useState(false);
 
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
@@ -70,13 +74,14 @@ export default function AdminConcertDetailPage() {
 
   async function loadData() {
     setLoading(true);
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id),
       getMissingItemsByConcert(id),
       getFoodCategories(),
       getConcertFood(id),
       getConcertPayments(id),
+      getWarehouseItems(),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -84,6 +89,7 @@ export default function AdminConcertDetailPage() {
     setFoodCategories(foodCats);
     setConcertFood(foodItems);
     setPayments(paymentsData);
+    setWarehouseItems(warehouseData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
@@ -185,6 +191,34 @@ export default function AdminConcertDetailPage() {
       await deleteConcertItem(deleteItemTarget.id);
       showToast("تم حذف المادة من الحفلة");
       setDeleteItemTarget(null);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddItem() {
+    if (!appUser || !concert || !itemForm.itemId) return;
+    const item = warehouseItems.find((i) => i.id === itemForm.itemId);
+    if (!item) return;
+    const count = parseInt(itemForm.count);
+    if (!count || count <= 0) return;
+    setSaving(true);
+    try {
+      await addConcertItem({
+        concertId: concert.id,
+        itemId: item.id,
+        itemName: item.name,
+        type: item.type,
+        count,
+        assignedToEmployeeId: null,
+        assignedToEmployeeName: null,
+      });
+      showToast("تمت إضافة المادة");
+      setShowItemForm(false);
+      setItemForm({ itemId: "", count: "1" });
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -423,70 +457,82 @@ export default function AdminConcertDetailPage() {
         </Card>
       </div>
 
-      {/* Items Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+      {/* Items */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Package size={16} className="text-indigo-600" />
-            المواد الداخلية ({internalItems.length})
+            المواد ({items.length})
           </h3>
-          {internalItems.length === 0 ? (
-            <p className="text-sm text-slate-400">لا توجد أغراض داخلية</p>
-          ) : (
-            <div className="space-y-2">
-              {internalItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                    {item.assignedToEmployeeName && (
-                      <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-blue-700">{item.count}</span>
-                    <StatusBadge status={item.deliveryStatus} />
-                    {concert.returnApproved || concert.deliveryApproved ? null : (
-                      <button
-                        onClick={() => setDeleteItemTarget(item)}
-                        className="text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+          <Button size="sm" onClick={() => { setItemForm({ itemId: "", count: "1" }); setShowItemForm(true); }}>
+            <Plus size={14} /> إضافة مادة
+          </Button>
+        </div>
 
-        <Card>
-          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <Package size={16} className="text-orange-600" />
-            المواد الخارجية ({externalItems.length})
-          </h3>
-          {externalItems.length === 0 ? (
-            <p className="text-sm text-slate-400">لا توجد أغراض خارجية</p>
-          ) : (
-            <div className="space-y-2">
-              {externalItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                    {item.assignedToEmployeeName && (
-                      <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-blue-700">{item.count}</span>
-                    <StatusBadge status={item.returnStatus} />
-                  </div>
+        {items.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 bg-slate-50 rounded-xl">
+            <Package size={28} className="mx-auto mb-2 opacity-40" />
+            <p className="text-sm">لا توجد مواد</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {internalItems.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-2">داخلية</p>
+                <div className="space-y-2">
+                  {internalItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                        {item.assignedToEmployeeName && (
+                          <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-blue-700">{item.count}</span>
+                        <StatusBadge status={item.deliveryStatus} />
+                        <button
+                          onClick={() => setDeleteItemTarget(item)}
+                          className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+              </div>
+            )}
+            {externalItems.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-2">خارجية</p>
+                <div className="space-y-2">
+                  {externalItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                        {item.assignedToEmployeeName && (
+                          <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-blue-700">{item.count}</span>
+                        <StatusBadge status={item.returnStatus} />
+                        <button
+                          onClick={() => setDeleteItemTarget(item)}
+                          className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* Food Items */}
       <Card>
@@ -645,6 +691,41 @@ export default function AdminConcertDetailPage() {
         confirmLabel="حذف"
         loading={saving}
       />
+
+      {/* Add Item Modal */}
+      <Modal open={showItemForm} onClose={() => setShowItemForm(false)} title="إضافة مادة للحفلة">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">المادة</label>
+            <select
+              value={itemForm.itemId}
+              onChange={(e) => setItemForm({ ...itemForm, itemId: e.target.value })}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">اختر مادة...</option>
+              {warehouseItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.type === "internal" ? "داخلي" : "خارجي"}) — متوفر: {item.availableCount}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">الكمية</label>
+            <input
+              type="number"
+              min={1}
+              value={itemForm.count}
+              onChange={(e) => setItemForm({ ...itemForm, count: e.target.value })}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowItemForm(false)}>إلغاء</Button>
+            <Button onClick={handleAddItem} loading={saving} disabled={!itemForm.itemId || !itemForm.count}>إضافة</Button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmModal
         open={!!deleteItemTarget}
