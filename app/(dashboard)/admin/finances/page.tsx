@@ -6,12 +6,37 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle } from "lucide-react";
+import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
 
 function calcHallCost(c: Concert): number {
   if (!c.hallCostType || !c.hallCostValue) return 0;
   if (c.hallCostType === "percentage") return (c.price ?? 0) * c.hallCostValue / 100;
   return c.hallCostValue;
+}
+
+function toDateStr(val: unknown): string {
+  if (!val) return "";
+  if (val instanceof Timestamp) return val.toDate().toISOString().split("T")[0];
+  if (typeof val === "string") return val.substring(0, 10);
+  if (typeof (val as { toDate?: () => Date }).toDate === "function")
+    return (val as { toDate: () => Date }).toDate().toISOString().split("T")[0];
+  return "";
+}
+
+function getWeekBounds(): [string, string] {
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  return [mon.toISOString().split("T")[0], sun.toISOString().split("T")[0]];
+}
+
+function getMonthBounds(): [string, string] {
+  const now = new Date();
+  return [
+    new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0],
+    new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0],
+  ];
 }
 
 const STATUS_LABEL: Record<string, string> = { planned: "مخططة", active: "جارية", completed: "مكتملة" };
@@ -21,18 +46,39 @@ const STATUS_COLOR: Record<string, string> = {
   completed: "bg-slate-100 text-slate-600",
 };
 
-type Filter = "all" | "planned" | "active" | "completed";
+type StatusFilter = "all" | "planned" | "active" | "completed";
+type DateFilter  = "all" | "today" | "week" | "month" | "custom";
 
 export default function FinancesPage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     getConcerts().then((data) => { setConcerts(data); setLoading(false); });
   }, []);
 
-  const filtered = filter === "all" ? concerts : concerts.filter((c) => c.status === filter);
+  const today      = new Date().toISOString().split("T")[0];
+  const [weekStart, weekEnd]   = getWeekBounds();
+  const [monthStart, monthEnd] = getMonthBounds();
+
+  const filtered = concerts.filter((c) => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (dateFilter !== "all") {
+      const d = toDateStr(c.createdAt);
+      if (dateFilter === "today"  && d !== today) return false;
+      if (dateFilter === "week"   && (d < weekStart || d > weekEnd)) return false;
+      if (dateFilter === "month"  && (d < monthStart || d > monthEnd)) return false;
+      if (dateFilter === "custom") {
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo   && d > dateTo)   return false;
+      }
+    }
+    return true;
+  });
 
   const totalRevenue   = filtered.reduce((s, c) => s + (c.price ?? 0), 0);
   const totalCollected = filtered.reduce((s, c) => s + (c.deposit ?? 0), 0);
@@ -59,26 +105,26 @@ export default function FinancesPage() {
             <BarChart3 size={22} className="text-emerald-600" />
             القائمة المالية
           </h2>
-          <p className="text-sm text-slate-500 mt-0.5">{concerts.length} حفلة</p>
+          <p className="text-sm text-slate-500 mt-0.5">{filtered.length} من {concerts.length} حفلة</p>
         </div>
         <Link href="/admin" className="text-sm text-slate-500 hover:text-blue-600 flex items-center gap-1">
           لوحة التحكم <ChevronRight size={14} />
         </Link>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Status Filter */}
       <div className="flex gap-2 flex-wrap">
         {([
           { key: "all", label: "الكل" },
           { key: "planned", label: "مخططة" },
           { key: "active", label: "جارية" },
           { key: "completed", label: "مكتملة" },
-        ] as { key: Filter; label: string }[]).map((f) => (
+        ] as { key: StatusFilter; label: string }[]).map((f) => (
           <button
             key={f.key}
-            onClick={() => setFilter(f.key)}
+            onClick={() => setStatusFilter(f.key)}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-              filter === f.key ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              statusFilter === f.key ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             {f.label}
@@ -87,6 +133,77 @@ export default function FinancesPage() {
             </span>
           </button>
         ))}
+      </div>
+
+      {/* Date Filter */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2 text-slate-600 text-sm font-semibold">
+          <CalendarDays size={15} className="text-blue-600" />
+          فلتر بالتاريخ
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { key: "all",    label: "الكل" },
+            { key: "today",  label: "اليوم" },
+            { key: "week",   label: "هذا الأسبوع" },
+            { key: "month",  label: "هذا الشهر" },
+            { key: "custom", label: "نطاق مخصص" },
+          ] as { key: DateFilter; label: string }[]).map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setDateFilter(f.key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                dateFilter === f.key
+                  ? "bg-blue-700 text-white"
+                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {dateFilter === "custom" && (
+          <div className="flex items-center gap-3 flex-wrap pt-1">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500 font-medium whitespace-nowrap">من:</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500 font-medium whitespace-nowrap">إلى:</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+              >
+                مسح
+              </button>
+            )}
+          </div>
+        )}
+
+        {dateFilter !== "all" && (
+          <p className="text-xs text-slate-400">
+            {dateFilter === "today" && `اليوم: ${today}`}
+            {dateFilter === "week"  && `الأسبوع: ${weekStart} — ${weekEnd}`}
+            {dateFilter === "month" && `الشهر: ${monthStart} — ${monthEnd}`}
+            {dateFilter === "custom" && dateFrom && dateTo && `النطاق: ${dateFrom} — ${dateTo}`}
+            {" · "}
+            <span className="font-semibold text-blue-600">{filtered.length} حفلة</span>
+          </p>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -179,10 +296,16 @@ export default function FinancesPage() {
           <div className="text-center py-10 text-slate-400">
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
             <p>لا توجد حفلات</p>
+            <button
+              onClick={() => { setStatusFilter("all"); setDateFilter("all"); }}
+              className="mt-2 text-sm text-blue-600 hover:underline"
+            >
+              مسح الفلاتر
+            </button>
           </div>
         ) : (
           <>
-            {/* Mobile: Cards */}
+            {/* Mobile Cards */}
             <div className="sm:hidden space-y-3">
               {filtered.map((c) => {
                 const hall = calcHallCost(c);
@@ -223,7 +346,7 @@ export default function FinancesPage() {
               })}
             </div>
 
-            {/* Desktop: Table */}
+            {/* Desktop Table */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -263,7 +386,6 @@ export default function FinancesPage() {
                     );
                   })}
                 </tbody>
-                {/* Totals Row */}
                 <tfoot>
                   <tr className="border-t-2 border-slate-200 bg-slate-50">
                     <td colSpan={3} className="py-3 px-2 font-bold text-slate-700 text-xs">الإجمالي ({filtered.length} حفلة)</td>
