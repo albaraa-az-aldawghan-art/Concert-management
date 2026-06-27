@@ -139,7 +139,7 @@ export default function NewConcertPage() {
       quantity: foodForm.quantity,
       notes: foodForm.notes,
     }]);
-    setFoodForm({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
+    setFoodForm((prev) => ({ ...prev, selectedOption: "", quantity: "", notes: "" }));
     setFoodFormKey((k) => k + 1);
   }
 
@@ -523,7 +523,6 @@ export default function NewConcertPage() {
             <div className="flex flex-wrap gap-2 mb-3">
               <div className="flex-1 min-w-[140px]">
                 <Select
-                  key={`cat-${foodFormKey}`}
                   value={foodForm.categoryId}
                   onChange={(e) => setFoodForm({ ...foodForm, categoryId: e.target.value, selectedOption: "" })}
                   placeholder="اختر قسم مأكولات..."
