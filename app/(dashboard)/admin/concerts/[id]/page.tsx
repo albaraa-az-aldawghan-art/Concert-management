@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark } from "lucide-react";
 
@@ -63,6 +63,7 @@ export default function AdminConcertDetailPage() {
   const [editPrice, setEditPrice] = useState("");
   const [showEditLocation, setShowEditLocation] = useState(false);
   const [editLocation, setEditLocation] = useState<ConcertLocation | null>(null);
+  const [logs, setLogs] = useState<ConcertLog[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
@@ -90,7 +91,7 @@ export default function AdminConcertDetailPage() {
 
   async function loadData() {
     setLoading(true);
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id),
       getMissingItemsByConcert(id),
@@ -100,6 +101,7 @@ export default function AdminConcertDetailPage() {
       getWarehouseItems(),
       getUsersByRole("supervisor"),
       getUsersByRole("employee"),
+      getConcertLogs(id),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -110,6 +112,7 @@ export default function AdminConcertDetailPage() {
     setWarehouseItems(warehouseData);
     setAllSupervisors(allSups);
     setAllEmployees(allEmps);
+    setLogs(logsData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
@@ -135,6 +138,7 @@ export default function AdminConcertDetailPage() {
         notes: foodForm.notes.trim() || null,
         createdBy: appUser.uid,
       });
+      await addConcertLog({ concertId: id, description: `تمت إضافة صنف: ${cat.name} — ${foodForm.selectedOption}`, createdBy: appUser.uid });
       showToast("تم إضافة قسم المأكولات للحفلة");
       setShowFoodForm(false);
       setFoodForm({ categoryId: "", selectedOption: "", quantity: "", notes: "" });
@@ -147,10 +151,11 @@ export default function AdminConcertDetailPage() {
   }
 
   async function handleDeleteFood() {
-    if (!deleteFoodTarget) return;
+    if (!deleteFoodTarget || !appUser) return;
     setSaving(true);
     try {
       await deleteConcertFood(deleteFoodTarget.id);
+      await addConcertLog({ concertId: id, description: `تم حذف صنف: ${deleteFoodTarget.categoryName} — ${deleteFoodTarget.selectedOption}`, createdBy: appUser.uid });
       showToast("تم حذف قسم المأكولات من الحفلة");
       setDeleteFoodTarget(null);
       loadData();
@@ -205,10 +210,11 @@ export default function AdminConcertDetailPage() {
   }
 
   async function handleDeleteItem() {
-    if (!deleteItemTarget) return;
+    if (!deleteItemTarget || !appUser) return;
     setSaving(true);
     try {
       await deleteConcertItem(deleteItemTarget.id);
+      await addConcertLog({ concertId: id, description: `تم حذف مادة: ${deleteItemTarget.itemName} × ${deleteItemTarget.count}`, createdBy: appUser.uid });
       showToast("تم حذف المادة من الحفلة");
       setDeleteItemTarget(null);
       loadData();
@@ -236,6 +242,7 @@ export default function AdminConcertDetailPage() {
         assignedToEmployeeId: null,
         assignedToEmployeeName: null,
       });
+      await addConcertLog({ concertId: concert.id, description: `تمت إضافة مادة: ${item.name} × ${count}`, createdBy: appUser.uid });
       showToast("تمت إضافة المادة");
       setShowItemForm(false);
       setItemForm({ itemId: "", count: "1" });
@@ -248,12 +255,14 @@ export default function AdminConcertDetailPage() {
   }
 
   async function handleSavePrice() {
-    if (!concert) return;
+    if (!concert || !appUser) return;
     const price = parseFloat(editPrice);
     if (isNaN(price) || price <= 0) { showToast("يرجى إدخال سعر صحيح", "error"); return; }
     setSaving(true);
     try {
+      const oldPrice = concert.price;
       await updateConcert(concert.id, { price });
+      await addConcertLog({ concertId: concert.id, description: `تم تغيير سعر الحفلة من ${oldPrice?.toLocaleString("ar-SA")} ريال إلى ${price.toLocaleString("ar-SA")} ريال`, createdBy: appUser.uid });
       showToast("تم تحديث سعر الحفلة");
       setShowEditPrice(false);
       loadData();
@@ -265,10 +274,12 @@ export default function AdminConcertDetailPage() {
   }
 
   async function handleSaveLocation() {
-    if (!concert) return;
+    if (!concert || !appUser) return;
     setSaving(true);
     try {
       await updateConcert(concert.id, { location: editLocation });
+      const desc = editLocation ? `تم تغيير الموقع إلى: ${editLocation.address}` : "تم إزالة الموقع";
+      await addConcertLog({ concertId: concert.id, description: desc, createdBy: appUser.uid });
       showToast("تم تحديث الموقع");
       setShowEditLocation(false);
       loadData();
@@ -352,9 +363,9 @@ export default function AdminConcertDetailPage() {
         <Card>
           <div className="flex items-center gap-2 text-slate-500 mb-1">
             <Calendar size={15} />
-            <span className="text-xs font-medium">التاريخ</span>
+            <span className="text-xs font-medium">تاريخ الإنشاء</span>
           </div>
-          <p className="font-semibold text-slate-800">{formatDate(concert.date)}</p>
+          <p className="font-semibold text-slate-800">{formatDate(concert.createdAt)}</p>
         </Card>
         <Card>
           <div className="flex items-center justify-between mb-1">
@@ -705,6 +716,49 @@ export default function AdminConcertDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Change Log */}
+      <Card>
+        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Calendar size={16} className="text-slate-500" />
+          سجل الحفلة
+        </h3>
+        <div className="relative">
+          <div className="absolute right-3 top-0 bottom-0 w-px bg-slate-100" />
+          <div className="space-y-0">
+            {/* Creation entry — always first */}
+            <div className="relative flex gap-4 pb-5">
+              <div className="relative z-10 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">تم إنشاء الحفلة</p>
+                <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(concert.createdAt)}</p>
+              </div>
+            </div>
+
+            {/* Change entries — newest first */}
+            {[...logs].sort((a, b) => a.createdAt.seconds - b.createdAt.seconds).map((log) => (
+              <div key={log.id} className="relative flex gap-4 pb-5">
+                <div className="relative z-10 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-2 h-2 rounded-full bg-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-700">{log.description}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(log.createdAt)}</p>
+                </div>
+              </div>
+            ))}
+
+            {logs.length === 0 && (
+              <div className="relative flex gap-4 pb-1">
+                <div className="relative z-10 w-6 h-6 shrink-0" />
+                <p className="text-sm text-slate-400">لا توجد تعديلات بعد الإنشاء</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Add Payment Modal */}
       <Modal open={showPaymentForm} onClose={() => setShowPaymentForm(false)} title="إضافة دفعة">

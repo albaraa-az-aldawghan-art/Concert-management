@@ -130,6 +130,14 @@ export interface ConcertPayment {
   createdBy: string;
 }
 
+export interface ConcertLog {
+  id: string;
+  concertId: string;
+  description: string;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
 export interface MissingItem {
   id: string;
   concertId: string;

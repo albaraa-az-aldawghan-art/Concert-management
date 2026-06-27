@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { increaseAvailableCount } from "@/lib/firestore/warehouse";
-import { Concert, ConcertItem, ConcertPayment } from "@/types";
+import { Concert, ConcertItem, ConcertPayment, ConcertLog } from "@/types";
 import { WarehouseRequest } from "@/types";
 
 export async function createConcert(
@@ -152,6 +152,20 @@ export async function confirmWarehouseReturn(concertId: string, uid: string) {
     warehouseReturnConfirmedBy: uid,
     warehouseReturnConfirmedAt: Timestamp.now(),
   });
+}
+
+// Concert Logs
+export async function addConcertLog(data: Omit<ConcertLog, "id" | "createdAt">): Promise<void> {
+  await addDoc(collection(db, "concert_logs"), { ...data, createdAt: Timestamp.now() });
+}
+
+export async function getConcertLogs(concertId: string): Promise<ConcertLog[]> {
+  const snap = await getDocs(
+    query(collection(db, "concert_logs"), where("concertId", "==", concertId))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as ConcertLog))
+    .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
 // Concert Payments
