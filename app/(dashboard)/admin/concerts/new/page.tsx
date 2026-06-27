@@ -77,6 +77,9 @@ export default function NewConcertPage() {
     supervisorIds: [] as string[],
     employeeIds: [] as string[],
   });
+  const [hallCostType, setHallCostType] = useState<"percentage" | "fixed" | null>(null);
+  const [hallCostValue, setHallCostValue] = useState("");
+  const [transportCost, setTransportCost] = useState("");
 
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [itemForm, setItemForm] = useState({ itemId: "", count: "1" });
@@ -213,6 +216,9 @@ export default function NewConcertPage() {
         clientPhone2: form.clientPhone2 || null,
         supervisorIds: form.supervisorIds,
         employeeIds: form.employeeIds,
+        hallCostType: hallCostType,
+        hallCostValue: hallCostValue ? parseFloat(hallCostValue) : null,
+        transportCost: transportCost ? parseFloat(transportCost) : null,
         status: "planned",
         createdBy: appUser.uid,
       });
@@ -317,6 +323,74 @@ export default function NewConcertPage() {
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 required
                 placeholder="0.00"
+              />
+            </div>
+
+            {/* Hall Cost */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-700">
+                مبلغ القاعة
+                <span className="text-slate-400 font-normal text-xs mr-1">(اختياري)</span>
+              </p>
+              <div className="flex gap-2">
+                {([
+                  { value: null, label: "بدون" },
+                  { value: "percentage", label: "نسبة %" },
+                  { value: "fixed", label: "مبلغ ثابت" },
+                ] as { value: "percentage" | "fixed" | null; label: string }[]).map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => { setHallCostType(opt.value); setHallCostValue(""); }}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                      hallCostType === opt.value
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {hallCostType && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={hallCostValue}
+                      onChange={(e) => setHallCostValue(e.target.value)}
+                      placeholder={hallCostType === "percentage" ? "مثال: 15" : "0.00"}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-sm text-slate-500 shrink-0">
+                    {hallCostType === "percentage" ? "%" : "ريال"}
+                  </span>
+                  {hallCostType === "percentage" && hallCostValue && form.price && (
+                    <span className="text-sm font-bold text-slate-700 shrink-0">
+                      = {(parseFloat(form.price) * parseFloat(hallCostValue) / 100).toLocaleString("ar-SA")} ريال
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Transport Cost */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-700">
+                تكلفة النقل
+                <span className="text-slate-400 font-normal text-xs mr-1">(اختياري)</span>
+              </p>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={transportCost}
+                onChange={(e) => setTransportCost(e.target.value)}
+                placeholder="0.00 ريال"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>

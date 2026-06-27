@@ -55,6 +55,9 @@ export interface Concert {
   isPaid: boolean;
   paidAt: Timestamp | null;
   paidBy: string | null;
+  hallCostType: "percentage" | "fixed" | null;
+  hallCostValue: number | null;
+  transportCost: number | null;
   createdAt: Timestamp;
   createdBy: string;
 }

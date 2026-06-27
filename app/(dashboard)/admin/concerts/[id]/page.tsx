@@ -400,6 +400,39 @@ export default function AdminConcertDetailPage() {
         </Card>
       </div>
 
+      {/* Hall & Transport Costs */}
+      {(concert.hallCostType || concert.transportCost) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {concert.hallCostType && (
+            <Card>
+              <div className="flex items-center gap-2 text-slate-500 mb-1">
+                <BadgeDollarSign size={15} />
+                <span className="text-xs font-medium">مبلغ القاعة</span>
+              </div>
+              {concert.hallCostType === "percentage" ? (
+                <div>
+                  <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
+                  <p className="text-xs text-slate-400">
+                    = {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال
+                  </p>
+                </div>
+              ) : (
+                <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
+              )}
+            </Card>
+          )}
+          {concert.transportCost ? (
+            <Card>
+              <div className="flex items-center gap-2 text-slate-500 mb-1">
+                <BadgeDollarSign size={15} />
+                <span className="text-xs font-medium">تكلفة النقل</span>
+              </div>
+              <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
+            </Card>
+          ) : null}
+        </div>
+      )}
+
       {/* Client Info */}
       {(concert.clientName || concert.clientPhone || concert.clientPhone2) && (
         <Card>

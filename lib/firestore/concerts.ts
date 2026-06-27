@@ -42,6 +42,9 @@ export async function createConcert(
     isPaid: false,
     paidAt: null,
     paidBy: null,
+    hallCostType: data.hallCostType ?? null,
+    hallCostValue: data.hallCostValue ?? null,
+    transportCost: data.transportCost ?? null,
     createdAt: Timestamp.now(),
   });
   const snap = await getDoc(ref);
