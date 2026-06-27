@@ -518,7 +518,7 @@ export default function NewConcertPage() {
               <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
             </h3>
 
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div key={selectedFood.length} className="flex flex-wrap gap-2 mb-3">
               <div className="flex-1 min-w-[140px]">
                 <Select
                   value={foodForm.categoryId}
