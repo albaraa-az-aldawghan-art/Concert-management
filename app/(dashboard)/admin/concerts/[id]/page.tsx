@@ -63,6 +63,11 @@ export default function AdminConcertDetailPage() {
   const [editPrice, setEditPrice] = useState("");
   const [showEditLocation, setShowEditLocation] = useState(false);
   const [editLocation, setEditLocation] = useState<ConcertLocation | null>(null);
+  const [showEditHallCost, setShowEditHallCost] = useState(false);
+  const [editHallCostType, setEditHallCostType] = useState<"none" | "percentage" | "fixed">("none");
+  const [editHallCostValue, setEditHallCostValue] = useState("");
+  const [showEditTransport, setShowEditTransport] = useState(false);
+  const [editTransportCost, setEditTransportCost] = useState("");
   const [logs, setLogs] = useState<ConcertLog[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -273,6 +278,47 @@ export default function AdminConcertDetailPage() {
     }
   }
 
+  async function handleSaveHallCost() {
+    if (!concert || !appUser) return;
+    setSaving(true);
+    try {
+      const type = editHallCostType === "none" ? null : editHallCostType;
+      const value = editHallCostType === "none" ? null : parseFloat(editHallCostValue);
+      const oldDesc = concert.hallCostType
+        ? `${concert.hallCostValue}${concert.hallCostType === "percentage" ? "%" : " ريال"}`
+        : "بدون";
+      const newDesc = type ? `${value}${type === "percentage" ? "%" : " ريال"}` : "بدون";
+      await updateConcert(concert.id, { hallCostType: type, hallCostValue: value });
+      await addConcertLog({ concertId: concert.id, description: `تم تغيير مبلغ القاعة من ${oldDesc} إلى ${newDesc}`, createdBy: appUser.uid });
+      showToast("تم تحديث مبلغ القاعة");
+      setShowEditHallCost(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveTransport() {
+    if (!concert || !appUser) return;
+    setSaving(true);
+    try {
+      const cost = editTransportCost ? parseFloat(editTransportCost) : null;
+      const oldDesc = concert.transportCost ? `${concert.transportCost.toLocaleString("ar-SA")} ريال` : "بدون";
+      const newDesc = cost ? `${cost.toLocaleString("ar-SA")} ريال` : "بدون";
+      await updateConcert(concert.id, { transportCost: cost });
+      await addConcertLog({ concertId: concert.id, description: `تم تغيير تكلفة النقل من ${oldDesc} إلى ${newDesc}`, createdBy: appUser.uid });
+      showToast("تم تحديث تكلفة النقل");
+      setShowEditTransport(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveLocation() {
     if (!concert || !appUser) return;
     setSaving(true);
@@ -401,37 +447,60 @@ export default function AdminConcertDetailPage() {
       </div>
 
       {/* Hall & Transport Costs */}
-      {(concert.hallCostType || concert.transportCost) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {concert.hallCostType && (
-            <Card>
-              <div className="flex items-center gap-2 text-slate-500 mb-1">
-                <BadgeDollarSign size={15} />
-                <span className="text-xs font-medium">مبلغ القاعة</span>
-              </div>
-              {concert.hallCostType === "percentage" ? (
-                <div>
-                  <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
-                  <p className="text-xs text-slate-400">
-                    = {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال
-                  </p>
-                </div>
-              ) : (
-                <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
-              )}
-            </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-slate-500">
+              <BadgeDollarSign size={15} />
+              <span className="text-xs font-medium">مبلغ القاعة</span>
+            </div>
+            <button
+              onClick={() => {
+                setEditHallCostType(concert.hallCostType ?? "none");
+                setEditHallCostValue(String(concert.hallCostValue ?? ""));
+                setShowEditHallCost(true);
+              }}
+              className="text-slate-300 hover:text-blue-500 transition-colors"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
+          {concert.hallCostType === "percentage" ? (
+            <div>
+              <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
+              <p className="text-xs text-slate-400">
+                = {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال
+              </p>
+            </div>
+          ) : concert.hallCostType === "fixed" ? (
+            <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
+          ) : (
+            <p className="text-slate-400 text-sm">—</p>
           )}
+        </Card>
+        <Card>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-slate-500">
+              <BadgeDollarSign size={15} />
+              <span className="text-xs font-medium">تكلفة النقل</span>
+            </div>
+            <button
+              onClick={() => {
+                setEditTransportCost(String(concert.transportCost ?? ""));
+                setShowEditTransport(true);
+              }}
+              className="text-slate-300 hover:text-blue-500 transition-colors"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
           {concert.transportCost ? (
-            <Card>
-              <div className="flex items-center gap-2 text-slate-500 mb-1">
-                <BadgeDollarSign size={15} />
-                <span className="text-xs font-medium">تكلفة النقل</span>
-              </div>
-              <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
-            </Card>
-          ) : null}
-        </div>
-      )}
+            <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
+          ) : (
+            <p className="text-slate-400 text-sm">—</p>
+          )}
+        </Card>
+      </div>
 
       {/* Client Info */}
       {(concert.clientName || concert.clientPhone || concert.clientPhone2) && (
@@ -1006,6 +1075,84 @@ export default function AdminConcertDetailPage() {
         confirmLabel="حذف"
         loading={saving}
       />
+
+      {/* Edit Hall Cost Modal */}
+      <Modal open={showEditHallCost} onClose={() => setShowEditHallCost(false)} title="تعديل مبلغ القاعة">
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            {[
+              { value: "none", label: "بدون" },
+              { value: "percentage", label: "نسبة %" },
+              { value: "fixed", label: "مبلغ ثابت" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setEditHallCostType(opt.value as typeof editHallCostType)}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                  editHallCostType === opt.value
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {editHallCostType !== "none" && (
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+                {editHallCostType === "percentage" ? "النسبة المئوية" : "المبلغ (ريال)"}
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={editHallCostType === "percentage" ? "0.1" : "0.01"}
+                max={editHallCostType === "percentage" ? 100 : undefined}
+                value={editHallCostValue}
+                onChange={(e) => setEditHallCostValue(e.target.value)}
+                placeholder={editHallCostType === "percentage" ? "مثال: 10" : "0.00"}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              {editHallCostType === "percentage" && editHallCostValue && concert && (
+                <p className="text-xs text-slate-400 mt-1">
+                  = {((concert.price ?? 0) * parseFloat(editHallCostValue || "0") / 100).toLocaleString("ar-SA")} ريال
+                </p>
+              )}
+            </div>
+          )}
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditHallCost(false)}>إلغاء</Button>
+            <Button onClick={handleSaveHallCost} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Transport Cost Modal */}
+      <Modal open={showEditTransport} onClose={() => setShowEditTransport(false)} title="تعديل تكلفة النقل">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+              تكلفة النقل (ريال) <span className="text-slate-400 font-normal">— اتركه فارغاً لإزالتها</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={editTransportCost}
+              onChange={(e) => setEditTransportCost(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditTransport(false)}>إلغاء</Button>
+            <Button onClick={handleSaveTransport} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Price Modal */}
       <Modal open={showEditPrice} onClose={() => setShowEditPrice(false)} title="تعديل سعر الحفلة">
