@@ -69,7 +69,6 @@ export default function NewConcertPage() {
   const [location, setLocation] = useState<Location | null>(null);
 
   const [form, setForm] = useState({
-    name: "",
     date: "",
     price: "",
     clientName: "",
@@ -191,6 +190,8 @@ export default function NewConcertPage() {
     e.preventDefault();
     if (!appUser) return;
 
+    if (!form.clientName.trim()) { showToast("يرجى إدخال اسم العميل", "error"); return; }
+    if (!form.clientPhone.trim()) { showToast("يرجى إدخال رقم جوال العميل", "error"); return; }
     if (form.supervisorIds.length === 0) { showToast("يرجى اختيار مشرف واحد على الأقل", "error"); return; }
     if (selectedItems.length === 0) { showToast("يرجى إضافة مادة واحدة على الأقل", "error"); return; }
     if (paymentEntries.length === 0) { showToast("يرجى إضافة دفعة واحدة على الأقل", "error"); return; }
@@ -200,7 +201,7 @@ export default function NewConcertPage() {
       const depositTotal = paymentEntries.reduce((sum, p) => sum + p.amount, 0);
 
       const concert = await createConcert({
-        name: form.name,
+        name: form.clientName.trim(),
         date: Timestamp.fromDate(new Date(form.date)),
         price: parseFloat(form.price),
         deposit: depositTotal > 0 ? depositTotal : null,
@@ -271,15 +272,32 @@ export default function NewConcertPage() {
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Basic Info */}
         <Card>
-          <h3 className="font-bold text-slate-700 mb-4">المعلومات الأساسية</h3>
+          <h3 className="font-bold text-slate-700 mb-4">معلومات العميل</h3>
           <div className="space-y-4">
             <Input
-              label="اسم الحفلة"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              label="اسم العميل"
+              value={form.clientName}
+              onChange={(e) => setForm({ ...form, clientName: e.target.value })}
               required
-              placeholder="اسم الحفلة أو الفعالية"
+              placeholder="اسم العميل"
             />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="رقم الجوال الأول"
+                type="tel"
+                value={form.clientPhone}
+                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
+                required
+                placeholder="05xxxxxxxx"
+              />
+              <Input
+                label="رقم الجوال الثاني"
+                type="tel"
+                value={form.clientPhone2}
+                onChange={(e) => setForm({ ...form, clientPhone2: e.target.value })}
+                placeholder="05xxxxxxxx (اختياري)"
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="تاريخ الحفلة"
@@ -297,28 +315,6 @@ export default function NewConcertPage() {
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 required
                 placeholder="0.00"
-              />
-            </div>
-            <Input
-              label="اسم العميل"
-              value={form.clientName}
-              onChange={(e) => setForm({ ...form, clientName: e.target.value })}
-              placeholder="اسم العميل (اختياري)"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="رقم جوال العميل"
-                type="tel"
-                value={form.clientPhone}
-                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
-                placeholder="05xxxxxxxx (اختياري)"
-              />
-              <Input
-                label="رقم الجوال الثاني"
-                type="tel"
-                value={form.clientPhone2}
-                onChange={(e) => setForm({ ...form, clientPhone2: e.target.value })}
-                placeholder="05xxxxxxxx (اختياري)"
               />
             </div>
           </div>
