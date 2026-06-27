@@ -42,11 +42,17 @@ export default function AdminConcertDetailPage() {
   const [missing, setMissing] = useState<MissingItem[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
+  const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
+  const [allEmployees, setAllEmployees] = useState<AppUser[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteItemTarget, setDeleteItemTarget] = useState<ConcertItem | null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemForm, setItemForm] = useState({ itemId: "", count: "1" });
+  const [showEditSupervisors, setShowEditSupervisors] = useState(false);
+  const [showEditEmployees, setShowEditEmployees] = useState(false);
+  const [editSupervisorIds, setEditSupervisorIds] = useState<string[]>([]);
+  const [editEmployeeIds, setEditEmployeeIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
@@ -74,7 +80,7 @@ export default function AdminConcertDetailPage() {
 
   async function loadData() {
     setLoading(true);
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps] = await Promise.all([
       getConcertById(id),
       getConcertItems(id),
       getMissingItemsByConcert(id),
@@ -82,6 +88,8 @@ export default function AdminConcertDetailPage() {
       getConcertFood(id),
       getConcertPayments(id),
       getWarehouseItems(),
+      getUsersByRole("supervisor"),
+      getUsersByRole("employee"),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -90,6 +98,8 @@ export default function AdminConcertDetailPage() {
     setConcertFood(foodItems);
     setPayments(paymentsData);
     setWarehouseItems(warehouseData);
+    setAllSupervisors(allSups);
+    setAllEmployees(allEmps);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
@@ -219,6 +229,37 @@ export default function AdminConcertDetailPage() {
       showToast("تمت إضافة المادة");
       setShowItemForm(false);
       setItemForm({ itemId: "", count: "1" });
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveSupervisors() {
+    if (!concert) return;
+    if (editSupervisorIds.length === 0) { showToast("يرجى اختيار مشرف واحد على الأقل", "error"); return; }
+    setSaving(true);
+    try {
+      await updateConcert(concert.id, { supervisorIds: editSupervisorIds });
+      showToast("تم تحديث المشرفين");
+      setShowEditSupervisors(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEmployees() {
+    if (!concert) return;
+    setSaving(true);
+    try {
+      await updateConcert(concert.id, { employeeIds: editEmployeeIds });
+      showToast("تم تحديث الموظفين");
+      setShowEditEmployees(false);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -422,7 +463,12 @@ export default function AdminConcertDetailPage() {
       {/* Supervisors & Employees */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <h3 className="font-bold text-slate-800 mb-3">المشرفون</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-800">المشرفون ({supervisors.length})</h3>
+            <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds); setShowEditSupervisors(true); }}>
+              <Pencil size={13} /> تعديل
+            </Button>
+          </div>
           {supervisors.length === 0 ? (
             <p className="text-sm text-slate-400">لا يوجد مشرفون</p>
           ) : (
@@ -439,7 +485,12 @@ export default function AdminConcertDetailPage() {
           )}
         </Card>
         <Card>
-          <h3 className="font-bold text-slate-800 mb-3">الموظفون</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
+            <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds); setShowEditEmployees(true); }}>
+              <Pencil size={13} /> تعديل
+            </Button>
+          </div>
           {employees.length === 0 ? (
             <p className="text-sm text-slate-400">لا يوجد موظفون</p>
           ) : (
@@ -816,6 +867,79 @@ export default function AdminConcertDetailPage() {
         confirmLabel="حذف"
         loading={saving}
       />
+
+      {/* Edit Supervisors Modal */}
+      <Modal open={showEditSupervisors} onClose={() => setShowEditSupervisors(false)} title="تعديل المشرفين">
+        <div className="space-y-4">
+          {allSupervisors.length === 0 ? (
+            <p className="text-sm text-slate-400">لا يوجد مشرفون مسجلون</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {allSupervisors.map((s) => {
+                const selected = editSupervisorIds.includes(s.uid);
+                return (
+                  <button
+                    key={s.uid}
+                    type="button"
+                    onClick={() => setEditSupervisorIds((prev) =>
+                      selected ? prev.filter((id) => id !== s.uid) : [...prev, s.uid]
+                    )}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                      selected ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold shrink-0">
+                      {s.name.charAt(0)}
+                    </div>
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditSupervisors(false)}>إلغاء</Button>
+            <Button onClick={handleSaveSupervisors} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Employees Modal */}
+      <Modal open={showEditEmployees} onClose={() => setShowEditEmployees(false)} title="تعديل الموظفين">
+        <div className="space-y-4">
+          {allEmployees.length === 0 ? (
+            <p className="text-sm text-slate-400">لا يوجد موظفون مسجلون</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {allEmployees.map((e) => {
+                const selected = editEmployeeIds.includes(e.uid);
+                return (
+                  <button
+                    key={e.uid}
+                    type="button"
+                    onClick={() => setEditEmployeeIds((prev) =>
+                      selected ? prev.filter((id) => id !== e.uid) : [...prev, e.uid]
+                    )}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                      selected ? "border-green-500 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold shrink-0">
+                      {e.name.charAt(0)}
+                    </div>
+                    {e.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-xs text-slate-400">اختياري — يمكن ترك الموظفين فارغاً</p>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditEmployees(false)}>إلغاء</Button>
+            <Button onClick={handleSaveEmployees} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
