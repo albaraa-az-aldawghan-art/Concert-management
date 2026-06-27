@@ -18,6 +18,7 @@ import {
   X,
   ChevronLeft,
   UtensilsCrossed,
+  BarChart3,
 } from "lucide-react";
 
 interface NavItem {
@@ -28,9 +29,10 @@ interface NavItem {
 
 const adminNav: NavItem[] = [
   { label: "لوحة التحكم", href: "/admin", icon: <LayoutDashboard size={18} /> },
+  { label: "القائمة المالية", href: "/admin/finances", icon: <BarChart3 size={18} /> },
+  { label: "الحفلات", href: "/admin/concerts", icon: <Music size={18} /> },
   { label: "المستخدمون", href: "/admin/users", icon: <Users size={18} /> },
   { label: "المخزن", href: "/admin/warehouse", icon: <Package size={18} /> },
-  { label: "الحفلات", href: "/admin/concerts", icon: <Music size={18} /> },
   { label: "أصناف الأكل", href: "/admin/food", icon: <UtensilsCrossed size={18} /> },
   { label: "المفقودات", href: "/admin/missing-items", icon: <AlertTriangle size={18} /> },
 ];
