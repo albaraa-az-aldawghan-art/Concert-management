@@ -226,11 +226,13 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
         </button>
       </div>
 
-      <div
-        ref={mapRef}
-        style={{ width: "100%", height: "300px" }}
-        className="rounded-xl border border-slate-200 overflow-hidden shadow-sm"
-      />
+      <div style={{ position: "relative", zIndex: 0 }}>
+        <div
+          ref={mapRef}
+          style={{ width: "100%", height: "300px" }}
+          className="rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+        />
+      </div>
 
       {value ? (
         <div className="flex items-start justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
