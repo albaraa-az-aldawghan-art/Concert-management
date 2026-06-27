@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   UtensilsCrossed,
   BarChart3,
+  Settings,
 } from "lucide-react";
 
 interface NavItem {
@@ -35,6 +36,7 @@ const adminNav: NavItem[] = [
   { label: "المخزن", href: "/admin/warehouse", icon: <Package size={18} /> },
   { label: "أصناف الأكل", href: "/admin/food", icon: <UtensilsCrossed size={18} /> },
   { label: "المفقودات", href: "/admin/missing-items", icon: <AlertTriangle size={18} /> },
+  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
 ];
 
 const warehouseManagerNav: NavItem[] = [
@@ -42,16 +44,19 @@ const warehouseManagerNav: NavItem[] = [
   { label: "المخزن", href: "/warehouse-manager/warehouse", icon: <Package size={18} /> },
   { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={18} /> },
   { label: "المفقودات", href: "/warehouse-manager/missing-items", icon: <AlertTriangle size={18} /> },
+  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
 ];
 
 const supervisorNav: NavItem[] = [
   { label: "لوحة التحكم", href: "/supervisor", icon: <LayoutDashboard size={18} /> },
   { label: "حفلاتي", href: "/supervisor/concerts", icon: <Music size={18} /> },
+  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
 ];
 
 const employeeNav: NavItem[] = [
   { label: "لوحة التحكم", href: "/employee", icon: <LayoutDashboard size={18} /> },
   { label: "موادي", href: "/employee/assignments", icon: <Package size={18} /> },
+  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
 ];
 
 const navByRole: Record<string, NavItem[]> = {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers, createUser, deleteUser } from "@/lib/firestore/users";
+import { auth } from "@/lib/firebase";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { AppUser, UserRole } from "@/types";
 import { getRoleLabel, formatDate } from "@/lib/utils";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users, Pencil } from "lucide-react";
 
 const roleOptions = [
   { value: "warehouse_manager", label: "مدير المخازن" },
@@ -33,6 +34,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+  const [editTarget, setEditTarget] = useState<AppUser | null>(null);
   const [saving, setSaving] = useState(false);
   const [filterRole, setFilterRole] = useState("");
 
@@ -43,15 +45,20 @@ export default function UsersPage() {
     role: "employee" as UserRole,
   });
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const [editForm, setEditForm] = useState({ name: "", newPassword: "" });
+
+  useEffect(() => { loadUsers(); }, []);
 
   async function loadUsers() {
     setLoading(true);
     const data = await getAllUsers();
     setUsers(data);
     setLoading(false);
+  }
+
+  function openEdit(user: AppUser) {
+    setEditTarget(user);
+    setEditForm({ name: user.name, newPassword: "" });
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -67,6 +74,55 @@ export default function UsersPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "حدث خطأ";
       showToast(msg.includes("email-already") ? "البريد الإلكتروني مستخدم مسبقاً" : "حدث خطأ أثناء الإنشاء", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+
+    const trimName = editForm.name.trim();
+    const trimPass = editForm.newPassword.trim();
+
+    if (!trimName) { showToast("الاسم مطلوب", "error"); return; }
+    if (trimPass && trimPass.length < 6) {
+      showToast("كلمة المرور يجب أن تكون 6 أحرف على الأقل", "error");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/update-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUid: editTarget.uid,
+          newName: trimName !== editTarget.name ? trimName : undefined,
+          newPassword: trimPass || undefined,
+          callerIdToken: idToken,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "unknown");
+      }
+
+      showToast("تم تحديث بيانات المستخدم");
+      setEditTarget(null);
+      loadUsers();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "غير مصرح") {
+        showToast("غير مصرح بهذا الإجراء", "error");
+      } else if (msg.includes("لم يتم إعداد")) {
+        showToast("يجب إعداد Firebase Admin SDK أولاً — راجع الإعدادات", "error");
+      } else {
+        showToast("حدث خطأ أثناء التحديث", "error");
+      }
     } finally {
       setSaving(false);
     }
@@ -92,9 +148,7 @@ export default function UsersPage() {
     }
   }
 
-  const filteredUsers = filterRole
-    ? users.filter((u) => u.role === filterRole)
-    : users;
+  const filteredUsers = filterRole ? users.filter((u) => u.role === filterRole) : users;
 
   return (
     <div className="space-y-5">
@@ -139,14 +193,26 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredUsers.map((user) => (
             <Card key={user.uid} className="relative">
-              {user.uid !== appUser?.uid && (
+              {/* Actions */}
+              <div className="absolute top-3 left-3 flex gap-1">
                 <button
-                  onClick={() => setDeleteTarget(user)}
-                  className="absolute top-3 left-3 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  onClick={() => openEdit(user)}
+                  className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="تعديل الاسم وكلمة المرور"
                 >
-                  <Trash2 size={15} />
+                  <Pencil size={14} />
                 </button>
-              )}
+                {user.uid !== appUser?.uid && (
+                  <button
+                    onClick={() => setDeleteTarget(user)}
+                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="حذف"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
                   {user.name.charAt(0)}
@@ -206,12 +272,40 @@ export default function UsersPage() {
             ))}
           </Select>
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>
-              إلغاء
-            </Button>
-            <Button type="submit" loading={saving}>
-              إنشاء المستخدم
-            </Button>
+            <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button>
+            <Button type="submit" loading={saving}>إنشاء المستخدم</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit User Modal */}
+      <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title={`تعديل: ${editTarget?.name}`}
+      >
+        <form onSubmit={handleEdit} className="space-y-4">
+          <div className="bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-500">
+            {editTarget?.email}
+          </div>
+          <Input
+            label="الاسم الكامل"
+            value={editForm.name}
+            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            required
+            placeholder="اسم المستخدم"
+          />
+          <Input
+            label="كلمة المرور الجديدة (اختياري)"
+            type="password"
+            value={editForm.newPassword}
+            onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
+            placeholder="اتركه فارغاً للإبقاء على كلمة المرور الحالية"
+            helperText="6 أحرف على الأقل إذا أردت التغيير"
+          />
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => setEditTarget(null)}>إلغاء</Button>
+            <Button type="submit" loading={saving}>حفظ التعديلات</Button>
           </div>
         </form>
       </Modal>
