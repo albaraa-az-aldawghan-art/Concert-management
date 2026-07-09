@@ -398,8 +398,8 @@ export default function ContractPage() {
             text-align: center !important;
             padding: 10px 12px !important;
           }
-          .hdr-ar { display: none !important; }
-          .hdr-en { display: none !important; }
+          .hdr-ar { order: 1 !important; font-size: 9px !important; text-align: center !important; }
+          .hdr-en { order: 2 !important; font-size: 9px !important; text-align: center !important; }
           .hdr-center { order: 0 !important; }
           .info-grid { grid-template-columns: 1fr !important; }
           .sig-grid { grid-template-columns: 1fr !important; }
