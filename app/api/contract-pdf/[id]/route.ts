@@ -73,9 +73,9 @@ export async function GET(
       .then((t) => t.replace("الفريج - ", "").trim())
       .catch(() => params.id);
 
-    await page.emulateMediaType("print");
-    await new Promise<void>((r) => setTimeout(r, 400));
-
+    // Measure in SCREEN mode — @page { size: A4 } is only active in print mode,
+    // so measuring there always returns A4 height even for short content.
+    // Screen mode gives the true content height with no page-size constraints.
     const contentHeightPx = await page.evaluate(() => {
       document.documentElement.style.setProperty("--contract-zoom", "100%");
       void document.body.offsetHeight;
@@ -83,9 +83,13 @@ export async function GET(
       return el ? el.scrollHeight : 1062;
     });
 
+    // 1 CSS px @ 96 dpi = 0.264583 mm
     const contentHeightMm = Math.ceil(contentHeightPx * 0.264583);
+    // top + bottom margins = 8 + 8 = 16 mm
     const pageHeightMm = contentHeightMm + 16;
 
+    // page.pdf() internally switches to print media; --contract-zoom: 100% (set
+    // above) persists, so the PDF renders at the same zoom we measured.
     const pdf = await page.pdf({
       width: "210mm",
       height: pageHeightMm + "mm",
