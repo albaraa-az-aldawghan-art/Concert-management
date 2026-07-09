@@ -275,8 +275,12 @@ export default function ContractPage() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-    } catch {
-      // User cancelled share or server error — no action needed
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Don't alert for user-cancelled share (AbortError)
+      if (!msg.includes("AbortError") && !msg.includes("abort") && !msg.includes("cancel")) {
+        alert("خطأ في توليد PDF:\n" + msg);
+      }
     } finally {
       setSharing(false);
     }
