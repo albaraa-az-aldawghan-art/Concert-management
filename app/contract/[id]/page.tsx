@@ -250,15 +250,38 @@ export default function ContractPage() {
     if (!concert) return;
     setSharing(true);
     try {
-      // Server generates a perfect PDF using Chrome (handles Arabic correctly)
-      const res = await fetch(`/api/contract-pdf/${id}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "PDF generation failed");
-      }
+      const el = document.getElementById("contract-doc");
+      if (!el) throw new Error("contract element not found");
 
-      const blob = await res.blob();
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      // Fix width for consistent capture, then restore
+      const savedW = el.style.width;
+      el.style.width = PRINT_W + "px";
+      void el.offsetHeight;
+
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        width: PRINT_W,
+        height: el.scrollHeight,
+      });
+
+      el.style.width = savedW;
+
+      // Custom page height = exact content height → zero white space
+      const pdfW = 210; // mm (A4 width)
+      const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
+
       const filename = `عقد-${concert.clientName}.pdf`;
+      const blob = pdf.output("blob");
       const file = new File([blob], filename, { type: "application/pdf" });
 
       if (
@@ -268,7 +291,6 @@ export default function ContractPage() {
       ) {
         await navigator.share({ files: [file], title: filename });
       } else {
-        // Fallback: direct download
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -280,9 +302,8 @@ export default function ContractPage() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Don't alert for user-cancelled share (AbortError)
-      if (!msg.includes("AbortError") && !msg.includes("abort") && !msg.includes("cancel")) {
-        alert("خطأ في توليد PDF:\n" + msg);
+      if (!msg.includes("bort") && !msg.includes("cancel")) {
+        alert("خطأ: " + msg);
       }
     } finally {
       setSharing(false);
