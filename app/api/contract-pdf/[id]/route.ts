@@ -42,14 +42,15 @@ async function launchBrowser(): Promise<Browser> {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let browser: Browser | undefined;
 
   try {
+    const { id } = await params;
     const host  = req.headers.get("host") ?? "localhost:3000";
     const proto = req.headers.get("x-forwarded-proto") ?? "http";
-    const contractUrl = `${proto}://${host}/contract/${params.id}`;
+    const contractUrl = `${proto}://${host}/contract/${id}`;
 
     browser = await launchBrowser();
 
@@ -71,7 +72,7 @@ export async function GET(
     const clientName = await page
       .title()
       .then((t) => t.replace("الفريج - ", "").trim())
-      .catch(() => params.id);
+      .catch(() => id);
 
     // Measure in SCREEN mode — @page { size: A4 } is only active in print mode,
     // so measuring there always returns A4 height even for short content.
