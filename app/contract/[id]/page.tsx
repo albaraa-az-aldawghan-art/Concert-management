@@ -76,7 +76,7 @@ function fmtDate(d: Date): string {
 }
 
 function fmtNum(n: number): string {
-  return n.toLocaleString("ar-SA", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 interface FoodGroup {
