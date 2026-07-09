@@ -394,13 +394,26 @@ export default function ContractPage() {
             box-shadow: none !important;
           }
           .hdr-grid {
-            grid-template-columns: 1fr !important;
-            text-align: center !important;
+            grid-template-columns: 1fr 1fr !important;
             padding: 10px 12px !important;
           }
-          .hdr-ar { order: 1 !important; font-size: 9px !important; text-align: center !important; }
-          .hdr-en { order: 2 !important; font-size: 9px !important; text-align: center !important; }
-          .hdr-center { order: 0 !important; }
+          .hdr-center {
+            grid-column: 1 / -1 !important;
+            grid-row: 1 !important;
+            text-align: center !important;
+          }
+          .hdr-ar {
+            grid-column: 1 !important;
+            grid-row: 2 !important;
+            text-align: right !important;
+            font-size: 9px !important;
+          }
+          .hdr-en {
+            grid-column: 2 !important;
+            grid-row: 2 !important;
+            text-align: left !important;
+            font-size: 9px !important;
+          }
           .info-grid { grid-template-columns: 1fr !important; }
           .sig-grid { grid-template-columns: 1fr !important; }
           .pay-grid { grid-template-columns: 1fr !important; }
