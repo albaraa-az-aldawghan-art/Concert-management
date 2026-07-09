@@ -368,6 +368,22 @@ export default function ContractPage() {
             zoom: var(--contract-zoom, 88%) !important;
           }
         }
+        #contract-doc::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 340px;
+          height: 340px;
+          background-image: url('/watermark-logo.jpeg');
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
+          opacity: 0.055;
+          pointer-events: none;
+          z-index: 0;
+        }
         @page { size: A4 portrait; margin: 8mm; }
         @media (max-width: 600px) {
           .hdr-grid { grid-template-columns: 1fr !important; }
