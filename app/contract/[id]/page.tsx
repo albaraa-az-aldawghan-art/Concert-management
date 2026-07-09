@@ -371,6 +371,12 @@ export default function ContractPage() {
             margin: 0 !important;
             zoom: var(--contract-zoom, 88%) !important;
           }
+          /* Force Chrome/Android to print background colors and images */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
         }
         #contract-doc::before {
           content: '';
