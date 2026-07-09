@@ -566,7 +566,6 @@ export default function ContractPage() {
                                 <span key={j}>
                                   {j > 0 && "، "}
                                   <span style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>{opt}</span>
-                                  {isNew && <span style={S.newBadge}> جديد</span>}
                                 </span>
                               );
                             })}
