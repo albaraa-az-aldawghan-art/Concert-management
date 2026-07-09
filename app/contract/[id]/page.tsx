@@ -336,21 +336,42 @@ export default function ContractPage() {
       const blob = pdf.output("blob");
       const file = new File([blob], filename, { type: "application/pdf" });
 
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      let shared = false;
+
       if (
         typeof navigator.share === "function" &&
         typeof navigator.canShare === "function" &&
         navigator.canShare({ files: [file] })
       ) {
-        await navigator.share({ files: [file], title: filename });
-      } else {
+        try {
+          await navigator.share({ files: [file], title: filename });
+          shared = true;
+        } catch (shareErr) {
+          const m = shareErr instanceof Error ? shareErr.message : String(shareErr);
+          // User cancelled — not an error
+          if (m.toLowerCase().includes("abort") || m.toLowerCase().includes("cancel")) {
+            shared = true;
+          }
+          // Otherwise fall through to the download/open fallback below
+        }
+      }
+
+      if (!shared) {
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        if (isIOS) {
+          // iOS blocks download links — open PDF in a new tab so user can share from there
+          window.open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 120_000);
+        } else {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
