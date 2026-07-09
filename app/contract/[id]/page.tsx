@@ -85,24 +85,24 @@ interface FoodGroup {
   totalQty: number;
 }
 
-// Renders strikethrough via absolute-positioned line — html2canvas misplaces
-// CSS text-decoration:line-through, so we use a real DOM element instead.
+// Renders strikethrough via background gradient — html2canvas misplaces
+// CSS text-decoration:line-through; a gradient line tracks the text width exactly.
 function Strike({ children, color = "currentColor", style }: {
   children: React.ReactNode;
   color?: string;
   style?: React.CSSProperties;
 }) {
   return (
-    <span style={{ position: "relative", display: "inline-block", color, ...style }}>
+    <span style={{
+      display: "inline-block",
+      backgroundImage: `linear-gradient(${color}, ${color})`,
+      backgroundSize: "100% 1.5px",
+      backgroundPosition: "0 50%",
+      backgroundRepeat: "no-repeat",
+      color,
+      ...style,
+    }}>
       {children}
-      <span aria-hidden style={{
-        position: "absolute", left: 0, right: 0,
-        top: "50%", height: "1.5px",
-        background: color,
-        transform: "translateY(-50%)",
-        display: "block",
-        pointerEvents: "none",
-      }} />
     </span>
   );
 }
