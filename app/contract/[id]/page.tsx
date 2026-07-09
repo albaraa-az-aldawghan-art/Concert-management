@@ -264,16 +264,36 @@ export default function ContractPage() {
         import("jspdf"),
       ]);
 
-      // foreignObjectRendering uses the browser's SVG renderer instead of Canvas 2D API,
-      // which correctly shapes Arabic text (joining letters, RTL direction).
       const canvas = await html2canvas(el, {
         scale: 2,
+        useCORS: true,
+        allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
-        foreignObjectRendering: true,
+        foreignObjectRendering: false,
         width: PRINT_W,
         height: el.scrollHeight,
         windowWidth: PRINT_W,
+        onclone: (_clonedDoc, clonedEl) => {
+          // Ensure RTL direction is set on the cloned element and its root
+          _clonedDoc.documentElement.setAttribute("dir", "rtl");
+          _clonedDoc.documentElement.setAttribute("lang", "ar");
+          clonedEl.style.direction = "rtl";
+          // Copy @font-face rules (Cairo) so Arabic letters render with correct font
+          Array.from(document.styleSheets).forEach((sheet) => {
+            try {
+              Array.from(sheet.cssRules || []).forEach((rule) => {
+                if (rule.cssText.includes("@font-face") || rule.cssText.includes("font-face")) {
+                  const s = _clonedDoc.createElement("style");
+                  s.textContent = rule.cssText;
+                  _clonedDoc.head.appendChild(s);
+                }
+              });
+            } catch {
+              // cross-origin stylesheet — skip
+            }
+          });
+        },
       });
 
       // Restore element
