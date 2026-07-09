@@ -500,11 +500,11 @@ export default function ContractPage() {
                   </button>
                   <button
                     onClick={() => {
-                      // Must call window.print() directly in the click handler (no setTimeout)
-                      // so iOS Safari keeps it within user-gesture scope
+                      // window.print() MUST be called first — any React state update
+                      // before it (even setShowIosHint) causes iOS Safari to block it
                       document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
-                      setShowIosHint(false);
                       window.print();
+                      setShowIosHint(false);
                     }}
                     style={{
                       flex: 2, background: "#1C2D50", color: "white", border: "none",
