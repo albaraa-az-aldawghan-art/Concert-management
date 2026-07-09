@@ -173,6 +173,26 @@ export default function ContractPage() {
   const prevDateFmt = prevDateObj ? `${fmtDate(prevDateObj)} — ${AR_DAYS[prevDateObj.getDay()]}` : null;
   const prevVenueName = fieldPrev["venueName"] ?? null;
 
+  // ── Food change tracking ──────────────────────────
+  interface DeletedFood { categoryName: string; option: string; qty: number }
+  const deletedFoods: DeletedFood[] = [];
+  const addedFoodKeys = new Set<string>(); // "categoryName:::option"
+  for (const log of logs) {
+    if (log.field === "foodDeleted" && log.oldValue) {
+      const parts = log.oldValue.split(":::");
+      deletedFoods.push({ categoryName: parts[0] ?? "", option: parts[1] ?? "", qty: parseInt(parts[2] ?? "0") || 0 });
+    }
+    if (log.field === "foodAdded" && log.newValue) {
+      const parts = log.newValue.split(":::");
+      addedFoodKeys.add(`${parts[0] ?? ""}:::${parts[1] ?? ""}`);
+    }
+  }
+
+  // ── Price change tracking ─────────────────────────
+  const prevPrice = fieldPrev["price"] ? parseFloat(fieldPrev["price"]) : null;
+  const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / 1.15) * 100) / 100 : null;
+  const prevVat = prevPrice !== null && prevPriceBeforeVat !== null ? Math.round((prevPrice - prevPriceBeforeVat) * 100) / 100 : null;
+
   // ── Styles ────────────────────────────────────────
   const S = {
     body: {
@@ -302,6 +322,8 @@ export default function ContractPage() {
     refundVal: { fontWeight: 700, color: "#DC2626" },
     oldVal: { textDecoration: "line-through", color: "#94A3B8", fontSize: 10.5, marginLeft: 5 },
     updatedBadge: { fontSize: 10, background: "#FEF3C7", color: "#92400E", padding: "1px 7px", borderRadius: 4, fontWeight: 700, border: "1px solid #FDE68A" },
+    newBadge: { fontSize: 9, background: "#D1FAE5", color: "#065F46", padding: "0px 5px", borderRadius: 3, fontWeight: 700, marginRight: 4, border: "1px solid #A7F3D0" },
+    tdDel: { padding: "7px 10px", textDecoration: "line-through" as const, color: "#CBD5E1", borderBottom: "1px solid #F1F5F9", fontSize: 12 },
     sigs: { padding: "8px 20px", borderTop: "1px solid #E8ECF0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
     sigBox: { border: "1px dashed #B0BDC9", borderRadius: 5, padding: "10px 12px 8px", textAlign: "center" as const },
     sigTitle: { fontSize: 12, fontWeight: 700, color: "#1C2D50", marginBottom: 14 },
@@ -493,7 +515,7 @@ export default function ContractPage() {
           </div>
 
           {/* Food */}
-          {foodGroups.length > 0 && (
+          {(foodGroups.length > 0 || deletedFoods.length > 0) && (
             <div style={S.section}>
               <div style={S.secHd}>
                 <span style={S.secAccent} />
@@ -513,8 +535,25 @@ export default function ContractPage() {
                     {foodGroups.map((g, i) => (
                       <tr key={g.categoryName} style={{ background: i % 2 === 1 ? "#F8FAFC" : "white" }}>
                         <td style={S.tdCat}>{g.categoryName}</td>
-                        <td style={S.tdItems}>{g.items.join("، ")}</td>
+                        <td style={S.tdItems}>
+                          {g.items.map((opt, j) => (
+                            <span key={j}>
+                              {j > 0 && "، "}
+                              {opt}
+                              {addedFoodKeys.has(`${g.categoryName}:::${opt}`) && (
+                                <span style={S.newBadge}> جديد</span>
+                              )}
+                            </span>
+                          ))}
+                        </td>
                         <td style={S.tdTotal}>{g.totalQty > 0 ? g.totalQty : "—"}</td>
+                      </tr>
+                    ))}
+                    {deletedFoods.map((d, i) => (
+                      <tr key={`del-${i}`}>
+                        <td style={{ ...S.tdDel, width: "22%" }}>{d.categoryName}</td>
+                        <td style={S.tdDel}>{d.option}</td>
+                        <td style={{ ...S.tdDel, textAlign: "center", width: "22%" }}>{d.qty > 0 ? d.qty : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -539,17 +578,30 @@ export default function ContractPage() {
           <div>
             <div style={S.finRow}>
               <span style={S.finLbl}>المبلغ قبل الضريبة</span>
-              <span style={S.finVal}>{fmtNum(priceBeforeVat)}<span style={S.unit}>ريال</span></span>
+              <span style={S.finVal}>
+                {prevPriceBeforeVat !== null && <span style={S.oldVal}>{fmtNum(prevPriceBeforeVat)}</span>}
+                {fmtNum(priceBeforeVat)}<span style={S.unit}>ريال</span>
+              </span>
             </div>
             <div style={S.finRow}>
               <span style={S.finLbl}>ضريبة القيمة المضافة (15%)</span>
-              <span style={S.finVal}>{fmtNum(vat)}<span style={S.unit}>ريال</span></span>
+              <span style={S.finVal}>
+                {prevVat !== null && <span style={S.oldVal}>{fmtNum(prevVat)}</span>}
+                {fmtNum(vat)}<span style={S.unit}>ريال</span>
+              </span>
             </div>
           </div>
 
           <div style={S.finBand}>
             <span style={S.finBandLbl}>إجمالي المبلغ شامل الضريبة</span>
-            <span style={S.finBandVal}>{fmtNum(price)}<span style={{ ...S.unit, color: "rgba(255,255,255,0.5)" }}>ريال</span></span>
+            <span style={S.finBandVal}>
+              {prevPrice !== null && (
+                <span style={{ textDecoration: "line-through", color: "rgba(255,255,255,0.4)", fontSize: 12, marginLeft: 8 }}>
+                  {fmtNum(prevPrice)}
+                </span>
+              )}
+              {fmtNum(price)}<span style={{ ...S.unit, color: "rgba(255,255,255,0.5)" }}>ريال</span>
+            </span>
           </div>
 
           {payments.length > 0 && (

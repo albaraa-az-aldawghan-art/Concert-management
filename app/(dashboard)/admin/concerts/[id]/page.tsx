@@ -173,8 +173,19 @@ export default function AdminConcertDetailPage() {
           createdBy: appUser.uid,
         });
       }));
-      const names = entries.map(([k]) => { const [catId, opt] = k.split(":::"); const cat = foodCategories.find((c) => c.id === catId)!; return `${cat.name}${opt ? " — " + opt : ""}`; }).join("، ");
-      await addConcertLog({ concertId: id, description: `تمت إضافة أصناف: ${names}`, createdBy: appUser.uid });
+      // Log each item separately with structured data for contract change tracking
+      await Promise.all(entries.map(([k, s]) => {
+        const [catId, opt] = k.split(":::");
+        const cat = foodCategories.find((c) => c.id === catId)!;
+        const optName = opt || cat.name;
+        return addConcertLog({
+          concertId: id,
+          description: `تمت إضافة صنف: ${cat.name}${opt ? " — " + opt : ""}`,
+          createdBy: appUser.uid,
+          field: "foodAdded",
+          newValue: `${cat.name}:::${optName}:::${s.quantity || "0"}`,
+        });
+      }));
       showToast("تم إضافة الأصناف");
       setShowFoodForm(false);
       setAddFoodCategoryId("");
@@ -192,7 +203,13 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       await deleteConcertFood(deleteFoodTarget.id);
-      await addConcertLog({ concertId: id, description: `تم حذف صنف: ${deleteFoodTarget.categoryName} — ${deleteFoodTarget.selectedOption}`, createdBy: appUser.uid });
+      await addConcertLog({
+        concertId: id,
+        description: `تم حذف صنف: ${deleteFoodTarget.categoryName} — ${deleteFoodTarget.selectedOption}`,
+        createdBy: appUser.uid,
+        field: "foodDeleted",
+        oldValue: `${deleteFoodTarget.categoryName}:::${deleteFoodTarget.selectedOption}:::${deleteFoodTarget.quantity ?? 0}`,
+      });
       showToast("تم حذف قسم المأكولات من الحفلة");
       setDeleteFoodTarget(null);
       loadData();
@@ -299,7 +316,14 @@ export default function AdminConcertDetailPage() {
     try {
       const oldPrice = concert.price;
       await updateConcert(concert.id, { price });
-      await addConcertLog({ concertId: concert.id, description: `تم تغيير سعر الحفلة من ${oldPrice?.toLocaleString("ar-SA")} ريال إلى ${price.toLocaleString("ar-SA")} ريال`, createdBy: appUser.uid });
+      await addConcertLog({
+        concertId: concert.id,
+        description: `تم تغيير سعر الحفلة من ${oldPrice?.toLocaleString("ar-SA")} ريال إلى ${price.toLocaleString("ar-SA")} ريال`,
+        createdBy: appUser.uid,
+        field: "price",
+        oldValue: String(oldPrice ?? 0),
+        newValue: String(price),
+      });
       showToast("تم تحديث سعر الحفلة");
       setShowEditPrice(false);
       loadData();
