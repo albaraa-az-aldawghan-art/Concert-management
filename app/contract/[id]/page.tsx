@@ -883,9 +883,10 @@ export default function ContractPage() {
                               const qtyIncreased = qc && qc.newQty > qc.oldQty;
                               const isBold = isNew || qtyIncreased;
                               return (
-                                <div key={j} style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>
-                                  {opt}
-                                </div>
+                                <span key={j}>
+                                  {j > 0 && "، "}
+                                  <span style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>{opt}</span>
+                                </span>
                               );
                             })}
                           </td>
