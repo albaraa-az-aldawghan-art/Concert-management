@@ -108,8 +108,9 @@ export async function GET(
       },
     });
   } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
     console.error("[contract-pdf]", err);
-    return NextResponse.json({ error: "فشل توليد PDF" }, { status: 500 });
+    return NextResponse.json({ error: "فشل توليد PDF", detail }, { status: 500 });
   } finally {
     if (browser) await browser.close();
   }

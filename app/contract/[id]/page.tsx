@@ -252,7 +252,10 @@ export default function ContractPage() {
     try {
       // Server generates a perfect PDF using Chrome (handles Arabic correctly)
       const res = await fetch(`/api/contract-pdf/${id}`);
-      if (!res.ok) throw new Error("PDF generation failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "PDF generation failed");
+      }
 
       const blob = await res.blob();
       const filename = `عقد-${concert.clientName}.pdf`;
