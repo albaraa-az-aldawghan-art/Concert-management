@@ -497,7 +497,7 @@ export default function ContractPage() {
     sigBox: { border: "1px dashed #B0BDC9", borderRadius: 5, padding: "10px 12px 8px", textAlign: "center" as const },
     sigTitle: { fontSize: 12, fontWeight: 700, color: "#1C2D50", marginBottom: 14 },
     sigLine: { borderTop: "1px solid #B0BDC9", paddingTop: 5, fontSize: 10, color: "#94A3B8" },
-    footer: { background: "#EEF1F7", padding: "5px 20px", display: "flex", justifyContent: "space-between" as const, fontSize: 9.5, color: "#94A3B8", borderTop: "1px solid #D4DAE4" },
+    footer: { background: "#EEF1F7", padding: "6px 20px 10px", display: "flex", justifyContent: "space-between" as const, fontSize: 9.5, color: "#94A3B8", borderTop: "1px solid #D4DAE4" },
     unit: { fontSize: 10.5, fontWeight: 400, color: "#94A3B8", marginRight: 3 },
     statusBadge: (type: "confirmed" | "unconfirmed" | "cancelled") => ({
       padding: "3px 12px", borderRadius: 100, fontSize: 12, fontWeight: 700,
