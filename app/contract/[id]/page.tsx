@@ -94,8 +94,9 @@ function Strike({ children, color = "currentColor", style }: {
 }) {
   return (
     <span style={{
-      display: "inline-block",
+      display: "inline",
       borderBottom: `1.5px solid ${color}`,
+      paddingBottom: 1,
       color,
       ...style,
     }}>
