@@ -22,12 +22,12 @@ export function Button({
     "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variants = {
-    primary: "bg-blue-700 hover:bg-blue-800 text-white focus:ring-blue-500 shadow-sm hover:shadow-md",
+    primary:   "bg-[#1C2D50] hover:bg-[#263C6E] text-[#D4DCE8] focus:ring-[#1C2D50] shadow-sm hover:shadow-md",
     secondary: "bg-slate-100 hover:bg-slate-200 text-slate-700 focus:ring-slate-400",
-    danger: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm",
-    success: "bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 shadow-sm",
-    ghost: "hover:bg-slate-100 text-slate-600 focus:ring-slate-400",
-    outline: "border-2 border-blue-700 text-blue-700 hover:bg-blue-50 focus:ring-blue-500",
+    danger:    "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm",
+    success:   "bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500 shadow-sm",
+    ghost:     "hover:bg-slate-100 text-slate-600 focus:ring-slate-400",
+    outline:   "border-2 border-[#1C2D50] text-[#1C2D50] hover:bg-[#F4F6FA] focus:ring-[#1C2D50]",
   };
 
   const sizes = {

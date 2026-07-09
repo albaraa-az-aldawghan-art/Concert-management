@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getConcertById, getConcertItems, updateConcertItem,
-  approveDelivery, approveReturn, setConcertLocation, supervisorDeliverToWarehouse
+  approveDelivery, approveReturn, setConcertLocation, supervisorDeliverToWarehouse,
+  advanceToExecuting,
 } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
 import { createRequest, getRequestsByConcert } from "@/lib/firestore/requests";
@@ -55,6 +56,7 @@ export default function SupervisorConcertDetailPage() {
   const [confirmDelivery, setConfirmDelivery] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [confirmDeliverToWarehouse, setConfirmDeliverToWarehouse] = useState(false);
+  const [confirmExecuting, setConfirmExecuting] = useState(false);
 
   const [requestForm, setRequestForm] = useState({ itemId: "", count: "1" });
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
@@ -178,8 +180,18 @@ export default function SupervisorConcertDetailPage() {
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
   }
 
+  async function handleAdvanceToExecuting() {
+    setSaving(true);
+    try {
+      await advanceToExecuting(id);
+      showToast("الحفلة في مرحلة التنفيذ — بالتوفيق!");
+      setConfirmExecuting(false);
+      loadData();
+    } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
+  }
+
   if (loading) {
-    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>;
+    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>;
   }
 
   if (!concert) {
@@ -188,12 +200,23 @@ export default function SupervisorConcertDetailPage() {
 
   const isLocked = concert.deliveryApproved;
   const needsLocation = concert.deliveryApproved && !concert.location;
+  const isPlanned = concert.status === "planned";
+  const canReceiveMaterials = concert.status === "materials_requested" ||
+    (!concert.deliveryApproved && !isPlanned && concert.status !== "confirmed" && !concert.status);
+  const canStartExecuting = concert.status === "location_set" ||
+    (concert.status === "active" && !!concert.location);
+  const canReturnMaterials = concert.status === "executing";
+  const canDeliverToWarehouse = concert.status === "materials_returned" ||
+    (concert.returnApproved && !concert.supervisorDeliveredToWarehouse &&
+     concert.status !== "executing" && concert.status !== "location_set" && concert.status !== "active");
+  const isWaitingWarehouse = concert.status === "delivered_to_warehouse" ||
+    (concert.supervisorDeliveredToWarehouse && !concert.warehouseReturnConfirmed);
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link href="/supervisor/concerts" className="hover:text-blue-600">حفلاتي</Link>
+        <Link href="/supervisor/concerts" className="hover:text-[#1C2D50]">حفلاتي</Link>
         <ChevronRight size={14} />
         <span className="text-slate-800 font-medium">{concert.name}</span>
       </div>
@@ -205,25 +228,31 @@ export default function SupervisorConcertDetailPage() {
           <StatusBadge status={concert.status} />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {!concert.deliveryApproved && (
+          {canReceiveMaterials && (
             <Button variant="success" onClick={() => setConfirmDelivery(true)}>
               <CheckCircle size={16} />
-              تم استلام الحفل والمواد من المخزن
+              تم استلام المواد من المخزن
             </Button>
           )}
-          {concert.deliveryApproved && concert.location && !concert.returnApproved && (
+          {canStartExecuting && (
+            <Button variant="success" onClick={() => setConfirmExecuting(true)}>
+              <CheckCircle size={16} />
+              بدء تنفيذ الحفلة
+            </Button>
+          )}
+          {canReturnMaterials && (
             <Button variant="success" onClick={() => setConfirmReturn(true)}>
               <CheckCircle size={16} />
               تم استلام المواد من الحفلة
             </Button>
           )}
-          {concert.returnApproved && !concert.supervisorDeliveredToWarehouse && (
+          {canDeliverToWarehouse && (
             <Button onClick={() => setConfirmDeliverToWarehouse(true)}>
               <CheckCircle size={16} />
               تم تسليم المواد إلى المخزن
             </Button>
           )}
-          {concert.supervisorDeliveredToWarehouse && (
+          {isWaitingWarehouse && (
             <button disabled className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-slate-200 text-slate-400 cursor-not-allowed">
               <CheckCircle size={16} />
               {concert.warehouseReturnConfirmed ? "تم تأكيد الاستلام من المخزن ✓" : "بانتظار تأكيد مدير المخازن..."}
@@ -231,6 +260,17 @@ export default function SupervisorConcertDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Unconfirmed banner */}
+      {isPlanned && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <span className="text-yellow-500 mt-0.5 text-lg">⚠</span>
+          <div>
+            <p className="font-semibold text-yellow-800 text-sm">الحفلة في انتظار تأكيد الدفعة الأولى</p>
+            <p className="text-xs text-yellow-600 mt-0.5">لا يمكن اتخاذ أي إجراء حتى يُسجّل المدير الدفعة الأولى</p>
+          </div>
+        </div>
+      )}
 
       {/* Date */}
       <Card>
@@ -258,7 +298,7 @@ export default function SupervisorConcertDetailPage() {
             {concert.clientPhone && (
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">رقم الجوال</p>
-                <a href={`tel:${concert.clientPhone}`} className="font-semibold text-blue-700 text-sm flex items-center gap-1 hover:underline">
+                <a href={`tel:${concert.clientPhone}`} className="font-semibold text-[#1C2D50] text-sm flex items-center gap-1 hover:underline">
                   <Phone size={13} />
                   {concert.clientPhone}
                 </a>
@@ -267,7 +307,7 @@ export default function SupervisorConcertDetailPage() {
             {concert.clientPhone2 && (
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">رقم الجوال الثاني</p>
-                <a href={`tel:${concert.clientPhone2}`} className="font-semibold text-blue-700 text-sm flex items-center gap-1 hover:underline">
+                <a href={`tel:${concert.clientPhone2}`} className="font-semibold text-[#1C2D50] text-sm flex items-center gap-1 hover:underline">
                   <Phone size={13} />
                   {concert.clientPhone2}
                 </a>
@@ -285,12 +325,12 @@ export default function SupervisorConcertDetailPage() {
         </Card>
       ) : needsLocation ? (
         /* Supervisor sets location after receiving items */
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-[#D4DCE8] bg-[#EEF1F7]">
           <div className="flex items-center gap-2 mb-3">
-            <MapPin size={18} className="text-blue-600" />
+            <MapPin size={18} className="text-[#1C2D50]" />
             <h3 className="font-bold text-blue-800">تحديد موقع الحفلة</h3>
           </div>
-          <p className="text-sm text-blue-600 mb-4">
+          <p className="text-sm text-[#1C2D50] mb-4">
             لم يحدد المدير موقع الحفلة — حدد الموقع الذي أنزلت فيه المواد
           </p>
           <LocationPickerDynamic value={supervisorLocation} onChange={setSupervisorLocation} />
@@ -334,7 +374,7 @@ export default function SupervisorConcertDetailPage() {
       </Card>
 
       {/* Request Items */}
-      {!isLocked && (
+      {!isLocked && !isPlanned && (
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">طلب مواد من المخزن</h3>
@@ -384,7 +424,7 @@ export default function SupervisorConcertDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-lg font-bold text-blue-700">{item.count}</p>
+                  <p className="text-lg font-bold text-[#1C2D50]">{item.count}</p>
                   <StatusBadge status={item.deliveryStatus} />
                   {!isLocked && employees.length > 0 && (
                     <Button size="sm" variant="outline" onClick={() => { setAssignTarget(item); setShowAssignModal(true); }}>
@@ -500,6 +540,17 @@ export default function SupervisorConcertDetailPage() {
         title="تم تسليم المواد إلى المخزن"
         message="بتأكيدك هذا تؤكد تسليم جميع المواد إلى مدير المخازن. سيقوم بتأكيد الاستلام وإضافتها للمخزن."
         confirmLabel="نعم، تم التسليم للمخزن"
+        variant="primary"
+        loading={saving}
+      />
+
+      <ConfirmModal
+        open={confirmExecuting}
+        onClose={() => setConfirmExecuting(false)}
+        onConfirm={handleAdvanceToExecuting}
+        title="بدء تنفيذ الحفلة"
+        message="بتأكيدك هذا تؤكد أن الحفلة بدأت وأن جميع المواد في موقع الحفلة."
+        confirmLabel="نعم، بدأت الحفلة"
         variant="primary"
         loading={saving}
       />

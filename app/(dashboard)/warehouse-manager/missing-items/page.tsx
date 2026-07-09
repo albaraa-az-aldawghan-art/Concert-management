@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
@@ -40,7 +40,7 @@ export default function WarehouseManagerMissingPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <AlertTriangle size={40} className="mb-3 opacity-40" /><p>لا توجد مفقودات</p>

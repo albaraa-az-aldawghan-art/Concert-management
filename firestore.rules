@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── دوال مساعدة ────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // يجلب دور المستخدم من Firestore — يُشغَّل على سيرفر Firebase
+    function role() {
+      return get(/databases/$(database)/documents/users/$(uid())).data.role;
+    }
+
+    function isAdmin()            { return signedIn() && role() == 'admin'; }
+    function isWarehouse()        { return signedIn() && role() == 'warehouse_manager'; }
+    function isSupervisor()       { return signedIn() && role() == 'supervisor'; }
+    function isEmployee()         { return signedIn() && role() == 'employee'; }
+    function isAdminOrWarehouse() { return signedIn() && role() in ['admin', 'warehouse_manager']; }
+
+    // ── المستخدمون ─────────────────────────────────────────────
+    // المدير: صلاحيات كاملة
+    // الباقون: يقرؤون ملفهم الشخصي فقط، بدون أي كتابة
+    match /users/{userId} {
+      allow get:                    if signedIn() && (uid() == userId || isAdmin());
+      allow list:                   if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── الحفلات ────────────────────────────────────────────────
+    // المدير: صلاحيات كاملة
+    // مدير المخازن: قراءة فقط
+    // المشرف: قراءة وتعديل حفلاته فقط
+    // الموظف: قراءة حفلاته فقط
+    match /concerts/{concertId} {
+      allow get: if isAdmin() || isWarehouse() ||
+        (isSupervisor() && uid() in resource.data.supervisorIds) ||
+        (isEmployee()   && uid() in resource.data.employeeIds);
+      allow list: if isAdmin() || isWarehouse() ||
+        (isSupervisor() && uid() in resource.data.supervisorIds) ||
+        (isEmployee()   && uid() in resource.data.employeeIds);
+      allow create:  if isAdmin();
+      allow update:  if isAdmin() ||
+        (isSupervisor() && uid() in resource.data.supervisorIds);
+      allow delete:  if isAdmin();
+    }
+
+    // ── مواد الحفلات ───────────────────────────────────────────
+    // المدير والمشرف: قراءة وكتابة وحذف
+    // الموظف: يعدّل فقط العناصر المسندة إليه
+    // مدير المخازن: قراءة فقط
+    match /concert_items/{itemId} {
+      allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee();
+      allow create: if isAdmin() || isSupervisor();
+      allow update: if isAdmin() || isSupervisor() ||
+        (isEmployee() && resource.data.assignedToEmployeeId == uid());
+      allow delete: if isAdmin() || isSupervisor();
+    }
+
+    // ── دفعات الحفلات (بيانات مالية) ── المدير فقط ──────────────
+    match /concert_payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── سجلات الحفلات (Audit Log — لا يُحذف ولا يُعدَّل) ────────
+    match /concert_logs/{logId} {
+      allow read:           if isAdmin() || isSupervisor();
+      allow create:         if signedIn();
+      allow update, delete: if false;
+    }
+
+    // ── أكل الحفلات ────────────────────────────────────────────
+    match /concert_food/{foodId} {
+      allow read:                   if isAdmin() || isSupervisor() || isEmployee();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    // ── أقسام الأكل ────────────────────────────────────────────
+    // جميع المسجَّلين يقرؤون (لعرض الخيارات) — المدير فقط يعدّل
+    match /food_categories/{catId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── مواد المخزن ────────────────────────────────────────────
+    // جميع المسجَّلين يقرؤون — مدير وAdmin فقط يعدّلان
+    match /warehouse_items/{itemId} {
+      allow read:  if signedIn();
+      allow write: if isAdminOrWarehouse();
+    }
+
+    // ── طلبات المخزن ───────────────────────────────────────────
+    match /warehouse_requests/{reqId} {
+      allow read: if isAdmin() || isWarehouse() ||
+        (isSupervisor() && resource.data.supervisorId == uid());
+      allow create: if isAdmin() ||
+        (isSupervisor() && request.resource.data.supervisorId == uid());
+      allow update: if isAdminOrWarehouse();
+      allow delete: if isAdmin();
+    }
+
+    // ── المفقودات ──────────────────────────────────────────────
+    match /missing_items/{itemId} {
+      allow read:           if isAdmin() || isWarehouse() || isSupervisor();
+      allow create:         if signedIn();
+      allow update, delete: if isAdminOrWarehouse();
+    }
+
+    // ── العدادات (ترقيم الحفلات تسلسلياً) ─────────────────────
+    match /counters/{counterId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
+    match /settings/{docId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem } from "@/lib/firestore/warehouse";
@@ -26,6 +26,7 @@ export default function AdminWarehousePage() {
     totalCount: "",
     availableCount: "",
     type: "internal" as "internal" | "external",
+    pricePerUnit: "",
   });
 
   useEffect(() => { loadItems(); }, []);
@@ -44,6 +45,7 @@ export default function AdminWarehousePage() {
       totalCount: String(item.totalCount),
       availableCount: String(item.availableCount),
       type: item.type,
+      pricePerUnit: String(item.pricePerUnit ?? ""),
     });
   }
 
@@ -58,12 +60,14 @@ export default function AdminWarehousePage() {
       return;
     }
     try {
+      const pricePerUnit = form.type === "external" && form.pricePerUnit ? parseFloat(form.pricePerUnit) : null;
       if (editTarget) {
         await updateWarehouseItem(editTarget.id, {
           name: form.name,
           totalCount: total,
           availableCount: available,
           type: form.type,
+          pricePerUnit,
         });
         showToast("تم تحديث المادة بنجاح");
         setEditTarget(null);
@@ -73,11 +77,12 @@ export default function AdminWarehousePage() {
           totalCount: total,
           availableCount: available,
           type: form.type,
+          pricePerUnit,
         });
         showToast("تم إضافة المادة بنجاح");
         setShowAdd(false);
       }
-      setForm({ name: "", totalCount: "", availableCount: "", type: "internal" });
+      setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" });
       loadItems();
     } catch {
       showToast("حدث خطأ", "error");
@@ -105,47 +110,60 @@ export default function AdminWarehousePage() {
   const internalCount = items.filter((i) => i.type === "internal").length;
   const externalCount = items.filter((i) => i.type === "external").length;
 
-  const FormContent = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Input
-        label="اسم المادة"
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        required placeholder="مثال: كرسي، طاولة..." />
-      <div className="grid grid-cols-2 gap-3">
+  function renderForm(isEdit: boolean) {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="العدد الإجمالي"
-          type="number"
-          min={1}
-          value={form.totalCount}
-          onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
-          required />
-        <Input
-          label="المتوفر حالياً"
-          type="number"
-          min={0}
-          value={form.availableCount}
-          onChange={(e) => setForm({ ...form, availableCount: e.target.value })}
-          required />
-      </div>
-      <Select
-        label="النوع"
-        value={form.type}
-        onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}
-      >
-        <option value="internal">داخلي (من المخزن)</option>
-        <option value="external">خارجي (مستأجر)</option>
-      </Select>
-      <div className="flex gap-3 justify-end pt-2">
-        <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>
-          إلغاء
-        </Button>
-        <Button type="submit" loading={saving}>
-          {editTarget ? "حفظ التعديلات" : "إضافة المادة"}
-        </Button>
-      </div>
-    </form>
-  );
+          label="اسم المادة"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          required placeholder="مثال: كرسي، طاولة..." />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="العدد الإجمالي"
+            type="number"
+            min={1}
+            value={form.totalCount}
+            onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
+            required />
+          <Input
+            label="المتوفر حالياً"
+            type="number"
+            min={0}
+            value={form.availableCount}
+            onChange={(e) => setForm({ ...form, availableCount: e.target.value })}
+            required />
+        </div>
+        <Select
+          label="النوع"
+          value={form.type}
+          onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external", pricePerUnit: "" })}
+        >
+          <option value="internal">داخلي (من المخزن)</option>
+          <option value="external">خارجي (مستأجر)</option>
+        </Select>
+        {form.type === "external" && (
+          <Input
+            label="سعر الحبة (ريال)"
+            type="number"
+            min={0}
+            step="0.01"
+            value={form.pricePerUnit}
+            onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
+            placeholder="0.00 ريال (اختياري)"
+          />
+        )}
+        <div className="flex gap-3 justify-end pt-2">
+          <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>
+            إلغاء
+          </Button>
+          <Button type="submit" loading={saving}>
+            {isEdit ? "حفظ التعديلات" : "إضافة المادة"}
+          </Button>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -156,7 +174,7 @@ export default function AdminWarehousePage() {
             {internalCount} داخلي · {externalCount} خارجي
           </p>
         </div>
-        <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal" }); setShowAdd(true); }}>
+        <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); setShowAdd(true); }}>
           <Plus size={16} />
           إضافة مادة
         </Button>
@@ -170,7 +188,7 @@ export default function AdminWarehousePage() {
             onClick={() => setFilterType(t)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filterType === t
-                ? "bg-blue-700 text-white"
+                ? "bg-[#1C2D50] text-white"
                 : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
             }`}
           >
@@ -181,7 +199,7 @@ export default function AdminWarehousePage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
@@ -200,7 +218,7 @@ export default function AdminWarehousePage() {
                 <div className="flex gap-1">
                   <button
                     onClick={() => openEdit(item)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
                   >
                     <Pencil size={15} />
                   </button>
@@ -229,10 +247,16 @@ export default function AdminWarehousePage() {
                     {item.totalCount - item.availableCount}
                   </span>
                 </div>
+                {item.type === "external" && item.pricePerUnit != null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">سعر الحبة</span>
+                    <span className="font-semibold text-amber-600">{item.pricePerUnit.toLocaleString("ar-SA")} ريال</span>
+                  </div>
+                )}
                 {/* Progress bar */}
                 <div className="mt-2 bg-slate-100 rounded-full h-1.5">
                   <div
-                    className="h-1.5 rounded-full bg-blue-500 transition-all"
+                    className="h-1.5 rounded-full bg-[#EEF1F7]0 transition-all"
                     style={{ width: `${(item.availableCount / item.totalCount) * 100}%` }}
                   />
                 </div>
@@ -244,12 +268,12 @@ export default function AdminWarehousePage() {
 
       {/* Add Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="إضافة مادة جديد">
-        <FormContent />
+        {renderForm(false)}
       </Modal>
 
       {/* Edit Modal */}
       <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="تعديل المادة">
-        <FormContent />
+        {renderForm(true)}
       </Modal>
 
       {/* Delete Confirm */}

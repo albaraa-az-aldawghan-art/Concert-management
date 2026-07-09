@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,7 +114,7 @@ export default function EmployeeAssignmentsPage() {
     : items;
 
   if (loading) {
-    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>;
+    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>;
   }
 
   return (
@@ -131,7 +131,7 @@ export default function EmployeeAssignmentsPage() {
           { value: "return_pending", label: "الاستلام من الحفل" },
           { value: "confirmed", label: "مكتمل" },
         ].map((s) => (
-          <button key={s.value} onClick={() => setFilterStatus(s.value)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterStatus === s.value ? "bg-blue-700 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+          <button key={s.value} onClick={() => setFilterStatus(s.value)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterStatus === s.value ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
             {s.label}
           </button>
         ))}
@@ -158,7 +158,7 @@ export default function EmployeeAssignmentsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-700">{item.count}</p>
+                    <p className="text-2xl font-bold text-[#1C2D50]">{item.count}</p>
                     <p className="text-xs text-slate-400">وحدة</p>
                   </div>
                   <div className="flex gap-2 flex-wrap justify-end">

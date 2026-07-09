@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -171,7 +171,7 @@ export default function UsersPage() {
             onClick={() => setFilterRole(role)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filterRole === role
-                ? "bg-blue-700 text-white"
+                ? "bg-[#1C2D50] text-white"
                 : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
             }`}
           >
@@ -182,7 +182,7 @@ export default function UsersPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
       ) : filteredUsers.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
@@ -197,7 +197,7 @@ export default function UsersPage() {
               <div className="absolute top-3 left-3 flex gap-1">
                 <button
                   onClick={() => openEdit(user)}
-                  className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="p-1.5 text-slate-300 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
                   title="تعديل الاسم وكلمة المرور"
                 >
                   <Pencil size={14} />
@@ -214,7 +214,7 @@ export default function UsersPage() {
               </div>
 
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                <div className="w-10 h-10 rounded-full bg-[#D4DCE8] flex items-center justify-center text-[#1C2D50] font-bold text-sm">
                   {user.name.charAt(0)}
                 </div>
                 <div className="min-w-0">

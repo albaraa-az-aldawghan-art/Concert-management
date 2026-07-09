@@ -6,8 +6,9 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays } from "lucide-react";
-import { Timestamp } from "firebase/firestore";
+import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 function calcHallCost(c: Concert): number {
   if (!c.hallCostType || !c.hallCostValue) return 0;
@@ -15,83 +16,150 @@ function calcHallCost(c: Concert): number {
   return c.hallCostValue;
 }
 
-function toDateStr(val: unknown): string {
+/* ── local date helpers (avoid UTC shift bug) ── */
+function localStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function toLocalDateStr(val: unknown): string {
   if (!val) return "";
-  if (val instanceof Timestamp) return val.toDate().toISOString().split("T")[0];
   if (typeof val === "string") return val.substring(0, 10);
-  if (typeof (val as { toDate?: () => Date }).toDate === "function")
-    return (val as { toDate: () => Date }).toDate().toISOString().split("T")[0];
+  const obj = val as Record<string, unknown>;
+  if (typeof obj.toDate === "function")
+    return localStr((obj as { toDate: () => Date }).toDate());
+  if (typeof obj.seconds === "number")
+    return localStr(new Date((obj as { seconds: number }).seconds * 1000));
   return "";
 }
 
 function getWeekBounds(): [string, string] {
   const now = new Date();
-  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return [mon.toISOString().split("T")[0], sun.toISOString().split("T")[0]];
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  mon.setHours(0, 0, 0, 0);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return [localStr(mon), localStr(sun)];
 }
 
 function getMonthBounds(): [string, string] {
   const now = new Date();
-  return [
-    new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0],
-    new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0],
-  ];
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return [localStr(start), localStr(end)];
 }
 
-const STATUS_LABEL: Record<string, string> = { planned: "مخططة", active: "جارية", completed: "مكتملة" };
+const STATUS_LABEL: Record<string, string> = {
+  planned:                "غير مؤكدة",
+  confirmed:              "مؤكدة",
+  materials_requested:    "طلب المواد",
+  active:                 "استلام المواد",
+  location_set:           "تحديد الموقع",
+  executing:              "تنفيذ الحفلة",
+  materials_returned:     "استلام مواد الحفلة",
+  delivered_to_warehouse: "تسليم للمخزن",
+  warehouse_confirmed:    "تأكيد المخزن",
+  completed:              "مكتملة",
+  cancelled:              "ملغاة",
+};
 const STATUS_COLOR: Record<string, string> = {
-  planned: "bg-blue-100 text-blue-700",
-  active: "bg-emerald-100 text-emerald-700",
-  completed: "bg-slate-100 text-slate-600",
+  planned:                "bg-yellow-100 text-yellow-700",
+  confirmed:              "bg-green-100 text-green-700",
+  materials_requested:    "bg-indigo-100 text-indigo-700",
+  active:                 "bg-[#D4DCE8] text-[#1C2D50]",
+  location_set:           "bg-indigo-100 text-indigo-700",
+  executing:              "bg-emerald-100 text-emerald-700",
+  materials_returned:     "bg-orange-100 text-orange-700",
+  delivered_to_warehouse: "bg-orange-100 text-orange-700",
+  warehouse_confirmed:    "bg-blue-100 text-blue-700",
+  completed:              "bg-slate-100 text-slate-600",
 };
 
-type StatusFilter = "all" | "planned" | "active" | "completed";
-type DateFilter  = "all" | "today" | "week" | "month" | "custom";
+type StatusFilter = "all" | "planned" | "confirmed" | "materials_requested" | "active" | "location_set" | "executing" | "materials_returned" | "delivered_to_warehouse" | "warehouse_confirmed" | "completed";
+type DateFilter   = "all" | "today" | "week" | "month" | "custom";
+type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [dateFilter,   setDateFilter]   = useState<DateFilter>("all");
+  const [dateField,    setDateField]    = useState<DateField>("createdAt");
   const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateTo,   setDateTo]   = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     getConcerts().then((data) => { setConcerts(data); setLoading(false); });
   }, []);
 
-  const today      = new Date().toISOString().split("T")[0];
-  const [weekStart, weekEnd]   = getWeekBounds();
-  const [monthStart, monthEnd] = getMonthBounds();
+  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery]);
 
-  const filtered = concerts.filter((c) => {
-    if (statusFilter !== "all" && c.status !== statusFilter) return false;
-    if (dateFilter !== "all") {
-      const d = toDateStr(c.createdAt);
-      if (dateFilter === "today"  && d !== today) return false;
-      if (dateFilter === "week"   && (d < weekStart || d > weekEnd)) return false;
-      if (dateFilter === "month"  && (d < monthStart || d > monthEnd)) return false;
-      if (dateFilter === "custom") {
-        if (dateFrom && d < dateFrom) return false;
-        if (dateTo   && d > dateTo)   return false;
-      }
+  const today                    = localStr(new Date());
+  const [weekStart, weekEnd]     = getWeekBounds();
+  const [monthStart, monthEnd]   = getMonthBounds();
+
+  /* ── date filter ── */
+  function passesDate(c: Concert): boolean {
+    if (dateFilter === "all") return true;
+    const d = toLocalDateStr(dateField === "createdAt" ? c.createdAt : c.date);
+    if (!d) return false;
+    if (dateFilter === "today")  return d === today;
+    if (dateFilter === "week")   return d >= weekStart && d <= weekEnd;
+    if (dateFilter === "month")  return d >= monthStart && d <= monthEnd;
+    if (dateFilter === "custom") {
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo   && d > dateTo)   return false;
+      return true;
     }
     return true;
-  });
+  }
+
+  /* concerts that pass the DATE filter (for status-tab counts) */
+  const dateFiltered = concerts.filter(passesDate);
+
+  /* search filter */
+  function passesSearch(c: Concert): boolean {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    const numQ = searchQuery.trim().replace(/^#/, "");
+    if (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ)) return true;
+    if ((c.clientName ?? "").toLowerCase().includes(q)) return true;
+    if ((c.clientPhone ?? "").includes(searchQuery.trim())) return true;
+    if ((c.clientPhone2 ?? "").includes(searchQuery.trim())) return true;
+    if ((c.venueName ?? "").toLowerCase().includes(q)) return true;
+    return false;
+  }
+
+  /* fully filtered — exclude cancelled concerts from financial view */
+  const filtered = dateFiltered
+    .filter((c) => c.status !== "cancelled")
+    .filter((c) => statusFilter === "all" || c.status === statusFilter)
+    .filter(passesSearch);
 
   const totalRevenue   = filtered.reduce((s, c) => s + (c.price ?? 0), 0);
   const totalCollected = filtered.reduce((s, c) => s + (c.deposit ?? 0), 0);
   const totalRemaining = totalRevenue - totalCollected;
   const totalHall      = filtered.reduce((s, c) => s + calcHallCost(c), 0);
   const totalTransport = filtered.reduce((s, c) => s + (c.transportCost ?? 0), 0);
-  const netRevenue     = totalRevenue - totalHall - totalTransport;
+  const totalExternal  = filtered.reduce((s, c) => s + (c.externalItemsCost ?? 0), 0);
+  const totalLabor     = filtered.reduce((s, c) => s + (c.laborCost ?? 0), 0);
+  const totalAllCosts  = totalHall + totalTransport + totalExternal + totalLabor;
+  const netRevenue     = totalRevenue - totalHall - totalTransport - totalExternal - totalLabor;
   const rate           = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -105,41 +173,51 @@ export default function FinancesPage() {
             <BarChart3 size={22} className="text-emerald-600" />
             القائمة المالية
           </h2>
-          <p className="text-sm text-slate-500 mt-0.5">{filtered.length} من {concerts.length} حفلة</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {filtered.length} من {concerts.length} حفلة
+          </p>
         </div>
-        <Link href="/admin" className="text-sm text-slate-500 hover:text-blue-600 flex items-center gap-1">
+        <Link href="/admin" className="text-sm text-slate-500 hover:text-[#1C2D50] flex items-center gap-1">
           لوحة التحكم <ChevronRight size={14} />
         </Link>
       </div>
 
-      {/* Status Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "all", label: "الكل" },
-          { key: "planned", label: "مخططة" },
-          { key: "active", label: "جارية" },
-          { key: "completed", label: "مكتملة" },
-        ] as { key: StatusFilter; label: string }[]).map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setStatusFilter(f.key)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-              statusFilter === f.key ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {f.label}
-            <span className="mr-1.5 text-xs opacity-70">
-              ({f.key === "all" ? concerts.length : concerts.filter((c) => c.status === f.key).length})
-            </span>
-          </button>
-        ))}
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="بحث بالرقم التسلسلي، اسم العميل، الجوال، أو اسم المكان..."
+          className="w-full border border-slate-200 rounded-xl pr-9 pl-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+        )}
       </div>
 
       {/* Date Filter */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-slate-600 text-sm font-semibold">
-          <CalendarDays size={15} className="text-blue-600" />
-          فلتر بالتاريخ
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-semibold">
+            <CalendarDays size={15} className="text-[#1C2D50]" />
+            {dateField === "createdAt" ? "فلتر بتاريخ الإنشاء" : "فلتر بتاريخ الحفلة"}
+          </div>
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
+            <button
+              onClick={() => setDateField("createdAt")}
+              className={`px-3 py-1.5 transition-colors ${dateField === "createdAt" ? "bg-[#1C2D50] text-white" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              تاريخ الإنشاء
+            </button>
+            <button
+              onClick={() => setDateField("date")}
+              className={`px-3 py-1.5 border-r border-slate-200 transition-colors ${dateField === "date" ? "bg-[#1C2D50] text-white" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              تاريخ الحفلة
+            </button>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           {([
@@ -154,7 +232,7 @@ export default function FinancesPage() {
               onClick={() => setDateFilter(f.key)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 dateFilter === f.key
-                  ? "bg-blue-700 text-white"
+                  ? "bg-[#1C2D50] text-white"
                   : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
               }`}
             >
@@ -171,7 +249,7 @@ export default function FinancesPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -180,7 +258,7 @@ export default function FinancesPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
               />
             </div>
             {(dateFrom || dateTo) && (
@@ -196,26 +274,62 @@ export default function FinancesPage() {
 
         {dateFilter !== "all" && (
           <p className="text-xs text-slate-400">
-            {dateFilter === "today" && `اليوم: ${today}`}
-            {dateFilter === "week"  && `الأسبوع: ${weekStart} — ${weekEnd}`}
-            {dateFilter === "month" && `الشهر: ${monthStart} — ${monthEnd}`}
+            {dateFilter === "today"  && `اليوم: ${today}`}
+            {dateFilter === "week"   && `الأسبوع: ${weekStart} — ${weekEnd}`}
+            {dateFilter === "month"  && `الشهر: ${monthStart} — ${monthEnd}`}
             {dateFilter === "custom" && dateFrom && dateTo && `النطاق: ${dateFrom} — ${dateTo}`}
             {" · "}
-            <span className="font-semibold text-blue-600">{filtered.length} حفلة</span>
+            <span className="font-semibold text-[#1C2D50]">{dateFiltered.length} حفلة</span>
           </p>
         )}
+      </div>
+
+      {/* Status Filter — counts reflect current date filter */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: "all",                    label: "الكل" },
+          { key: "planned",                label: "غير مؤكدة" },
+          { key: "confirmed",              label: "مؤكدة" },
+          { key: "materials_requested",    label: "طلب المواد" },
+          { key: "active",                 label: "استلام المواد" },
+          { key: "location_set",           label: "تحديد الموقع" },
+          { key: "executing",              label: "تنفيذ الحفلة" },
+          { key: "materials_returned",     label: "استلام مواد" },
+          { key: "delivered_to_warehouse", label: "تسليم للمخزن" },
+          { key: "warehouse_confirmed",    label: "تأكيد المخزن" },
+          { key: "completed",              label: "مكتملة" },
+        ] as { key: StatusFilter; label: string }[]).map((f) => {
+          const count =
+            f.key === "all"
+              ? dateFiltered.length
+              : dateFiltered.filter((c) => c.status === f.key).length;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                statusFilter === f.key
+                  ? "bg-[#1C2D50] text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {f.label}
+              <span className="mr-1.5 text-xs opacity-70">({count})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
-              <TrendingUp size={18} className="text-blue-600" />
+            <div className="w-9 h-9 bg-[#EEF1F7] rounded-xl flex items-center justify-center">
+              <TrendingUp size={18} className="text-[#1C2D50]" />
             </div>
             <p className="text-xs text-slate-500">إجمالي الإيرادات</p>
           </div>
-          <p className="text-2xl font-bold text-blue-700">{totalRevenue.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("ar-SA")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -260,13 +374,33 @@ export default function FinancesPage() {
         </Card>
         <Card>
           <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+              <Package size={18} className="text-amber-600" />
+            </div>
+            <p className="text-xs text-slate-500">تكلفة المواد الخارجية</p>
+          </div>
+          <p className="text-2xl font-bold text-amber-700">{totalExternal.toLocaleString("ar-SA")}</p>
+          <p className="text-xs text-slate-400">ريال</p>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+              <Users size={18} className="text-blue-600" />
+            </div>
+            <p className="text-xs text-slate-500">تكلفة العمالة</p>
+          </div>
+          <p className="text-2xl font-bold text-blue-700">{totalLabor.toLocaleString("ar-SA")}</p>
+          <p className="text-xs text-slate-400">ريال</p>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center">
               <CheckCircle2 size={18} className="text-teal-600" />
             </div>
             <p className="text-xs text-slate-500">الإيراد الصافي</p>
           </div>
           <p className="text-2xl font-bold text-teal-700">{netRevenue.toLocaleString("ar-SA")}</p>
-          <p className="text-xs text-slate-400">ريال (بعد خصم القاعة والنقل)</p>
+          <p className="text-xs text-slate-400">ريال (بعد خصم جميع المصاريف)</p>
         </Card>
       </div>
 
@@ -274,7 +408,9 @@ export default function FinancesPage() {
       <Card>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">نسبة التحصيل</h3>
-          <span className={`text-xl font-bold ${rate >= 75 ? "text-emerald-600" : rate >= 40 ? "text-orange-500" : "text-red-500"}`}>{rate}%</span>
+          <span className={`text-xl font-bold ${rate >= 75 ? "text-emerald-600" : rate >= 40 ? "text-orange-500" : "text-red-500"}`}>
+            {rate}%
+          </span>
         </div>
         <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
           <div
@@ -290,40 +426,47 @@ export default function FinancesPage() {
 
       {/* Concerts Table */}
       <Card>
-        <h3 className="font-bold text-slate-800 mb-4">تفاصيل الحفلات ({filtered.length})</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-800">تفاصيل الحفلات ({filtered.length})</h3>
+          {totalPages > 1 && (
+            <span className="text-xs text-slate-400">
+              صفحة {safePage} من {totalPages}
+            </span>
+          )}
+        </div>
 
         {filtered.length === 0 ? (
           <div className="text-center py-10 text-slate-400">
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
-            <p>لا توجد حفلات</p>
+            <p>لا توجد حفلات تطابق الفلاتر المحددة</p>
             <button
-              onClick={() => { setStatusFilter("all"); setDateFilter("all"); }}
-              className="mt-2 text-sm text-blue-600 hover:underline"
+              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); }}
+              className="mt-2 text-sm text-[#1C2D50] hover:underline"
             >
-              مسح الفلاتر
+              مسح جميع الفلاتر
             </button>
           </div>
         ) : (
           <>
             {/* Mobile Cards */}
-            <div className="sm:hidden space-y-3">
-              {filtered.map((c) => {
+            <div className="sm:hidden space-y-2">
+              {paginated.map((c, idx) => {
                 const hall = calcHallCost(c);
                 const remaining = (c.price ?? 0) - (c.deposit ?? 0);
                 return (
                   <Link key={c.id} href={`/admin/concerts/${c.id}`}>
-                    <div className="border border-slate-100 rounded-xl p-4 hover:bg-slate-50 transition-colors">
+                    <div className={`rounded-xl p-4 hover:brightness-95 transition-all ${idx % 2 === 0 ? "bg-slate-50" : "bg-white border border-slate-100"}`}>
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <p className="font-bold text-slate-800 text-sm">{c.name}</p>
-                          <p className="text-xs text-slate-400">{formatDate(c.date)}</p>
+                          <p className="text-xs text-slate-400">{formatDate(dateField === "createdAt" ? c.createdAt : c.date)}</p>
                         </div>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
                           {STATUS_LABEL[c.status]}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 rounded-lg px-2 py-1.5">
+                        <div className="bg-white/70 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">السعر</p>
                           <p className="font-bold text-slate-800">{(c.price ?? 0).toLocaleString("ar-SA")}</p>
                         </div>
@@ -339,6 +482,18 @@ export default function FinancesPage() {
                           <p className="text-slate-400">القاعة + النقل</p>
                           <p className="font-bold text-purple-700">{(hall + (c.transportCost ?? 0)).toLocaleString("ar-SA")}</p>
                         </div>
+                        {(c.externalItemsCost ?? 0) > 0 && (
+                          <div className="bg-amber-50 rounded-lg px-2 py-1.5">
+                            <p className="text-slate-400">مواد خارجية</p>
+                            <p className="font-bold text-amber-600">{c.externalItemsCost!.toLocaleString("ar-SA")}</p>
+                          </div>
+                        )}
+                        {(c.laborCost ?? 0) > 0 && (
+                          <div className="bg-blue-50 rounded-lg px-2 py-1.5">
+                            <p className="text-slate-400">عمالة</p>
+                            <p className="font-bold text-blue-600">{c.laborCost!.toLocaleString("ar-SA")}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Link>
@@ -350,34 +505,43 @@ export default function FinancesPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100">
-                    {["العميل", "التاريخ", "الحالة", "السعر", "القاعة", "النقل", "المحصَّل", "المتبقي"].map((h) => (
-                      <th key={h} className="text-right text-xs font-semibold text-slate-400 pb-3 px-2">{h}</th>
+                  <tr className="border-b-2 border-slate-200">
+                    {["العميل", dateField === "createdAt" ? "تاريخ الإنشاء" : "تاريخ الحفلة", "الحالة", "السعر", "القاعة", "النقل", "مواد خارجية", "عمالة", "مجموع التكاليف", "المحصَّل", "المتبقي"].map((h) => (
+                      <th key={h} className="text-right text-xs font-semibold text-slate-500 pb-3 px-3">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filtered.map((c) => {
+                <tbody>
+                  {paginated.map((c, idx) => {
                     const hall = calcHallCost(c);
                     const remaining = (c.price ?? 0) - (c.deposit ?? 0);
+                    const concertTotalCosts = hall + (c.transportCost ?? 0) + (c.externalItemsCost ?? 0) + (c.laborCost ?? 0);
+                    const isShaded = idx % 2 === 0;
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-2">
-                          <Link href={`/admin/concerts/${c.id}`} className="font-semibold text-slate-800 hover:text-blue-600 transition-colors">
+                      <tr key={c.id} className={`transition-colors hover:brightness-95 ${isShaded ? "bg-slate-50" : "bg-white"}`}>
+                        <td className="py-3.5 px-3">
+                          <Link href={`/admin/concerts/${c.id}`} className="font-semibold text-slate-800 hover:text-[#1C2D50] transition-colors">
                             {c.name}
                           </Link>
                         </td>
-                        <td className="py-3 px-2 text-slate-500 text-xs">{formatDate(c.date)}</td>
-                        <td className="py-3 px-2">
+                        <td className="py-3.5 px-3 text-slate-500 text-xs">{formatDate(dateField === "createdAt" ? c.createdAt : c.date)}</td>
+                        <td className="py-3.5 px-3">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
                             {STATUS_LABEL[c.status]}
                           </span>
                         </td>
-                        <td className="py-3 px-2 font-bold text-slate-800">{(c.price ?? 0).toLocaleString("ar-SA")}</td>
-                        <td className="py-3 px-2 text-purple-700">{hall > 0 ? hall.toLocaleString("ar-SA") : "—"}</td>
-                        <td className="py-3 px-2 text-slate-600">{c.transportCost ? c.transportCost.toLocaleString("ar-SA") : "—"}</td>
-                        <td className="py-3 px-2 font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("ar-SA")}</td>
-                        <td className="py-3 px-2">
+                        <td className="py-3.5 px-3 font-bold text-slate-800">{(c.price ?? 0).toLocaleString("ar-SA")}</td>
+                        <td className="py-3.5 px-3 text-purple-700">{hall > 0 ? hall.toLocaleString("ar-SA") : "—"}</td>
+                        <td className="py-3.5 px-3 text-slate-600">{c.transportCost ? c.transportCost.toLocaleString("ar-SA") : "—"}</td>
+                        <td className="py-3.5 px-3 text-amber-600">{c.externalItemsCost ? c.externalItemsCost.toLocaleString("ar-SA") : "—"}</td>
+                        <td className="py-3.5 px-3 text-blue-600">{c.laborCost ? c.laborCost.toLocaleString("ar-SA") : "—"}</td>
+                        <td className="py-3.5 px-3">
+                          <span className={`font-bold text-sm px-2 py-0.5 rounded-lg ${concertTotalCosts > 0 ? "bg-red-50 text-red-700" : "text-slate-400"}`}>
+                            {concertTotalCosts > 0 ? concertTotalCosts.toLocaleString("ar-SA") : "—"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("ar-SA")}</td>
+                        <td className="py-3.5 px-3">
                           <span className={`font-bold ${remaining > 0 ? "text-orange-600" : "text-emerald-600"}`}>
                             {remaining.toLocaleString("ar-SA")}
                           </span>
@@ -387,17 +551,74 @@ export default function FinancesPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-slate-200 bg-slate-50">
-                    <td colSpan={3} className="py-3 px-2 font-bold text-slate-700 text-xs">الإجمالي ({filtered.length} حفلة)</td>
-                    <td className="py-3 px-2 font-bold text-blue-700">{totalRevenue.toLocaleString("ar-SA")}</td>
-                    <td className="py-3 px-2 font-bold text-purple-700">{totalHall > 0 ? totalHall.toLocaleString("ar-SA") : "—"}</td>
-                    <td className="py-3 px-2 font-bold text-slate-700">{totalTransport > 0 ? totalTransport.toLocaleString("ar-SA") : "—"}</td>
-                    <td className="py-3 px-2 font-bold text-emerald-700">{totalCollected.toLocaleString("ar-SA")}</td>
-                    <td className="py-3 px-2 font-bold text-orange-700">{totalRemaining.toLocaleString("ar-SA")}</td>
+                  <tr className="border-t-2 border-slate-200 bg-[#EEF1F7]">
+                    <td colSpan={3} className="py-3 px-3 font-bold text-slate-700 text-xs">
+                      الإجمالي الكلي ({filtered.length} حفلة)
+                    </td>
+                    <td className="py-3 px-3 font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("ar-SA")}</td>
+                    <td className="py-3 px-3 font-bold text-purple-700">{totalHall > 0 ? totalHall.toLocaleString("ar-SA") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-slate-700">{totalTransport > 0 ? totalTransport.toLocaleString("ar-SA") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-amber-600">{totalExternal > 0 ? totalExternal.toLocaleString("ar-SA") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-blue-600">{totalLabor > 0 ? totalLabor.toLocaleString("ar-SA") : "—"}</td>
+                    <td className="py-3 px-3">
+                      <span className={`font-bold text-sm px-2 py-0.5 rounded-lg ${totalAllCosts > 0 ? "bg-red-100 text-red-700" : "text-slate-400"}`}>
+                        {totalAllCosts > 0 ? totalAllCosts.toLocaleString("ar-SA") : "—"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 font-bold text-emerald-700">{totalCollected.toLocaleString("ar-SA")}</td>
+                    <td className="py-3 px-3 font-bold text-orange-700">{totalRemaining.toLocaleString("ar-SA")}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={15} />
+                  السابق
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    const isActive = p === safePage;
+                    const isNear = Math.abs(p - safePage) <= 1 || p === 1 || p === totalPages;
+                    if (!isNear) {
+                      if (p === 2 && safePage > 3) return <span key={p} className="text-slate-400 text-sm px-1">…</span>;
+                      if (p === totalPages - 1 && safePage < totalPages - 2) return <span key={p} className="text-slate-400 text-sm px-1">…</span>;
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-9 h-9 rounded-xl text-sm font-semibold transition-colors ${
+                          isActive
+                            ? "bg-[#1C2D50] text-white"
+                            : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  التالي
+                  <ChevronLeft size={15} />
+                </button>
+              </div>
+            )}
           </>
         )}
       </Card>

@@ -9,7 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(timestamp: Timestamp | null | undefined): string {
   if (!timestamp) return "—";
   const date = timestamp.toDate();
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+    weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -19,7 +20,7 @@ export function formatDate(timestamp: Timestamp | null | undefined): string {
 export function formatDateTime(timestamp: Timestamp | null | undefined): string {
   if (!timestamp) return "—";
   const date = timestamp.toDate();
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
 import { MapPin, Navigation } from "lucide-react";
@@ -92,7 +92,7 @@ export function LocationViewer({ location }: LocationViewerProps) {
           href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-800 transition-colors shrink-0 shadow-sm"
+          className="flex items-center gap-1.5 bg-[#1C2D50] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#111D35] transition-colors shrink-0 shadow-sm"
         >
           <Navigation size={12} />
           توجه بالخريطة

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -121,7 +121,7 @@ export default function WarehouseRequestsPage() {
             key={s}
             onClick={() => setFilterStatus(s)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filterStatus === s ? "bg-blue-700 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+              filterStatus === s ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
             }`}
           >
             {s === "" ? "الكل" : s === "pending" ? "معلقة" : s === "approved" ? "مقبولة" : "مرفوضة"}
@@ -130,7 +130,7 @@ export default function WarehouseRequestsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <ClipboardList size={40} className="mb-3 opacity-40" /><p>لا توجد طلبات</p>
@@ -152,7 +152,7 @@ export default function WarehouseRequestsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-700">{req.requestedCount}</p>
+                    <p className="text-2xl font-bold text-[#1C2D50]">{req.requestedCount}</p>
                     <p className="text-xs text-slate-400">مطلوب</p>
                   </div>
                   {req.status === "pending" && (

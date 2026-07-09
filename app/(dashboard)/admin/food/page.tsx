@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -113,7 +113,7 @@ export default function AdminFoodPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
       ) : categories.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
@@ -129,7 +129,7 @@ export default function AdminFoodPage() {
                 <div className="flex gap-1">
                   <button
                     onClick={() => openEdit(cat)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
                   >
                     <Pencil size={14} />
                   </button>
@@ -148,7 +148,7 @@ export default function AdminFoodPage() {
                   {cat.options.map((opt) => (
                     <span
                       key={opt}
-                      className="bg-blue-50 text-blue-700 text-xs px-2.5 py-1 rounded-full font-medium"
+                      className="bg-[#EEF1F7] text-[#1C2D50] text-xs px-2.5 py-1 rounded-full font-medium"
                     >
                       {opt}
                     </span>
@@ -183,7 +183,7 @@ export default function AdminFoodPage() {
                 onChange={(e) => setOptionInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOption(); } }}
                 placeholder="اكتب صنفاً واضغط Enter أو إضافة..."
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
               />
               <Button type="button" variant="outline" onClick={addOption} size="sm">
                 <Plus size={14} />
@@ -196,7 +196,7 @@ export default function AdminFoodPage() {
                 {formOptions.map((opt) => (
                   <span
                     key={opt}
-                    className="flex items-center gap-1 bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full font-medium"
+                    className="flex items-center gap-1 bg-[#EEF1F7] text-[#1C2D50] text-sm px-3 py-1 rounded-full font-medium"
                   >
                     {opt}
                     <button

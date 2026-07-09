@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,7 +37,7 @@ export default function EmployeeDashboard() {
   const pendingReturn = myItems.filter((i) => i.returnStatus === "pending").length;
 
   if (loading) {
-    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>;
+    return <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>;
   }
 
   return (
@@ -49,7 +49,7 @@ export default function EmployeeDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "مواد مسندة لي", value: myItems.length, color: "text-blue-600" },
+          { label: "مواد مسندة لي", value: myItems.length, color: "text-[#1C2D50]" },
           { label: "تسليم معلق", value: pendingDelivery, color: "text-yellow-600" },
           { label: "استلام معلق", value: pendingReturn, color: "text-orange-600" },
         ].map((s) => (
@@ -77,7 +77,7 @@ export default function EmployeeDashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">الحفلات</h3>
-          <Link href="/employee/assignments" className="text-sm text-blue-600 flex items-center gap-1">
+          <Link href="/employee/assignments" className="text-sm text-[#1C2D50] flex items-center gap-1">
             أغراضي <ChevronLeft size={14} />
           </Link>
         </div>

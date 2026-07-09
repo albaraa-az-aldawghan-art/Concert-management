@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -88,7 +88,7 @@ export function ConfirmModal({
   const confirmClass =
     variant === "danger"
       ? "bg-red-600 hover:bg-red-700 text-white"
-      : "bg-blue-700 hover:bg-blue-800 text-white";
+      : "bg-[#1C2D50] hover:bg-[#111D35] text-white";
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">

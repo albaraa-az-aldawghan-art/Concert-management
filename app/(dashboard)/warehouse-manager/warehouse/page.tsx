@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem } from "@/lib/firestore/warehouse";
@@ -99,14 +99,14 @@ export default function WarehouseManagerWarehousePage() {
 
       <div className="flex gap-2">
         {["", "internal", "external"].map((t) => (
-          <button key={t} onClick={() => setFilterType(t)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterType === t ? "bg-blue-700 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+          <button key={t} onClick={() => setFilterType(t)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterType === t ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
             {t === "" ? "الكل" : t === "internal" ? "داخلي" : "خارجي"}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-blue-700 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" /><p>لا توجد مواد</p>
@@ -121,7 +121,7 @@ export default function WarehouseManagerWarehousePage() {
                   <StatusBadge status={item.type} />
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => openEdit(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={15} /></button>
+                  <button onClick={() => openEdit(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"><Pencil size={15} /></button>
                   <button onClick={() => setDeleteTarget(item)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
                 </div>
               </div>
@@ -137,7 +137,7 @@ export default function WarehouseManagerWarehousePage() {
                   </div>
                 ))}
                 <div className="bg-slate-100 rounded-full h-1.5 mt-2">
-                  <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${(item.availableCount / item.totalCount) * 100}%` }} />
+                  <div className="h-1.5 rounded-full bg-[#EEF1F7]0 transition-all" style={{ width: `${(item.availableCount / item.totalCount) * 100}%` }} />
                 </div>
               </div>
             </Card>

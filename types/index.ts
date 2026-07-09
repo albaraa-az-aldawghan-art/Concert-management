@@ -17,6 +17,7 @@ export interface WarehouseItem {
   totalCount: number;
   availableCount: number;
   type: "internal" | "external";
+  pricePerUnit?: number | null;
   createdAt: Timestamp;
 }
 
@@ -26,12 +27,25 @@ export interface ConcertLocation {
   address: string;
 }
 
-export type ConcertStatus = "planned" | "active" | "completed";
+export type ConcertStatus =
+  | "planned"
+  | "confirmed"
+  | "materials_requested"
+  | "active"
+  | "location_set"
+  | "executing"
+  | "materials_returned"
+  | "delivered_to_warehouse"
+  | "warehouse_confirmed"
+  | "completed"
+  | "cancelled";
 
 export interface Concert {
   id: string;
+  concertNumber: number | null;
   name: string;
   date: Timestamp;
+  venueName: string | null;
   location: ConcertLocation | null;
   price: number;
   clientName: string | null;
@@ -55,9 +69,22 @@ export interface Concert {
   isPaid: boolean;
   paidAt: Timestamp | null;
   paidBy: string | null;
+  notes: string | null;
   hallCostType: "percentage" | "fixed" | null;
   hallCostValue: number | null;
+  hallCostDate: string | null;
+  hallCostRecipient: string | null;
   transportCost: number | null;
+  laborCount: number | null;
+  laborPricePerUnit: number | null;
+  laborCost: number | null;
+  vatRate: number | null;
+  externalItemsCost?: number | null;
+  cancelledAt?: Timestamp | null;
+  cancellationReason?: string | null;
+  refundAmount?: number | null;
+  refundDate?: string | null;
+  refundMethod?: PaymentMethod | null;
   createdAt: Timestamp;
   createdBy: string;
 }
@@ -72,6 +99,8 @@ export interface ConcertItem {
   itemName: string;
   type: "internal" | "external";
   count: number;
+  unitCost?: number | null;
+  totalCost?: number | null;
   assignedToEmployeeId: string | null;
   assignedToEmployeeName: string | null;
   deliveryStatus: DeliveryStatus;
@@ -139,6 +168,9 @@ export interface ConcertLog {
   description: string;
   createdAt: Timestamp;
   createdBy: string;
+  field?: string;     // which field changed, e.g. "date" | "venueName"
+  oldValue?: string;  // previous value (ISO date string for dates, plain text for others)
+  newValue?: string;  // new value
 }
 
 export interface MissingItem {

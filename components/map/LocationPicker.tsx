@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Pencil, Search, Loader2 } from "lucide-react";
@@ -177,12 +177,6 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-        <MapPin size={15} className="text-blue-600" />
-        الموقع على الخريطة
-        <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
-      </label>
-
       {/* Search */}
       <div className="relative flex gap-2">
         <div className="relative flex-1">
@@ -192,7 +186,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
             onChange={(e) => { setQuery(e.target.value); setShowResults(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearch(); } }}
             placeholder="ابحث عن منطقة أو عنوان..."
-            className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50] focus:border-transparent"
           />
           {showResults && results.length > 0 && (
             <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
@@ -202,7 +196,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
                   key={i}
                   type="button"
                   onClick={() => selectResult(r)}
-                  className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 border-b border-slate-100 last:border-0 transition-colors"
+                  className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-[#EEF1F7] hover:text-[#1C2D50] border-b border-slate-100 last:border-0 transition-colors"
                 >
                   {r.display_name}
                 </button>
@@ -219,7 +213,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
           type="button"
           onClick={handleSearch}
           disabled={searching}
-          className="flex items-center gap-1.5 bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition-colors disabled:opacity-60"
+          className="flex items-center gap-1.5 bg-[#1C2D50] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#111D35] transition-colors disabled:opacity-60"
         >
           {searching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
           بحث
@@ -235,15 +229,15 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
       </div>
 
       {value ? (
-        <div className="flex items-start justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+        <div className="flex items-start justify-between gap-2 bg-[#EEF1F7] border border-[#EEF1F7] rounded-xl px-3 py-2">
           <p className="text-xs text-slate-600 flex items-start gap-1.5">
-            <MapPin size={13} className="mt-0.5 shrink-0 text-blue-600" />
+            <MapPin size={13} className="mt-0.5 shrink-0 text-[#1C2D50]" />
             {value.address}
           </p>
           <button
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 shrink-0 font-semibold whitespace-nowrap"
+            className="flex items-center gap-1 text-xs text-[#1C2D50] hover:text-[#111D35] shrink-0 font-semibold whitespace-nowrap"
           >
             <Pencil size={11} />
             تعديل

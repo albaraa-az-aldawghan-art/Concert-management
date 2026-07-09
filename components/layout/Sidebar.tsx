@@ -16,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronLeft,
   UtensilsCrossed,
   BarChart3,
   Settings,
@@ -29,54 +28,54 @@ interface NavItem {
 }
 
 const adminNav: NavItem[] = [
-  { label: "لوحة التحكم", href: "/admin", icon: <LayoutDashboard size={18} /> },
-  { label: "القائمة المالية", href: "/admin/finances", icon: <BarChart3 size={18} /> },
-  { label: "الحفلات", href: "/admin/concerts", icon: <Music size={18} /> },
-  { label: "المستخدمون", href: "/admin/users", icon: <Users size={18} /> },
-  { label: "المخزن", href: "/admin/warehouse", icon: <Package size={18} /> },
-  { label: "أصناف الأكل", href: "/admin/food", icon: <UtensilsCrossed size={18} /> },
-  { label: "المفقودات", href: "/admin/missing-items", icon: <AlertTriangle size={18} /> },
-  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
+  { label: "لوحة التحكم",   href: "/admin",                icon: <LayoutDashboard size={17} /> },
+  { label: "القائمة المالية", href: "/admin/finances",       icon: <BarChart3 size={17} /> },
+  { label: "الحفلات",        href: "/admin/concerts",        icon: <Music size={17} /> },
+  { label: "المستخدمون",     href: "/admin/users",           icon: <Users size={17} /> },
+  { label: "المخزن",         href: "/admin/warehouse",       icon: <Package size={17} /> },
+  { label: "أصناف الأكل",    href: "/admin/food",            icon: <UtensilsCrossed size={17} /> },
+  { label: "المفقودات",      href: "/admin/missing-items",   icon: <AlertTriangle size={17} /> },
+  { label: "الإعدادات",      href: "/settings",              icon: <Settings size={17} /> },
 ];
 
 const warehouseManagerNav: NavItem[] = [
-  { label: "لوحة التحكم", href: "/warehouse-manager", icon: <LayoutDashboard size={18} /> },
-  { label: "المخزن", href: "/warehouse-manager/warehouse", icon: <Package size={18} /> },
-  { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={18} /> },
-  { label: "المفقودات", href: "/warehouse-manager/missing-items", icon: <AlertTriangle size={18} /> },
-  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
+  { label: "لوحة التحكم",   href: "/warehouse-manager",                icon: <LayoutDashboard size={17} /> },
+  { label: "المخزن",         href: "/warehouse-manager/warehouse",      icon: <Package size={17} /> },
+  { label: "طلبات المواد",   href: "/warehouse-manager/requests",       icon: <ClipboardList size={17} /> },
+  { label: "المفقودات",      href: "/warehouse-manager/missing-items",  icon: <AlertTriangle size={17} /> },
+  { label: "الإعدادات",      href: "/settings",                         icon: <Settings size={17} /> },
 ];
 
 const supervisorNav: NavItem[] = [
-  { label: "لوحة التحكم", href: "/supervisor", icon: <LayoutDashboard size={18} /> },
-  { label: "حفلاتي", href: "/supervisor/concerts", icon: <Music size={18} /> },
-  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
+  { label: "لوحة التحكم", href: "/supervisor",          icon: <LayoutDashboard size={17} /> },
+  { label: "حفلاتي",       href: "/supervisor/concerts", icon: <Music size={17} /> },
+  { label: "الإعدادات",    href: "/settings",            icon: <Settings size={17} /> },
 ];
 
 const employeeNav: NavItem[] = [
-  { label: "لوحة التحكم", href: "/employee", icon: <LayoutDashboard size={18} /> },
-  { label: "موادي", href: "/employee/assignments", icon: <Package size={18} /> },
-  { label: "الإعدادات", href: "/settings", icon: <Settings size={18} /> },
+  { label: "لوحة التحكم", href: "/employee",              icon: <LayoutDashboard size={17} /> },
+  { label: "موادي",        href: "/employee/assignments",  icon: <Package size={17} /> },
+  { label: "الإعدادات",    href: "/settings",              icon: <Settings size={17} /> },
 ];
 
 const navByRole: Record<string, NavItem[]> = {
-  admin: adminNav,
+  admin:             adminNav,
   warehouse_manager: warehouseManagerNav,
-  supervisor: supervisorNav,
-  employee: employeeNav,
+  supervisor:        supervisorNav,
+  employee:          employeeNav,
 };
 
 const roleLabels: Record<string, string> = {
-  admin: "مدير",
+  admin:             "مدير النظام",
   warehouse_manager: "مدير المخازن",
-  supervisor: "مشرف",
-  employee: "موظف",
+  supervisor:        "مشرف",
+  employee:          "موظف",
 };
 
 export function Sidebar() {
   const { appUser } = useAuth();
-  const pathname = usePathname();
-  const router = useRouter();
+  const pathname    = usePathname();
+  const router      = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = navByRole[appUser?.role ?? "employee"] ?? [];
@@ -87,54 +86,108 @@ export function Sidebar() {
   }
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-5 py-6 border-b border-slate-700/50">
+    <div className="flex flex-col h-full" style={{ background: "#111D35" }}>
+
+      {/* ── Logo / Brand ── */}
+      <div className="px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(176,189,201,0.12)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-            <Music size={18} className="text-white" />
+          {/* Logo image */}
+          <div
+            className="shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
+            style={{ width: 44, height: 44, background: "#1C2D50" }}
+          >
+            <img
+              src="/logo.jpg"
+              alt="الفريج"
+              style={{ width: 44, height: 44, objectFit: "cover", display: "block" }}
+            />
           </div>
-          <div>
-            <p className="font-bold text-white text-sm leading-tight">إدارة الحفلات</p>
-            <p className="text-xs text-slate-400">{roleLabels[appUser?.role ?? ""]}</p>
+          <div className="min-w-0">
+            <p className="font-bold leading-tight text-sm" style={{ color: "#D4DCE8" }}>الفريج</p>
+            <p className="text-xs mt-0.5" style={{ color: "#6B7E99" }}>إدارة الفعاليات</p>
           </div>
         </div>
       </div>
 
-      {/* User Info */}
-      <div className="px-5 py-4 border-b border-slate-700/50">
+      {/* ── User Info ── */}
+      <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(176,189,201,0.12)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
+          {/* Avatar with initials */}
+          <div
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
+            style={{ background: "linear-gradient(135deg, #1C2D50, #263C6E)", color: "#D4DCE8" }}
+          >
             {appUser?.name?.charAt(0)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{appUser?.name}</p>
-            <p className="text-xs text-slate-400 truncate">{appUser?.email}</p>
+            <p className="text-sm font-semibold truncate" style={{ color: "#D4DCE8" }}>{appUser?.name}</p>
+            <p className="text-xs truncate" style={{ color: "#6B7E99" }}>
+              {roleLabels[appUser?.role ?? ""]}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <ul className="space-y-1">
+        <ul className="space-y-0.5">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/admin" && item.href !== "/supervisor" && item.href !== "/employee" && item.href !== "/warehouse-manager" && pathname.startsWith(item.href));
+            const isActive =
+              pathname === item.href ||
+              (
+                item.href !== "/admin" &&
+                item.href !== "/supervisor" &&
+                item.href !== "/employee" &&
+                item.href !== "/warehouse-manager" &&
+                pathname.startsWith(item.href)
+              );
+
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative",
                     isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
+                      ? "nav-active-glow"
+                      : ""
                   )}
+                  style={
+                    isActive
+                      ? {
+                          background: "rgba(28,45,80,0.9)",
+                          color: "#D4DCE8",
+                        }
+                      : {
+                          color: "#6B7E99",
+                        }
+                  }
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
+                      (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.background = "transparent";
+                      (e.currentTarget as HTMLElement).style.color = "#6B7E99";
+                    }
+                  }}
                 >
-                  <span className={cn(isActive ? "text-white" : "text-slate-500")}>
+                  <span style={{ color: isActive ? "#B0BDC9" : "#4A607C" }}>
                     {item.icon}
                   </span>
                   {item.label}
+
+                  {/* Active indicator dot */}
+                  {isActive && (
+                    <span
+                      className="mr-auto w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: "#B0BDC9" }}
+                    />
+                  )}
                 </Link>
               </li>
             );
@@ -142,13 +195,22 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-slate-700/50">
+      {/* ── Logout ── */}
+      <div className="px-3 py-4" style={{ borderTop: "1px solid rgba(176,189,201,0.12)" }}>
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-red-900/30 hover:text-red-400 transition-all duration-150"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+          style={{ color: "#6B7E99" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(220,38,38,0.12)";
+            (e.currentTarget as HTMLElement).style.color = "#F87171";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+            (e.currentTarget as HTMLElement).style.color = "#6B7E99";
+          }}
         >
-          <LogOut size={18} />
+          <LogOut size={17} />
           تسجيل الخروج
         </button>
       </div>
@@ -158,14 +220,18 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-slate-900 h-full fixed top-0 right-0 bottom-0 z-40">
+      <aside
+        className="hidden lg:flex flex-col w-64 h-full fixed top-0 right-0 bottom-0 z-40"
+        style={{ background: "#111D35" }}
+      >
         <SidebarContent />
       </aside>
 
-      {/* Mobile Hamburger Button */}
+      {/* Mobile Hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 right-4 z-50 p-2 bg-slate-900 text-white rounded-xl shadow-lg"
+        className="lg:hidden fixed top-4 right-4 z-50 p-2 rounded-xl shadow-lg"
+        style={{ background: "#1C2D50", color: "#D4DCE8" }}
       >
         <Menu size={20} />
       </button>
@@ -174,13 +240,18 @@ export function Sidebar() {
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0"
+            style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative w-72 bg-slate-900 h-full ml-auto shadow-2xl">
+          <aside
+            className="relative w-72 h-full ml-auto shadow-2xl"
+            style={{ background: "#111D35" }}
+          >
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 left-4 p-1.5 text-slate-400 hover:text-white"
+              className="absolute top-4 left-4 p-1.5 rounded-lg transition-colors"
+              style={{ color: "#6B7E99" }}
             >
               <X size={20} />
             </button>
