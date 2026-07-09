@@ -258,15 +258,20 @@ export default function ContractPage() {
         import("jspdf"),
       ]);
 
-      // Force desktop layout: mobile CSS has `width:100% !important` at <700px
-      // which overrides inline styles — setProperty with "important" wins.
-      // windowWidth:1000 tells html2canvas the viewport is desktop so that
-      // @media (max-width:700px) never fires during capture.
+      // Switch the real viewport to desktop width so the browser re-layouts at
+      // 1000px and @media (max-width:700px) stops applying before we measure
+      // or capture anything.
+      const vpMeta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+      const savedVp = vpMeta?.content ?? "";
+      if (vpMeta) vpMeta.content = "width=1000";
+
       document.documentElement.classList.add("force-desktop-layout");
       const savedW = el.style.width;
       el.style.setProperty("width", PRINT_W + "px", "important");
       el.style.setProperty("max-width", PRINT_W + "px", "important");
-      void el.offsetHeight;
+
+      // Give the browser 250ms to finish re-layout at the new viewport width
+      await new Promise<void>((r) => setTimeout(r, 250));
 
       const captureH = el.scrollHeight;
 
@@ -279,13 +284,13 @@ export default function ContractPage() {
         height: captureH,
         windowWidth: 1000,
         windowHeight: captureH,
-        scrollX: 0,
-        scrollY: 0,
       });
 
+      // Restore viewport and styles immediately after capture
       el.style.width = savedW;
       el.style.removeProperty("max-width");
       document.documentElement.classList.remove("force-desktop-layout");
+      if (vpMeta) vpMeta.content = savedVp;
 
       // PDF sized exactly to content — image fills it completely, zero white space
       const pdfW = 210; // mm
