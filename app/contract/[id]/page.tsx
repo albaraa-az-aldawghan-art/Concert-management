@@ -705,7 +705,7 @@ export default function ContractPage() {
           {/* Footer */}
           <div style={S.footer}>
             <span>مطعم الفريج — الأحساء، الهفوف</span>
-            <span style={{ color: "#64748B", fontWeight: 600 }}>للاستفسار: 0501764441</span>
+            <span style={{ color: "#64748B", fontWeight: 600 }}>للاستفسار التواصل على الرقم الخاص بالحفلات: 0501764441</span>
             <span>رقم التسجيل الضريبي: 310290987900003</span>
           </div>
 
