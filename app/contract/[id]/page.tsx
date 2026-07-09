@@ -245,78 +245,24 @@ export default function ContractPage() {
   const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / 1.15) * 100) / 100 : null;
   const prevVat = prevPrice !== null && prevPriceBeforeVat !== null ? Math.round((prevPrice - prevPriceBeforeVat) * 100) / 100 : null;
 
-  // ── Share as PDF ──────────────────────────────────
+  // ── Share as PDF (server-side via Puppeteer API route) ───────────────
   async function shareContractAsPDF() {
-    const el = document.getElementById("contract-doc");
-    if (!el || !concert) return;
+    if (!concert) return;
     setSharing(true);
     try {
-      // Use desktop layout for capture
-      document.documentElement.classList.add("force-desktop-layout");
-      const savedMaxW = el.style.maxWidth;
-      const savedW    = el.style.width;
-      el.style.maxWidth = PRINT_W + "px";
-      el.style.width    = PRINT_W + "px";
-      void el.offsetHeight;
+      // Server generates a perfect PDF using Chrome (handles Arabic correctly)
+      const res = await fetch(`/api/contract-pdf/${id}`);
+      if (!res.ok) throw new Error("PDF generation failed");
 
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        foreignObjectRendering: false,
-        width: PRINT_W,
-        height: el.scrollHeight,
-        windowWidth: PRINT_W,
-        onclone: (_clonedDoc, clonedEl) => {
-          // Ensure RTL direction is set on the cloned element and its root
-          _clonedDoc.documentElement.setAttribute("dir", "rtl");
-          _clonedDoc.documentElement.setAttribute("lang", "ar");
-          clonedEl.style.direction = "rtl";
-          // Copy @font-face rules (Cairo) so Arabic letters render with correct font
-          Array.from(document.styleSheets).forEach((sheet) => {
-            try {
-              Array.from(sheet.cssRules || []).forEach((rule) => {
-                if (rule.cssText.includes("@font-face") || rule.cssText.includes("font-face")) {
-                  const s = _clonedDoc.createElement("style");
-                  s.textContent = rule.cssText;
-                  _clonedDoc.head.appendChild(s);
-                }
-              });
-            } catch {
-              // cross-origin stylesheet — skip
-            }
-          });
-        },
-      });
-
-      // Restore element
-      el.style.maxWidth = savedMaxW;
-      el.style.width    = savedW;
-      document.documentElement.classList.remove("force-desktop-layout");
-
-      // Build PDF sized to fit the content on one A4 page
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-      const aspect = canvas.width / canvas.height;
-      let imgW = pdfW;
-      let imgH = pdfW / aspect;
-      if (imgH > pdfH) { imgH = pdfH; imgW = pdfH * aspect; }
-      const x = (pdfW - imgW) / 2;
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", x, 0, imgW, imgH);
-
+      const blob = await res.blob();
       const filename = `عقد-${concert.clientName}.pdf`;
-      const blob = pdf.output("blob");
       const file = new File([blob], filename, { type: "application/pdf" });
 
-      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+      if (
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] })
+      ) {
         await navigator.share({ files: [file], title: filename });
       } else {
         // Fallback: direct download
@@ -330,7 +276,7 @@ export default function ContractPage() {
         URL.revokeObjectURL(url);
       }
     } catch {
-      // User cancelled share — no action needed
+      // User cancelled share or server error — no action needed
     } finally {
       setSharing(false);
     }
