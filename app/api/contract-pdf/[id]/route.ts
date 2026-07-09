@@ -42,33 +42,33 @@ export async function GET(
     // Extra settle time for fonts and images
     await new Promise<void>((r) => setTimeout(r, 1500));
 
-    // Calculate zoom so the contract fills exactly one A4 page (same logic as the
-    // print button in the browser, but also stretches short contracts to fill the page).
-    await page.evaluate(() => {
-      const PRINT_W = 733; // A4 usable width  (210mm - 16mm margins @ 96dpi)
-      const PRINT_H = 1062; // A4 usable height (297mm - 16mm margins @ 96dpi)
-      const el = document.getElementById("contract-doc");
-      if (!el) return;
-      document.documentElement.classList.add("force-desktop-layout");
-      el.style.maxWidth = PRINT_W + "px";
-      el.style.width    = PRINT_W + "px";
-      void el.offsetHeight;
-      const h = el.scrollHeight;
-      el.style.maxWidth = "";
-      el.style.width    = "";
-      document.documentElement.classList.remove("force-desktop-layout");
-      // Scale to fill the full page: shrink if too tall, enlarge if too short
-      const zoom = Math.floor((PRINT_H / h) * 100);
-      document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
-    });
-
     const clientName = await page
       .title()
       .then((t) => t.replace("الفريج - ", "").trim())
       .catch(() => params.id);
 
+    // Switch to print media so CSS is the same as during PDF generation,
+    // then measure the contract's natural print height (zoom removed = 100%).
+    await page.emulateMediaType("print");
+    await new Promise<void>((r) => setTimeout(r, 400));
+
+    const contentHeightPx = await page.evaluate(() => {
+      // Remove any zoom so we measure the true rendered height
+      document.documentElement.style.setProperty("--contract-zoom", "100%");
+      void document.body.offsetHeight;
+      const el = document.getElementById("contract-doc");
+      return el ? el.scrollHeight : 1062;
+    });
+
+    // 1 CSS px @ 96 dpi = 0.264583 mm
+    const contentHeightMm = Math.ceil(contentHeightPx * 0.264583);
+    // Add top + bottom margins (8 mm each)
+    const pageHeightMm = contentHeightMm + 16;
+
+    // Generate with A4 width and exact content height → no white space
     const pdf = await page.pdf({
-      format: "A4",
+      width: "210mm",
+      height: pageHeightMm + "mm",
       margin: { top: "8mm", bottom: "8mm", left: "8mm", right: "8mm" },
       printBackground: true,
     });
