@@ -264,14 +264,16 @@ export default function ContractPage() {
         import("jspdf"),
       ]);
 
+      // foreignObjectRendering uses the browser's SVG renderer instead of Canvas 2D API,
+      // which correctly shapes Arabic text (joining letters, RTL direction).
       const canvas = await html2canvas(el, {
         scale: 2,
-        useCORS: true,
-        allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
+        foreignObjectRendering: true,
         width: PRINT_W,
         height: el.scrollHeight,
+        windowWidth: PRINT_W,
       });
 
       // Restore element
