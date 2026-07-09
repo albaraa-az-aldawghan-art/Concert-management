@@ -93,6 +93,14 @@ export default function ContractPage() {
 
   // Calculate zoom after the page renders (not at click time)
   useEffect(() => {
+    // Preload print images immediately so iOS print dialog opens without delay
+    ["/watermark-logo.jpeg", "/logo.jpg"].forEach((src) => {
+      const img = new window.Image();
+      img.src = src;
+    });
+  }, []);
+
+  useEffect(() => {
     if (loading) return;
     const t = setTimeout(() => {
       cachedZoom.current = calcPrintZoom();
