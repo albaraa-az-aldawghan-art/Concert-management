@@ -1281,32 +1281,39 @@ export default function AdminConcertDetailPage() {
                   <p className="text-sm font-semibold text-slate-800">{f.categoryName}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">{f.selectedOption}</span>
-                    {editFoodQtyTarget?.id === f.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number" min={0} value={editFoodQtyValue}
-                          onChange={(e) => setEditFoodQtyValue(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
-                          className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 text-center bg-white"
-                          autoFocus
-                        />
-                        <button onClick={handleSaveFoodQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
-                        <button onClick={() => setEditFoodQtyTarget(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-slate-400">الكمية: {f.quantity ?? 0}</span>
-                        <button onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }} className="text-slate-300 hover:text-orange-500 transition-colors">
-                          <Pencil size={11} />
-                        </button>
-                      </div>
-                    )}
                     {f.notes && <span className="text-xs text-slate-400">— {f.notes}</span>}
                   </div>
                 </div>
-                <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors">
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {editFoodQtyTarget?.id === f.id ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-500">الكمية:</span>
+                      <input
+                        type="number" min={0} value={editFoodQtyValue}
+                        onChange={(e) => setEditFoodQtyValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
+                        className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 text-center bg-white"
+                        autoFocus
+                      />
+                      <button onClick={handleSaveFoodQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
+                      <button onClick={() => setEditFoodQtyTarget(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-xs text-slate-500 font-medium">الكمية: {f.quantity ?? 0}</span>
+                      <button
+                        onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
+                        className="text-orange-400 hover:text-orange-600 transition-colors"
+                        title="تعديل الكمية"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
