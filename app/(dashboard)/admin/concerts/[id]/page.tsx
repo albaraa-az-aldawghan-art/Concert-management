@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertExternalCost, cancelConcert } from "@/lib/firestore/concerts";
 import { getRequestsByConcert } from "@/lib/firestore/requests";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
-import { getFoodCategories, getConcertFood, addConcertFood, deleteConcertFood } from "@/lib/firestore/food";
+import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -55,6 +55,8 @@ export default function AdminConcertDetailPage() {
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteItemTarget, setDeleteItemTarget] = useState<ConcertItem | null>(null);
+  const [editItemQtyTarget, setEditItemQtyTarget] = useState<ConcertItem | null>(null);
+  const [editItemQtyValue, setEditItemQtyValue] = useState("");
   const [showItemForm, setShowItemForm] = useState(false);
   const [showEditSupervisors, setShowEditSupervisors] = useState(false);
   const [showEditEmployees, setShowEditEmployees] = useState(false);
@@ -108,6 +110,8 @@ export default function AdminConcertDetailPage() {
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
   const [showFoodForm, setShowFoodForm] = useState(false);
   const [deleteFoodTarget, setDeleteFoodTarget] = useState<ConcertFood | null>(null);
+  const [editFoodQtyTarget, setEditFoodQtyTarget] = useState<ConcertFood | null>(null);
+  const [editFoodQtyValue, setEditFoodQtyValue] = useState("");
   const [addFoodCategoryId, setAddFoodCategoryId] = useState("");
   const [addFoodCheck, setAddFoodCheck] = useState<Record<string, { checked: boolean; quantity: string }>>({});
 
@@ -190,6 +194,62 @@ export default function AdminConcertDetailPage() {
       setShowFoodForm(false);
       setAddFoodCategoryId("");
       setAddFoodCheck({});
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveFoodQty() {
+    if (!editFoodQtyTarget || !appUser) return;
+    const newQty = parseInt(editFoodQtyValue);
+    if (isNaN(newQty) || newQty < 0) { showToast("كمية غير صحيحة", "error"); return; }
+    const oldQty = editFoodQtyTarget.quantity ?? 0;
+    if (newQty === oldQty) { setEditFoodQtyTarget(null); return; }
+    setSaving(true);
+    try {
+      await updateConcertFood(editFoodQtyTarget.id, { quantity: newQty });
+      await addConcertLog({
+        concertId: id,
+        description: `تم تعديل كمية ${editFoodQtyTarget.categoryName} — ${editFoodQtyTarget.selectedOption} من ${oldQty} إلى ${newQty}`,
+        createdBy: appUser.uid,
+        field: "foodQty",
+        oldValue: `${editFoodQtyTarget.categoryName}:::${editFoodQtyTarget.selectedOption}:::${oldQty}`,
+        newValue: `${editFoodQtyTarget.categoryName}:::${editFoodQtyTarget.selectedOption}:::${newQty}`,
+      });
+      showToast("تم تعديل الكمية");
+      setEditFoodQtyTarget(null);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveItemQty() {
+    if (!editItemQtyTarget || !appUser || !concert) return;
+    const newCount = parseInt(editItemQtyValue);
+    if (isNaN(newCount) || newCount < 1) { showToast("كمية غير صحيحة", "error"); return; }
+    const oldCount = editItemQtyTarget.count;
+    if (newCount === oldCount) { setEditItemQtyTarget(null); return; }
+    setSaving(true);
+    try {
+      const newTotalCost = editItemQtyTarget.unitCost != null ? newCount * editItemQtyTarget.unitCost : editItemQtyTarget.totalCost;
+      await updateConcertItem(editItemQtyTarget.id, { count: newCount, totalCost: newTotalCost });
+      if (editItemQtyTarget.type === "external") await updateConcertExternalCost(concert.id);
+      await addConcertLog({
+        concertId: id,
+        description: `تم تعديل كمية ${editItemQtyTarget.itemName} من ${oldCount} إلى ${newCount}${editItemQtyTarget.type === "external" && newTotalCost != null ? ` (التكلفة: ${newTotalCost.toLocaleString("ar-SA")} ريال)` : ""}`,
+        createdBy: appUser.uid,
+        field: "itemQty",
+        oldValue: `${editItemQtyTarget.itemName}:::${oldCount}`,
+        newValue: `${editItemQtyTarget.itemName}:::${newCount}`,
+      });
+      showToast("تم تعديل الكمية");
+      setEditItemQtyTarget(null);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -1102,12 +1162,28 @@ export default function AdminConcertDetailPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
+                        {editItemQtyTarget?.id === item.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number" min={1} value={editItemQtyValue}
+                              onChange={(e) => setEditItemQtyValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
+                              className="w-14 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-center bg-white"
+                              autoFocus
+                            />
+                            <button onClick={handleSaveItemQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
+                            <button onClick={() => setEditItemQtyTarget(null)} className="text-slate-400 text-xs">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
+                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+                              <Pencil size={11} />
+                            </button>
+                          </div>
+                        )}
                         <StatusBadge status={item.deliveryStatus} />
-                        <button
-                          onClick={() => setDeleteItemTarget(item)}
-                          className="text-slate-300 hover:text-red-500 transition-colors"
-                        >
+                        <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors">
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -1135,7 +1211,26 @@ export default function AdminConcertDetailPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
+                        {editItemQtyTarget?.id === item.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number" min={1} value={editItemQtyValue}
+                              onChange={(e) => setEditItemQtyValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
+                              className="w-14 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-center bg-white"
+                              autoFocus
+                            />
+                            <button onClick={handleSaveItemQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
+                            <button onClick={() => setEditItemQtyTarget(null)} className="text-slate-400 text-xs">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
+                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+                              <Pencil size={11} />
+                            </button>
+                          </div>
+                        )}
                         <StatusBadge status={item.returnStatus} />
                         <button
                           onClick={() => setDeleteItemTarget(item)}
@@ -1186,14 +1281,30 @@ export default function AdminConcertDetailPage() {
                   <p className="text-sm font-semibold text-slate-800">{f.categoryName}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">{f.selectedOption}</span>
-                    {f.quantity && <span className="text-xs text-slate-400">الكمية: {f.quantity}</span>}
+                    {editFoodQtyTarget?.id === f.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number" min={0} value={editFoodQtyValue}
+                          onChange={(e) => setEditFoodQtyValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
+                          className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 text-center bg-white"
+                          autoFocus
+                        />
+                        <button onClick={handleSaveFoodQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
+                        <button onClick={() => setEditFoodQtyTarget(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-400">الكمية: {f.quantity ?? 0}</span>
+                        <button onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }} className="text-slate-300 hover:text-orange-500 transition-colors">
+                          <Pencil size={11} />
+                        </button>
+                      </div>
+                    )}
                     {f.notes && <span className="text-xs text-slate-400">— {f.notes}</span>}
                   </div>
                 </div>
-                <button
-                  onClick={() => setDeleteFoodTarget(f)}
-                  className="text-slate-300 hover:text-red-500 transition-colors"
-                >
+                <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors">
                   <Trash2 size={14} />
                 </button>
               </div>

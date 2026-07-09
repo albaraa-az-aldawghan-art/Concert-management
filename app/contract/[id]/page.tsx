@@ -177,6 +177,7 @@ export default function ContractPage() {
   interface DeletedFood { categoryName: string; option: string; qty: number }
   const deletedFoods: DeletedFood[] = [];
   const addedFoodKeys = new Set<string>(); // "categoryName:::option"
+  const foodQtyChanges = new Map<string, { oldQty: number; newQty: number }>(); // "categoryName:::option"
   for (const log of logs) {
     if (log.field === "foodDeleted" && log.oldValue) {
       const parts = log.oldValue.split(":::");
@@ -185,6 +186,14 @@ export default function ContractPage() {
     if (log.field === "foodAdded" && log.newValue) {
       const parts = log.newValue.split(":::");
       addedFoodKeys.add(`${parts[0] ?? ""}:::${parts[1] ?? ""}`);
+    }
+    if (log.field === "foodQty" && log.oldValue && log.newValue) {
+      const op = log.oldValue.split(":::");
+      const np = log.newValue.split(":::");
+      const key = `${op[0] ?? ""}:::${op[1] ?? ""}`;
+      if (!foodQtyChanges.has(key)) { // newest log wins (logs sorted newest-first)
+        foodQtyChanges.set(key, { oldQty: parseInt(op[2] ?? "0") || 0, newQty: parseInt(np[2] ?? "0") || 0 });
+      }
     }
   }
 
@@ -534,23 +543,46 @@ export default function ContractPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {foodGroups.map((g, i) => (
-                      <tr key={g.categoryName} style={{ background: i % 2 === 1 ? "#F8FAFC" : "white" }}>
-                        <td style={S.tdCat}>{g.categoryName}</td>
-                        <td style={S.tdItems}>
-                          {g.items.map((opt, j) => (
-                            <span key={j}>
-                              {j > 0 && "، "}
-                              {opt}
-                              {addedFoodKeys.has(`${g.categoryName}:::${opt}`) && (
-                                <span style={S.newBadge}> جديد</span>
-                              )}
-                            </span>
-                          ))}
-                        </td>
-                        <td style={S.tdTotal}>{g.totalQty > 0 ? g.totalQty : "—"}</td>
-                      </tr>
-                    ))}
+                    {foodGroups.map((g, i) => {
+                      // Compute old total for this group to detect qty changes
+                      let oldTotal = g.totalQty;
+                      for (const opt of g.items) {
+                        const qc = foodQtyChanges.get(`${g.categoryName}:::${opt}`);
+                        if (qc) oldTotal = oldTotal - qc.newQty + qc.oldQty;
+                      }
+                      const totalDecreased = oldTotal > g.totalQty;
+                      const totalIncreased = oldTotal < g.totalQty;
+                      return (
+                        <tr key={g.categoryName} style={{ background: i % 2 === 1 ? "#F8FAFC" : "white" }}>
+                          <td style={S.tdCat}>{g.categoryName}</td>
+                          <td style={S.tdItems}>
+                            {g.items.map((opt, j) => {
+                              const key = `${g.categoryName}:::${opt}`;
+                              const isNew = addedFoodKeys.has(key);
+                              const qc = foodQtyChanges.get(key);
+                              const qtyIncreased = qc && qc.newQty > qc.oldQty;
+                              const isBold = isNew || qtyIncreased;
+                              return (
+                                <span key={j}>
+                                  {j > 0 && "، "}
+                                  <span style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>{opt}</span>
+                                  {isNew && <span style={S.newBadge}> جديد</span>}
+                                </span>
+                              );
+                            })}
+                          </td>
+                          <td style={{
+                            ...S.tdTotal,
+                            ...(totalIncreased ? { color: "#065F46", fontWeight: 900 } : {}),
+                          }}>
+                            {totalDecreased && (
+                              <span style={{ textDecoration: "line-through", color: "#94A3B8", fontSize: 11, marginLeft: 6 }}>{oldTotal}</span>
+                            )}
+                            {g.totalQty > 0 ? g.totalQty : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {deletedFoods.map((d, i) => (
                       <tr key={`del-${i}`}>
                         <td style={{ ...S.tdDel, width: "22%" }}>{d.categoryName}</td>

@@ -60,6 +60,10 @@ export async function addConcertFood(
   return { id: ref.id, ...snap.data() } as ConcertFood;
 }
 
+export async function updateConcertFood(id: string, data: Partial<ConcertFood>) {
+  await updateDoc(doc(db, "concert_food", id), data as Record<string, unknown>);
+}
+
 export async function deleteConcertFood(id: string) {
   await deleteDoc(doc(db, "concert_food", id));
 }
