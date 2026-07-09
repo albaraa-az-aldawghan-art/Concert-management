@@ -500,11 +500,11 @@ export default function ContractPage() {
                   </button>
                   <button
                     onClick={() => {
+                      // Must call window.print() directly in the click handler (no setTimeout)
+                      // so iOS Safari keeps it within user-gesture scope
+                      document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
                       setShowIosHint(false);
-                      setTimeout(() => {
-                        document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
-                        window.print();
-                      }, 100);
+                      window.print();
                     }}
                     style={{
                       flex: 2, background: "#1C2D50", color: "white", border: "none",
