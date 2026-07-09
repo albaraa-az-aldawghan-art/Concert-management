@@ -385,11 +385,34 @@ export default function ContractPage() {
           z-index: 0;
         }
         @page { size: A4 portrait; margin: 8mm; }
-        @media (max-width: 600px) {
-          .hdr-grid { grid-template-columns: 1fr !important; }
+        @media (max-width: 700px) {
+          #contract-doc {
+            max-width: 100% !important;
+            width: 100% !important;
+            border-left: none !important;
+            border-right: none !important;
+            box-shadow: none !important;
+          }
+          .hdr-grid {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+            padding: 10px 12px !important;
+          }
+          .hdr-ar { display: none !important; }
           .hdr-en { display: none !important; }
+          .hdr-center { order: 0 !important; }
           .info-grid { grid-template-columns: 1fr !important; }
           .sig-grid { grid-template-columns: 1fr !important; }
+          .pay-grid { grid-template-columns: 1fr !important; }
+          .page-body { padding: 8px 4px 16px !important; }
+          .section-inner { padding: 8px 12px !important; }
+          .meta-bar { padding: 6px 12px !important; gap: 6px !important; flex-direction: column !important; align-items: flex-start !important; }
+          .fin-row { padding: 5px 12px !important; font-size: 12px !important; }
+          .fin-band { padding: 8px 12px !important; }
+          .sigs-wrap { padding: 8px 12px !important; }
+          .pay-grid-wrap { padding: 5px 12px !important; }
+          .footer-bar { padding: 5px 12px !important; font-size: 9px !important; flex-wrap: wrap !important; gap: 4px !important; }
+          .cancel-bar { padding: 6px 12px !important; font-size: 10.5px !important; flex-wrap: wrap !important; }
         }
       `}</style>
 
@@ -424,7 +447,7 @@ export default function ContractPage() {
           {/* Header */}
           <div className="hdr-grid" style={S.header}>
             {/* Arabic */}
-            <div style={S.hdrAr}>
+            <div className="hdr-ar" style={S.hdrAr}>
               لصاحبه / عبد العزيز عبد اللطيف الدوغان<br />
               س.ت : 2251052844<br />
               هاتف : 0135755776 — 0135755000<br />
@@ -435,7 +458,7 @@ export default function ContractPage() {
             </div>
 
             {/* Center: Logo + Name */}
-            <div style={S.hdrCenter}>
+            <div className="hdr-center" style={S.hdrCenter}>
               <div style={S.logoCircle}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo.jpg" alt="الفريج" style={{ width: 54, height: 54, objectFit: "contain", borderRadius: "50%" }} />
@@ -459,7 +482,7 @@ export default function ContractPage() {
 
           {/* Cancellation notice */}
           {isCancelled && (
-            <div style={S.cancelBar}>
+            <div className="cancel-bar" style={S.cancelBar}>
               <span style={{ fontWeight: 700 }}>⚠ اتفاقية ملغاة</span>
               {formattedCancelledDate && <span>— تاريخ الإلغاء: {formattedCancelledDate}</span>}
               {concert.cancellationReason && <span>| السبب: {concert.cancellationReason}</span>}
@@ -473,7 +496,7 @@ export default function ContractPage() {
           )}
 
           {/* Meta bar */}
-          <div style={S.meta}>
+          <div className="meta-bar" style={S.meta}>
             <div style={S.metaLeft}>
               <div style={S.metaItem}>
                 <span style={S.metaLbl}>تاريخ الاتفاقية:</span>
@@ -493,7 +516,7 @@ export default function ContractPage() {
           </div>
 
           {/* Client + Concert */}
-          <div style={S.section}>
+          <div className="section-inner" style={S.section}>
             <div style={S.secHd}>
               <span style={S.secAccent} />
               بيانات العميل وتفاصيل الحفلة
@@ -543,7 +566,7 @@ export default function ContractPage() {
 
           {/* Food */}
           {(foodGroups.length > 0 || deletedFoods.length > 0) && (
-            <div style={S.section}>
+            <div className="section-inner" style={S.section}>
               <div style={S.secHd}>
                 <span style={S.secAccent} />
                 الأقسام والأصناف والكميات
@@ -613,7 +636,7 @@ export default function ContractPage() {
 
           {/* Notes */}
           {concert.notes && (
-            <div style={S.section}>
+            <div className="section-inner" style={S.section}>
               <div style={S.secHd}>
                 <span style={S.secAccent} />
                 ملاحظات
@@ -625,14 +648,14 @@ export default function ContractPage() {
 
           {/* Financials */}
           <div>
-            <div style={S.finRow}>
+            <div className="fin-row" style={S.finRow}>
               <span style={S.finLbl}>المبلغ قبل الضريبة</span>
               <span style={S.finVal}>
                 {prevPriceBeforeVat !== null && <span style={S.oldVal}>{fmtNum(prevPriceBeforeVat)}</span>}
                 {fmtNum(priceBeforeVat)}<span style={S.unit}>ريال</span>
               </span>
             </div>
-            <div style={S.finRow}>
+            <div className="fin-row" style={S.finRow}>
               <span style={S.finLbl}>ضريبة القيمة المضافة (15%)</span>
               <span style={S.finVal}>
                 {prevVat !== null && <span style={S.oldVal}>{fmtNum(prevVat)}</span>}
@@ -641,7 +664,7 @@ export default function ContractPage() {
             </div>
           </div>
 
-          <div style={S.finBand}>
+          <div className="fin-band" style={S.finBand}>
             <span style={S.finBandLbl}>إجمالي المبلغ شامل الضريبة</span>
             <span style={S.finBandVal}>
               {prevPrice !== null && (
@@ -654,8 +677,8 @@ export default function ContractPage() {
           </div>
 
           {payments.length > 0 && (
-            <div>
-              <div style={S.payGrid}>
+            <div className="pay-grid-wrap">
+              <div className="pay-grid" style={S.payGrid}>
                 {payments.map((p, i) => (
                   <div key={p.id} style={S.payCell}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -671,7 +694,7 @@ export default function ContractPage() {
               </div>
 
               {isCancelled && concert.refundAmount && concert.refundAmount > 0 && (
-                <div style={S.finRow}>
+                <div className="fin-row" style={S.finRow}>
                   <span style={S.finLbl}>
                     استرداد للعميل
                     <div style={S.payMeta}>
@@ -683,7 +706,7 @@ export default function ContractPage() {
                 </div>
               )}
 
-              <div style={{ ...S.finRow, borderBottom: "none" }}>
+              <div className="fin-row" style={{ ...S.finRow, borderBottom: "none" }}>
                 <span style={S.finLbl}>المبلغ المتبقي</span>
                 <span style={remaining > 0 ? S.finRemainingVal : S.finPaidVal}>{fmtNum(remaining)}<span style={S.unit}>ريال</span></span>
               </div>
@@ -691,7 +714,7 @@ export default function ContractPage() {
           )}
 
           {/* Signatures */}
-          <div className="sig-grid" style={S.sigs}>
+          <div className="sig-grid sigs-wrap" style={S.sigs}>
             <div style={S.sigBox}>
               <div style={S.sigTitle}>توقيع العميل</div>
               <div style={S.sigLine}>الاسم والتوقيع</div>
@@ -703,7 +726,7 @@ export default function ContractPage() {
           </div>
 
           {/* Footer */}
-          <div style={S.footer}>
+          <div className="footer-bar" style={S.footer}>
             <span>مطعم الفريج — الأحساء، الهفوف</span>
             <span style={{ color: "#64748B", fontWeight: 600 }}>للاستفسار التواصل على الرقم الخاص بالحفلات: 0501764441</span>
             <span>رقم التسجيل الضريبي: 310290987900003</span>
