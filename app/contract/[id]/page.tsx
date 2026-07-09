@@ -289,6 +289,19 @@ export default function ContractPage() {
       el.style.setProperty("width", PRINT_W + "px", "important");
       el.style.setProperty("max-width", PRINT_W + "px", "important");
 
+      // html2canvas mis-renders Arabic Typesetting's OpenType ligatures and
+      // breaks letter-spacing on Arabic text. Force Tahoma (which html2canvas
+      // handles correctly) and reset letter-spacing only during capture.
+      const captureStyle = document.createElement("style");
+      captureStyle.id = "pdf-capture-style";
+      captureStyle.textContent = `
+        #contract-doc, #contract-doc * {
+          font-family: Tahoma, Arial, sans-serif !important;
+          letter-spacing: 0 !important;
+        }
+      `;
+      document.head.appendChild(captureStyle);
+
       // Give the browser 250ms to finish re-layout at the new viewport width
       await new Promise<void>((r) => setTimeout(r, 250));
 
@@ -306,6 +319,7 @@ export default function ContractPage() {
       });
 
       // Restore viewport and styles immediately after capture
+      document.getElementById("pdf-capture-style")?.remove();
       el.style.width = savedW;
       el.style.removeProperty("max-width");
       document.documentElement.classList.remove("force-desktop-layout");
