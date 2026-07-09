@@ -455,7 +455,7 @@ export default function FinancesPage() {
                 const remaining = (c.price ?? 0) - (c.deposit ?? 0);
                 return (
                   <Link key={c.id} href={`/admin/concerts/${c.id}`}>
-                    <div className={`rounded-xl p-4 hover:brightness-95 transition-all ${idx % 2 === 0 ? "bg-slate-50" : "bg-white border border-slate-100"}`}>
+                    <div className={`rounded-xl p-4 hover:bg-slate-100 transition-all ${idx % 2 === 0 ? "bg-slate-50" : "bg-white border border-slate-100"}`}>
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <p className="font-bold text-slate-800 text-sm">{c.name}</p>
@@ -518,7 +518,7 @@ export default function FinancesPage() {
                     const concertTotalCosts = hall + (c.transportCost ?? 0) + (c.externalItemsCost ?? 0) + (c.laborCost ?? 0);
                     const isShaded = idx % 2 === 0;
                     return (
-                      <tr key={c.id} className={`transition-colors hover:brightness-95 ${isShaded ? "bg-slate-50" : "bg-white"}`}>
+                      <tr key={c.id} className={`transition-colors hover:bg-slate-100 ${isShaded ? "bg-slate-50" : "bg-white"}`}>
                         <td className="py-3.5 px-3">
                           <Link href={`/admin/concerts/${c.id}`} className="font-semibold text-slate-800 hover:text-[#1C2D50] transition-colors">
                             {c.name}

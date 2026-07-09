@@ -72,20 +72,16 @@ const roleLabels: Record<string, string> = {
   employee:          "موظف",
 };
 
-export function Sidebar() {
-  const { appUser } = useAuth();
-  const pathname    = usePathname();
-  const router      = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
+interface SidebarContentProps {
+  appUser: ReturnType<typeof useAuth>["appUser"];
+  pathname: string;
+  navItems: NavItem[];
+  onClose: () => void;
+  onSignOut: () => void;
+}
 
-  const navItems = navByRole[appUser?.role ?? "employee"] ?? [];
-
-  async function handleSignOut() {
-    await signOut();
-    router.push("/login");
-  }
-
-  const SidebarContent = () => (
+function SidebarContent({ appUser, pathname, navItems, onClose, onSignOut }: SidebarContentProps) {
+  return (
     <div className="flex flex-col h-full" style={{ background: "#111D35" }}>
 
       {/* ── Logo / Brand ── */}
@@ -146,7 +142,7 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative",
                     isActive
@@ -198,7 +194,7 @@ export function Sidebar() {
       {/* ── Logout ── */}
       <div className="px-3 py-4" style={{ borderTop: "1px solid rgba(176,189,201,0.12)" }}>
         <button
-          onClick={handleSignOut}
+          onClick={onSignOut}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
           style={{ color: "#6B7E99" }}
           onMouseEnter={(e) => {
@@ -216,6 +212,22 @@ export function Sidebar() {
       </div>
     </div>
   );
+}
+
+export function Sidebar() {
+  const { appUser } = useAuth();
+  const pathname    = usePathname();
+  const router      = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navItems = navByRole[appUser?.role ?? "employee"] ?? [];
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/login");
+  }
+
+  const noOp = () => {};
 
   return (
     <>
@@ -224,7 +236,13 @@ export function Sidebar() {
         className="hidden lg:flex flex-col w-64 h-full fixed top-0 right-0 bottom-0 z-40"
         style={{ background: "#111D35" }}
       >
-        <SidebarContent />
+        <SidebarContent
+          appUser={appUser}
+          pathname={pathname}
+          navItems={navItems}
+          onClose={noOp}
+          onSignOut={handleSignOut}
+        />
       </aside>
 
       {/* Mobile Hamburger */}
@@ -255,7 +273,13 @@ export function Sidebar() {
             >
               <X size={20} />
             </button>
-            <SidebarContent />
+            <SidebarContent
+              appUser={appUser}
+              pathname={pathname}
+              navItems={navItems}
+              onClose={() => setMobileOpen(false)}
+              onSignOut={handleSignOut}
+            />
           </aside>
         </div>
       )}

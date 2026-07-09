@@ -74,9 +74,11 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(28, 45, 80, 0.18);
 }
 
-/* ── Smooth transitions ── */
-* {
-  transition-property: color, background-color, border-color, opacity, box-shadow;
+/* ── Smooth transitions (scoped — avoid * selector which taxes every element on iOS) ── */
+a, button, [role="button"],
+input, select, textarea,
+.transition-colors, .transition-all, .transition {
+  transition-property: color, background-color, border-color, opacity;
   transition-duration: 150ms;
   transition-timing-function: ease-in-out;
 }

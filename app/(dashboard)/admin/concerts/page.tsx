@@ -397,7 +397,7 @@ export default function AdminConcertsPage() {
                   {paginated.map((c, idx) => {
                     const isShaded = idx % 2 === 0;
                     return (
-                      <tr key={c.id} className={`transition-colors hover:brightness-95 ${isShaded ? "bg-slate-50" : "bg-white"}`}>
+                      <tr key={c.id} className={`transition-colors hover:bg-slate-100 ${isShaded ? "bg-slate-50" : "bg-white"}`}>
                         <td className="py-3.5 px-3">
                           {c.concertNumber != null ? (
                             <span className="inline-flex items-center gap-0.5 text-xs font-bold bg-[#1C2D50] text-[#D4DCE8] px-2 py-0.5 rounded-full">
