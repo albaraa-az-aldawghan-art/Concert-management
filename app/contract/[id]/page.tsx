@@ -85,6 +85,28 @@ interface FoodGroup {
   totalQty: number;
 }
 
+// Renders strikethrough via absolute-positioned line — html2canvas misplaces
+// CSS text-decoration:line-through, so we use a real DOM element instead.
+function Strike({ children, color = "currentColor", style }: {
+  children: React.ReactNode;
+  color?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <span style={{ position: "relative", display: "inline-block", color, ...style }}>
+      {children}
+      <span aria-hidden style={{
+        position: "absolute", left: 0, right: 0,
+        top: "50%", height: "1.5px",
+        background: color,
+        transform: "translateY(-50%)",
+        display: "block",
+        pointerEvents: "none",
+      }} />
+    </span>
+  );
+}
+
 export default function ContractPage() {
   const { id } = useParams<{ id: string }>();
   const [concert, setConcert] = useState<Concert | null>(null);
@@ -456,10 +478,10 @@ export default function ContractPage() {
     finRemainingVal: { fontWeight: 700, color: "#DC2626" },
     refundMethod: { fontSize: 10, background: "#FEE2E2", color: "#991B1B", padding: "1px 7px", borderRadius: 4, fontWeight: 700 },
     refundVal: { fontWeight: 700, color: "#DC2626" },
-    oldVal: { textDecoration: "line-through", color: "#94A3B8", fontSize: 10.5, marginLeft: 5 },
+    oldVal: { color: "#94A3B8", fontSize: 10.5, marginLeft: 5 },
     updatedBadge: { fontSize: 10, background: "#FEF3C7", color: "#92400E", padding: "1px 7px", borderRadius: 4, fontWeight: 700, border: "1px solid #FDE68A" },
     newBadge: { fontSize: 9, background: "#D1FAE5", color: "#065F46", padding: "0px 5px", borderRadius: 3, fontWeight: 700, marginRight: 4, border: "1px solid #A7F3D0" },
-    tdDel: { padding: "7px 10px", textDecoration: "line-through" as const, color: "#CBD5E1", borderBottom: "1px solid #F1F5F9", fontSize: 12 },
+    tdDel: { padding: "7px 10px", color: "#CBD5E1", borderBottom: "1px solid #F1F5F9", fontSize: 12 },
     sigs: { padding: "8px 20px", borderTop: "1px solid #E8ECF0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
     sigBox: { border: "1px dashed #B0BDC9", borderRadius: 5, padding: "10px 12px 8px", textAlign: "center" as const },
     sigTitle: { fontSize: 12, fontWeight: 700, color: "#1C2D50", marginBottom: 14 },
@@ -775,14 +797,14 @@ export default function ContractPage() {
                 <div style={S.fld}>
                   <span style={S.fl}>تاريخ الحفلة</span>
                   <span style={S.fv}>
-                    {prevDateFmt && <span style={S.oldVal}>{prevDateFmt}</span>}
+                    {prevDateFmt && <Strike color="#94A3B8" style={S.oldVal}>{prevDateFmt}</Strike>}
                     {formattedConcertDate} — {dayName}
                   </span>
                 </div>
                 <div style={S.fld}>
                   <span style={S.fl}>اسم المكان</span>
                   <span style={S.fv}>
-                    {prevVenueName && <span style={S.oldVal}>{prevVenueName}</span>}
+                    {prevVenueName && <Strike color="#94A3B8" style={S.oldVal}>{prevVenueName}</Strike>}
                     {concert.venueName || "—"}
                   </span>
                 </div>
@@ -840,7 +862,7 @@ export default function ContractPage() {
                             ...(totalIncreased ? { color: "#065F46", fontWeight: 900 } : {}),
                           }}>
                             {totalDecreased && (
-                              <span style={{ textDecoration: "line-through", color: "#94A3B8", fontSize: 11, marginLeft: 6 }}>{oldTotal}</span>
+                              <Strike color="#94A3B8" style={{ fontSize: 11, marginLeft: 6 }}>{oldTotal}</Strike>
                             )}
                             {g.totalQty > 0 ? g.totalQty : "—"}
                           </td>
@@ -849,9 +871,9 @@ export default function ContractPage() {
                     })}
                     {deletedFoods.map((d, i) => (
                       <tr key={`del-${i}`}>
-                        <td style={{ ...S.tdDel, width: "22%" }}>{d.categoryName}</td>
-                        <td style={S.tdDel}>{d.option}</td>
-                        <td style={{ ...S.tdDel, textAlign: "center", width: "22%" }}>{d.qty > 0 ? d.qty : "—"}</td>
+                        <td style={{ ...S.tdDel, width: "22%" }}><Strike color="#CBD5E1">{d.categoryName}</Strike></td>
+                        <td style={S.tdDel}><Strike color="#CBD5E1">{d.option}</Strike></td>
+                        <td style={{ ...S.tdDel, textAlign: "center", width: "22%" }}><Strike color="#CBD5E1">{d.qty > 0 ? d.qty : "—"}</Strike></td>
                       </tr>
                     ))}
                   </tbody>
@@ -877,14 +899,14 @@ export default function ContractPage() {
             <div className="fin-row" style={S.finRow}>
               <span style={S.finLbl}>المبلغ قبل الضريبة</span>
               <span style={S.finVal}>
-                {prevPriceBeforeVat !== null && <span style={S.oldVal}>{fmtNum(prevPriceBeforeVat)}</span>}
+                {prevPriceBeforeVat !== null && <Strike color="#94A3B8" style={S.oldVal}>{fmtNum(prevPriceBeforeVat)}</Strike>}
                 {fmtNum(priceBeforeVat)}<span style={S.unit}>ريال</span>
               </span>
             </div>
             <div className="fin-row" style={S.finRow}>
               <span style={S.finLbl}>ضريبة القيمة المضافة (15%)</span>
               <span style={S.finVal}>
-                {prevVat !== null && <span style={S.oldVal}>{fmtNum(prevVat)}</span>}
+                {prevVat !== null && <Strike color="#94A3B8" style={S.oldVal}>{fmtNum(prevVat)}</Strike>}
                 {fmtNum(vat)}<span style={S.unit}>ريال</span>
               </span>
             </div>
@@ -894,9 +916,9 @@ export default function ContractPage() {
             <span style={S.finBandLbl}>إجمالي المبلغ شامل الضريبة</span>
             <span style={S.finBandVal}>
               {prevPrice !== null && (
-                <span style={{ textDecoration: "line-through", color: "rgba(255,255,255,0.4)", fontSize: 12, marginLeft: 8 }}>
+                <Strike color="rgba(255,255,255,0.4)" style={{ fontSize: 12, marginLeft: 8 }}>
                   {fmtNum(prevPrice)}
-                </span>
+                </Strike>
               )}
               {fmtNum(price)}<span style={{ ...S.unit, color: "rgba(255,255,255,0.5)" }}>ريال</span>
             </span>
