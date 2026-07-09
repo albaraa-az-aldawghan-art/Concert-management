@@ -67,6 +67,7 @@ export default function ContractPage() {
   const [foodItems, setFoodItems] = useState<ConcertFood[]>([]);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<ConcertLog[]>([]);
+  const [showIosHint, setShowIosHint] = useState(false);
   // Pre-calculated zoom so the print button does zero DOM work on click
   const cachedZoom = useRef<number>(88);
 
@@ -453,14 +454,54 @@ export default function ContractPage() {
           <button
             style={S.printBtn}
             onClick={() => {
-              // Apply pre-calculated zoom instantly (no DOM measurement at click time)
-              // so Safari iOS doesn't expire the user-gesture before window.print()
               document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
-              window.print();
+              const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+              const isStandalone = ("standalone" in navigator) && (navigator as { standalone?: boolean }).standalone;
+              const isInAppBrowser = isIOS && !/Safari/.test(navigator.userAgent);
+              if (isIOS && (isStandalone || isInAppBrowser)) {
+                // In standalone/in-app mode window.print() is blocked — show instructions
+                setShowIosHint(true);
+              } else {
+                window.print();
+              }
             }}
           >
             طباعة / تنزيل PDF
           </button>
+          {showIosHint && (
+            <div style={{
+              position: "fixed", inset: 0, zIndex: 9999,
+              background: "rgba(0,0,0,0.6)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: 24, direction: "rtl",
+            }}
+              onClick={() => setShowIosHint(false)}
+            >
+              <div style={{
+                background: "white", borderRadius: 16, padding: 24,
+                maxWidth: 340, width: "100%", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+                <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: "#1C2D50" }}>
+                  لتنزيل العقد كـ PDF
+                </p>
+                <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.7, marginBottom: 16 }}>
+                  افتح هذا الرابط في <strong>Safari</strong> مباشرةً ثم اضغط على
+                  زر <strong>المشاركة</strong> &#x2B06; واختر <strong>طباعة</strong>
+                </p>
+                <button
+                  onClick={() => setShowIosHint(false)}
+                  style={{
+                    background: "#1C2D50", color: "white", border: "none",
+                    borderRadius: 10, padding: "10px 24px", fontSize: 14,
+                    fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  حسناً
+                </button>
+              </div>
+            </div>
+          )}
           <span style={{ fontSize: 12, color: "#64748B" }}>
             اتفاقية #{concert.concertNumber} — {concert.name}
           </span>
