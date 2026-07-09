@@ -489,7 +489,7 @@ export default function ContractPage() {
     tbl: { width: "100%", borderCollapse: "collapse" as const, fontSize: 12.5 },
     th: { padding: "7px 10px", textAlign: "right" as const, fontWeight: 600, fontSize: 11.5, background: "#1C2D50", color: "white" },
     tdCat: { padding: "7px 10px", fontWeight: 700, color: "#1C2D50", fontSize: 12.5, borderBottom: "1px solid #E8ECF0", width: "22%" },
-    tdItems: { padding: "7px 10px", color: "#374151", fontSize: 12.5, borderBottom: "1px solid #E8ECF0", lineHeight: 1.45, width: "56%" },
+    tdItems: { padding: "5px 10px", color: "#374151", fontSize: 12, borderBottom: "1px solid #E8ECF0", lineHeight: 1.7, width: "56%" },
     tdTotal: { padding: "7px 10px", fontWeight: 800, color: "#1C2D50", fontSize: 13, textAlign: "center" as const, borderBottom: "1px solid #E8ECF0", width: "22%" },
     notesBox: {
       background: "#FFFBEB", border: "1px solid #FDE68A",
@@ -883,10 +883,9 @@ export default function ContractPage() {
                               const qtyIncreased = qc && qc.newQty > qc.oldQty;
                               const isBold = isNew || qtyIncreased;
                               return (
-                                <span key={j}>
-                                  {j > 0 && "، "}
-                                  <span style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>{opt}</span>
-                                </span>
+                                <div key={j} style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>
+                                  {opt}
+                                </div>
                               );
                             })}
                           </td>
