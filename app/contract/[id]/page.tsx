@@ -449,10 +449,12 @@ export default function ContractPage() {
           <button
             style={S.printBtn}
             onClick={() => {
-              // Apply zoom BEFORE the dialog opens so the preview is correct
               applyPrintZoom();
-              // Two animation frames ensure the DOM reflects the new zoom
-              requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+              // Force synchronous reflow so the CSS custom property is applied
+              // before the print dialog opens (keeps call in the same user-gesture
+              // stack so Safari/iOS doesn't block window.print())
+              void document.getElementById("contract-doc")?.offsetHeight;
+              window.print();
             }}
           >
             طباعة / تنزيل PDF
