@@ -93,6 +93,7 @@ export default function ContractPage() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<ConcertLog[]>([]);
   const [showIosHint, setShowIosHint] = useState(false);
+  const [sharing, setSharing] = useState(false);
   // Pre-calculated zoom so the print button does zero DOM work on click
   const cachedZoom = useRef<number>(88);
 
@@ -243,6 +244,75 @@ export default function ContractPage() {
   const prevPrice = fieldPrev["price"] ? parseFloat(fieldPrev["price"]) : null;
   const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / 1.15) * 100) / 100 : null;
   const prevVat = prevPrice !== null && prevPriceBeforeVat !== null ? Math.round((prevPrice - prevPriceBeforeVat) * 100) / 100 : null;
+
+  // ── Share as PDF ──────────────────────────────────
+  async function shareContractAsPDF() {
+    const el = document.getElementById("contract-doc");
+    if (!el || !concert) return;
+    setSharing(true);
+    try {
+      // Use desktop layout for capture
+      document.documentElement.classList.add("force-desktop-layout");
+      const savedMaxW = el.style.maxWidth;
+      const savedW    = el.style.width;
+      el.style.maxWidth = PRINT_W + "px";
+      el.style.width    = PRINT_W + "px";
+      void el.offsetHeight;
+
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        width: PRINT_W,
+        height: el.scrollHeight,
+      });
+
+      // Restore element
+      el.style.maxWidth = savedMaxW;
+      el.style.width    = savedW;
+      document.documentElement.classList.remove("force-desktop-layout");
+
+      // Build PDF sized to fit the content on one A4 page
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const aspect = canvas.width / canvas.height;
+      let imgW = pdfW;
+      let imgH = pdfW / aspect;
+      if (imgH > pdfH) { imgH = pdfH; imgW = pdfH * aspect; }
+      const x = (pdfW - imgW) / 2;
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", x, 0, imgW, imgH);
+
+      const filename = `عقد-${concert.clientName}.pdf`;
+      const blob = pdf.output("blob");
+      const file = new File([blob], filename, { type: "application/pdf" });
+
+      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+      } else {
+        // Fallback: direct download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      // User cancelled share — no action needed
+    } finally {
+      setSharing(false);
+    }
+  }
 
   // ── Styles ────────────────────────────────────────
   const S = {
@@ -501,6 +571,21 @@ export default function ContractPage() {
             }}
           >
             طباعة / تنزيل PDF
+          </button>
+          <button
+            disabled={sharing}
+            style={{
+              background: sharing ? "#94A3B8" : "#16a34a",
+              color: "white", border: "none", borderRadius: 8,
+              padding: "8px 20px", fontSize: 14, fontWeight: 700,
+              cursor: sharing ? "not-allowed" : "pointer",
+              fontFamily: "inherit", minHeight: 44, touchAction: "manipulation",
+              display: "flex", alignItems: "center", gap: 8,
+              opacity: sharing ? 0.7 : 1,
+            }}
+            onClick={shareContractAsPDF}
+          >
+            {sharing ? "جارٍ التوليد..." : "📤 مشاركة PDF"}
           </button>
           {showIosHint && (
             <div className="no-print" style={{
