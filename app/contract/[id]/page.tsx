@@ -38,19 +38,31 @@ function calcPrintZoom(): number {
 
 function applyIosBodyFix() {
   // iOS Safari respects min-height: 100vh even during print, creating a blank page 2.
-  // Inline style with priority "important" overrides everything including Tailwind + globals.css.
-  document.body.style.setProperty("min-height", "0", "important");
-  document.body.style.setProperty("height", "auto", "important");
-  document.documentElement.style.setProperty("min-height", "0", "important");
-  document.documentElement.style.setProperty("height", "auto", "important");
+  // Must fix html, body, AND the page-body div (which has inline minHeight: "100vh").
+  // setProperty with "important" creates inline !important — highest CSS priority.
+  const targets: Array<HTMLElement | null> = [
+    document.documentElement,
+    document.body,
+    document.querySelector(".page-body"),
+  ];
+  targets.forEach((el) => {
+    if (!el) return;
+    el.style.setProperty("min-height", "0", "important");
+    el.style.setProperty("height", "auto", "important");
+    el.style.setProperty("overflow", "visible", "important");
+  });
+  // Force a synchronous reflow so iOS captures the new layout before print
+  void document.body.offsetHeight;
 }
 
 function resetPrintZoom() {
   document.documentElement.style.removeProperty("--contract-zoom");
-  document.body.style.removeProperty("min-height");
-  document.body.style.removeProperty("height");
-  document.documentElement.style.removeProperty("min-height");
-  document.documentElement.style.removeProperty("height");
+  [document.documentElement, document.body, document.querySelector(".page-body") as HTMLElement | null].forEach((el) => {
+    if (!el) return;
+    el.style.removeProperty("min-height");
+    el.style.removeProperty("height");
+    el.style.removeProperty("overflow");
+  });
 }
 
 const PAYMENT_ORDINALS = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة", "الثامنة", "التاسعة", "العاشرة"];
