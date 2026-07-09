@@ -274,11 +274,13 @@ export default function ContractPage() {
 
       el.style.width = savedW;
 
-      // Custom page height = exact content height → zero white space
-      const pdfW = 210; // mm (A4 width)
-      const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
+      // 8mm margins on all sides — PRINT_W already equals A4 minus those margins
+      const margin = 8; // mm
+      const contentW = 210 - margin * 2; // 194mm
+      const contentH = Math.ceil((canvas.height / canvas.width) * contentW);
+      const pdfH = contentH + margin * 2;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pdfH] });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", margin, margin, contentW, contentH);
 
       const filename = `عقد-${concert.clientName}.pdf`;
       const blob = pdf.output("blob");
