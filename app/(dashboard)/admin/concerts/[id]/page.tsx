@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertExternalCost, cancelConcert } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, updateConcertItem, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertExternalCost, cancelConcert } from "@/lib/firestore/concerts";
 import { getRequestsByConcert } from "@/lib/firestore/requests";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
