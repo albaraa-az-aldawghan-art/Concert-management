@@ -258,10 +258,17 @@ export default function ContractPage() {
         import("jspdf"),
       ]);
 
-      // Fix width for consistent capture, then restore
+      // Force desktop layout: mobile CSS has `width:100% !important` at <700px
+      // which overrides inline styles — setProperty with "important" wins.
+      // windowWidth:1000 tells html2canvas the viewport is desktop so that
+      // @media (max-width:700px) never fires during capture.
+      document.documentElement.classList.add("force-desktop-layout");
       const savedW = el.style.width;
-      el.style.width = PRINT_W + "px";
+      el.style.setProperty("width", PRINT_W + "px", "important");
+      el.style.setProperty("max-width", PRINT_W + "px", "important");
       void el.offsetHeight;
+
+      const captureH = el.scrollHeight;
 
       const canvas = await html2canvas(el, {
         scale: 2,
@@ -269,18 +276,22 @@ export default function ContractPage() {
         allowTaint: true,
         backgroundColor: "#ffffff",
         width: PRINT_W,
-        height: el.scrollHeight,
+        height: captureH,
+        windowWidth: 1000,
+        windowHeight: captureH,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       el.style.width = savedW;
+      el.style.removeProperty("max-width");
+      document.documentElement.classList.remove("force-desktop-layout");
 
-      // 8mm margins on all sides — PRINT_W already equals A4 minus those margins
-      const margin = 8; // mm
-      const contentW = 210 - margin * 2; // 194mm
-      const contentH = Math.ceil((canvas.height / canvas.width) * contentW);
-      const pdfH = contentH + margin * 2;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [210, pdfH] });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", margin, margin, contentW, contentH);
+      // PDF sized exactly to content — image fills it completely, zero white space
+      const pdfW = 210; // mm
+      const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
 
       const filename = `عقد-${concert.clientName}.pdf`;
       const blob = pdf.output("blob");
