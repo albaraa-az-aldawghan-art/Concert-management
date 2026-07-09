@@ -254,6 +254,7 @@ export default function ContractPage() {
     logoEn: { fontSize: 7, color: "#B0BDC9", letterSpacing: "0.5px", marginTop: 1 },
     restName: { fontSize: 13.5, fontWeight: 700 },
     restNameEn: { fontSize: 9.5, opacity: 0.55, direction: "ltr" as const },
+    contractTitle: { fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.88)", letterSpacing: "1.2px", marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(255,255,255,0.18)", width: "100%", textAlign: "center" as const },
     hdrEn: { fontSize: 10.5, lineHeight: 1.7, opacity: 0.78, textAlign: "left" as const, direction: "ltr" as const },
     cancelBar: {
       background: "#FEE2E2",
@@ -416,6 +417,7 @@ export default function ContractPage() {
               </div>
               <div style={S.restName}>مطعم الفريج لتقديم الوجبات</div>
               <div style={S.restNameEn}>Al-Freej Restaurant For Meal</div>
+              <div style={S.contractTitle}>اتفاقية الحفلات والولائم</div>
             </div>
 
             {/* English */}
@@ -461,7 +463,7 @@ export default function ContractPage() {
               )}
             </div>
             <span style={S.statusBadge(isCancelled ? "cancelled" : isConfirmed ? "confirmed" : "unconfirmed")}>
-              {isCancelled ? "ملغاة" : isConfirmed ? "اتفاقية مؤكدة" : "اتفاقية غير مؤكدة"}
+              {isCancelled ? "ملغاة" : isConfirmed ? "مؤكدة" : "غير مؤكدة"}
             </span>
           </div>
 
