@@ -25,6 +25,9 @@ function applyPrintZoom() {
   // Reset to 100% so scrollHeight measures the unscaled height
   document.documentElement.style.setProperty("--contract-zoom", "100%");
 
+  // Temporarily disable mobile CSS so measurement reflects the print (desktop) layout
+  document.documentElement.classList.add("force-desktop-layout");
+
   // Force layout to print width (text reflows as in print mode)
   const savedMW = doc.style.maxWidth;
   const savedW = doc.style.width;
@@ -36,6 +39,7 @@ function applyPrintZoom() {
 
   doc.style.maxWidth = savedMW;
   doc.style.width = savedW;
+  document.documentElement.classList.remove("force-desktop-layout");
   void doc.offsetHeight;
 
   const zoom = h > PRINT_H ? Math.floor((PRINT_H / h) * 100) : 100;
@@ -385,7 +389,11 @@ export default function ContractPage() {
           z-index: 0;
         }
         @page { size: A4 portrait; margin: 8mm; }
-        @media (max-width: 700px) {
+        html.force-desktop-layout .hdr-grid { grid-template-columns: 1fr auto 1fr !important; }
+        html.force-desktop-layout .info-grid { grid-template-columns: 1fr 1fr !important; }
+        html.force-desktop-layout .sig-grid { grid-template-columns: 1fr 1fr !important; }
+        html.force-desktop-layout .pay-grid { grid-template-columns: 1fr 1fr !important; }
+        @media screen and (max-width: 700px) {
           #contract-doc {
             max-width: 100% !important;
             width: 100% !important;
