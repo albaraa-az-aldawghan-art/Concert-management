@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getConcertById, getConcertPayments, getConcertLogs } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
@@ -16,34 +16,24 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 const PRINT_W = 733; // 194mm
 const PRINT_H = 1062; // 281mm
 
-// Uses a CSS custom property so the zoom value is available inside @media print
-// regardless of JS timing. CSS defaults to 88% when the property is not yet set.
-function applyPrintZoom() {
+// Calculates the zoom % needed to fit the contract on one A4 page.
+// Returns the value but does NOT apply it — caller decides when to apply.
+function calcPrintZoom(): number {
   const doc = document.getElementById("contract-doc");
-  if (!doc) return;
+  if (!doc) return 88;
 
-  // Reset to 100% so scrollHeight measures the unscaled height
-  document.documentElement.style.setProperty("--contract-zoom", "100%");
-
-  // Temporarily disable mobile CSS so measurement reflects the print (desktop) layout
   document.documentElement.classList.add("force-desktop-layout");
-
-  // Force layout to print width (text reflows as in print mode)
   const savedMW = doc.style.maxWidth;
-  const savedW = doc.style.width;
+  const savedW  = doc.style.width;
   doc.style.maxWidth = PRINT_W + "px";
-  doc.style.width = PRINT_W + "px";
+  doc.style.width    = PRINT_W + "px";
   void doc.offsetHeight;
-
   const h = doc.scrollHeight;
-
   doc.style.maxWidth = savedMW;
-  doc.style.width = savedW;
+  doc.style.width    = savedW;
   document.documentElement.classList.remove("force-desktop-layout");
-  void doc.offsetHeight;
 
-  const zoom = h > PRINT_H ? Math.floor((PRINT_H / h) * 100) : 100;
-  document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
+  return h > PRINT_H ? Math.floor((PRINT_H / h) * 100) : 100;
 }
 
 function resetPrintZoom() {
@@ -77,6 +67,8 @@ export default function ContractPage() {
   const [foodItems, setFoodItems] = useState<ConcertFood[]>([]);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<ConcertLog[]>([]);
+  // Pre-calculated zoom so the print button does zero DOM work on click
+  const cachedZoom = useRef<number>(88);
 
   useEffect(() => {
     async function load() {
@@ -98,12 +90,24 @@ export default function ContractPage() {
     load();
   }, [id]);
 
+  // Calculate zoom after the page renders (not at click time)
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      cachedZoom.current = calcPrintZoom();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   useEffect(() => {
     // beforeprint covers Ctrl+P / browser-menu print
-    window.addEventListener("beforeprint", applyPrintZoom);
+    function handleBeforePrint() {
+      document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
+    }
+    window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", resetPrintZoom);
     return () => {
-      window.removeEventListener("beforeprint", applyPrintZoom);
+      window.removeEventListener("beforeprint", handleBeforePrint);
       window.removeEventListener("afterprint", resetPrintZoom);
     };
   }, []);
@@ -449,11 +453,9 @@ export default function ContractPage() {
           <button
             style={S.printBtn}
             onClick={() => {
-              applyPrintZoom();
-              // Force synchronous reflow so the CSS custom property is applied
-              // before the print dialog opens (keeps call in the same user-gesture
-              // stack so Safari/iOS doesn't block window.print())
-              void document.getElementById("contract-doc")?.offsetHeight;
+              // Apply pre-calculated zoom instantly (no DOM measurement at click time)
+              // so Safari iOS doesn't expire the user-gesture before window.print()
+              document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
               window.print();
             }}
           >
