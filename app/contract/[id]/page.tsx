@@ -452,16 +452,13 @@ export default function ContractPage() {
         {/* Print controls */}
         <div className="no-print" style={S.printBar}>
           <button
-            style={S.printBtn}
+            style={{ ...S.printBtn, minHeight: 44, touchAction: "manipulation" }}
             onClick={() => {
-              document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
               const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-              const isStandalone = ("standalone" in navigator) && (navigator as { standalone?: boolean }).standalone;
-              const isInAppBrowser = isIOS && !/Safari/.test(navigator.userAgent);
-              if (isIOS && (isStandalone || isInAppBrowser)) {
-                // In standalone/in-app mode window.print() is blocked — show instructions
+              if (isIOS) {
                 setShowIosHint(true);
               } else {
+                document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
                 window.print();
               }
             }}
@@ -471,34 +468,54 @@ export default function ContractPage() {
           {showIosHint && (
             <div style={{
               position: "fixed", inset: 0, zIndex: 9999,
-              background: "rgba(0,0,0,0.6)",
+              background: "rgba(0,0,0,0.65)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 24, direction: "rtl",
-            }}
-              onClick={() => setShowIosHint(false)}
-            >
+              padding: 20, direction: "rtl",
+            }}>
               <div style={{
-                background: "white", borderRadius: 16, padding: 24,
-                maxWidth: 340, width: "100%", textAlign: "center",
+                background: "white", borderRadius: 20, padding: "28px 24px",
+                maxWidth: 360, width: "100%", textAlign: "center",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
               }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-                <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: "#1C2D50" }}>
-                  لتنزيل العقد كـ PDF
+                <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
+                <p style={{ fontWeight: 800, fontSize: 17, marginBottom: 10, color: "#1C2D50" }}>
+                  تنزيل العقد كـ PDF
                 </p>
-                <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.7, marginBottom: 16 }}>
-                  افتح هذا الرابط في <strong>Safari</strong> مباشرةً ثم اضغط على
-                  زر <strong>المشاركة</strong> &#x2B06; واختر <strong>طباعة</strong>
+                <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, marginBottom: 20 }}>
+                  سيفتح مربع الطباعة. بعد ظهوره:<br />
+                  اضغط على <strong style={{ color: "#1C2D50" }}>PDF</strong> أو{" "}
+                  <strong style={{ color: "#1C2D50" }}>حفظ كـ PDF</strong>
                 </p>
-                <button
-                  onClick={() => setShowIosHint(false)}
-                  style={{
-                    background: "#1C2D50", color: "white", border: "none",
-                    borderRadius: 10, padding: "10px 24px", fontSize: 14,
-                    fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  حسناً
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => setShowIosHint(false)}
+                    style={{
+                      flex: 1, background: "#F1F5F9", color: "#64748B", border: "none",
+                      borderRadius: 12, padding: "13px 0", fontSize: 14,
+                      fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      minHeight: 48, touchAction: "manipulation",
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowIosHint(false);
+                      setTimeout(() => {
+                        document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
+                        window.print();
+                      }, 100);
+                    }}
+                    style={{
+                      flex: 2, background: "#1C2D50", color: "white", border: "none",
+                      borderRadius: 12, padding: "13px 0", fontSize: 14,
+                      fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      minHeight: 48, touchAction: "manipulation",
+                    }}
+                  >
+                    فتح نافذة التنزيل
+                  </button>
+                </div>
               </div>
             </div>
           )}
