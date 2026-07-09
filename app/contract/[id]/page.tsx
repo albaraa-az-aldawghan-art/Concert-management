@@ -109,9 +109,11 @@ export default function ContractPage() {
   }, [loading]);
 
   useEffect(() => {
-    // beforeprint covers Ctrl+P / browser-menu print
+    // beforeprint covers Ctrl+P / browser-menu print — recalculate for accuracy
     function handleBeforePrint() {
-      document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      const zoom = isIOS ? cachedZoom.current : calcPrintZoom();
+      document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
     }
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", resetPrintZoom);
@@ -369,7 +371,7 @@ export default function ContractPage() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          html, body { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; }
+          html, body { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
           .page-body {
             padding: 0 !important;
             margin: 0 !important;
@@ -466,7 +468,10 @@ export default function ContractPage() {
               if (isIOS) {
                 setShowIosHint(true);
               } else {
-                document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
+                // Recalculate fresh on every click for accuracy (no user-gesture restriction on non-iOS)
+                const zoom = calcPrintZoom();
+                cachedZoom.current = zoom;
+                document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
                 window.print();
               }
             }}
