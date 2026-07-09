@@ -99,7 +99,7 @@ function Strike({ children, color = "currentColor", style }: {
       verticalAlign: "middle",
       backgroundImage: `linear-gradient(${color}, ${color})`,
       backgroundSize: "100% 1.5px",
-      backgroundPosition: "0 50%",
+      backgroundPosition: "0 65%",
       backgroundRepeat: "no-repeat",
       color,
       ...style,
