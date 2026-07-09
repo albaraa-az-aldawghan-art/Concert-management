@@ -95,6 +95,8 @@ function Strike({ children, color = "currentColor", style }: {
   return (
     <span style={{
       display: "inline-block",
+      lineHeight: 1,
+      verticalAlign: "middle",
       backgroundImage: `linear-gradient(${color}, ${color})`,
       backgroundSize: "100% 1.5px",
       backgroundPosition: "0 50%",
