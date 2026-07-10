@@ -1,9 +1,26 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getFoodCategories, addFoodCategory, updateFoodCategory, deleteFoodCategory,
+  getFoodCategories, addFoodCategory, updateFoodCategory,
+  deleteFoodCategory, updateFoodCategoriesOrder,
 } from "@/lib/firestore/food";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -11,8 +28,81 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { FoodCategory } from "@/types";
-import { UtensilsCrossed, Plus, Trash2, Pencil, X } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical } from "lucide-react";
 
+/* ── Sortable card ── */
+function SortableCategoryCard({
+  cat,
+  onEdit,
+  onDelete,
+}: {
+  cat: FoodCategory;
+  onEdit: (cat: FoodCategory) => void;
+  onDelete: (cat: FoodCategory) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: cat.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : undefined,
+      }}
+    >
+      <Card>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Drag handle */}
+            <button
+              {...attributes}
+              {...listeners}
+              className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
+              style={{ touchAction: "none" }}
+              aria-label="سحب لإعادة الترتيب"
+            >
+              <GripVertical size={18} />
+            </button>
+            <p className="font-bold text-slate-800 text-base truncate">{cat.name}</p>
+          </div>
+          <div className="flex gap-1 shrink-0 mr-1">
+            <button
+              onClick={() => onEdit(cat)}
+              className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={() => onDelete(cat)}
+              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        {cat.options.length === 0 ? (
+          <p className="text-xs text-slate-400">لا توجد أصناف</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {cat.options.map((opt) => (
+              <span
+                key={opt}
+                className="bg-[#EEF1F7] text-[#1C2D50] text-xs px-2.5 py-1 rounded-full font-medium"
+              >
+                {opt}
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ── Main page ── */
 export default function AdminFoodPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
@@ -28,6 +118,11 @@ export default function AdminFoodPage() {
   const [formOptions, setFormOptions] = useState<string[]>([]);
   const [optionInput, setOptionInput] = useState("");
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
   useEffect(() => { load(); }, []);
 
   async function load() {
@@ -38,6 +133,23 @@ export default function AdminFoodPage() {
       showToast("حدث خطأ أثناء التحميل", "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex((c) => c.id === active.id);
+    const newIndex = categories.findIndex((c) => c.id === over.id);
+    const reordered = arrayMove(categories, oldIndex, newIndex);
+
+    setCategories(reordered);
+    try {
+      await updateFoodCategoriesOrder(reordered.map((c) => c.id));
+    } catch {
+      showToast("حدث خطأ في حفظ الترتيب", "error");
+      load();
     }
   }
 
@@ -72,7 +184,7 @@ export default function AdminFoodPage() {
         await updateFoodCategory(editTarget.id, { name: formName.trim(), options: formOptions });
         showToast("تم تحديث قسم المأكولات");
       } else {
-        await addFoodCategory({ name: formName.trim(), options: formOptions, createdBy: appUser.uid });
+        await addFoodCategory({ name: formName.trim(), options: formOptions, createdBy: appUser.uid, order: categories.length });
         showToast("تم إضافة قسم المأكولات");
       }
       setShowForm(false);
@@ -121,43 +233,26 @@ export default function AdminFoodPage() {
           <p>لم تتم إضافة أي أصناف بعد</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((cat) => (
-            <Card key={cat.id}>
-              <div className="flex items-start justify-between mb-3">
-                <p className="font-bold text-slate-800 text-base">{cat.name}</p>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => openEdit(cat)}
-                    className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(cat)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+        <>
+          <p className="text-xs text-slate-400 flex items-center gap-1.5">
+            <GripVertical size={13} />
+            اسحب الأقسام لإعادة الترتيب — سيُطبَّق على العقود وصفحة إنشاء الحفلة
+          </p>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={categories.map((c) => c.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {categories.map((cat) => (
+                  <SortableCategoryCard
+                    key={cat.id}
+                    cat={cat}
+                    onEdit={openEdit}
+                    onDelete={setDeleteTarget}
+                  />
+                ))}
               </div>
-              {cat.options.length === 0 ? (
-                <p className="text-xs text-slate-400">لا توجد أصناف</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {cat.options.map((opt) => (
-                    <span
-                      key={opt}
-                      className="bg-[#EEF1F7] text-[#1C2D50] text-xs px-2.5 py-1 rounded-full font-medium"
-                    >
-                      {opt}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+            </SortableContext>
+          </DndContext>
+        </>
       )}
 
       {/* Add / Edit Modal */}

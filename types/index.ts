@@ -130,6 +130,7 @@ export interface FoodCategory {
   id: string;
   name: string;
   options: string[];
+  order: number;
   createdAt: Timestamp;
   createdBy: string;
 }
