@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -372,13 +372,13 @@ export default function NewConcertPage() {
                     <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                       <p className="text-xs text-amber-600 font-medium">الضريبة ({vatRate}%)</p>
                       <p className="font-bold text-amber-700 text-sm">
-                        {(parseFloat(form.price) * vatRate / (100 + vatRate)).toLocaleString("ar-SA")} ريال
+                        {(parseFloat(form.price) * vatRate / (100 + vatRate)).toLocaleString("en-US")} ريال
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                       <p className="text-xs text-slate-500 font-medium">بدون ضريبة</p>
                       <p className="font-bold text-slate-700 text-sm">
-                        {(parseFloat(form.price) / (1 + vatRate / 100)).toLocaleString("ar-SA")} ريال
+                        {(parseFloat(form.price) / (1 + vatRate / 100)).toLocaleString("en-US")} ريال
                       </p>
                     </div>
                   </div>
@@ -410,7 +410,7 @@ export default function NewConcertPage() {
                     <span className="text-sm text-slate-500 shrink-0">{hallCostType === "percentage" ? "%" : "ريال"}</span>
                     {hallCostType === "percentage" && hallCostValue && form.price && (
                       <span className="text-sm font-bold text-slate-700 shrink-0">
-                        = {(parseFloat(form.price) * parseFloat(hallCostValue) / 100).toLocaleString("ar-SA")} ريال
+                        = {(parseFloat(form.price) * parseFloat(hallCostValue) / 100).toLocaleString("en-US")} ريال
                       </span>
                     )}
                   </div>
@@ -467,7 +467,7 @@ export default function NewConcertPage() {
                 <div className="flex justify-between px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
                   <span className="text-sm font-semibold text-blue-700">الإجمالي</span>
                   <span className="font-bold text-blue-700">
-                    {(parseInt(laborCount) * parseFloat(laborPricePerUnit)).toLocaleString("ar-SA")} ريال
+                    {(parseInt(laborCount) * parseFloat(laborPricePerUnit)).toLocaleString("en-US")} ريال
                   </span>
                 </div>
               )}
@@ -555,7 +555,7 @@ export default function NewConcertPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{METHOD_LABELS[p.method]}</span>
-                      <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("ar-SA")} ريال</span>
+                      <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
                     </div>
                     <p className="text-xs text-slate-400">{p.date}{getPaymentDetail(p) ? ` — ${getPaymentDetail(p)}` : ""}</p>
                   </div>
@@ -565,13 +565,13 @@ export default function NewConcertPage() {
               ))}
               <div className="flex justify-between px-1 pt-1 text-sm">
                 <span className="text-slate-500">إجمالي الدفعات</span>
-                <span className="font-bold text-emerald-700">{paymentEntries.reduce((s, p) => s + p.amount, 0).toLocaleString("ar-SA")} ريال</span>
+                <span className="font-bold text-emerald-700">{paymentEntries.reduce((s, p) => s + p.amount, 0).toLocaleString("en-US")} ريال</span>
               </div>
               {form.price && parseFloat(form.price) > 0 && (
                 <div className="flex justify-between px-1 text-sm">
                   <span className="text-slate-500">المتبقي</span>
                   <span className="font-bold text-orange-700">
-                    {(parseFloat(form.price) - paymentEntries.reduce((s, p) => s + p.amount, 0)).toLocaleString("ar-SA")} ريال
+                    {(parseFloat(form.price) - paymentEntries.reduce((s, p) => s + p.amount, 0)).toLocaleString("en-US")} ريال
                   </span>
                 </div>
               )}
@@ -642,8 +642,8 @@ export default function NewConcertPage() {
                           </div>
                           {isChecked && hasPrice && (
                             <p className="text-xs text-amber-600 mt-1">
-                              {item.pricePerUnit!.toLocaleString("ar-SA")} ريال × {qty} =
-                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("ar-SA")} ريال</span>
+                              {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
+                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
                             </p>
                           )}
                         </div>
@@ -677,7 +677,7 @@ export default function NewConcertPage() {
                   <span key={item.itemId} className="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
                     {item.itemName} × {item.count}
                     {item.totalCost != null && (
-                      <span className="text-amber-600 font-bold mr-1">({item.totalCost.toLocaleString("ar-SA")} ريال)</span>
+                      <span className="text-amber-600 font-bold mr-1">({item.totalCost.toLocaleString("en-US")} ريال)</span>
                     )}
                     <span className="opacity-60 mr-1">({item.type === "internal" ? "داخلي" : "خارجي"})</span>
                   </span>
@@ -691,7 +691,7 @@ export default function NewConcertPage() {
                 return (
                   <div className="flex justify-between px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl mt-3">
                     <span className="text-sm font-semibold text-amber-700">إجمالي تكلفة المواد الخارجية</span>
-                    <span className="font-bold text-amber-700">{extCost.toLocaleString("ar-SA")} ريال</span>
+                    <span className="font-bold text-amber-700">{extCost.toLocaleString("en-US")} ريال</span>
                   </div>
                 );
               })()}
@@ -852,3 +852,4 @@ export default function NewConcertPage() {
     </div>
   );
 }
+

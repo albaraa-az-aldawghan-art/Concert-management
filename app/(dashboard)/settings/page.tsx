@@ -127,13 +127,13 @@ export default function SettingsPage() {
                 <div>
                   <span className="text-slate-500">الضريبة ({vatRateInput}%): </span>
                   <span className="font-bold text-amber-700">
-                    {(1000 * parseFloat(vatRateInput) / (100 + parseFloat(vatRateInput))).toLocaleString("ar-SA")} ريال
+                    {(1000 * parseFloat(vatRateInput) / (100 + parseFloat(vatRateInput))).toLocaleString("en-US")} ريال
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500">بدون ضريبة: </span>
                   <span className="font-bold text-slate-700">
-                    {(1000 / (1 + parseFloat(vatRateInput) / 100)).toLocaleString("ar-SA")} ريال
+                    {(1000 / (1 + parseFloat(vatRateInput) / 100)).toLocaleString("en-US")} ريال
                   </span>
                 </div>
               </div>
@@ -188,3 +188,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

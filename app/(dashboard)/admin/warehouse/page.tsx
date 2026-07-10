@@ -250,7 +250,7 @@ export default function AdminWarehousePage() {
                 {item.type === "external" && item.pricePerUnit != null && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">سعر الحبة</span>
-                    <span className="font-semibold text-amber-600">{item.pricePerUnit.toLocaleString("ar-SA")} ريال</span>
+                    <span className="font-semibold text-amber-600">{item.pricePerUnit.toLocaleString("en-US")} ريال</span>
                   </div>
                 )}
                 {/* Progress bar */}
@@ -289,3 +289,4 @@ export default function AdminWarehousePage() {
     </div>
   );
 }
+

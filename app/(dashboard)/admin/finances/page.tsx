@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -329,7 +329,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">إجمالي الإيرادات</p>
           </div>
-          <p className="text-2xl font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -339,7 +339,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">إجمالي المحصَّل</p>
           </div>
-          <p className="text-2xl font-bold text-emerald-700">{totalCollected.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-emerald-700">{totalCollected.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال ({rate}%)</p>
         </Card>
         <Card>
@@ -349,7 +349,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">إجمالي المتبقي</p>
           </div>
-          <p className="text-2xl font-bold text-orange-700">{totalRemaining.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-orange-700">{totalRemaining.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -359,7 +359,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">مصاريف القاعات</p>
           </div>
-          <p className="text-2xl font-bold text-purple-700">{totalHall.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-purple-700">{totalHall.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -369,7 +369,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">مصاريف النقل</p>
           </div>
-          <p className="text-2xl font-bold text-slate-700">{totalTransport.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-slate-700">{totalTransport.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -379,7 +379,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">تكلفة المواد الخارجية</p>
           </div>
-          <p className="text-2xl font-bold text-amber-700">{totalExternal.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-amber-700">{totalExternal.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -389,7 +389,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">تكلفة العمالة</p>
           </div>
-          <p className="text-2xl font-bold text-blue-700">{totalLabor.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-blue-700">{totalLabor.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال</p>
         </Card>
         <Card>
@@ -399,7 +399,7 @@ export default function FinancesPage() {
             </div>
             <p className="text-xs text-slate-500">الإيراد الصافي</p>
           </div>
-          <p className="text-2xl font-bold text-teal-700">{netRevenue.toLocaleString("ar-SA")}</p>
+          <p className="text-2xl font-bold text-teal-700">{netRevenue.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال (بعد خصم جميع المصاريف)</p>
         </Card>
       </div>
@@ -419,8 +419,8 @@ export default function FinancesPage() {
           />
         </div>
         <div className="flex justify-between mt-2 text-xs text-slate-400">
-          <span className="text-emerald-600 font-semibold">{totalCollected.toLocaleString("ar-SA")} ريال محصَّل</span>
-          <span className="text-orange-600 font-semibold">{totalRemaining.toLocaleString("ar-SA")} ريال متبقي</span>
+          <span className="text-emerald-600 font-semibold">{totalCollected.toLocaleString("en-US")} ريال محصَّل</span>
+          <span className="text-orange-600 font-semibold">{totalRemaining.toLocaleString("en-US")} ريال متبقي</span>
         </div>
       </Card>
 
@@ -468,30 +468,30 @@ export default function FinancesPage() {
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-white/70 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">السعر</p>
-                          <p className="font-bold text-slate-800">{(c.price ?? 0).toLocaleString("ar-SA")}</p>
+                          <p className="font-bold text-slate-800">{(c.price ?? 0).toLocaleString("en-US")}</p>
                         </div>
                         <div className="bg-emerald-50 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">المحصَّل</p>
-                          <p className="font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("ar-SA")}</p>
+                          <p className="font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("en-US")}</p>
                         </div>
                         <div className="bg-orange-50 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">المتبقي</p>
-                          <p className="font-bold text-orange-700">{remaining.toLocaleString("ar-SA")}</p>
+                          <p className="font-bold text-orange-700">{remaining.toLocaleString("en-US")}</p>
                         </div>
                         <div className="bg-purple-50 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">القاعة + النقل</p>
-                          <p className="font-bold text-purple-700">{(hall + (c.transportCost ?? 0)).toLocaleString("ar-SA")}</p>
+                          <p className="font-bold text-purple-700">{(hall + (c.transportCost ?? 0)).toLocaleString("en-US")}</p>
                         </div>
                         {(c.externalItemsCost ?? 0) > 0 && (
                           <div className="bg-amber-50 rounded-lg px-2 py-1.5">
                             <p className="text-slate-400">مواد خارجية</p>
-                            <p className="font-bold text-amber-600">{c.externalItemsCost!.toLocaleString("ar-SA")}</p>
+                            <p className="font-bold text-amber-600">{c.externalItemsCost!.toLocaleString("en-US")}</p>
                           </div>
                         )}
                         {(c.laborCost ?? 0) > 0 && (
                           <div className="bg-blue-50 rounded-lg px-2 py-1.5">
                             <p className="text-slate-400">عمالة</p>
-                            <p className="font-bold text-blue-600">{c.laborCost!.toLocaleString("ar-SA")}</p>
+                            <p className="font-bold text-blue-600">{c.laborCost!.toLocaleString("en-US")}</p>
                           </div>
                         )}
                       </div>
@@ -530,20 +530,20 @@ export default function FinancesPage() {
                             {STATUS_LABEL[c.status]}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3 font-bold text-slate-800">{(c.price ?? 0).toLocaleString("ar-SA")}</td>
-                        <td className="py-3.5 px-3 text-purple-700">{hall > 0 ? hall.toLocaleString("ar-SA") : "—"}</td>
-                        <td className="py-3.5 px-3 text-slate-600">{c.transportCost ? c.transportCost.toLocaleString("ar-SA") : "—"}</td>
-                        <td className="py-3.5 px-3 text-amber-600">{c.externalItemsCost ? c.externalItemsCost.toLocaleString("ar-SA") : "—"}</td>
-                        <td className="py-3.5 px-3 text-blue-600">{c.laborCost ? c.laborCost.toLocaleString("ar-SA") : "—"}</td>
+                        <td className="py-3.5 px-3 font-bold text-slate-800">{(c.price ?? 0).toLocaleString("en-US")}</td>
+                        <td className="py-3.5 px-3 text-purple-700">{hall > 0 ? hall.toLocaleString("en-US") : "—"}</td>
+                        <td className="py-3.5 px-3 text-slate-600">{c.transportCost ? c.transportCost.toLocaleString("en-US") : "—"}</td>
+                        <td className="py-3.5 px-3 text-amber-600">{c.externalItemsCost ? c.externalItemsCost.toLocaleString("en-US") : "—"}</td>
+                        <td className="py-3.5 px-3 text-blue-600">{c.laborCost ? c.laborCost.toLocaleString("en-US") : "—"}</td>
                         <td className="py-3.5 px-3">
                           <span className={`font-bold text-sm px-2 py-0.5 rounded-lg ${concertTotalCosts > 0 ? "bg-red-50 text-red-700" : "text-slate-400"}`}>
-                            {concertTotalCosts > 0 ? concertTotalCosts.toLocaleString("ar-SA") : "—"}
+                            {concertTotalCosts > 0 ? concertTotalCosts.toLocaleString("en-US") : "—"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3 font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("ar-SA")}</td>
+                        <td className="py-3.5 px-3 font-bold text-emerald-700">{(c.deposit ?? 0).toLocaleString("en-US")}</td>
                         <td className="py-3.5 px-3">
                           <span className={`font-bold ${remaining > 0 ? "text-orange-600" : "text-emerald-600"}`}>
-                            {remaining.toLocaleString("ar-SA")}
+                            {remaining.toLocaleString("en-US")}
                           </span>
                         </td>
                       </tr>
@@ -555,18 +555,18 @@ export default function FinancesPage() {
                     <td colSpan={3} className="py-3 px-3 font-bold text-slate-700 text-xs">
                       الإجمالي الكلي ({filtered.length} حفلة)
                     </td>
-                    <td className="py-3 px-3 font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("ar-SA")}</td>
-                    <td className="py-3 px-3 font-bold text-purple-700">{totalHall > 0 ? totalHall.toLocaleString("ar-SA") : "—"}</td>
-                    <td className="py-3 px-3 font-bold text-slate-700">{totalTransport > 0 ? totalTransport.toLocaleString("ar-SA") : "—"}</td>
-                    <td className="py-3 px-3 font-bold text-amber-600">{totalExternal > 0 ? totalExternal.toLocaleString("ar-SA") : "—"}</td>
-                    <td className="py-3 px-3 font-bold text-blue-600">{totalLabor > 0 ? totalLabor.toLocaleString("ar-SA") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-[#1C2D50]">{totalRevenue.toLocaleString("en-US")}</td>
+                    <td className="py-3 px-3 font-bold text-purple-700">{totalHall > 0 ? totalHall.toLocaleString("en-US") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-slate-700">{totalTransport > 0 ? totalTransport.toLocaleString("en-US") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-amber-600">{totalExternal > 0 ? totalExternal.toLocaleString("en-US") : "—"}</td>
+                    <td className="py-3 px-3 font-bold text-blue-600">{totalLabor > 0 ? totalLabor.toLocaleString("en-US") : "—"}</td>
                     <td className="py-3 px-3">
                       <span className={`font-bold text-sm px-2 py-0.5 rounded-lg ${totalAllCosts > 0 ? "bg-red-100 text-red-700" : "text-slate-400"}`}>
-                        {totalAllCosts > 0 ? totalAllCosts.toLocaleString("ar-SA") : "—"}
+                        {totalAllCosts > 0 ? totalAllCosts.toLocaleString("en-US") : "—"}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-bold text-emerald-700">{totalCollected.toLocaleString("ar-SA")}</td>
-                    <td className="py-3 px-3 font-bold text-orange-700">{totalRemaining.toLocaleString("ar-SA")}</td>
+                    <td className="py-3 px-3 font-bold text-emerald-700">{totalCollected.toLocaleString("en-US")}</td>
+                    <td className="py-3 px-3 font-bold text-orange-700">{totalRemaining.toLocaleString("en-US")}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -625,3 +625,4 @@ export default function FinancesPage() {
     </div>
   );
 }
+

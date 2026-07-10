@@ -93,7 +93,7 @@ export default function AdminDashboard() {
               {s.icon}
             </div>
             <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-            <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("ar-SA")}</p>
+            <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("en-US")}</p>
             <p className="text-xs text-slate-400">{s.suffix}</p>
           </Card>
         ))}
@@ -117,8 +117,8 @@ export default function AdminDashboard() {
           />
         </div>
         <div className="flex justify-between mt-2 text-xs text-slate-400">
-          <span>{totalCollected.toLocaleString("ar-SA")} ريال محصَّل</span>
-          <span>{totalRemaining.toLocaleString("ar-SA")} ريال متبقي</span>
+          <span>{totalCollected.toLocaleString("en-US")} ريال محصَّل</span>
+          <span>{totalRemaining.toLocaleString("en-US")} ريال متبقي</span>
         </div>
       </Card>
 
@@ -177,11 +177,11 @@ export default function AdminDashboard() {
           <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3">
             <div className="bg-slate-50 rounded-xl px-3 py-2">
               <p className="text-xs text-slate-400">مصاريف القاعات</p>
-              <p className="font-bold text-slate-700">{totalHall.toLocaleString("ar-SA")} ريال</p>
+              <p className="font-bold text-slate-700">{totalHall.toLocaleString("en-US")} ريال</p>
             </div>
             <div className="bg-slate-50 rounded-xl px-3 py-2">
               <p className="text-xs text-slate-400">مصاريف النقل</p>
-              <p className="font-bold text-slate-700">{totalTransport.toLocaleString("ar-SA")} ريال</p>
+              <p className="font-bold text-slate-700">{totalTransport.toLocaleString("en-US")} ريال</p>
             </div>
           </div>
         </Card>
@@ -208,11 +208,11 @@ export default function AdminDashboard() {
                     <div className="flex items-center justify-between bg-slate-50 hover:bg-[#EEF1F7] rounded-xl px-3 py-2.5 transition-colors">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
-                        <p className="text-xs text-slate-400">{c.price?.toLocaleString("ar-SA")} ريال</p>
+                        <p className="text-xs text-slate-400">{c.price?.toLocaleString("en-US")} ريال</p>
                       </div>
                       <div className="text-left shrink-0 mr-2">
                         <p className={`text-xs font-bold ${remaining > 0 ? "text-orange-600" : "text-emerald-600"}`}>
-                          {remaining > 0 ? `متبقي ${remaining.toLocaleString("ar-SA")}` : "مكتمل"}
+                          {remaining > 0 ? `متبقي ${remaining.toLocaleString("en-US")}` : "مكتمل"}
                         </p>
                         <p className="text-xs text-slate-400">
                           {c.status === "planned" ? "مخططة" : c.status === "active" ? "جارية" : "مكتملة"}
@@ -258,3 +258,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
