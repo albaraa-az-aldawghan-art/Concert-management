@@ -298,7 +298,7 @@ export default function ContractPage() {
       captureStyle.id = "pdf-capture-style";
       captureStyle.textContent = `
         #contract-doc, #contract-doc * {
-          font-family: 'Tajawal', Arial, sans-serif !important;
+          font-family: 'Cairo', Arial, sans-serif !important;
           letter-spacing: 0 !important;
         }
       `;
@@ -387,7 +387,7 @@ export default function ContractPage() {
   // ── Styles ────────────────────────────────────────
   const S = {
     body: {
-      fontFamily: "'Tajawal', 'Arial', sans-serif",
+      fontFamily: "'Cairo', 'Arial', sans-serif",
       direction: "rtl" as const,
       background: "#CDD4DC",
       minHeight: "100vh",
@@ -531,9 +531,6 @@ export default function ContractPage() {
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
       <style>{`
         @media print {
           .no-print { display: none !important; }
