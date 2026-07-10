@@ -372,13 +372,13 @@ export default function NewConcertPage() {
                     <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                       <p className="text-xs text-amber-600 font-medium">الضريبة ({vatRate}%)</p>
                       <p className="font-bold text-amber-700 text-sm">
-                        {(parseFloat(form.price) * vatRate / 100).toLocaleString("ar-SA")} ريال
+                        {(parseFloat(form.price) * vatRate / (100 + vatRate)).toLocaleString("ar-SA")} ريال
                       </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                       <p className="text-xs text-slate-500 font-medium">بدون ضريبة</p>
                       <p className="font-bold text-slate-700 text-sm">
-                        {(parseFloat(form.price) * (1 - vatRate / 100)).toLocaleString("ar-SA")} ريال
+                        {(parseFloat(form.price) / (1 + vatRate / 100)).toLocaleString("ar-SA")} ريال
                       </p>
                     </div>
                   </div>
