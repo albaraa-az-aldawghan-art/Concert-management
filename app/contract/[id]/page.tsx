@@ -199,7 +199,8 @@ export default function ContractPage() {
 
   // ── Financial calculations ────────────────────────
   const price = concert.price ?? 0;
-  const priceBeforeVat = Math.round((price / 1.15) * 100) / 100;
+  const vatRate = concert.vatRate ?? 15;
+  const priceBeforeVat = Math.round((price / (1 + vatRate / 100)) * 100) / 100;
   const vat = Math.round((price - priceBeforeVat) * 100) / 100;
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = price - totalPaid;
@@ -262,7 +263,7 @@ export default function ContractPage() {
 
   // ── Price change tracking ─────────────────────────
   const prevPrice = fieldPrev["price"] ? parseFloat(fieldPrev["price"]) : null;
-  const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / 1.15) * 100) / 100 : null;
+  const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / (1 + vatRate / 100)) * 100) / 100 : null;
   const prevVat = prevPrice !== null && prevPriceBeforeVat !== null ? Math.round((prevPrice - prevPriceBeforeVat) * 100) / 100 : null;
 
   // ── Share as PDF (server-side via Puppeteer API route) ───────────────
@@ -940,7 +941,7 @@ export default function ContractPage() {
               </span>
             </div>
             <div className="fin-row" style={S.finRow}>
-              <span style={S.finLbl}>ضريبة القيمة المضافة (15%)</span>
+              <span style={S.finLbl}>ضريبة القيمة المضافة ({vatRate}%)</span>
               <span style={S.finVal}>
                 {prevVat !== null && <Strike color="#94A3B8" style={S.oldVal}>{fmtNum(prevVat)}</Strike>}
                 {fmtNum(vat)}<span style={S.unit}>ريال</span>
