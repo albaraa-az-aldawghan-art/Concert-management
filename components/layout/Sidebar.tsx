@@ -24,12 +24,14 @@ import {
   Truck,
   UserCog,
   UserRound,
+  ChevronDown,
 } from "lucide-react";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  children?: NavItem[];
 }
 
 const adminNav: NavItem[] = [
@@ -37,9 +39,15 @@ const adminNav: NavItem[] = [
   { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
   { label: "الحفلات",        href: "/admin/concerts",               icon: <Music size={17} /> },
   { label: "المستخدمون",     href: "/admin/users",                  icon: <Users size={17} /> },
-  { label: "المخزن",         href: "/admin/warehouse",              icon: <Package size={17} /> },
-  { label: "طلبات المخزن",   href: "/warehouse-manager/orders",     icon: <Truck size={17} /> },
-  { label: "طلبات المواد",   href: "/warehouse-manager/requests",   icon: <ClipboardList size={17} /> },
+  {
+    label: "المخزن",
+    href: "/admin/warehouse",
+    icon: <Package size={17} />,
+    children: [
+      { label: "طلبات المخزن", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
+      { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
+    ],
+  },
   { label: "أصناف الأكل",    href: "/admin/food",                   icon: <UtensilsCrossed size={17} /> },
   { label: "طلبات المطبخ",   href: "/kitchen",                      icon: <ChefHat size={17} /> },
   { label: "المشرفون",       href: "/supervisor/concerts",          icon: <UserCog size={17} /> },
@@ -50,9 +58,15 @@ const adminNav: NavItem[] = [
 
 const warehouseManagerNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/warehouse-manager",                icon: <LayoutDashboard size={17} /> },
-  { label: "المخزن",         href: "/warehouse-manager/warehouse",      icon: <Package size={17} /> },
-  { label: "طلبات الحفلات",  href: "/warehouse-manager/orders",         icon: <Music size={17} /> },
-  { label: "طلبات المواد",   href: "/warehouse-manager/requests",       icon: <ClipboardList size={17} /> },
+  {
+    label: "المخزن",
+    href: "/warehouse-manager/warehouse",
+    icon: <Package size={17} />,
+    children: [
+      { label: "طلبات المخزن", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
+      { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
+    ],
+  },
   { label: "المفقودات",      href: "/warehouse-manager/missing-items",  icon: <AlertTriangle size={17} /> },
   { label: "الإعدادات",      href: "/settings",                         icon: <Settings size={17} /> },
 ];
@@ -100,6 +114,7 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSignOut }: SidebarContentProps) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   return (
     <div className="flex flex-col h-full" style={{ background: "#111D35" }}>
 
@@ -157,53 +172,113 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                 pathname.startsWith(item.href)
               );
 
+            const childActive = item.children?.some((c) => pathname.startsWith(c.href)) ?? false;
+            const isOpen = openGroups[item.href] ?? childActive;
+
             return (
               <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative",
-                    isActive
-                      ? "nav-active-glow"
-                      : ""
-                  )}
-                  style={
-                    isActive
-                      ? {
-                          background: "rgba(28,45,80,0.9)",
-                          color: "#D4DCE8",
-                        }
-                      : {
-                          color: "#6B7E99",
-                        }
-                  }
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
-                      (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
+                <div className="flex items-center">
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative flex-1",
+                      isActive
+                        ? "nav-active-glow"
+                        : ""
+                    )}
+                    style={
+                      isActive
+                        ? {
+                            background: "rgba(28,45,80,0.9)",
+                            color: "#D4DCE8",
+                          }
+                        : {
+                            color: "#6B7E99",
+                          }
                     }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      (e.currentTarget as HTMLElement).style.background = "transparent";
-                      (e.currentTarget as HTMLElement).style.color = "#6B7E99";
-                    }
-                  }}
-                >
-                  <span style={{ color: isActive ? "#B0BDC9" : "#4A607C" }}>
-                    {item.icon}
-                  </span>
-                  {item.label}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
+                        (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.background = "transparent";
+                        (e.currentTarget as HTMLElement).style.color = "#6B7E99";
+                      }
+                    }}
+                  >
+                    <span style={{ color: isActive ? "#B0BDC9" : "#4A607C" }}>
+                      {item.icon}
+                    </span>
+                    {item.label}
 
-                  {/* Active indicator dot */}
-                  {isActive && (
-                    <span
-                      className="mr-auto w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: "#B0BDC9" }}
-                    />
+                    {/* Active indicator dot */}
+                    {isActive && !item.children && (
+                      <span
+                        className="mr-auto w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: "#B0BDC9" }}
+                      />
+                    )}
+                  </Link>
+                  {item.children && (
+                    <button
+                      onClick={() =>
+                        setOpenGroups((prev) => ({ ...prev, [item.href]: !isOpen }))
+                      }
+                      className="p-2 rounded-lg transition-transform"
+                      style={{ color: "#4A607C", transform: isOpen ? "rotate(180deg)" : undefined }}
+                      aria-label={isOpen ? "طي القائمة" : "فتح القائمة"}
+                    >
+                      <ChevronDown size={15} />
+                    </button>
                   )}
-                </Link>
+                </div>
+
+                {/* Sub-items */}
+                {item.children && isOpen && (
+                  <ul className="mt-0.5 mb-1 mr-5 pr-3 space-y-0.5" style={{ borderRight: "1px solid rgba(176,189,201,0.15)" }}>
+                    {item.children.map((child) => {
+                      const childIsActive = pathname.startsWith(child.href);
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            onClick={onClose}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150"
+                            style={
+                              childIsActive
+                                ? { background: "rgba(28,45,80,0.9)", color: "#D4DCE8" }
+                                : { color: "#6B7E99" }
+                            }
+                            onMouseEnter={(e) => {
+                              if (!childIsActive) {
+                                (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
+                                (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!childIsActive) {
+                                (e.currentTarget as HTMLElement).style.background = "transparent";
+                                (e.currentTarget as HTMLElement).style.color = "#6B7E99";
+                              }
+                            }}
+                          >
+                            <span style={{ color: childIsActive ? "#B0BDC9" : "#4A607C" }}>
+                              {child.icon}
+                            </span>
+                            {child.label}
+                            {childIsActive && (
+                              <span className="mr-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#B0BDC9" }} />
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}
