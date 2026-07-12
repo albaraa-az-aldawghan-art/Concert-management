@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -99,7 +99,17 @@ export default function KitchenSheetPage() {
           main { padding: 0 !important; }
           div[class*="mr-64"] { margin-right: 0 !important; }
           body { background: white !important; }
-          #kitchen-sheet { box-shadow: none !important; border: none !important; }
+          #kitchen-sheet {
+            box-shadow: none !important;
+            border: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Keep each category block and material card whole on one page */
+          .avoid-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
         }
       `}</style>
 
@@ -161,40 +171,34 @@ export default function KitchenSheetPage() {
             {sortedGroups.length === 0 ? (
               <p className="text-sm text-slate-400">لا توجد أصناف أكل</p>
             ) : (
-              <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden" style={{ borderCollapse: "collapse" }}>
-                <thead>
-                  <tr className="bg-[#1C2D50] text-white">
-                    <th className="text-right px-3 py-1.5 text-xs font-semibold">الصنف</th>
-                    <th className="text-center px-3 py-1.5 text-xs font-semibold w-24">الكمية</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedGroups.map(([catName, catFood]) => (
-                    <Fragment key={catName}>
-                      <tr className="bg-slate-100">
-                        <td colSpan={2} className="px-3 py-1.5 font-bold text-[#1C2D50] text-xs border-t border-slate-200">
-                          {catName} ({catFood.reduce((s, f) => s + (f.quantity ?? 0), 0)})
-                        </td>
-                      </tr>
-                      {catFood.map((f) => (
-                        <tr key={f.id} className="border-t border-slate-100">
-                          <td className="px-3 py-1.5 text-slate-700">
-                            {f.selectedOption}
-                            {f.notes && <span className="text-xs text-slate-400"> — {f.notes}</span>}
-                          </td>
-                          <td className="px-3 py-1.5 text-center font-bold text-slate-800 tabular-nums-auto">
-                            {f.quantity ?? "—"}
-                          </td>
-                        </tr>
+              <div className="space-y-2.5">
+                {sortedGroups.map(([catName, catFood]) => (
+                  <div key={catName} className="avoid-break">
+                    {/* Category header */}
+                    <span className="inline-block bg-[#1C2D50] text-white text-[12px] font-bold px-2.5 py-0.5 rounded-md">
+                      {catName}
+                      <span className="opacity-75 font-medium"> ({catFood.reduce((s, f) => s + (f.quantity ?? 0), 0)})</span>
+                    </span>
+                    {/* Items inline: "option × qty، option × qty، ..." */}
+                    <p className="text-[13px] text-slate-700 leading-relaxed mt-1 pr-0.5">
+                      {catFood.map((f, i) => (
+                        <span key={f.id} className="whitespace-nowrap">
+                          {i > 0 && <span className="text-slate-300"> ، </span>}
+                          {f.selectedOption}
+                          {f.quantity != null && f.quantity > 0 && (
+                            <b className="text-[#1C2D50] tabular-nums-auto"> ×{f.quantity}</b>
+                          )}
+                          {f.notes && <span className="text-[11px] text-slate-400"> ({f.notes})</span>}
+                        </span>
                       ))}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
+                    </p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Materials */}
+          {/* Materials — grouped internal/external, image-top photo cards */}
           <div className="px-5 py-3 border-t border-slate-100">
             <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
               <Package size={13} className="text-indigo-500" />
@@ -203,25 +207,42 @@ export default function KitchenSheetPage() {
             {items.length === 0 ? (
               <p className="text-sm text-slate-400">لا توجد مواد</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {items.map((it) => {
-                  const img = itemImage(it);
-                  return (
-                    <div key={it.id} className="flex items-center gap-2 border border-slate-200 rounded-lg px-2.5 py-2">
-                      {img && (
-                        <img
-                          src={thumbUrl(img, 100)}
-                          alt={it.itemName}
-                          className="w-9 h-9 object-cover rounded-md border border-slate-100 shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">{it.itemName}</p>
-                        <p className="text-[11px] text-slate-500">الكمية: <span className="font-bold text-slate-700">{it.count}</span></p>
-                      </div>
+              <div className="space-y-3">
+                {([
+                  { label: "داخلية", list: items.filter((i) => i.type === "internal") },
+                  { label: "خارجية", list: items.filter((i) => i.type === "external") },
+                ] as const).filter((g) => g.list.length > 0).map((group) => (
+                  <div key={group.label} className="avoid-break">
+                    <span className="inline-block bg-slate-100 text-slate-600 text-[11px] font-bold px-2.5 py-0.5 rounded-md mb-1.5">
+                      {group.label} ({group.list.length})
+                    </span>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                      {group.list.map((it) => {
+                        const img = itemImage(it);
+                        return (
+                          <div key={it.id} className="avoid-break border border-slate-200 rounded-lg p-1.5 flex flex-col items-center text-center">
+                            {img ? (
+                              <img
+                                src={thumbUrl(img, 200)}
+                                alt={it.itemName}
+                                loading="lazy"
+                                className="w-full aspect-square object-cover rounded-md border border-slate-100"
+                              />
+                            ) : (
+                              <div className="w-full aspect-square rounded-md bg-slate-50 flex items-center justify-center">
+                                <Package size={22} className="text-slate-300" />
+                              </div>
+                            )}
+                            <p className="text-[11px] font-bold text-slate-800 mt-1.5 leading-tight">{it.itemName}</p>
+                            <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                              الكمية: <b className="text-[#1C2D50]">{it.count}</b>
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
