@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcertsByEmployee, getConcerts, getConcertItems } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
+import { getWarehouseItems } from "@/lib/firestore/warehouse";
+import { thumbUrl } from "@/lib/cloudinary";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
-import { Concert, ConcertItem, ConcertFood } from "@/types";
+import { Concert, ConcertItem, ConcertFood, WarehouseItem } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import { Package, UtensilsCrossed, Music, CalendarDays, Clock, MapPin } from "lucide-react";
 
@@ -23,7 +25,11 @@ export default function EmployeeAssignmentsPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const [bundles, setBundles] = useState<ConcertBundle[]>([]);
+  const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const imageOf = (it: ConcertItem) =>
+    warehouseItems.find((w) => w.id === it.itemId)?.imageUrl ?? null;
 
   const isAdmin = appUser?.role === "admin";
 
@@ -32,9 +38,11 @@ export default function EmployeeAssignmentsPage() {
       if (!appUser) return;
       setLoading(true);
       try {
-        const concerts = isAdmin
-          ? await getConcerts()
-          : await getConcertsByEmployee(appUser.uid);
+        const [concerts, whItems] = await Promise.all([
+          isAdmin ? getConcerts() : getConcertsByEmployee(appUser.uid),
+          getWarehouseItems().catch(() => []),
+        ]);
+        setWarehouseItems(whItems);
         const data = await Promise.all(
           concerts.map(async (concert) => {
             const [items, food] = await Promise.all([
@@ -136,16 +144,34 @@ export default function EmployeeAssignmentsPage() {
                   ) : (
                     <div className="space-y-2">
                       {([
-                        { label: "داخلية", list: internal, chip: "bg-[#EEF1F7] text-[#1C2D50]" },
-                        { label: "خارجية", list: external, chip: "bg-amber-50 text-amber-700" },
+                        { label: "داخلية", list: internal, chip: "bg-[#EEF1F7] text-[#1C2D50] border-[#D4DCE8]" },
+                        { label: "خارجية", list: external, chip: "bg-amber-50 text-amber-700 border-amber-100" },
                       ] as const).filter((g) => g.list.length > 0).map((g) => (
-                        <div key={g.label} className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-slate-400 ml-1">{g.label}:</span>
-                          {g.list.map((it) => (
-                            <span key={it.id} className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${g.chip}`}>
-                              {it.itemName} ×{it.count}
-                            </span>
-                          ))}
+                        <div key={g.label}>
+                          <span className="block text-[11px] font-bold text-slate-400 mb-1">{g.label}:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {g.list.map((it) => {
+                              const img = imageOf(it);
+                              return (
+                                <span
+                                  key={it.id}
+                                  className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-xl font-medium border tabular-nums-auto ${g.chip}`}
+                                >
+                                  {img && (
+                                    <a href={img} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                      <img
+                                        src={thumbUrl(img, 80)}
+                                        alt={it.itemName}
+                                        loading="lazy"
+                                        className="w-8 h-8 object-cover rounded-lg border border-white/60"
+                                      />
+                                    </a>
+                                  )}
+                                  {it.itemName} <b>×{it.count}</b>
+                                </span>
+                              );
+                            })}
+                          </div>
                         </div>
                       ))}
                     </div>
