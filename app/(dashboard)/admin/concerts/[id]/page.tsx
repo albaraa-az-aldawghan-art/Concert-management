@@ -18,7 +18,7 @@ import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert } from "@/lib/firestore/kitchen";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
@@ -494,7 +494,8 @@ export default function AdminConcertDetailPage() {
     try {
       const oldDesc = formatDate(concert.date);
       const oldDateISO = concert.date?.toDate().toISOString().split("T")[0] ?? "";
-      const newTimestamp = Timestamp.fromDate(new Date(editDate + "T12:00:00"));
+      // editDate is datetime-local ("YYYY-MM-DDTHH:mm") — keeps the concert time
+      const newTimestamp = Timestamp.fromDate(new Date(editDate));
       await updateConcert(concert.id, { date: newTimestamp });
       await addConcertLog({ concertId: concert.id, description: `تم تغيير تاريخ الحفلة من ${oldDesc} إلى ${formatDate(newTimestamp)}`, createdBy: appUser.uid, field: "date", oldValue: oldDateISO, newValue: editDate });
       showToast("تم تحديث تاريخ الحفلة");
@@ -882,7 +883,9 @@ export default function AdminConcertDetailPage() {
             {fx.edit && <button
               onClick={() => {
                 const d = concert.date?.toDate();
-                const str = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
+                const str = d
+                  ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+                  : "";
                 setEditDate(str);
                 setShowEditDate(true);
               }}
@@ -892,6 +895,7 @@ export default function AdminConcertDetailPage() {
             </button>}
           </div>
           <p className="font-semibold text-slate-800 text-sm">{formatDate(concert.date)}</p>
+          <p className="text-xs text-[#1C2D50] font-bold mt-0.5 tabular-nums-auto">🕐 {formatTime(concert.date)}</p>
         </Card>
         <Card>
           <div className="flex items-center justify-between mb-1">
@@ -1836,9 +1840,9 @@ export default function AdminConcertDetailPage() {
       <Modal open={showEditDate} onClose={() => setShowEditDate(false)} title="تعديل تاريخ الحفلة">
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-semibold text-slate-700 block mb-1.5">تاريخ الحفلة</label>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">تاريخ الحفلة ووقتها</label>
             <input
-              type="date"
+              type="datetime-local"
               value={editDate}
               onChange={(e) => setEditDate(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"

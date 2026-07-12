@@ -27,6 +27,16 @@ export function formatDateTime(timestamp: Timestamp | null | undefined): string 
   return `${dd}/${mm}/${d.getFullYear()} ${time}`;
 }
 
+// Extracts the start time from a concert Timestamp → "06:30 م"
+export function formatTime(timestamp: Timestamp | null | undefined): string {
+  if (!timestamp) return "";
+  const d = timestamp.toDate();
+  const h = d.getHours();
+  const suffix = h >= 12 ? "م" : "ص";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ${suffix}`;
+}
+
 export function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
     admin: "مدير",

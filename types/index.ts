@@ -82,7 +82,7 @@ export interface Concert {
   id: string;
   concertNumber: number | null;
   name: string;
-  date: Timestamp;
+  date: Timestamp; // يتضمن وقت بدء الحفلة (datetime-local عند الإنشاء)
   venueName: string | null;
   location: ConcertLocation | null;
   price: number;

@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Concert, ConcertItem, ConcertFood, FoodCategory, WarehouseItem, KitchenOrder } from "@/types";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { Printer, CheckCircle2, ChevronRight, UtensilsCrossed, Package } from "lucide-react";
 
 export default function KitchenSheetPage() {
@@ -149,8 +149,9 @@ export default function KitchenSheetPage() {
               <p className="font-bold text-slate-800">{concert.clientName}</p>
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">تاريخ الحفلة</p>
+              <p className="text-[11px] text-slate-400">تاريخ الحفلة ووقتها</p>
               <p className="font-bold text-slate-800 tabular-nums-auto">{formatDate(concert.date)}</p>
+              <p className="font-bold text-[#1C2D50] tabular-nums-auto">🕐 {formatTime(concert.date)}</p>
             </div>
             <div>
               <p className="text-[11px] text-slate-400">المكان</p>
@@ -179,16 +180,20 @@ export default function KitchenSheetPage() {
                       {catName}
                       <span className="opacity-75 font-medium"> ({catFood.reduce((s, f) => s + (f.quantity ?? 0), 0)})</span>
                     </span>
-                    {/* Items inline: "option × qty، option × qty، ..." */}
-                    <p className="text-[13px] text-slate-700 leading-relaxed mt-1 pr-0.5">
+                    {/* Items inline: "option ×qty ، option ×qty ، ..."
+                        The separator lives OUTSIDE the nowrap span so the line
+                        can wrap between items instead of overflowing off-page */}
+                    <p className="text-[13px] text-slate-700 leading-relaxed mt-1 pr-0.5" style={{ wordBreak: "break-word" }}>
                       {catFood.map((f, i) => (
-                        <span key={f.id} className="whitespace-nowrap">
-                          {i > 0 && <span className="text-slate-300"> ، </span>}
-                          {f.selectedOption}
-                          {f.quantity != null && f.quantity > 0 && (
-                            <b className="text-[#1C2D50] tabular-nums-auto"> ×{f.quantity}</b>
-                          )}
-                          {f.notes && <span className="text-[11px] text-slate-400"> ({f.notes})</span>}
+                        <span key={f.id}>
+                          {i > 0 && <span className="text-slate-300">، </span>}
+                          <span className="whitespace-nowrap">
+                            {f.selectedOption}
+                            {f.quantity != null && f.quantity > 0 && (
+                              <b className="text-[#1C2D50] tabular-nums-auto"> ×{f.quantity}</b>
+                            )}
+                          </span>
+                          {f.notes && <span className="text-[11px] text-slate-400"> ({f.notes})</span>}{" "}
                         </span>
                       ))}
                     </p>

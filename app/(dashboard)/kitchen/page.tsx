@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { KitchenOrder } from "@/types";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { UtensilsCrossed, Printer, CheckCircle2, Clock } from "lucide-react";
 
 export default function KitchenPage() {
@@ -77,6 +77,10 @@ export default function KitchenPage() {
           <div className="flex justify-between">
             <span className="text-slate-500">تاريخ الحفلة</span>
             <span className="font-semibold text-slate-800 tabular-nums-auto">{formatDate(order.concertDate)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">وقت الحفلة</span>
+            <span className="font-bold text-[#1C2D50] tabular-nums-auto">{formatTime(order.concertDate)}</span>
           </div>
           {order.venueName && (
             <div className="flex justify-between">
