@@ -20,6 +20,7 @@ import {
   UtensilsCrossed,
   BarChart3,
   Settings,
+  ChefHat,
 } from "lucide-react";
 
 interface NavItem {
@@ -35,6 +36,7 @@ const adminNav: NavItem[] = [
   { label: "المستخدمون",     href: "/admin/users",           icon: <Users size={17} /> },
   { label: "المخزن",         href: "/admin/warehouse",       icon: <Package size={17} /> },
   { label: "أصناف الأكل",    href: "/admin/food",            icon: <UtensilsCrossed size={17} /> },
+  { label: "طلبات المطبخ",   href: "/kitchen",               icon: <ChefHat size={17} /> },
   { label: "المفقودات",      href: "/admin/missing-items",   icon: <AlertTriangle size={17} /> },
   { label: "الإعدادات",      href: "/settings",              icon: <Settings size={17} /> },
 ];
@@ -60,7 +62,7 @@ const employeeNav: NavItem[] = [
 ];
 
 const kitchenNav: NavItem[] = [
-  { label: "طلبات المطبخ", href: "/kitchen",   icon: <UtensilsCrossed size={17} /> },
+  { label: "طلبات المطبخ", href: "/kitchen",   icon: <ChefHat size={17} /> },
   { label: "الإعدادات",     href: "/settings",  icon: <Settings size={17} /> },
 ];
 
@@ -231,7 +233,7 @@ const permissionIcons: Record<string, React.ReactNode> = {
   warehouse:     <Package size={17} />,
   food:          <UtensilsCrossed size={17} />,
   missing_items: <AlertTriangle size={17} />,
-  kitchen:       <UtensilsCrossed size={17} />,
+  kitchen:       <ChefHat size={17} />,
 };
 
 export function Sidebar() {
