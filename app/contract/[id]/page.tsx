@@ -85,8 +85,9 @@ interface FoodGroup {
   totalQty: number;
 }
 
-// Renders strikethrough via background gradient — html2canvas misplaces
-// CSS text-decoration:line-through; a gradient line tracks the text width exactly.
+// True strikethrough for old/replaced values. Safe now that PDF capture uses
+// html-to-image (native browser text rendering), which draws line-through
+// at the correct position — unlike the old html2canvas pipeline.
 function Strike({ children, color = "currentColor", style }: {
   children: React.ReactNode;
   color?: string;
@@ -95,8 +96,8 @@ function Strike({ children, color = "currentColor", style }: {
   return (
     <span style={{
       display: "inline",
-      borderBottom: `1.5px solid ${color}`,
-      paddingBottom: 1,
+      textDecoration: "line-through",
+      textDecorationThickness: "1.5px",
       color,
       ...style,
     }}>
@@ -869,14 +870,14 @@ export default function ContractPage() {
                               const isNew = addedFoodKeys.has(key);
                               const qc = foodQtyChanges.get(key);
                               const qtyIncreased = qc && qc.newQty > qc.oldQty;
-                              // New or re-added items + increases → dark bold.
-                              // Any qty edit → underline; decreases keep the normal color.
+                              const qtyDecreased = qc && qc.newQty < qc.oldQty;
+                              // Increase or new/re-added → dark bold, NO line.
+                              // Decrease → underline under the item name, normal color.
                               const optStyle: React.CSSProperties = {};
                               if (isNew || qtyIncreased) {
                                 optStyle.fontWeight = 800;
                                 optStyle.color = "#0F172A";
-                              }
-                              if (qc) {
+                              } else if (qtyDecreased) {
                                 optStyle.borderBottom = "1.5px solid currentColor";
                                 optStyle.paddingBottom = 1;
                               }

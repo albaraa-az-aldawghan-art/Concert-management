@@ -19,7 +19,7 @@ import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -845,6 +845,17 @@ export default function AdminConcertDetailPage() {
             </button>
           </div>
           <p className="text-sm text-slate-700 line-clamp-2">{concert.location?.address || "—"}</p>
+          {concert.location && (
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${concert.location.lat},${concert.location.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 bg-[#1C2D50] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#111D35] transition-colors shadow-sm"
+            >
+              <Navigation size={12} />
+              توجه بخرائط Google
+            </a>
+          )}
         </Card>
         <Card>
           <div className="flex items-center justify-between mb-1">

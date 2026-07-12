@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { MapPin, Pencil, Search, Loader2, LocateFixed } from "lucide-react";
+import { MapPin, Pencil, Search, Loader2, LocateFixed, ExternalLink } from "lucide-react";
 
 interface Location {
   lat: number;
@@ -379,14 +379,25 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
             <MapPin size={13} className="mt-0.5 shrink-0 text-[#1C2D50]" />
             {value.address}
           </p>
-          <button
-            type="button"
-            onClick={handleClear}
-            className="flex items-center gap-1 text-xs text-[#1C2D50] hover:text-[#111D35] shrink-0 font-semibold whitespace-nowrap"
-          >
-            <Pencil size={11} />
-            تعديل
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${value.lat},${value.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-semibold whitespace-nowrap"
+            >
+              <ExternalLink size={11} />
+              خرائط Google
+            </a>
+            <button
+              type="button"
+              onClick={handleClear}
+              className="flex items-center gap-1 text-xs text-[#1C2D50] hover:text-[#111D35] font-semibold whitespace-nowrap"
+            >
+              <Pencil size={11} />
+              تعديل
+            </button>
+          </div>
         </div>
       ) : (
         <p className="text-xs text-slate-400 text-center py-1">
