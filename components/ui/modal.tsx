@@ -35,24 +35,32 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[2px] anim-fade-in"
         onClick={onClose}
       />
+      {/* Bottom sheet on phones, centered dialog on larger screens */}
       <div
         className={cn(
-          "relative w-full bg-white rounded-2xl shadow-2xl z-10 max-h-[90vh] overflow-y-auto",
+          "relative w-full bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 max-h-[88vh] overflow-y-auto",
+          "anim-slide-up sm:anim-scale-in",
+          "pb-[env(safe-area-inset-bottom)]",
           sizes[size],
           className
         )}
       >
+        {/* Grab handle — visual affordance on phones only */}
+        <div className="sm:hidden pt-2.5 flex justify-center">
+          <div className="w-10 h-1 rounded-full bg-slate-200" />
+        </div>
         {title && (
-          <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-sm z-10">
             <h2 className="text-lg font-bold text-slate-800">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+              className="p-2 -m-1 rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors"
+              aria-label="إغلاق"
             >
               <X size={18} />
             </button>
@@ -96,7 +104,7 @@ export function ConfirmModal({
       <div className="flex gap-3 justify-end">
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+          className="px-4 py-2 min-h-[42px] rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-700 transition-all"
         >
           {cancelLabel}
         </button>
@@ -104,7 +112,7 @@ export function ConfirmModal({
           onClick={onConfirm}
           disabled={loading}
           className={cn(
-            "px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50",
+            "px-4 py-2 min-h-[42px] rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50",
             confirmClass
           )}
         >

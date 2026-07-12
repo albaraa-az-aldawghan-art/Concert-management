@@ -248,8 +248,9 @@ export function Sidebar() {
       {/* Mobile Hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 right-4 z-50 p-2 rounded-xl shadow-lg"
+        className="lg:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl shadow-lg active:scale-95 transition-transform"
         style={{ background: "#1C2D50", color: "#D4DCE8" }}
+        aria-label="فتح القائمة"
       >
         <Menu size={20} />
       </button>
@@ -258,18 +259,20 @@ export function Sidebar() {
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="absolute inset-0"
-            style={{ background: "rgba(0,0,0,0.6)" }}
+            className="absolute inset-0 anim-fade-in backdrop-blur-[2px]"
+            style={{ background: "rgba(0,0,0,0.55)" }}
             onClick={() => setMobileOpen(false)}
           />
+          {/* RTL: drawer sits on the right and slides in from the right edge */}
           <aside
-            className="relative w-72 h-full ml-auto shadow-2xl"
+            className="relative w-[19rem] max-w-[85vw] h-full ml-auto shadow-2xl anim-drawer-in"
             style={{ background: "#111D35" }}
           >
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 left-4 p-1.5 rounded-lg transition-colors"
+              className="absolute top-4 left-4 z-10 p-2 rounded-lg transition-colors active:bg-white/10"
               style={{ color: "#6B7E99" }}
+              aria-label="إغلاق القائمة"
             >
               <X size={20} />
             </button>

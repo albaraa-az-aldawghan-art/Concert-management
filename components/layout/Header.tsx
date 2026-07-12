@@ -31,11 +31,11 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-30">
-      <div className="lg:hidden w-8" />
-      <h1 className="text-lg font-bold text-slate-800">{getTitle()}</h1>
-      <div className="text-xs text-slate-400 hidden sm:block">
-        {new Date().toLocaleDateString("ar-SA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+    <header className="bg-white/85 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-30">
+      <div className="lg:hidden w-10" />
+      <h1 className="text-base sm:text-lg font-bold text-slate-800 truncate">{getTitle()}</h1>
+      <div className="text-xs text-slate-400 hidden sm:block tabular-nums-auto">
+        {new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
       </div>
     </header>
   );
