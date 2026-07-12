@@ -79,11 +79,11 @@ service cloud.firestore {
     }
 
     // ── مواد الحفلات ───────────────────────────────────────────
+    // الموظف يقرأ فقط (مشاهدة المسند إليه) — لا يعدّل شيئاً
     match /concert_items/{itemId} {
       allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee() || isKitchen() || pageOn('concerts') || pageOn('kitchen');
       allow create: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
-      allow update: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') ||
-        (isEmployee() && resource.data.assignedToEmployeeId == uid());
+      allow update: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
       allow delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
     }
 

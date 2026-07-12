@@ -133,7 +133,7 @@ export default function EmployeeAssignmentsPage() {
       <div>
         <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "إسنادات الموظفين" : "موادي"}</h2>
         <p className="text-sm text-slate-500">
-          {items.length} {isAdmin ? "مادة مسندة للموظفين — صلاحيات الموظف الكاملة" : "مادة مسندة إليك"}
+          {items.length} {isAdmin ? "مادة مسندة للموظفين — صلاحيات كاملة" : "مادة مسندة إليك — للعرض فقط"}
         </p>
       </div>
 
@@ -179,13 +179,14 @@ export default function EmployeeAssignmentsPage() {
                     <p className="text-2xl font-bold text-[#1C2D50]">{item.count}</p>
                     <p className="text-xs text-slate-400">وحدة</p>
                   </div>
+                  {/* Employees are VIEW-ONLY: actions stay admin-only */}
                   <div className="flex gap-2 flex-wrap justify-end">
-                    {item.deliveryStatus === "pending" && (
+                    {isAdmin && item.deliveryStatus === "pending" && (
                       <Button size="sm" variant="success" onClick={() => setConfirmDelivery(item)} loading={saving === item.id}>
                         <CheckCircle size={13} /> تأكيد التسليم
                       </Button>
                     )}
-                    {item.deliveryStatus === "confirmed" && item.returnStatus === "pending" && (
+                    {isAdmin && item.deliveryStatus === "confirmed" && item.returnStatus === "pending" && (
                       <>
                         <Button size="sm" variant="success" onClick={() => setConfirmReturn(item)} loading={saving === item.id}>
                           <CheckCircle size={13} /> تأكيد الاستلام
