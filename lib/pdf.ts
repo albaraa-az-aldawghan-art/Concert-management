@@ -10,6 +10,43 @@ export const isMobileDevice = () =>
 
 const PAD = 32; // white safety margin around the sheet inside the PDF
 
+// Some browsers render the RTL capture shifted a few dozen pixels sideways.
+// Measure the actual ink bounding box and redraw so the left/right white
+// margins come out equal — self-correcting for any shift on any browser.
+function centerHorizontally(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  const { width, height } = canvas;
+  const data = ctx.getImageData(0, 0, width, height).data;
+
+  let minX = width;
+  let maxX = -1;
+  const step = 3; // sampling is plenty for margin detection
+  for (let y = 0; y < height; y += step) {
+    const row = y * width;
+    for (let x = 0; x < width; x += step) {
+      const i = (row + x) * 4;
+      if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+    }
+  }
+  if (maxX < 0) return canvas; // nothing drawn — leave as is
+
+  const shift = Math.round((width - 1 - maxX - minX) / 2);
+  if (Math.abs(shift) < 3) return canvas; // already balanced
+
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = height;
+  const outCtx = out.getContext("2d")!;
+  outCtx.fillStyle = "#ffffff";
+  outCtx.fillRect(0, 0, width, height);
+  outCtx.drawImage(canvas, shift, 0);
+  return out;
+}
+
 export async function generateElementPDF(el: HTMLElement): Promise<Blob> {
   const [{ toCanvas }, { default: jsPDF }] = await Promise.all([
     import("html-to-image"),
@@ -68,7 +105,7 @@ export async function generateElementPDF(el: HTMLElement): Promise<Blob> {
     // warms the cache, second produces the complete capture.
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     if (isSafari) await toCanvas(wrapper, opts);
-    const canvas = await toCanvas(wrapper, opts);
+    const canvas = centerHorizontally(await toCanvas(wrapper, opts));
 
     const pdfW = 210; // mm
     const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
