@@ -53,7 +53,15 @@ export async function generateElementPDF(el: HTMLElement): Promise<Blob> {
       backgroundColor: "#ffffff",
       width: w,
       height: h,
-      style: { margin: "0" },
+      // The live wrapper hides off-screen via position:fixed;left:-100000px —
+      // the capture clone inherits those computed styles, which would paint
+      // the content outside the canvas (blank PDF). Reset them on the clone.
+      style: {
+        position: "static",
+        left: "0",
+        top: "0",
+        margin: "0",
+      },
     };
 
     // Safari loads fonts/images inside SVG foreignObject lazily — first pass
