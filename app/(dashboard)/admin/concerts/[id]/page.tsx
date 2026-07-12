@@ -45,7 +45,7 @@ export default function AdminConcertDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { showToast } = useToast();
-  const { appUser, can } = useAuth();
+  const { appUser, feat } = useAuth();
 
   const [concert, setConcert] = useState<Concert | null>(null);
   const [items, setItems] = useState<ConcertItem[]>([]);
@@ -626,12 +626,25 @@ export default function AdminConcertDetailPage() {
   const internalMissing = missing.filter((m) => m.type === "internal");
   const externalMissing = missing.filter((m) => m.type === "external");
 
-  // View-only custom roles: every <button> on this page is a mutation entry
-  // point (links handle navigation), so a capture-phase blocker enforces
-  // read-only access uniformly without touching dozens of handlers.
-  const canManageConcerts = can("concerts", "manage");
+  // Feature-level permissions for this page: each capability is granted
+  // individually from the role's checklist (admin gets everything).
+  const fx = {
+    edit: feat("concerts", "edit"),
+    assign: feat("concerts", "assign"),
+    payments: feat("concerts", "payments"),
+    materials: feat("concerts", "materials"),
+    food: feat("concerts", "food_items"),
+    kitchen: feat("concerts", "send_kitchen"),
+    stages: feat("concerts", "stages"),
+    contract: feat("concerts", "contract"),
+    cancel: feat("concerts", "cancel"),
+  };
+  const hasAnyPower = Object.values(fx).some(Boolean);
+
+  // Safety net for pure-view roles: block any button that slipped past the
+  // per-feature rendering below.
   function blockIfViewOnly(e: React.MouseEvent) {
-    if (canManageConcerts) return;
+    if (hasAnyPower || appUser?.role !== "custom") return;
     const btn = (e.target as HTMLElement).closest("button");
     if (btn) {
       e.preventDefault();
@@ -666,16 +679,18 @@ export default function AdminConcertDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <a
-            href={`/contract/${concert.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#1C2D50] text-white hover:bg-[#111D35] transition-colors"
-          >
-            <FileText size={15} />
-            عرض الاتفاقية
-          </a>
-          {concert.status !== "cancelled" && (
+          {fx.contract && (
+            <a
+              href={`/contract/${concert.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#1C2D50] text-white hover:bg-[#111D35] transition-colors"
+            >
+              <FileText size={15} />
+              عرض الاتفاقية
+            </a>
+          )}
+          {fx.kitchen && concert.status !== "cancelled" && (
             <button
               onClick={async () => {
                 if (!appUser || sendingKitchen) return;
@@ -709,7 +724,7 @@ export default function AdminConcertDetailPage() {
                 : "إرسال للمطبخ"}
             </button>
           )}
-          {concert.status !== "cancelled" && (
+          {fx.cancel && concert.status !== "cancelled" && (
             <button
               onClick={() => setShowCancelModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
@@ -739,7 +754,7 @@ export default function AdminConcertDetailPage() {
       )}
 
       {/* ── Pipeline ── مراحل الحفلة التسلسلية */}
-      {(() => {
+      {fx.stages && (() => {
         const STATUS_ORDER = [
           "planned", "confirmed", "materials_requested", "active",
           "location_set", "executing", "materials_returned",
@@ -833,7 +848,7 @@ export default function AdminConcertDetailPage() {
             {concert.status === "warehouse_confirmed" && !concert.isPaid && (
               <div className="mt-4 border-t border-slate-100 pt-4">
                 <p className="text-xs font-semibold text-slate-500 mb-2">الخطوة التالية — التسوية المالية</p>
-                <Button onClick={handleMarkAsPaid} loading={paidSaving} className="w-full gap-2">
+                <Button onClick={handleMarkAsPaid} loading={paidSaving} disabled={!fx.payments} className="w-full gap-2">
                   <CheckCircle2 size={16} />
                   تأكيد التسوية المالية وإغلاق الحفلة
                 </Button>
@@ -864,7 +879,7 @@ export default function AdminConcertDetailPage() {
               <CalendarDays size={15} />
               <span className="text-xs font-medium">تاريخ الحفلة</span>
             </div>
-            <button
+            {fx.edit && <button
               onClick={() => {
                 const d = concert.date?.toDate();
                 const str = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
@@ -874,7 +889,7 @@ export default function AdminConcertDetailPage() {
               className="text-slate-300 hover:text-blue-500 transition-colors"
             >
               <Pencil size={13} />
-            </button>
+            </button>}
           </div>
           <p className="font-semibold text-slate-800 text-sm">{formatDate(concert.date)}</p>
         </Card>
@@ -884,9 +899,9 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">سعر الحفلة</span>
             </div>
-            <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+            {fx.edit && <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
               <Pencil size={13} />
-            </button>
+            </button>}
           </div>
           <p className="font-bold text-green-700 text-lg">{concert.price?.toLocaleString("en-US")} ريال</p>
         </Card>
@@ -896,9 +911,9 @@ export default function AdminConcertDetailPage() {
               <MapPin size={15} />
               <span className="text-xs font-medium">الموقع</span>
             </div>
-            <button onClick={() => { setEditLocation(concert.location ?? null); setShowEditLocation(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+            {fx.edit && <button onClick={() => { setEditLocation(concert.location ?? null); setShowEditLocation(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
               <Pencil size={13} />
-            </button>
+            </button>}
           </div>
           <p className="text-sm text-slate-700 line-clamp-2">{concert.location?.address || "—"}</p>
           {concert.location && (
@@ -919,12 +934,12 @@ export default function AdminConcertDetailPage() {
               <Building2 size={15} />
               <span className="text-xs font-medium">اسم المكان</span>
             </div>
-            <button
+            {fx.edit && <button
               onClick={() => { setEditVenueName(concert.venueName ?? ""); setShowEditVenueName(true); }}
               className="text-slate-300 hover:text-blue-500 transition-colors"
             >
               <Pencil size={13} />
-            </button>
+            </button>}
           </div>
           <p className="text-sm text-slate-700 line-clamp-2">{concert.venueName || "—"}</p>
         </Card>
@@ -946,7 +961,7 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">مبلغ القاعة</span>
             </div>
-            <button
+            {fx.edit && <button
               onClick={() => {
                 setEditHallCostType(concert.hallCostType ?? "none");
                 setEditHallCostValue(String(concert.hallCostValue ?? ""));
@@ -958,7 +973,7 @@ export default function AdminConcertDetailPage() {
             >
               <Pencil size={11} />
               تعديل
-            </button>
+            </button>}
           </div>
           {concert.hallCostType === "percentage" ? (
             <div>
@@ -989,13 +1004,13 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">تكلفة النقل</span>
             </div>
-            <button
+            {fx.edit && <button
               onClick={() => { setEditTransportCost(String(concert.transportCost ?? "")); setShowEditTransport(true); }}
               className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
             >
               <Pencil size={11} />
               تعديل
-            </button>
+            </button>}
           </div>
           {concert.transportCost ? (
             <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("en-US")} ريال</p>
@@ -1011,13 +1026,13 @@ export default function AdminConcertDetailPage() {
               <Users size={15} />
               <span className="text-xs font-medium">تكلفة العمالة</span>
             </div>
-            <button
+            {fx.edit && <button
               onClick={() => { setEditLaborCount(String(concert.laborCount ?? "")); setEditLaborPricePerUnit(String(concert.laborPricePerUnit ?? "")); setShowEditLabor(true); }}
               className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
             >
               <Pencil size={11} />
               تعديل
-            </button>
+            </button>}
           </div>
           {concert.laborCost ? (
             <div>
@@ -1079,6 +1094,7 @@ export default function AdminConcertDetailPage() {
           <button
             onClick={() => { setEditNotes(concert.notes ?? ""); setShowEditNotes(true); }}
             className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
+            style={fx.edit ? undefined : { display: "none" }}
           >
             <Pencil size={11} />
             تعديل
@@ -1116,9 +1132,11 @@ export default function AdminConcertDetailPage() {
           </div>
         </div>
 
-        <Button onClick={() => setShowPaymentForm(true)} variant="outline" className="mb-4">
-          <Plus size={16} /> إضافة دفعة
-        </Button>
+        {fx.payments && (
+          <Button onClick={() => setShowPaymentForm(true)} variant="outline" className="mb-4">
+            <Plus size={16} /> إضافة دفعة
+          </Button>
+        )}
 
         {/* Payment Records */}
         {payments.length > 0 && (
@@ -1139,12 +1157,14 @@ export default function AdminConcertDetailPage() {
                     {getPaymentDetail(p) && ` — ${getPaymentDetail(p)}`}
                   </p>
                 </div>
-                <button
-                  onClick={() => setDeletePaymentTarget(p)}
-                  className="text-slate-300 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {fx.payments && (
+                  <button
+                    onClick={() => setDeletePaymentTarget(p)}
+                    className="text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1157,9 +1177,11 @@ export default function AdminConcertDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">المشرفون ({supervisors.length})</h3>
-            <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds); setShowEditSupervisors(true); }}>
-              <Pencil size={13} /> تعديل
-            </Button>
+            {fx.assign && (
+              <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds); setShowEditSupervisors(true); }}>
+                <Pencil size={13} /> تعديل
+              </Button>
+            )}
           </div>
           {supervisors.length === 0 ? (
             <p className="text-sm text-slate-400">لا يوجد مشرفون</p>
@@ -1179,9 +1201,11 @@ export default function AdminConcertDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
-            <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds); setShowEditEmployees(true); }}>
-              <Pencil size={13} /> تعديل
-            </Button>
+            {fx.assign && (
+              <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds); setShowEditEmployees(true); }}>
+                <Pencil size={13} /> تعديل
+              </Button>
+            )}
           </div>
           {employees.length === 0 ? (
             <p className="text-sm text-slate-400">لا يوجد موظفون</p>
@@ -1207,9 +1231,11 @@ export default function AdminConcertDetailPage() {
             <Package size={16} className="text-indigo-600" />
             المواد ({items.length})
           </h3>
-          <Button size="sm" onClick={() => { setAddItemType(""); setAddItemCheck({}); setAddItemSearch(""); setShowItemForm(true); }}>
-            <Plus size={14} /> إضافة مادة
-          </Button>
+          {fx.materials && (
+            <Button size="sm" onClick={() => { setAddItemType(""); setAddItemCheck({}); setAddItemSearch(""); setShowItemForm(true); }}>
+              <Plus size={14} /> إضافة مادة
+            </Button>
+          )}
         </div>
 
         {items.length === 0 ? (
@@ -1242,9 +1268,9 @@ export default function AdminConcertDetailPage() {
                             )}
                           </div>
                         </div>
-                        <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                        {fx.materials && <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
                           <Trash2 size={13} />
-                        </button>
+                        </button>}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
@@ -1263,9 +1289,9 @@ export default function AdminConcertDetailPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
+                            {fx.materials && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
-                            </button>
+                            </button>}
                           </div>
                         )}
                         <StatusBadge status={item.deliveryStatus} />
@@ -1304,12 +1330,12 @@ export default function AdminConcertDetailPage() {
                             )}
                           </div>
                         </div>
-                        <button
+                        {fx.materials && <button
                           onClick={() => setDeleteItemTarget(item)}
                           className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1"
                         >
                           <Trash2 size={13} />
-                        </button>
+                        </button>}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
@@ -1328,9 +1354,9 @@ export default function AdminConcertDetailPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
+                            {fx.materials && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
-                            </button>
+                            </button>}
                           </div>
                         )}
                         <StatusBadge status={item.returnStatus} />
@@ -1361,7 +1387,7 @@ export default function AdminConcertDetailPage() {
             <UtensilsCrossed size={16} className="text-orange-500" />
             أصناف الأكل ({concertFood.length})
           </h3>
-          {foodCategories.length > 0 && (
+          {foodCategories.length > 0 && fx.food && (
             <Button size="sm" onClick={() => { setAddFoodCategoryId(""); setAddFoodCheck({}); setAddFoodSearch(""); setShowFoodForm(true); }}>
               <Plus size={14} /> إضافة
             </Button>
@@ -1379,9 +1405,9 @@ export default function AdminConcertDetailPage() {
                     <p className="text-sm font-bold text-slate-800 mt-0.5">{f.selectedOption}</p>
                     {f.notes && <p className="text-xs text-slate-400 mt-0.5">— {f.notes}</p>}
                   </div>
-                  <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                  {fx.food && <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
                     <Trash2 size={14} />
-                  </button>
+                  </button>}
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-orange-100">
                   {editFoodQtyTarget?.id === f.id ? (
@@ -1400,13 +1426,13 @@ export default function AdminConcertDetailPage() {
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-slate-500 font-medium">الكمية: <span className="font-bold text-[#1C2D50]">{f.quantity ?? 0}</span></span>
-                      <button
+                      {fx.food && <button
                         onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
                         className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
                         title="تعديل الكمية"
                       >
                         <Pencil size={13} />
-                      </button>
+                      </button>}
                     </div>
                   )}
                 </div>
@@ -1447,7 +1473,7 @@ export default function AdminConcertDetailPage() {
       )}
 
       {/* Change Log */}
-      <Card>
+      {fx.stages && <Card>
         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
           <Calendar size={16} className="text-slate-500" />
           سجل الحفلة
@@ -1487,7 +1513,7 @@ export default function AdminConcertDetailPage() {
             )}
           </div>
         </div>
-      </Card>
+      </Card>}
 
       {/* Add Payment Modal */}
       <Modal open={showPaymentForm} onClose={() => setShowPaymentForm(false)} title="إضافة دفعة">

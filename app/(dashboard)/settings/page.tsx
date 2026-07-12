@@ -16,10 +16,11 @@ import { useToast } from "@/components/ui/toast";
 import { KeyRound, ShieldCheck, Percent, Shield, Plus, Pencil, Trash2, Eye, Settings2 } from "lucide-react";
 import { getVatRate, updateVatRate } from "@/lib/firestore/settings";
 import { getCustomRoles, addCustomRole, updateCustomRole, deleteCustomRole } from "@/lib/firestore/roles";
-import { PERMISSION_PAGES } from "@/lib/permissions";
-import { CustomRole, PermissionLevel, PermissionPage } from "@/types";
+import { PERMISSION_PAGES, normalizedFeatures } from "@/lib/permissions";
+import { CustomRole, PermissionPage } from "@/types";
 
-type PermMap = Partial<Record<PermissionPage, PermissionLevel>>;
+// Page → enabled feature keys. Page present with [] = view only.
+type PermMap = Partial<Record<PermissionPage, string[]>>;
 
 export default function SettingsPage() {
   const { appUser } = useAuth();
@@ -65,15 +66,37 @@ export default function SettingsPage() {
   function openEditRole(role: CustomRole) {
     setEditRoleTarget(role);
     setRoleName(role.name);
-    setRolePerms({ ...role.permissions });
+    // Normalize legacy "view"/"manage" values into feature arrays
+    const normalized: PermMap = {};
+    for (const p of PERMISSION_PAGES) {
+      const feats = normalizedFeatures(role, p.key);
+      if (feats !== null) normalized[p.key] = [...feats];
+    }
+    setRolePerms(normalized);
     setShowRoleForm(true);
   }
 
-  function setPerm(page: PermissionPage, level: PermissionLevel | null) {
+  function togglePage(page: PermissionPage) {
     setRolePerms((prev) => {
       const next = { ...prev };
-      if (level === null) delete next[page];
-      else next[page] = level;
+      if (page in next) {
+        delete next[page];
+      } else {
+        // Enabling a page starts with ALL its capabilities checked
+        next[page] = PERMISSION_PAGES.find((p) => p.key === page)!.features.map((f) => f.key);
+      }
+      return next;
+    });
+  }
+
+  function toggleFeature(page: PermissionPage, featureKey: string) {
+    setRolePerms((prev) => {
+      const current = prev[page];
+      if (current === undefined) return prev;
+      const next = { ...prev };
+      next[page] = current.includes(featureKey)
+        ? current.filter((f) => f !== featureKey)
+        : [...current, featureKey];
       return next;
     });
   }
@@ -171,12 +194,6 @@ export default function SettingsPage() {
     }
   }
 
-  const LEVEL_OPTIONS: { value: PermissionLevel | null; label: string }[] = [
-    { value: null, label: "بدون" },
-    { value: "view", label: "عرض" },
-    { value: "manage", label: "تحكم" },
-  ];
-
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
@@ -213,19 +230,27 @@ export default function SettingsPage() {
                   <div className="min-w-0">
                     <p className="font-bold text-slate-800 text-sm">{role.name}</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {PERMISSION_PAGES.filter((p) => role.permissions[p.key]).map((p) => (
-                        <span
-                          key={p.key}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                            role.permissions[p.key] === "manage"
-                              ? "bg-[#1C2D50] text-white"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          {role.permissions[p.key] === "manage" ? <Settings2 size={10} /> : <Eye size={10} />}
-                          {p.label}
-                        </span>
-                      ))}
+                      {PERMISSION_PAGES.map((p) => {
+                        const feats = normalizedFeatures(role, p.key);
+                        if (feats === null) return null;
+                        const full = p.features.every((f) => feats.includes(f.key));
+                        return (
+                          <span
+                            key={p.key}
+                            className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                              full
+                                ? "bg-[#1C2D50] text-white"
+                                : feats.length > 0
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {feats.length > 0 ? <Settings2 size={10} /> : <Eye size={10} />}
+                            {p.label}
+                            {!full && feats.length > 0 && ` (${feats.length})`}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -247,9 +272,9 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-3">
-            <span className="inline-flex items-center gap-1"><Eye size={11} /> عرض = يشاهد فقط</span>
-            <span className="inline-flex items-center gap-1"><Settings2 size={11} /> تحكم = إضافة وتعديل وحذف</span>
+          <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-1"><Eye size={11} /> عرض فقط</span>
+            <span className="inline-flex items-center gap-1"><Settings2 size={11} /> صلاحيات جزئية (العدد) أو كاملة</span>
           </p>
         </Card>
       )}
@@ -370,61 +395,94 @@ export default function SettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-slate-700">الصلاحيات</label>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setRolePerms(Object.fromEntries(PERMISSION_PAGES.map((p) => [p.key, "manage"])) as PermMap)}
+                  onClick={() =>
+                    setRolePerms(
+                      Object.fromEntries(
+                        PERMISSION_PAGES.map((p) => [p.key, p.features.map((f) => f.key)])
+                      ) as PermMap
+                    )
+                  }
                   className="text-xs text-[#1C2D50] font-semibold hover:underline"
                 >
-                  الكل تحكم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRolePerms(Object.fromEntries(PERMISSION_PAGES.map((p) => [p.key, "view"])) as PermMap)}
-                  className="text-xs text-blue-600 font-semibold hover:underline"
-                >
-                  الكل عرض
+                  تحديد الكل
                 </button>
                 <button
                   type="button"
                   onClick={() => setRolePerms({})}
                   className="text-xs text-slate-400 font-semibold hover:underline"
                 >
-                  مسح
+                  مسح الكل
                 </button>
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-[46vh] overflow-y-auto">
               {PERMISSION_PAGES.map((p) => {
-                const current = rolePerms[p.key] ?? null;
+                const enabled = p.key in rolePerms;
+                const feats = rolePerms[p.key] ?? [];
+                const allChecked = enabled && p.features.every((f) => feats.includes(f.key));
                 return (
-                  <div key={p.key} className="flex items-center justify-between px-4 py-2.5 bg-white">
-                    <span className="text-sm font-medium text-slate-700">{p.label}</span>
-                    <div className="flex bg-slate-100 rounded-lg p-0.5">
-                      {LEVEL_OPTIONS.map((opt) => (
+                  <div key={p.key} className="bg-white">
+                    {/* Page master toggle */}
+                    <label className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <span className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          onChange={() => togglePage(p.key)}
+                          className="w-4.5 h-4.5 accent-[#1C2D50] cursor-pointer"
+                          style={{ width: 17, height: 17 }}
+                        />
+                        <span className="text-sm font-bold text-slate-800">{p.label}</span>
+                      </span>
+                      {enabled && (
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {feats.length === 0 ? "عرض فقط" : `${feats.length} من ${p.features.length} صلاحية`}
+                        </span>
+                      )}
+                    </label>
+
+                    {/* Feature checklist */}
+                    {enabled && (
+                      <div className="bg-slate-50 border-t border-slate-100 px-4 py-2.5">
                         <button
-                          key={String(opt.value)}
                           type="button"
-                          onClick={() => setPerm(p.key, opt.value)}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                            current === opt.value
-                              ? opt.value === "manage"
-                                ? "bg-[#1C2D50] text-white"
-                                : opt.value === "view"
-                                ? "bg-blue-500 text-white"
-                                : "bg-white text-slate-600 shadow-sm"
-                              : "text-slate-500 hover:text-slate-700"
-                          }`}
+                          onClick={() =>
+                            setRolePerms((prev) => ({
+                              ...prev,
+                              [p.key]: allChecked ? [] : p.features.map((f) => f.key),
+                            }))
+                          }
+                          className="text-[11px] text-[#1C2D50] font-semibold hover:underline mb-1.5"
                         >
-                          {opt.label}
+                          {allChecked ? "إلغاء تحديد الكل" : "تحديد الكل"}
                         </button>
-                      ))}
-                    </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                          {p.features.map((f) => (
+                            <label key={f.key} className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 hover:text-slate-800 transition-colors py-0.5">
+                              <input
+                                type="checkbox"
+                                checked={feats.includes(f.key)}
+                                onChange={() => toggleFeature(p.key, f.key)}
+                                className="accent-[#1C2D50] cursor-pointer shrink-0"
+                                style={{ width: 15, height: 15 }}
+                              />
+                              <span className="text-[13px]">{f.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              تفعيل الصفحة بدون تحديد أي صلاحية = عرض فقط بدون إضافة أو تعديل
+            </p>
           </div>
 
           <div className="flex gap-3 justify-end pt-2">

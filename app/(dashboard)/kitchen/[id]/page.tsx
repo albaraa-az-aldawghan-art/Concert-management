@@ -17,9 +17,9 @@ import { Printer, CheckCircle2, ChevronRight, UtensilsCrossed, Package } from "l
 
 export default function KitchenSheetPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser, can } = useAuth();
+  const { appUser, feat } = useAuth();
   const { showToast } = useToast();
-  const canConfirm = can("kitchen", "manage");
+  const canConfirm = feat("kitchen", "confirm");
 
   const [concert, setConcert] = useState<Concert | null>(null);
   const [food, setFood] = useState<ConcertFood[]>([]);

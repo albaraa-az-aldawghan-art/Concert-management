@@ -3,20 +3,20 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { pageKeyFromPath } from "@/lib/permissions";
+import { pageKeyFromPath, PERMISSION_PAGES } from "@/lib/permissions";
 import { ShieldAlert, Eye } from "lucide-react";
 
 // Central gate for every /admin page: full admins pass, custom roles pass by
 // permission, everyone else is refused. Runs inside the dashboard layout,
 // which already guarantees an authenticated session.
 export default function AdminGuardLayout({ children }: { children: React.ReactNode }) {
-  const { appUser, customRole, can, loading, homePath } = useAuth();
+  const { appUser, customRole, can, feat, loading, homePath } = useAuth();
   const pathname = usePathname();
 
   if (loading || !appUser) return null;
 
   const page = pageKeyFromPath(pathname);
-  const allowed = appUser.role === "admin" || (page !== null && can(page, "view"));
+  const allowed = appUser.role === "admin" || (page !== null && can(page));
 
   if (!allowed) {
     return (
@@ -34,7 +34,12 @@ export default function AdminGuardLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const viewOnly = appUser.role === "custom" && page !== null && !can(page, "manage");
+  // "View only" = the page is granted but not a single capability inside it
+  const pageDef = page !== null ? PERMISSION_PAGES.find((p) => p.key === page) : null;
+  const viewOnly =
+    appUser.role === "custom" &&
+    pageDef != null &&
+    !pageDef.features.some((f) => feat(pageDef.key, f.key));
 
   return (
     <>

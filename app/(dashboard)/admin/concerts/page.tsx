@@ -81,8 +81,9 @@ function getMonthBounds(): [string, string] {
 
 export default function AdminConcertsPage() {
   const { showToast } = useToast();
-  const { can } = useAuth();
-  const canManage = can("concerts", "manage");
+  const { feat } = useAuth();
+  const canCreate = feat("concerts", "create");
+  const canDelete = feat("concerts", "delete");
   const [concerts, setConcerts]     = useState<Concert[]>([]);
   const [loading, setLoading]       = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Concert | null>(null);
@@ -185,7 +186,7 @@ export default function AdminConcertsPage() {
             {filtered.length} من {concerts.length} حفلة
           </p>
         </div>
-        {canManage && (
+        {canCreate && (
           <Link href="/admin/concerts/new">
             <Button>
               <Plus size={16} />
@@ -365,7 +366,7 @@ export default function AdminConcertsPage() {
                         className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors">
                         <Eye size={14} />
                       </Link>
-                      {canManage && (
+                      {canDelete && (
                         <button onClick={() => setDeleteTarget(c)}
                           className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <Trash2 size={14} />
@@ -436,7 +437,7 @@ export default function AdminConcertsPage() {
                               className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors">
                               <Eye size={14} />
                             </Link>
-                            {canManage && (
+                            {canDelete && (
                               <button onClick={() => setDeleteTarget(c)}
                                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                                 <Trash2 size={14} />

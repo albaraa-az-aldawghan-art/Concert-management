@@ -244,7 +244,7 @@ export function Sidebar() {
   const navItems: NavItem[] =
     appUser?.role === "custom"
       ? [
-          ...PERMISSION_PAGES.filter((p) => can(p.key, "view")).map((p) => ({
+          ...PERMISSION_PAGES.filter((p) => can(p.key)).map((p) => ({
             label: p.label,
             href: p.href,
             icon: permissionIcons[p.key],

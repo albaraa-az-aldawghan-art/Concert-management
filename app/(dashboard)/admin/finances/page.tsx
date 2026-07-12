@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
@@ -83,6 +84,7 @@ type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
+  const { feat } = useAuth();
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -321,7 +323,7 @@ export default function FinancesPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {feat("finances", "totals") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-[#EEF1F7] rounded-xl flex items-center justify-center">
@@ -402,10 +404,10 @@ export default function FinancesPage() {
           <p className="text-2xl font-bold text-teal-700">{netRevenue.toLocaleString("en-US")}</p>
           <p className="text-xs text-slate-400">ريال (بعد خصم جميع المصاريف)</p>
         </Card>
-      </div>
+      </div>}
 
       {/* Collection Progress */}
-      <Card>
+      {feat("finances", "totals") && <Card>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">نسبة التحصيل</h3>
           <span className={`text-xl font-bold ${rate >= 75 ? "text-emerald-600" : rate >= 40 ? "text-orange-500" : "text-red-500"}`}>
@@ -422,10 +424,10 @@ export default function FinancesPage() {
           <span className="text-emerald-600 font-semibold">{totalCollected.toLocaleString("en-US")} ريال محصَّل</span>
           <span className="text-orange-600 font-semibold">{totalRemaining.toLocaleString("en-US")} ريال متبقي</span>
         </div>
-      </Card>
+      </Card>}
 
       {/* Concerts Table */}
-      <Card>
+      {feat("finances", "table") && <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-800">تفاصيل الحفلات ({filtered.length})</h3>
           {totalPages > 1 && (
@@ -621,7 +623,7 @@ export default function FinancesPage() {
             )}
           </>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }

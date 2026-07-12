@@ -12,9 +12,9 @@ import { formatDate, formatDateTime } from "@/lib/utils";
 import { UtensilsCrossed, Printer, CheckCircle2, Clock } from "lucide-react";
 
 export default function KitchenPage() {
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
-  const canConfirm = can("kitchen", "manage");
+  const canConfirm = feat("kitchen", "confirm");
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function KitchenPage() {
     }
   }
 
-  if (appUser && !can("kitchen", "view")) {
+  if (appUser && !can("kitchen")) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 

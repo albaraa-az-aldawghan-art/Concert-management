@@ -5,15 +5,18 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserById } from "@/lib/firestore/users";
 import { getCustomRoleById } from "@/lib/firestore/roles";
-import { canAccess, firstAllowedPath } from "@/lib/permissions";
-import { AppUser, CustomRole, PermissionLevel, PermissionPage } from "@/types";
+import { canAccess, canFeature, firstAllowedPath } from "@/lib/permissions";
+import { AppUser, CustomRole, PermissionPage } from "@/types";
 
 interface AuthContextValue {
   firebaseUser: User | null;
   appUser: AppUser | null;
   customRole: CustomRole | null;
   loading: boolean;
-  can: (page: PermissionPage, level?: PermissionLevel) => boolean;
+  /** هل يستطيع فتح الصفحة؟ */
+  can: (page: PermissionPage) => boolean;
+  /** هل يملك ميزة محددة داخل الصفحة؟ */
+  feat: (page: PermissionPage, feature: string) => boolean;
   homePath: () => string;
 }
 
@@ -23,6 +26,7 @@ const AuthContext = createContext<AuthContextValue>({
   customRole: null,
   loading: true,
   can: () => false,
+  feat: () => false,
   homePath: () => "/login",
 });
 
@@ -55,8 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const can = useCallback(
-    (page: PermissionPage, level: PermissionLevel = "view") =>
-      canAccess(appUser, customRole, page, level),
+    (page: PermissionPage) => canAccess(appUser, customRole, page),
+    [appUser, customRole]
+  );
+
+  const feat = useCallback(
+    (page: PermissionPage, feature: string) => canFeature(appUser, customRole, page, feature),
     [appUser, customRole]
   );
 
@@ -66,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ firebaseUser, appUser, customRole, loading, can, homePath }}>
+    <AuthContext.Provider value={{ firebaseUser, appUser, customRole, loading, can, feat, homePath }}>
       {children}
     </AuthContext.Provider>
   );

@@ -31,9 +31,11 @@ const roleColors: Record<string, "blue" | "indigo" | "green" | "gray"> = {
 };
 
 export default function UsersPage() {
-  const { appUser, can } = useAuth();
+  const { appUser, feat } = useAuth();
   const { showToast } = useToast();
-  const canManage = can("users", "manage");
+  const canCreate = feat("users", "create");
+  const canEdit = feat("users", "edit");
+  const canDelete = feat("users", "delete");
   const [users, setUsers] = useState<AppUser[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,7 +170,7 @@ export default function UsersPage() {
           <h2 className="text-xl font-bold text-slate-800">إدارة المستخدمين</h2>
           <p className="text-sm text-slate-500">{users.length} مستخدم مسجل</p>
         </div>
-        {canManage && (
+        {canCreate && (
           <Button onClick={() => setShowAdd(true)} className="gap-2">
             <Plus size={16} />
             إضافة مستخدم
@@ -207,16 +209,18 @@ export default function UsersPage() {
           {filteredUsers.map((user) => (
             <Card key={user.uid} className="relative">
               {/* Actions */}
-              {canManage && (
+              {(canEdit || canDelete) && (
                 <div className="absolute top-3 left-3 flex gap-1">
-                  <button
-                    onClick={() => openEdit(user)}
-                    className="p-1.5 text-slate-300 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
-                    title="تعديل الاسم وكلمة المرور"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  {user.uid !== appUser?.uid && (
+                  {canEdit && (
+                    <button
+                      onClick={() => openEdit(user)}
+                      className="p-1.5 text-slate-300 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
+                      title="تعديل الاسم وكلمة المرور"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                  {canDelete && user.uid !== appUser?.uid && (
                     <button
                       onClick={() => setDeleteTarget(user)}
                       className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

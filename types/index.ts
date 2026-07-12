@@ -17,7 +17,9 @@ export type PermissionPage =
 export interface CustomRole {
   id: string;
   name: string;
-  permissions: Partial<Record<PermissionPage, PermissionLevel>>;
+  // New format: array of enabled feature keys per page (empty = view only).
+  // Legacy format ("view" | "manage") still readable — normalized in lib/permissions.
+  permissions: Partial<Record<PermissionPage, string[] | PermissionLevel>>;
   createdAt: Timestamp;
   createdBy: string;
 }

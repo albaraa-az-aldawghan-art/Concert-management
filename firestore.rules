@@ -15,7 +15,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid())).data;
     }
 
-    // يجلب دور المستخدم من Firestore — يُشغَّل على سيرفر Firebase
     function role() {
       return userData().role;
     }
@@ -27,32 +26,37 @@ service cloud.firestore {
     function isKitchen()          { return signedIn() && role() == 'kitchen'; }
     function isAdminOrWarehouse() { return signedIn() && role() in ['admin', 'warehouse_manager']; }
 
-    // ── الأدوار المخصصة (نظام الصلاحيات) ──────────────────────
+    // ── الأدوار المخصصة (صلاحيات على مستوى الميزات) ───────────
     function isCustom() { return signedIn() && role() == 'custom'; }
 
     function customPerms() {
       return get(/databases/$(database)/documents/custom_roles/$(userData().customRoleId)).data.permissions;
     }
 
-    // «عرض» أو «تحكم» على الصفحة
-    function customCan(page) {
+    // الصفحة مفعّلة (عرض على الأقل)
+    function pageOn(page) {
       return isCustom() && page in customPerms();
     }
 
-    // «تحكم» فقط
-    function customManage(page) {
-      return isCustom() && customPerms()[page] == 'manage';
+    // يملك ميزة محددة داخل الصفحة — يدعم الصيغة القديمة 'manage'
+    function hasFeat(page, feature) {
+      return isCustom() && page in customPerms() && (
+        customPerms()[page] is list
+          ? feature in customPerms()[page]
+          : customPerms()[page] == 'manage'
+      );
     }
 
     // ── المستخدمون ─────────────────────────────────────────────
     match /users/{userId} {
-      allow get:  if signedIn() && (uid() == userId || isAdmin() || customCan('users') || customCan('concerts'));
-      allow list: if isAdmin() || customCan('users');
-      allow create, update, delete: if isAdmin() || customManage('users');
+      allow get:    if signedIn() && (uid() == userId || isAdmin() || pageOn('users') || pageOn('concerts'));
+      allow list:   if isAdmin() || pageOn('users');
+      allow create: if isAdmin() || hasFeat('users', 'create');
+      allow update: if isAdmin() || hasFeat('users', 'edit');
+      allow delete: if isAdmin() || hasFeat('users', 'delete');
     }
 
     // ── الأدوار المخصصة ────────────────────────────────────────
-    // كل مسجَّل يقرأ (ليتمكن صاحب الدور من معرفة صلاحياته) — المدير فقط يعدّل
     match /custom_roles/{roleId} {
       allow read:  if signedIn();
       allow write: if isAdmin();
@@ -60,88 +64,94 @@ service cloud.firestore {
 
     // ── الحفلات ────────────────────────────────────────────────
     match /concerts/{concertId} {
-      allow get: if isAdmin() || isWarehouse() || isKitchen() || customCan('concerts') || customCan('kitchen') ||
+      allow get: if isAdmin() || isWarehouse() || isKitchen() || pageOn('concerts') || pageOn('kitchen') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
-      allow list: if isAdmin() || isWarehouse() || customCan('concerts') ||
+      allow list: if isAdmin() || isWarehouse() || pageOn('concerts') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
-      allow create:  if isAdmin() || customManage('concerts');
-      allow update:  if isAdmin() || customManage('concerts') ||
+      allow create: if isAdmin() || hasFeat('concerts', 'create');
+      allow update: if isAdmin() ||
+        hasFeat('concerts', 'edit') || hasFeat('concerts', 'assign') ||
+        hasFeat('concerts', 'payments') || hasFeat('concerts', 'cancel') ||
         (isSupervisor() && uid() in resource.data.supervisorIds);
-      allow delete:  if isAdmin() || customManage('concerts');
+      allow delete: if isAdmin() || hasFeat('concerts', 'delete');
     }
 
     // ── مواد الحفلات ───────────────────────────────────────────
     match /concert_items/{itemId} {
-      allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee() || isKitchen() || customCan('concerts') || customCan('kitchen');
-      allow create: if isAdmin() || isSupervisor() || customManage('concerts');
-      allow update: if isAdmin() || isSupervisor() || customManage('concerts') ||
+      allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee() || isKitchen() || pageOn('concerts') || pageOn('kitchen');
+      allow create: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
+      allow update: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') ||
         (isEmployee() && resource.data.assignedToEmployeeId == uid());
-      allow delete: if isAdmin() || isSupervisor() || customManage('concerts');
+      allow delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
     }
 
     // ── دفعات الحفلات (بيانات مالية) ───────────────────────────
     match /concert_payments/{paymentId} {
-      allow read:  if isAdmin() || customCan('concerts') || customCan('finances');
-      allow write: if isAdmin() || customManage('concerts');
+      allow read:  if isAdmin() || pageOn('concerts') || pageOn('finances');
+      allow write: if isAdmin() || hasFeat('concerts', 'payments');
     }
 
     // ── سجلات الحفلات (Audit Log — لا يُحذف ولا يُعدَّل) ────────
     match /concert_logs/{logId} {
-      allow read:           if isAdmin() || isSupervisor() || customCan('concerts');
+      allow read:           if isAdmin() || isSupervisor() || pageOn('concerts');
       allow create:         if signedIn();
       allow update, delete: if false;
     }
 
     // ── أكل الحفلات ────────────────────────────────────────────
     match /concert_food/{foodId} {
-      allow read:                   if isAdmin() || isSupervisor() || isEmployee() || isKitchen() || customCan('concerts') || customCan('kitchen');
-      allow create, update, delete: if isAdmin() || isSupervisor() || customManage('concerts');
+      allow read:                   if isAdmin() || isSupervisor() || isEmployee() || isKitchen() || pageOn('concerts') || pageOn('kitchen');
+      allow create, update, delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'food_items');
     }
 
     // ── أقسام الأكل ────────────────────────────────────────────
     match /food_categories/{catId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || customManage('food');
+      allow write: if isAdmin() ||
+        hasFeat('food', 'add') || hasFeat('food', 'edit') ||
+        hasFeat('food', 'delete') || hasFeat('food', 'reorder');
     }
 
     // ── مواد المخزن ────────────────────────────────────────────
+    // ملاحظة: إضافة مواد لحفلة تُحدِّث الكمية المتاحة، لذا صلاحية
+    // «إدارة مواد الحفلة» تسمح أيضاً بتحديث المخزون
     match /warehouse_items/{itemId} {
       allow read:  if signedIn();
-      allow write: if isAdminOrWarehouse() || customManage('warehouse');
+      allow write: if isAdminOrWarehouse() ||
+        hasFeat('warehouse', 'add') || hasFeat('warehouse', 'edit') || hasFeat('warehouse', 'delete') ||
+        hasFeat('concerts', 'materials');
     }
 
     // ── طلبات المخزن ───────────────────────────────────────────
     match /warehouse_requests/{reqId} {
-      allow read: if isAdmin() || isWarehouse() || customCan('concerts') ||
+      allow read: if isAdmin() || isWarehouse() || pageOn('concerts') ||
         (isSupervisor() && resource.data.supervisorId == uid());
-      allow create: if isAdmin() || customManage('concerts') ||
+      allow create: if isAdmin() || hasFeat('concerts', 'materials') ||
         (isSupervisor() && request.resource.data.supervisorId == uid());
-      allow update: if isAdminOrWarehouse() || customManage('concerts');
+      allow update: if isAdminOrWarehouse() || hasFeat('concerts', 'materials');
       allow delete: if isAdmin();
     }
 
     // ── المفقودات ──────────────────────────────────────────────
     match /missing_items/{itemId} {
-      allow read:           if isAdmin() || isWarehouse() || isSupervisor() || customCan('missing_items') || customCan('concerts');
+      allow read:           if isAdmin() || isWarehouse() || isSupervisor() || pageOn('missing_items') || pageOn('concerts');
       allow create:         if signedIn();
-      allow update, delete: if isAdminOrWarehouse() || customManage('missing_items');
+      allow update, delete: if isAdminOrWarehouse() || hasFeat('missing_items', 'resolve');
     }
 
     // ── طلبات المطبخ ───────────────────────────────────────────
-    // الإرسال: المدير أو من يملك «تحكم» بالحفلات
-    // تأكيد الاستلام: المطبخ أو من يملك «تحكم» بالمطبخ
     match /kitchen_orders/{orderId} {
-      allow read:   if isAdmin() || isKitchen() || customCan('kitchen') || customCan('concerts');
-      allow create: if isAdmin() || customManage('concerts');
-      allow update: if isAdmin() || isKitchen() || customManage('kitchen') || customManage('concerts');
+      allow read:   if isAdmin() || isKitchen() || pageOn('kitchen') || pageOn('concerts');
+      allow create: if isAdmin() || hasFeat('concerts', 'send_kitchen');
+      allow update: if isAdmin() || isKitchen() || hasFeat('kitchen', 'confirm') || hasFeat('concerts', 'send_kitchen');
       allow delete: if isAdmin();
     }
 
     // ── العدادات (ترقيم الحفلات تسلسلياً) ─────────────────────
     match /counters/{counterId} {
-      allow read, write: if isAdmin() || customManage('concerts');
+      allow read, write: if isAdmin() || hasFeat('concerts', 'create');
     }
 
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers } from "@/lib/firestore/users";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getConcerts } from "@/lib/firestore/concerts";
@@ -20,6 +21,7 @@ function calcHallCost(c: Concert): number {
 }
 
 export default function AdminDashboard() {
+  const { feat } = useAuth();
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [usersCount, setUsersCount] = useState(0);
   const [itemsCount, setItemsCount] = useState(0);
@@ -80,14 +82,14 @@ export default function AdminDashboard() {
         <p className="text-sm mt-1" style={{ color: "#6B7E99" }}>{concerts.length} حفلة مسجّلة</p>
       </div>
 
-      {/* Financial Summary */}
+      {/* Financial Summary — each card is its own permission feature */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "إجمالي الإيرادات", value: totalRevenue, icon: <TrendingUp size={20} />, color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]", suffix: "ريال" },
-          { label: "إجمالي المحصَّل", value: totalCollected, icon: <Wallet size={20} />, color: "text-emerald-600", bg: "bg-emerald-50", suffix: "ريال" },
-          { label: "إجمالي المتبقي", value: totalRemaining, icon: <Clock size={20} />, color: "text-orange-600", bg: "bg-orange-50", suffix: "ريال" },
-          { label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: <BarChart3 size={20} />, color: "text-purple-600", bg: "bg-purple-50", suffix: "ريال" },
-        ].map((s) => (
+          { key: "rev",       label: "إجمالي الإيرادات", value: totalRevenue, icon: <TrendingUp size={20} />, color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]", suffix: "ريال" },
+          { key: "collected", label: "إجمالي المحصَّل", value: totalCollected, icon: <Wallet size={20} />, color: "text-emerald-600", bg: "bg-emerald-50", suffix: "ريال" },
+          { key: "remaining", label: "إجمالي المتبقي", value: totalRemaining, icon: <Clock size={20} />, color: "text-orange-600", bg: "bg-orange-50", suffix: "ريال" },
+          { key: "costs",     label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: <BarChart3 size={20} />, color: "text-purple-600", bg: "bg-purple-50", suffix: "ريال" },
+        ].filter((s) => feat("dashboard", s.key)).map((s) => (
           <Card key={s.label}>
             <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-3`}>
               {s.icon}
@@ -100,7 +102,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Collection Rate */}
-      <Card>
+      {feat("dashboard", "collection_rate") && <Card>
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-bold text-slate-800">نسبة التحصيل</h3>
@@ -120,10 +122,10 @@ export default function AdminDashboard() {
           <span>{totalCollected.toLocaleString("en-US")} ريال محصَّل</span>
           <span>{totalRemaining.toLocaleString("en-US")} ريال متبقي</span>
         </div>
-      </Card>
+      </Card>}
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {feat("dashboard", "counters") && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "المستخدمون", value: usersCount, icon: <Users size={18} />, href: "/admin/users", color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]" },
           { label: "أغراض المخزن", value: itemsCount, icon: <Package size={18} />, href: "/admin/warehouse", color: "text-indigo-600", bg: "bg-indigo-50" },
@@ -144,11 +146,11 @@ export default function AdminDashboard() {
             </Card>
           </Link>
         ))}
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Concert Status Chart */}
-        <Card>
+        {feat("dashboard", "status_chart") && <Card>
           <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
             <CalendarDays size={16} className="text-violet-600" />
             حالة الحفلات
@@ -174,20 +176,22 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-xl px-3 py-2">
-              <p className="text-xs text-slate-400">مصاريف القاعات</p>
-              <p className="font-bold text-slate-700">{totalHall.toLocaleString("en-US")} ريال</p>
+          {feat("dashboard", "costs") && (
+            <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-xl px-3 py-2">
+                <p className="text-xs text-slate-400">مصاريف القاعات</p>
+                <p className="font-bold text-slate-700">{totalHall.toLocaleString("en-US")} ريال</p>
+              </div>
+              <div className="bg-slate-50 rounded-xl px-3 py-2">
+                <p className="text-xs text-slate-400">مصاريف النقل</p>
+                <p className="font-bold text-slate-700">{totalTransport.toLocaleString("en-US")} ريال</p>
+              </div>
             </div>
-            <div className="bg-slate-50 rounded-xl px-3 py-2">
-              <p className="text-xs text-slate-400">مصاريف النقل</p>
-              <p className="font-bold text-slate-700">{totalTransport.toLocaleString("en-US")} ريال</p>
-            </div>
-          </div>
-        </Card>
+          )}
+        </Card>}
 
         {/* Recent Concerts */}
-        <Card>
+        {feat("dashboard", "recent") && <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Music size={16} className="text-violet-600" />
@@ -231,11 +235,11 @@ export default function AdminDashboard() {
               عرض القائمة المالية الكاملة
             </Link>
           </div>
-        </Card>
+        </Card>}
       </div>
 
       {/* Quick Actions */}
-      <Card>
+      {feat("dashboard", "quick_links") && <Card>
         <h3 className="font-bold text-slate-800 mb-3">روابط سريعة</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
@@ -254,7 +258,7 @@ export default function AdminDashboard() {
             </Link>
           ))}
         </div>
-      </Card>
+      </Card>}
     </div>
   );
 }

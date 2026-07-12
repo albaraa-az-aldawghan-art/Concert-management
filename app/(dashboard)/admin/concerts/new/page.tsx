@@ -69,11 +69,11 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
 }
 
 export default function NewConcertPage() {
-  const { appUser, can } = useAuth();
+  const { appUser, feat } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
-  // Creating a concert is a mutation — a view-only concerts permission is not enough
-  const blocked = appUser?.role === "custom" && !can("concerts", "manage");
+  // Creating a concert requires the explicit "create" capability
+  const blocked = appUser?.role === "custom" && !feat("concerts", "create");
 
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);

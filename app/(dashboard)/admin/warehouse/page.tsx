@@ -15,8 +15,10 @@ import { Plus, Package, Pencil, Trash2, ImagePlus, X } from "lucide-react";
 
 export default function AdminWarehousePage() {
   const { showToast } = useToast();
-  const { can } = useAuth();
-  const canManage = can("warehouse", "manage");
+  const { feat } = useAuth();
+  const canAdd = feat("warehouse", "add");
+  const canEdit = feat("warehouse", "edit");
+  const canDelete = feat("warehouse", "delete");
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -241,7 +243,7 @@ export default function AdminWarehousePage() {
             {internalCount} داخلي · {externalCount} خارجي
           </p>
         </div>
-        {canManage && (
+        {canAdd && (
           <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
             <Plus size={16} />
             إضافة مادة
@@ -296,20 +298,24 @@ export default function AdminWarehousePage() {
                     <StatusBadge status={item.type} />
                   </div>
                 </div>
-                {canManage && (
+                {(canEdit || canDelete) && (
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(item)}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
