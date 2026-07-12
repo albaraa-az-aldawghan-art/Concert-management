@@ -242,7 +242,7 @@ export default function AdminConcertDetailPage() {
       if (editItemQtyTarget.type === "external") await updateConcertExternalCost(concert.id);
       await addConcertLog({
         concertId: id,
-        description: `تم تعديل كمية ${editItemQtyTarget.itemName} من ${oldCount} إلى ${newCount}${editItemQtyTarget.type === "external" && newTotalCost != null ? ` (التكلفة: ${newTotalCost.toLocaleString("ar-SA")} ريال)` : ""}`,
+        description: `تم تعديل كمية ${editItemQtyTarget.itemName} من ${oldCount} إلى ${newCount}${editItemQtyTarget.type === "external" && newTotalCost != null ? ` (التكلفة: ${newTotalCost.toLocaleString("en-US")} ريال)` : ""}`,
         createdBy: appUser.uid,
         field: "itemQty",
         oldValue: `${editItemQtyTarget.itemName}:::${oldCount}`,
@@ -378,7 +378,7 @@ export default function AdminConcertDetailPage() {
       await updateConcert(concert.id, { price });
       await addConcertLog({
         concertId: concert.id,
-        description: `تم تغيير سعر الحفلة من ${oldPrice?.toLocaleString("ar-SA")} ريال إلى ${price.toLocaleString("ar-SA")} ريال`,
+        description: `تم تغيير سعر الحفلة من ${oldPrice?.toLocaleString("en-US")} ريال إلى ${price.toLocaleString("en-US")} ريال`,
         createdBy: appUser.uid,
         field: "price",
         oldValue: String(oldPrice ?? 0),
@@ -426,8 +426,8 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       const cost = editTransportCost ? parseFloat(editTransportCost) : null;
-      const oldDesc = concert.transportCost ? `${concert.transportCost.toLocaleString("ar-SA")} ريال` : "بدون";
-      const newDesc = cost ? `${cost.toLocaleString("ar-SA")} ريال` : "بدون";
+      const oldDesc = concert.transportCost ? `${concert.transportCost.toLocaleString("en-US")} ريال` : "بدون";
+      const newDesc = cost ? `${cost.toLocaleString("en-US")} ريال` : "بدون";
       await updateConcert(concert.id, { transportCost: cost });
       await addConcertLog({ concertId: concert.id, description: `تم تغيير تكلفة النقل من ${oldDesc} إلى ${newDesc}`, createdBy: appUser.uid });
       showToast("تم تحديث تكلفة النقل");
@@ -448,7 +448,7 @@ export default function AdminConcertDetailPage() {
       const price = editLaborPricePerUnit ? parseFloat(editLaborPricePerUnit) : null;
       const total = count && price ? count * price : null;
       await updateConcert(concert.id, { laborCount: count, laborPricePerUnit: price, laborCost: total });
-      await addConcertLog({ concertId: concert.id, description: `تم تحديث تكلفة العمالة: ${count ?? 0} × ${price?.toLocaleString("ar-SA") ?? 0} = ${total?.toLocaleString("ar-SA") ?? 0} ريال`, createdBy: appUser.uid });
+      await addConcertLog({ concertId: concert.id, description: `تم تحديث تكلفة العمالة: ${count ?? 0} × ${price?.toLocaleString("en-US") ?? 0} = ${total?.toLocaleString("en-US") ?? 0} ريال`, createdBy: appUser.uid });
       showToast("تم تحديث تكلفة العمالة");
       setShowEditLabor(false);
       loadData();
@@ -672,7 +672,7 @@ export default function AdminConcertDetailPage() {
           {concert.cancellationReason && <p className="text-sm text-red-600">السبب: {concert.cancellationReason}</p>}
           {concert.refundAmount && concert.refundAmount > 0 && (
             <p className="text-sm text-red-600">
-              المبلغ المسترد: {concert.refundAmount.toLocaleString("ar-SA")} ريال
+              المبلغ المسترد: {concert.refundAmount.toLocaleString("en-US")} ريال
               {concert.refundDate && ` — بتاريخ ${concert.refundDate}`}
             </p>
           )}
@@ -829,7 +829,7 @@ export default function AdminConcertDetailPage() {
               <Pencil size={13} />
             </button>
           </div>
-          <p className="font-bold text-green-700 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
+          <p className="font-bold text-green-700 text-lg">{concert.price?.toLocaleString("en-US")} ريال</p>
         </Card>
         <Card>
           <div className="flex items-center justify-between mb-1">
@@ -893,10 +893,10 @@ export default function AdminConcertDetailPage() {
           {concert.hallCostType === "percentage" ? (
             <div>
               <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue}%</p>
-              <p className="text-xs text-slate-400">= {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("ar-SA")} ريال</p>
+              <p className="text-xs text-slate-400">= {((concert.price ?? 0) * (concert.hallCostValue ?? 0) / 100).toLocaleString("en-US")} ريال</p>
             </div>
           ) : concert.hallCostType === "fixed" ? (
-            <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("ar-SA")} ريال</p>
+            <p className="font-bold text-slate-800 text-lg">{concert.hallCostValue?.toLocaleString("en-US")} ريال</p>
           ) : (
             <p className="text-slate-400 text-sm">لم يُضَف بعد</p>
           )}
@@ -928,7 +928,7 @@ export default function AdminConcertDetailPage() {
             </button>
           </div>
           {concert.transportCost ? (
-            <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("ar-SA")} ريال</p>
+            <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("en-US")} ريال</p>
           ) : (
             <p className="text-slate-400 text-sm">لم يُضَف بعد</p>
           )}
@@ -951,10 +951,10 @@ export default function AdminConcertDetailPage() {
           </div>
           {concert.laborCost ? (
             <div>
-              <p className="font-bold text-slate-800 text-lg">{concert.laborCost.toLocaleString("ar-SA")} ريال</p>
+              <p className="font-bold text-slate-800 text-lg">{concert.laborCost.toLocaleString("en-US")} ريال</p>
               {concert.laborCount && concert.laborPricePerUnit && (
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {concert.laborCount} عامل × {concert.laborPricePerUnit.toLocaleString("ar-SA")} ريال
+                  {concert.laborCount} عامل × {concert.laborPricePerUnit.toLocaleString("en-US")} ريال
                 </p>
               )}
             </div>
@@ -1030,18 +1030,18 @@ export default function AdminConcertDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div className="bg-slate-50 rounded-xl px-4 py-3">
             <p className="text-xs text-slate-400 mb-0.5">السعر الكلي</p>
-            <p className="font-bold text-slate-800 text-lg">{concert.price?.toLocaleString("ar-SA")} ريال</p>
+            <p className="font-bold text-slate-800 text-lg">{concert.price?.toLocaleString("en-US")} ريال</p>
           </div>
           <div className="bg-[#EEF1F7] rounded-xl px-4 py-3">
             <p className="text-xs text-slate-400 mb-0.5">إجمالي المدفوع</p>
             <p className="font-bold text-[#1C2D50] text-lg">
-              {concert.deposit ? `${concert.deposit.toLocaleString("ar-SA")} ريال` : "—"}
+              {concert.deposit ? `${concert.deposit.toLocaleString("en-US")} ريال` : "—"}
             </p>
           </div>
           <div className="bg-orange-50 rounded-xl px-4 py-3">
             <p className="text-xs text-slate-400 mb-0.5">المبلغ المتبقي</p>
             <p className="font-bold text-orange-700 text-lg">
-              {((concert.price ?? 0) - (concert.deposit ?? 0)).toLocaleString("ar-SA")} ريال
+              {((concert.price ?? 0) - (concert.deposit ?? 0)).toLocaleString("en-US")} ريال
             </p>
           </div>
         </div>
@@ -1062,7 +1062,7 @@ export default function AdminConcertDetailPage() {
                     {p.method === "cash" && <Banknote size={13} className="text-green-500" />}
                     {p.method === "bank_transfer" && <Landmark size={13} className="text-purple-500" />}
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${METHOD_COLORS[p.method]}`}>{METHOD_LABELS[p.method]}</span>
-                    <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("ar-SA")} ريال</span>
+                    <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
                   </div>
                   <p className="text-xs text-slate-400 pr-5">
                     {p.date}
@@ -1152,16 +1152,21 @@ export default function AdminConcertDetailPage() {
             {internalItems.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">داخلية</p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {internalItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                        {item.assignedToEmployeeName && (
-                          <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
-                        )}
+                    <div key={item.id} className="flex flex-col justify-between gap-2 bg-slate-50 rounded-xl px-3.5 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                          {item.assignedToEmployeeName && (
+                            <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
+                          )}
+                        </div>
+                        <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
                           <div className="flex items-center gap-1">
                             <input
@@ -1176,16 +1181,14 @@ export default function AdminConcertDetailPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
                             </button>
                           </div>
                         )}
                         <StatusBadge status={item.deliveryStatus} />
-                        <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors">
-                          <Trash2 size={13} />
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -1195,22 +1198,30 @@ export default function AdminConcertDetailPage() {
             {externalItems.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">خارجية</p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {externalItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                        {item.totalCost != null && (
-                          <p className="text-xs text-amber-600 mt-0.5">
-                            {item.unitCost?.toLocaleString("ar-SA")} ريال × {item.count} =
-                            <span className="font-bold mr-1">{item.totalCost.toLocaleString("ar-SA")} ريال</span>
-                          </p>
-                        )}
-                        {item.assignedToEmployeeName && (
-                          <p className="text-xs text-slate-400">مسند لـ: {item.assignedToEmployeeName}</p>
-                        )}
+                    <div key={item.id} className="flex flex-col justify-between gap-2 bg-slate-50 rounded-xl px-3.5 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                          {item.totalCost != null && (
+                            <p className="text-xs text-amber-600 mt-0.5">
+                              {item.unitCost?.toLocaleString("en-US")} ريال × {item.count} =
+                              <span className="font-bold mr-1">{item.totalCost.toLocaleString("en-US")} ريال</span>
+                            </p>
+                          )}
+                          {item.assignedToEmployeeName && (
+                            <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setDeleteItemTarget(item)}
+                          className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
                           <div className="flex items-center gap-1">
                             <input
@@ -1225,19 +1236,14 @@ export default function AdminConcertDetailPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+                            <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
                             </button>
                           </div>
                         )}
                         <StatusBadge status={item.returnStatus} />
-                        <button
-                          onClick={() => setDeleteItemTarget(item)}
-                          className="text-slate-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -1248,7 +1254,7 @@ export default function AdminConcertDetailPage() {
                   return (
                     <div className="flex justify-between px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl mt-2">
                       <span className="text-sm font-semibold text-amber-700">إجمالي تكلفة المواد الخارجية</span>
-                      <span className="font-bold text-amber-700">{extTotal.toLocaleString("ar-SA")} ريال</span>
+                      <span className="font-bold text-amber-700">{extTotal.toLocaleString("en-US")} ريال</span>
                     </div>
                   );
                 })()}
@@ -1274,17 +1280,20 @@ export default function AdminConcertDetailPage() {
         {concertFood.length === 0 ? (
           <p className="text-sm text-slate-400">لم تتم إضافة أي أصناف أكل لهذه الحفلة</p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {concertFood.map((f) => (
-              <div key={f.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{f.categoryName}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">{f.selectedOption}</span>
-                    {f.notes && <span className="text-xs text-slate-400">— {f.notes}</span>}
+              <div key={f.id} className="flex flex-col justify-between gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3.5 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-500">{f.categoryName}</p>
+                    <p className="text-sm font-bold text-slate-800 mt-0.5">{f.selectedOption}</p>
+                    {f.notes && <p className="text-xs text-slate-400 mt-0.5">— {f.notes}</p>}
                   </div>
+                  <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between pt-2 border-t border-orange-100">
                   {editFoodQtyTarget?.id === f.id ? (
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-slate-500">الكمية:</span>
@@ -1299,20 +1308,17 @@ export default function AdminConcertDetailPage() {
                       <button onClick={() => setEditFoodQtyTarget(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
                     </div>
                   ) : (
-                    <>
-                      <span className="text-xs text-slate-500 font-medium">الكمية: {f.quantity ?? 0}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-slate-500 font-medium">الكمية: <span className="font-bold text-[#1C2D50]">{f.quantity ?? 0}</span></span>
                       <button
                         onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
-                        className="text-orange-400 hover:text-orange-600 transition-colors"
+                        className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
                         title="تعديل الكمية"
                       >
                         <Pencil size={13} />
                       </button>
-                    </>
+                    </div>
                   )}
-                  <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               </div>
             ))}
@@ -1458,7 +1464,7 @@ export default function AdminConcertDetailPage() {
               <div className="flex justify-between">
                 <span className="text-slate-500">المتبقي بعد الدفعة</span>
                 <span className="font-bold text-orange-700">
-                  {((concert.price ?? 0) - (concert.deposit ?? 0) - parseFloat(paymentForm.amount || "0")).toLocaleString("ar-SA")} ريال
+                  {((concert.price ?? 0) - (concert.deposit ?? 0) - parseFloat(paymentForm.amount || "0")).toLocaleString("en-US")} ريال
                 </span>
               </div>
             </div>
@@ -1477,7 +1483,7 @@ export default function AdminConcertDetailPage() {
         onClose={() => setDeletePaymentTarget(null)}
         onConfirm={handleDeletePayment}
         title="حذف الدفعة"
-        message={`هل أنت متأكد من حذف دفعة بمبلغ ${deletePaymentTarget?.amount.toLocaleString("ar-SA")} ريال؟`}
+        message={`هل أنت متأكد من حذف دفعة بمبلغ ${deletePaymentTarget?.amount.toLocaleString("en-US")} ريال؟`}
         confirmLabel="حذف"
         loading={saving}
       />
@@ -1528,8 +1534,8 @@ export default function AdminConcertDetailPage() {
                           </span>
                           {isChecked && hasPrice && (
                             <p className="text-xs text-amber-600 mt-0.5">
-                              {item.pricePerUnit!.toLocaleString("ar-SA")} ريال × {qty} =
-                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("ar-SA")} ريال</span>
+                              {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
+                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
                             </p>
                           )}
                         </div>
@@ -1749,7 +1755,7 @@ export default function AdminConcertDetailPage() {
               />
               {editHallCostType === "percentage" && editHallCostValue && concert && (
                 <p className="text-xs text-slate-400 mt-1">
-                  = {((concert.price ?? 0) * parseFloat(editHallCostValue || "0") / 100).toLocaleString("ar-SA")} ريال
+                  = {((concert.price ?? 0) * parseFloat(editHallCostValue || "0") / 100).toLocaleString("en-US")} ريال
                 </p>
               )}
             </div>
@@ -1868,7 +1874,7 @@ export default function AdminConcertDetailPage() {
             <div className="flex justify-between px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
               <span className="text-sm font-semibold text-blue-700">الإجمالي</span>
               <span className="font-bold text-blue-700">
-                {(parseInt(editLaborCount) * parseFloat(editLaborPricePerUnit)).toLocaleString("ar-SA")} ريال
+                {(parseInt(editLaborCount) * parseFloat(editLaborPricePerUnit)).toLocaleString("en-US")} ريال
               </span>
             </div>
           )}
