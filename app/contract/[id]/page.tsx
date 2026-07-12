@@ -238,15 +238,11 @@ export default function ContractPage() {
   const prevVenueName = fieldPrev["venueName"] ?? null;
 
   // ── Food change tracking ──────────────────────────
-  interface DeletedFood { categoryName: string; option: string; qty: number }
-  const deletedFoods: DeletedFood[] = [];
+  // Deleted items disappear from the contract entirely; re-added items count
+  // as new (bold) via the foodAdded log.
   const addedFoodKeys = new Set<string>(); // "categoryName:::option"
   const foodQtyChanges = new Map<string, { oldQty: number; newQty: number }>(); // "categoryName:::option"
   for (const log of logs) {
-    if (log.field === "foodDeleted" && log.oldValue) {
-      const parts = log.oldValue.split(":::");
-      deletedFoods.push({ categoryName: parts[0] ?? "", option: parts[1] ?? "", qty: parseInt(parts[2] ?? "0") || 0 });
-    }
     if (log.field === "foodAdded" && log.newValue) {
       const parts = log.newValue.split(":::");
       addedFoodKeys.add(`${parts[0] ?? ""}:::${parts[1] ?? ""}`);
@@ -403,11 +399,37 @@ export default function ContractPage() {
       window.print();
       return;
     }
+
+    // iOS blocks window.open after ANY await — open the tab NOW, inside the
+    // user gesture, then point it at the PDF once it's ready.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    let pdfTab: Window | null = null;
+    if (isIOS) {
+      pdfTab = window.open("", "_blank");
+      if (pdfTab) {
+        pdfTab.document.write(
+          '<div style="font-family:sans-serif;text-align:center;margin-top:60px;direction:rtl;color:#1C2D50;font-size:17px">جارٍ تجهيز العقد...</div>'
+        );
+      }
+    }
+
     setSharing(true);
     try {
       const { blob, filename } = await generateContractPDF();
-      downloadBlob(blob, filename);
+      if (isIOS) {
+        const url = URL.createObjectURL(blob);
+        if (pdfTab) {
+          pdfTab.location.href = url;
+        } else {
+          // Popup was blocked — open the PDF in the current tab (back returns to the contract)
+          window.location.href = url;
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      } else {
+        downloadBlob(blob, filename);
+      }
     } catch (err) {
+      pdfTab?.close();
       alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSharing(false);
@@ -812,7 +834,7 @@ export default function ContractPage() {
           </div>
 
           {/* Food */}
-          {(foodGroups.length > 0 || deletedFoods.length > 0) && (
+          {foodGroups.length > 0 && (
             <div className="section-inner" style={S.section}>
               <div style={S.secHd}>
                 <span style={S.secAccent} />
@@ -847,11 +869,21 @@ export default function ContractPage() {
                               const isNew = addedFoodKeys.has(key);
                               const qc = foodQtyChanges.get(key);
                               const qtyIncreased = qc && qc.newQty > qc.oldQty;
-                              const isBold = isNew || qtyIncreased;
+                              // New or re-added items + increases → dark bold.
+                              // Any qty edit → underline; decreases keep the normal color.
+                              const optStyle: React.CSSProperties = {};
+                              if (isNew || qtyIncreased) {
+                                optStyle.fontWeight = 800;
+                                optStyle.color = "#0F172A";
+                              }
+                              if (qc) {
+                                optStyle.borderBottom = "1.5px solid currentColor";
+                                optStyle.paddingBottom = 1;
+                              }
                               return (
                                 <span key={j}>
                                   {j > 0 && "، "}
-                                  <span style={isBold ? { fontWeight: 800, color: "#0F172A" } : undefined}>{opt}</span>
+                                  <span style={Object.keys(optStyle).length ? optStyle : undefined}>{opt}</span>
                                 </span>
                               );
                             })}
@@ -860,21 +892,14 @@ export default function ContractPage() {
                             ...S.tdTotal,
                             ...(totalIncreased ? { color: "#065F46", fontWeight: 900 } : {}),
                           }}>
-                            {totalDecreased && (
-                              <Strike color="#94A3B8" style={{ fontSize: 11, marginLeft: 6 }}>{oldTotal}</Strike>
+                            {(totalDecreased || totalIncreased) && (
+                              <Strike color="#94A3B8" style={{ fontSize: 11, marginLeft: 6, fontWeight: 400 }}>{oldTotal}</Strike>
                             )}
                             {g.totalQty > 0 ? g.totalQty : "—"}
                           </td>
                         </tr>
                       );
                     })}
-                    {deletedFoods.map((d, i) => (
-                      <tr key={`del-${i}`}>
-                        <td style={{ ...S.tdDel, width: "22%" }}><Strike color="#CBD5E1">{d.categoryName}</Strike></td>
-                        <td style={S.tdDel}><Strike color="#CBD5E1">{d.option}</Strike></td>
-                        <td style={{ ...S.tdDel, textAlign: "center", width: "22%" }}><Strike color="#CBD5E1">{d.qty > 0 ? d.qty : "—"}</Strike></td>
-                      </tr>
-                    ))}
                   </tbody>
                 </table>
               </div>

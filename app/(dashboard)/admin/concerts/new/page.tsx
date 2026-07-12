@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod } from "@/types";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
-import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2 } from "lucide-react";
+import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const LocationPickerDynamic = dynamic(
@@ -102,11 +102,13 @@ export default function NewConcertPage() {
   /* ── Items checklist ── */
   const [activeItemType, setActiveItemType] = useState<"" | "internal" | "external">("");
   const [itemCheck, setItemCheck] = useState<Record<string, CheckState>>({});
+  const [itemSearch, setItemSearch] = useState("");
 
   /* ── Food checklist ── */
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
   const [activeFoodCategoryId, setActiveFoodCategoryId] = useState("");
   const [foodCheck, setFoodCheck] = useState<Record<string, CheckState>>({});
+  const [foodSearch, setFoodSearch] = useState("");
 
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [paymentForm, setPaymentForm] = useState({
@@ -322,7 +324,10 @@ export default function NewConcertPage() {
   /* ── Items split by type ── */
   const internalItems = warehouseItems.filter((i) => i.type === "internal");
   const externalItems = warehouseItems.filter((i) => i.type === "external");
-  const activeTypeItems = activeItemType === "internal" ? internalItems : activeItemType === "external" ? externalItems : [];
+  const activeTypeItemsAll = activeItemType === "internal" ? internalItems : activeItemType === "external" ? externalItems : [];
+  const activeTypeItems = itemSearch.trim()
+    ? activeTypeItemsAll.filter((i) => i.name.includes(itemSearch.trim()))
+    : activeTypeItemsAll;
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -597,13 +602,27 @@ export default function NewConcertPage() {
           {/* Type dropdown */}
           <select
             value={activeItemType}
-            onChange={(e) => setActiveItemType(e.target.value as "" | "internal" | "external")}
+            onChange={(e) => { setActiveItemType(e.target.value as "" | "internal" | "external"); setItemSearch(""); }}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white mb-4"
           >
             <option value="">— اختر نوع المواد —</option>
             <option value="internal">داخلي ({internalItems.length} مادة)</option>
             <option value="external">خارجي ({externalItems.length} مادة)</option>
           </select>
+
+          {/* Search */}
+          {activeItemType && (
+            <div className="relative mb-4">
+              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder="ابحث باسم المادة..."
+                className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+              />
+            </div>
+          )}
 
           {/* Checklist for selected type */}
           {activeItemType && (
@@ -615,7 +634,9 @@ export default function NewConcertPage() {
                 </p>
               </div>
               {activeTypeItems.length === 0 ? (
-                <div className="px-4 py-6 text-center text-sm text-slate-400">لا توجد مواد في هذا النوع</div>
+                <div className="px-4 py-6 text-center text-sm text-slate-400">
+                  {itemSearch.trim() ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد في هذا النوع"}
+                </div>
               ) : (
                 <div className="divide-y divide-slate-50">
                   {activeTypeItems.map((item) => {
@@ -725,7 +746,7 @@ export default function NewConcertPage() {
             {/* Category dropdown */}
             <select
               value={activeFoodCategoryId}
-              onChange={(e) => setActiveFoodCategoryId(e.target.value)}
+              onChange={(e) => { setActiveFoodCategoryId(e.target.value); setFoodSearch(""); }}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white mb-4"
             >
               <option value="">— اختر قسم الأكل —</option>
@@ -734,11 +755,30 @@ export default function NewConcertPage() {
               ))}
             </select>
 
+            {/* Search */}
+            {activeFoodCategoryId && (
+              <div className="relative mb-4">
+                <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={foodSearch}
+                  onChange={(e) => setFoodSearch(e.target.value)}
+                  placeholder="ابحث باسم الصنف..."
+                  className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                />
+              </div>
+            )}
+
             {/* Options checklist for selected category */}
             {activeFoodCategoryId && (() => {
               const cat = foodCategories.find((c) => c.id === activeFoodCategoryId);
               if (!cat) return null;
-              const options = cat.options.length > 0 ? cat.options : [""];
+              let options = cat.options.length > 0 ? cat.options : [""];
+              const fq = foodSearch.trim();
+              if (fq) options = options.filter((o) => (o || cat.name).includes(fq));
+              if (options.length === 0) {
+                return <p className="text-sm text-slate-400 text-center py-4 mb-4">لا توجد نتائج مطابقة للبحث</p>;
+              }
               return (
                 <div className="border border-orange-100 rounded-xl overflow-hidden mb-4">
                   <div className="bg-orange-50 px-4 py-2.5 border-b border-orange-100 flex items-center gap-2">

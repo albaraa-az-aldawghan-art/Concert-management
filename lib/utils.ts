@@ -8,25 +8,23 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(timestamp: Timestamp | null | undefined): string {
   if (!timestamp) return "—";
-  const date = timestamp.toDate();
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
+  const d = timestamp.toDate();
+  const weekday = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", { weekday: "long" }).format(d);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${weekday}، ${dd}/${mm}/${d.getFullYear()}`;
 }
 
 export function formatDateTime(timestamp: Timestamp | null | undefined): string {
   if (!timestamp) return "—";
-  const date = timestamp.toDate();
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+  const d = timestamp.toDate();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const time = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(d);
+  return `${dd}/${mm}/${d.getFullYear()} ${time}`;
 }
 
 export function getRoleLabel(role: string): string {

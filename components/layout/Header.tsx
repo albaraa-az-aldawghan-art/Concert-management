@@ -35,7 +35,11 @@ export function Header() {
       <div className="lg:hidden w-10" />
       <h1 className="text-base sm:text-lg font-bold text-slate-800 truncate">{getTitle()}</h1>
       <div className="text-xs text-slate-400 hidden sm:block tabular-nums-auto">
-        {new Date().toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        {(() => {
+          const d = new Date();
+          const weekday = d.toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long" });
+          return `${weekday}، ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+        })()}
       </div>
     </header>
   );
