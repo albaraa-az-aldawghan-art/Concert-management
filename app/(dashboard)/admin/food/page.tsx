@@ -35,13 +35,15 @@ function SortableCategoryCard({
   cat,
   onEdit,
   onDelete,
+  canManage,
 }: {
   cat: FoodCategory;
   onEdit: (cat: FoodCategory) => void;
   onDelete: (cat: FoodCategory) => void;
+  canManage: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: cat.id });
+    useSortable({ id: cat.id, disabled: !canManage });
 
   return (
     <div
@@ -57,31 +59,35 @@ function SortableCategoryCard({
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Drag handle */}
-            <button
-              {...attributes}
-              {...listeners}
-              className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
-              style={{ touchAction: "none" }}
-              aria-label="سحب لإعادة الترتيب"
-            >
-              <GripVertical size={18} />
-            </button>
+            {canManage && (
+              <button
+                {...attributes}
+                {...listeners}
+                className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
+                style={{ touchAction: "none" }}
+                aria-label="سحب لإعادة الترتيب"
+              >
+                <GripVertical size={18} />
+              </button>
+            )}
             <p className="font-bold text-slate-800 text-base truncate">{cat.name}</p>
           </div>
-          <div className="flex gap-1 shrink-0 mr-1">
-            <button
-              onClick={() => onEdit(cat)}
-              className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              onClick={() => onDelete(cat)}
-              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+          {canManage && (
+            <div className="flex gap-1 shrink-0 mr-1">
+              <button
+                onClick={() => onEdit(cat)}
+                className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                onClick={() => onDelete(cat)}
+                className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
         </div>
         {cat.options.length === 0 ? (
           <p className="text-xs text-slate-400">لا توجد أصناف</p>
@@ -104,8 +110,9 @@ function SortableCategoryCard({
 
 /* ── Main page ── */
 export default function AdminFoodPage() {
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const { showToast } = useToast();
+  const canManage = can("food", "manage");
 
   const [categories, setCategories] = useState<FoodCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +144,7 @@ export default function AdminFoodPage() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
+    if (!canManage) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -218,9 +226,11 @@ export default function AdminFoodPage() {
           <h2 className="text-xl font-bold text-slate-800">أصناف الأكل</h2>
           <p className="text-sm text-slate-500">{categories.length} قسم مضاف</p>
         </div>
-        <Button onClick={openAdd}>
-          <Plus size={16} /> إضافة قسم مأكولات
-        </Button>
+        {canManage && (
+          <Button onClick={openAdd}>
+            <Plus size={16} /> إضافة قسم مأكولات
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -247,6 +257,7 @@ export default function AdminFoodPage() {
                     cat={cat}
                     onEdit={openEdit}
                     onDelete={setDeleteTarget}
+                    canManage={canManage}
                   />
                 ))}
               </div>

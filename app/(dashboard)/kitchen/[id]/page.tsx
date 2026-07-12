@@ -17,8 +17,9 @@ import { Printer, CheckCircle2, ChevronRight, UtensilsCrossed, Package } from "l
 
 export default function KitchenSheetPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const { showToast } = useToast();
+  const canConfirm = can("kitchen", "manage");
 
   const [concert, setConcert] = useState<Concert | null>(null);
   const [food, setFood] = useState<ConcertFood[]>([]);
@@ -109,7 +110,7 @@ export default function KitchenSheetPage() {
             <ChevronRight size={16} /> العودة للطلبات
           </Link>
           <div className="mr-auto flex gap-2">
-            {order?.status === "sent" && (
+            {order?.status === "sent" && canConfirm && (
               <Button variant="success" size="sm" loading={confirming} onClick={handleConfirm}>
                 <CheckCircle2 size={14} /> تأكيد الاستلام
               </Button>

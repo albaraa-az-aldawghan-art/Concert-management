@@ -24,7 +24,8 @@ export async function createUser(
   password: string,
   name: string,
   role: UserRole,
-  createdBy: string
+  createdBy: string,
+  customRoleId: string | null = null
 ): Promise<AppUser> {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   const uid = credential.user.uid;
@@ -34,6 +35,7 @@ export async function createUser(
     name,
     email,
     role,
+    customRoleId,
     createdAt: Timestamp.now(),
     createdBy,
   };

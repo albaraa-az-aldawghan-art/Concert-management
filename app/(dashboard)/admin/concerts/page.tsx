@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts, deleteConcert } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -80,6 +81,8 @@ function getMonthBounds(): [string, string] {
 
 export default function AdminConcertsPage() {
   const { showToast } = useToast();
+  const { can } = useAuth();
+  const canManage = can("concerts", "manage");
   const [concerts, setConcerts]     = useState<Concert[]>([]);
   const [loading, setLoading]       = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Concert | null>(null);
@@ -182,12 +185,14 @@ export default function AdminConcertsPage() {
             {filtered.length} من {concerts.length} حفلة
           </p>
         </div>
-        <Link href="/admin/concerts/new">
-          <Button>
-            <Plus size={16} />
-            حفلة جديدة
-          </Button>
-        </Link>
+        {canManage && (
+          <Link href="/admin/concerts/new">
+            <Button>
+              <Plus size={16} />
+              حفلة جديدة
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Search */}
@@ -360,10 +365,12 @@ export default function AdminConcertsPage() {
                         className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors">
                         <Eye size={14} />
                       </Link>
-                      <button onClick={() => setDeleteTarget(c)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={14} />
-                      </button>
+                      {canManage && (
+                        <button onClick={() => setDeleteTarget(c)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-1">
@@ -429,10 +436,12 @@ export default function AdminConcertsPage() {
                               className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors">
                               <Eye size={14} />
                             </Link>
-                            <button onClick={() => setDeleteTarget(c)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                              <Trash2 size={14} />
-                            </button>
+                            {canManage && (
+                              <button onClick={() => setDeleteTarget(c)}
+                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

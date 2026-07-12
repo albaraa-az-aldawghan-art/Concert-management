@@ -69,9 +69,11 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
 }
 
 export default function NewConcertPage() {
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
+  // Creating a concert is a mutation — a view-only concerts permission is not enough
+  const blocked = appUser?.role === "custom" && !can("concerts", "manage");
 
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
@@ -328,6 +330,14 @@ export default function NewConcertPage() {
   const activeTypeItems = itemSearch.trim()
     ? activeTypeItemsAll.filter((i) => i.name.includes(itemSearch.trim()))
     : activeTypeItemsAll;
+
+  if (blocked) {
+    return (
+      <p className="text-center text-slate-400 py-12">
+        صلاحيتك على الحفلات «عرض فقط» — لا يمكنك إنشاء حفلة جديدة
+      </p>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">

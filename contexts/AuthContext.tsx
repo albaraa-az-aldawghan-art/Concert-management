@@ -1,26 +1,35 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserById } from "@/lib/firestore/users";
-import { AppUser } from "@/types";
+import { getCustomRoleById } from "@/lib/firestore/roles";
+import { canAccess, firstAllowedPath } from "@/lib/permissions";
+import { AppUser, CustomRole, PermissionLevel, PermissionPage } from "@/types";
 
 interface AuthContextValue {
   firebaseUser: User | null;
   appUser: AppUser | null;
+  customRole: CustomRole | null;
   loading: boolean;
+  can: (page: PermissionPage, level?: PermissionLevel) => boolean;
+  homePath: () => string;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser: null,
   appUser: null,
+  customRole: null,
   loading: true,
+  can: () => false,
+  homePath: () => "/login",
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [customRole, setCustomRole] = useState<CustomRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,17 +37,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFirebaseUser(user);
       if (user) {
         const userData = await getUserById(user.uid);
+        // Load the custom role BEFORE clearing loading so permission checks
+        // never run against a half-loaded session.
+        if (userData?.role === "custom" && userData.customRoleId) {
+          setCustomRole(await getCustomRoleById(userData.customRoleId).catch(() => null));
+        } else {
+          setCustomRole(null);
+        }
         setAppUser(userData);
       } else {
         setAppUser(null);
+        setCustomRole(null);
       }
       setLoading(false);
     });
     return unsubscribe;
   }, []);
 
+  const can = useCallback(
+    (page: PermissionPage, level: PermissionLevel = "view") =>
+      canAccess(appUser, customRole, page, level),
+    [appUser, customRole]
+  );
+
+  const homePath = useCallback(
+    () => firstAllowedPath(appUser, customRole),
+    [appUser, customRole]
+  );
+
   return (
-    <AuthContext.Provider value={{ firebaseUser, appUser, loading }}>
+    <AuthContext.Provider value={{ firebaseUser, appUser, customRole, loading, can, homePath }}>
       {children}
     </AuthContext.Provider>
   );

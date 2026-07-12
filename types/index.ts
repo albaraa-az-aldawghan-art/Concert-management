@@ -1,6 +1,26 @@
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee" | "kitchen";
+export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee" | "kitchen" | "custom";
+
+export type PermissionLevel = "view" | "manage";
+
+export type PermissionPage =
+  | "dashboard"
+  | "finances"
+  | "concerts"
+  | "users"
+  | "warehouse"
+  | "food"
+  | "missing_items"
+  | "kitchen";
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  permissions: Partial<Record<PermissionPage, PermissionLevel>>;
+  createdAt: Timestamp;
+  createdBy: string;
+}
 
 export interface KitchenOrder {
   id: string;
@@ -21,6 +41,7 @@ export interface AppUser {
   name: string;
   email: string;
   role: UserRole;
+  customRoleId?: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }

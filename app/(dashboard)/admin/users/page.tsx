@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { AppUser, UserRole } from "@/types";
+import { AppUser, UserRole, CustomRole } from "@/types";
+import { getCustomRoles } from "@/lib/firestore/roles";
 import { getRoleLabel, formatDate } from "@/lib/utils";
 import { Plus, Trash2, Users, Pencil } from "lucide-react";
 
@@ -30,9 +31,11 @@ const roleColors: Record<string, "blue" | "indigo" | "green" | "gray"> = {
 };
 
 export default function UsersPage() {
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const { showToast } = useToast();
+  const canManage = can("users", "manage");
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
@@ -44,7 +47,7 @@ export default function UsersPage() {
     name: "",
     email: "",
     password: "",
-    role: "employee" as UserRole,
+    role: "employee", // base role value OR "custom::<roleId>"
   });
 
   const [editForm, setEditForm] = useState({ name: "", newPassword: "" });
@@ -53,10 +56,13 @@ export default function UsersPage() {
 
   async function loadUsers() {
     setLoading(true);
-    const data = await getAllUsers();
+    const [data, roles] = await Promise.all([getAllUsers(), getCustomRoles().catch(() => [])]);
     setUsers(data);
+    setCustomRoles(roles);
     setLoading(false);
   }
+
+  const customRoleName = (id?: string | null) => customRoles.find((r) => r.id === id)?.name ?? "دور مخصص";
 
   function openEdit(user: AppUser) {
     setEditTarget(user);
@@ -68,7 +74,10 @@ export default function UsersPage() {
     if (!appUser) return;
     setSaving(true);
     try {
-      await createUser(form.email, form.password, form.name, form.role, appUser.uid);
+      const isCustom = form.role.startsWith("custom::");
+      const role = (isCustom ? "custom" : form.role) as UserRole;
+      const customRoleId = isCustom ? form.role.split("::")[1] : null;
+      await createUser(form.email, form.password, form.name, role, appUser.uid, customRoleId);
       showToast("تم إنشاء المستخدم بنجاح");
       setShowAdd(false);
       setForm({ name: "", email: "", password: "", role: "employee" });
@@ -159,15 +168,17 @@ export default function UsersPage() {
           <h2 className="text-xl font-bold text-slate-800">إدارة المستخدمين</h2>
           <p className="text-sm text-slate-500">{users.length} مستخدم مسجل</p>
         </div>
-        <Button onClick={() => setShowAdd(true)} className="gap-2">
-          <Plus size={16} />
-          إضافة مستخدم
-        </Button>
+        {canManage && (
+          <Button onClick={() => setShowAdd(true)} className="gap-2">
+            <Plus size={16} />
+            إضافة مستخدم
+          </Button>
+        )}
       </div>
 
       {/* Filter */}
       <div className="flex gap-2 flex-wrap">
-        {["", "warehouse_manager", "supervisor", "employee", "kitchen"].map((role) => (
+        {["", "warehouse_manager", "supervisor", "employee", "kitchen", "custom"].map((role) => (
           <button
             key={role}
             onClick={() => setFilterRole(role)}
@@ -196,24 +207,26 @@ export default function UsersPage() {
           {filteredUsers.map((user) => (
             <Card key={user.uid} className="relative">
               {/* Actions */}
-              <div className="absolute top-3 left-3 flex gap-1">
-                <button
-                  onClick={() => openEdit(user)}
-                  className="p-1.5 text-slate-300 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
-                  title="تعديل الاسم وكلمة المرور"
-                >
-                  <Pencil size={14} />
-                </button>
-                {user.uid !== appUser?.uid && (
+              {canManage && (
+                <div className="absolute top-3 left-3 flex gap-1">
                   <button
-                    onClick={() => setDeleteTarget(user)}
-                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="حذف"
+                    onClick={() => openEdit(user)}
+                    className="p-1.5 text-slate-300 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
+                    title="تعديل الاسم وكلمة المرور"
                   >
-                    <Trash2 size={14} />
+                    <Pencil size={14} />
                   </button>
-                )}
-              </div>
+                  {user.uid !== appUser?.uid && (
+                    <button
+                      onClick={() => setDeleteTarget(user)}
+                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="حذف"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-[#D4DCE8] flex items-center justify-center text-[#1C2D50] font-bold text-sm">
@@ -226,7 +239,7 @@ export default function UsersPage() {
               </div>
               <div className="flex items-center justify-between">
                 <Badge variant={roleColors[user.role] ?? "gray"}>
-                  {getRoleLabel(user.role)}
+                  {user.role === "custom" ? customRoleName(user.customRoleId) : getRoleLabel(user.role)}
                 </Badge>
                 <span className="text-xs text-slate-400">{formatDate(user.createdAt)}</span>
               </div>
@@ -266,12 +279,19 @@ export default function UsersPage() {
           <Select
             label="الدور"
             value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
             required
           >
             {roleOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
+            {customRoles.length > 0 && (
+              <optgroup label="أدوار مخصصة (من الإعدادات)">
+                {customRoles.map((r) => (
+                  <option key={r.id} value={`custom::${r.id}`}>{r.name}</option>
+                ))}
+              </optgroup>
+            )}
           </Select>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button>

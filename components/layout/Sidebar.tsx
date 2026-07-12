@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { signOut } from "@/lib/firestore/users";
 import { cn } from "@/lib/utils";
+import { PERMISSION_PAGES } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Users,
@@ -81,13 +82,14 @@ const roleLabels: Record<string, string> = {
 
 interface SidebarContentProps {
   appUser: ReturnType<typeof useAuth>["appUser"];
+  roleLabel?: string;
   pathname: string;
   navItems: NavItem[];
   onClose: () => void;
   onSignOut: () => void;
 }
 
-function SidebarContent({ appUser, pathname, navItems, onClose, onSignOut }: SidebarContentProps) {
+function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSignOut }: SidebarContentProps) {
   return (
     <div className="flex flex-col h-full" style={{ background: "#111D35" }}>
 
@@ -125,7 +127,7 @@ function SidebarContent({ appUser, pathname, navItems, onClose, onSignOut }: Sid
           <div className="min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: "#D4DCE8" }}>{appUser?.name}</p>
             <p className="text-xs truncate" style={{ color: "#6B7E99" }}>
-              {roleLabels[appUser?.role ?? ""]}
+              {roleLabel ?? roleLabels[appUser?.role ?? ""]}
             </p>
           </div>
         </div>
@@ -221,13 +223,35 @@ function SidebarContent({ appUser, pathname, navItems, onClose, onSignOut }: Sid
   );
 }
 
+const permissionIcons: Record<string, React.ReactNode> = {
+  dashboard:     <LayoutDashboard size={17} />,
+  finances:      <BarChart3 size={17} />,
+  concerts:      <Music size={17} />,
+  users:         <Users size={17} />,
+  warehouse:     <Package size={17} />,
+  food:          <UtensilsCrossed size={17} />,
+  missing_items: <AlertTriangle size={17} />,
+  kitchen:       <UtensilsCrossed size={17} />,
+};
+
 export function Sidebar() {
-  const { appUser } = useAuth();
+  const { appUser, customRole, can } = useAuth();
   const pathname    = usePathname();
   const router      = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navItems = navByRole[appUser?.role ?? "employee"] ?? [];
+  // Custom roles get a nav built from exactly what they're allowed to open
+  const navItems: NavItem[] =
+    appUser?.role === "custom"
+      ? [
+          ...PERMISSION_PAGES.filter((p) => can(p.key, "view")).map((p) => ({
+            label: p.label,
+            href: p.href,
+            icon: permissionIcons[p.key],
+          })),
+          { label: "الإعدادات", href: "/settings", icon: <Settings size={17} /> },
+        ]
+      : navByRole[appUser?.role ?? "employee"] ?? [];
 
   async function handleSignOut() {
     await signOut();
@@ -245,6 +269,7 @@ export function Sidebar() {
       >
         <SidebarContent
           appUser={appUser}
+          roleLabel={appUser?.role === "custom" ? customRole?.name ?? "دور مخصص" : undefined}
           pathname={pathname}
           navItems={navItems}
           onClose={noOp}
@@ -285,6 +310,7 @@ export function Sidebar() {
             </button>
             <SidebarContent
               appUser={appUser}
+              roleLabel={appUser?.role === "custom" ? customRole?.name ?? "دور مخصص" : undefined}
               pathname={pathname}
               navItems={navItems}
               onClose={() => setMobileOpen(false)}

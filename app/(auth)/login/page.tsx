@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/firestore/users";
 import { getUserById } from "@/lib/firestore/users";
+import { getCustomRoleById } from "@/lib/firestore/roles";
+import { firstAllowedPath } from "@/lib/permissions";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
@@ -22,14 +24,11 @@ export default function LoginPage() {
       const credential = await signIn(email, password);
       const user = await getUserById(credential.user.uid);
       if (!user) throw new Error("المستخدم غير موجود");
-      const dashboards: Record<string, string> = {
-        admin:             "/admin",
-        warehouse_manager: "/warehouse-manager",
-        supervisor:        "/supervisor",
-        employee:          "/employee",
-        kitchen:           "/kitchen",
-      };
-      router.push(dashboards[user.role] ?? "/");
+      const customRole =
+        user.role === "custom" && user.customRoleId
+          ? await getCustomRoleById(user.customRoleId).catch(() => null)
+          : null;
+      router.push(firstAllowedPath(user, customRole));
     } catch {
       setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
     } finally {

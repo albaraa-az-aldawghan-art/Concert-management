@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,9 +11,15 @@ import { auth } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { KeyRound, ShieldCheck, Percent } from "lucide-react";
+import { KeyRound, ShieldCheck, Percent, Shield, Plus, Pencil, Trash2, Eye, Settings2 } from "lucide-react";
 import { getVatRate, updateVatRate } from "@/lib/firestore/settings";
+import { getCustomRoles, addCustomRole, updateCustomRole, deleteCustomRole } from "@/lib/firestore/roles";
+import { PERMISSION_PAGES } from "@/lib/permissions";
+import { CustomRole, PermissionLevel, PermissionPage } from "@/types";
+
+type PermMap = Partial<Record<PermissionPage, PermissionLevel>>;
 
 export default function SettingsPage() {
   const { appUser } = useAuth();
@@ -24,9 +30,92 @@ export default function SettingsPage() {
   const [vatRateInput, setVatRateInput] = useState("");
   const [vatSaving, setVatSaving] = useState(false);
 
+  // ── Roles & permissions state (admin only) ──
+  const [roles, setRoles] = useState<CustomRole[]>([]);
+  const [showRoleForm, setShowRoleForm] = useState(false);
+  const [editRoleTarget, setEditRoleTarget] = useState<CustomRole | null>(null);
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState<CustomRole | null>(null);
+  const [roleName, setRoleName] = useState("");
+  const [rolePerms, setRolePerms] = useState<PermMap>({});
+  const [roleSaving, setRoleSaving] = useState(false);
+
   useEffect(() => {
     getVatRate().then((r) => setVatRateInput(String(r)));
   }, []);
+
+  useEffect(() => {
+    if (appUser?.role === "admin") loadRoles();
+  }, [appUser?.role]);
+
+  async function loadRoles() {
+    try {
+      setRoles(await getCustomRoles());
+    } catch {
+      /* silent — section simply stays empty */
+    }
+  }
+
+  function openAddRole() {
+    setEditRoleTarget(null);
+    setRoleName("");
+    setRolePerms({});
+    setShowRoleForm(true);
+  }
+
+  function openEditRole(role: CustomRole) {
+    setEditRoleTarget(role);
+    setRoleName(role.name);
+    setRolePerms({ ...role.permissions });
+    setShowRoleForm(true);
+  }
+
+  function setPerm(page: PermissionPage, level: PermissionLevel | null) {
+    setRolePerms((prev) => {
+      const next = { ...prev };
+      if (level === null) delete next[page];
+      else next[page] = level;
+      return next;
+    });
+  }
+
+  async function handleSaveRole() {
+    if (!appUser || !roleName.trim()) return;
+    if (Object.keys(rolePerms).length === 0) {
+      showToast("اختر صلاحية واحدة على الأقل", "error");
+      return;
+    }
+    setRoleSaving(true);
+    try {
+      if (editRoleTarget) {
+        await updateCustomRole(editRoleTarget.id, { name: roleName.trim(), permissions: rolePerms });
+        showToast("تم تحديث الدور");
+      } else {
+        await addCustomRole({ name: roleName.trim(), permissions: rolePerms, createdBy: appUser.uid });
+        showToast("تم إنشاء الدور");
+      }
+      setShowRoleForm(false);
+      loadRoles();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setRoleSaving(false);
+    }
+  }
+
+  async function handleDeleteRole() {
+    if (!deleteRoleTarget) return;
+    setRoleSaving(true);
+    try {
+      await deleteCustomRole(deleteRoleTarget.id);
+      showToast("تم حذف الدور");
+      setDeleteRoleTarget(null);
+      loadRoles();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setRoleSaving(false);
+    }
+  }
 
   async function handleVatSave() {
     const rate = parseFloat(vatRateInput);
@@ -82,12 +171,88 @@ export default function SettingsPage() {
     }
   }
 
+  const LEVEL_OPTIONS: { value: PermissionLevel | null; label: string }[] = [
+    { value: null, label: "بدون" },
+    { value: "view", label: "عرض" },
+    { value: "manage", label: "تحكم" },
+  ];
+
   return (
-    <div className="max-w-md mx-auto space-y-5">
+    <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h2 className="text-xl font-bold text-slate-800">الإعدادات</h2>
         <p className="text-sm text-slate-500 mt-0.5">{appUser?.email}</p>
       </div>
+
+      {/* ── Roles & Permissions — admin only ── */}
+      {appUser?.role === "admin" && (
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#EEF1F7] rounded-xl flex items-center justify-center">
+                <Shield size={20} className="text-[#1C2D50]" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">الأدوار والصلاحيات</h3>
+                <p className="text-xs text-slate-400">أنشئ أدواراً مخصصة وحدد صلاحية كل صفحة (عرض أو تحكم)</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={openAddRole}>
+              <Plus size={14} /> دور جديد
+            </Button>
+          </div>
+
+          {roles.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">
+              لا توجد أدوار مخصصة — أنشئ دوراً ثم اربطه بمستخدم من صفحة المستخدمين
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {roles.map((role) => (
+                <div key={role.id} className="flex items-start justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800 text-sm">{role.name}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {PERMISSION_PAGES.filter((p) => role.permissions[p.key]).map((p) => (
+                        <span
+                          key={p.key}
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            role.permissions[p.key] === "manage"
+                              ? "bg-[#1C2D50] text-white"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {role.permissions[p.key] === "manage" ? <Settings2 size={10} /> : <Eye size={10} />}
+                          {p.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      onClick={() => openEditRole(role)}
+                      className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteRoleTarget(role)}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-3">
+            <span className="inline-flex items-center gap-1"><Eye size={11} /> عرض = يشاهد فقط</span>
+            <span className="inline-flex items-center gap-1"><Settings2 size={11} /> تحكم = إضافة وتعديل وحذف</span>
+          </p>
+        </Card>
+      )}
 
       {/* VAT Rate — admin only */}
       {appUser?.role === "admin" && (
@@ -185,7 +350,101 @@ export default function SettingsPage() {
           </Button>
         </form>
       </Card>
+
+      {/* ── Role add/edit modal ── */}
+      <Modal
+        open={showRoleForm}
+        onClose={() => setShowRoleForm(false)}
+        title={editRoleTarget ? `تعديل الدور: ${editRoleTarget.name}` : "إنشاء دور جديد"}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <Input
+            label="اسم الدور"
+            value={roleName}
+            onChange={(e) => setRoleName(e.target.value)}
+            placeholder="مثال: محاسب، مدير حفلات، مشرف مخزن..."
+            required
+          />
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-slate-700">الصلاحيات</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRolePerms(Object.fromEntries(PERMISSION_PAGES.map((p) => [p.key, "manage"])) as PermMap)}
+                  className="text-xs text-[#1C2D50] font-semibold hover:underline"
+                >
+                  الكل تحكم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRolePerms(Object.fromEntries(PERMISSION_PAGES.map((p) => [p.key, "view"])) as PermMap)}
+                  className="text-xs text-blue-600 font-semibold hover:underline"
+                >
+                  الكل عرض
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRolePerms({})}
+                  className="text-xs text-slate-400 font-semibold hover:underline"
+                >
+                  مسح
+                </button>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+              {PERMISSION_PAGES.map((p) => {
+                const current = rolePerms[p.key] ?? null;
+                return (
+                  <div key={p.key} className="flex items-center justify-between px-4 py-2.5 bg-white">
+                    <span className="text-sm font-medium text-slate-700">{p.label}</span>
+                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                      {LEVEL_OPTIONS.map((opt) => (
+                        <button
+                          key={String(opt.value)}
+                          type="button"
+                          onClick={() => setPerm(p.key, opt.value)}
+                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                            current === opt.value
+                              ? opt.value === "manage"
+                                ? "bg-[#1C2D50] text-white"
+                                : opt.value === "view"
+                                ? "bg-blue-500 text-white"
+                                : "bg-white text-slate-600 shadow-sm"
+                              : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowRoleForm(false)}>إلغاء</Button>
+            <Button onClick={handleSaveRole} loading={roleSaving} disabled={!roleName.trim()}>
+              {editRoleTarget ? "حفظ التغييرات" : "إنشاء الدور"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteRoleTarget}
+        onClose={() => setDeleteRoleTarget(null)}
+        onConfirm={handleDeleteRole}
+        title="حذف الدور"
+        message={`هل أنت متأكد من حذف الدور "${deleteRoleTarget?.name}"؟ لن يُحذف إذا كان مرتبطاً بمستخدمين.`}
+        confirmLabel="حذف"
+        loading={roleSaving}
+      />
     </div>
   );
 }
-

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
-  const { appUser, loading } = useAuth();
+  const { appUser, loading, homePath } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -14,15 +14,8 @@ export default function Home() {
       router.replace("/login");
       return;
     }
-    const dashboards: Record<string, string> = {
-      admin: "/admin",
-      warehouse_manager: "/warehouse-manager",
-      supervisor: "/supervisor",
-      employee: "/employee",
-      kitchen: "/kitchen",
-    };
-    router.replace(dashboards[appUser.role] ?? "/login");
-  }, [appUser, loading, router]);
+    router.replace(homePath());
+  }, [appUser, loading, router, homePath]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">

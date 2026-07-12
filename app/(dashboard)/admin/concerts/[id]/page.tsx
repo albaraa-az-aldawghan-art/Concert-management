@@ -45,7 +45,7 @@ export default function AdminConcertDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { showToast } = useToast();
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
 
   const [concert, setConcert] = useState<Concert | null>(null);
   const [items, setItems] = useState<ConcertItem[]>([]);
@@ -624,8 +624,22 @@ export default function AdminConcertDetailPage() {
   const internalMissing = missing.filter((m) => m.type === "internal");
   const externalMissing = missing.filter((m) => m.type === "external");
 
+  // View-only custom roles: every <button> on this page is a mutation entry
+  // point (links handle navigation), so a capture-phase blocker enforces
+  // read-only access uniformly without touching dozens of handlers.
+  const canManageConcerts = can("concerts", "manage");
+  function blockIfViewOnly(e: React.MouseEvent) {
+    if (canManageConcerts) return;
+    const btn = (e.target as HTMLElement).closest("button");
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      showToast("صلاحيتك على الحفلات «عرض فقط»", "error");
+    }
+  }
+
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-5" onClickCapture={blockIfViewOnly}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <Link href="/admin/concerts" className="hover:text-[#1C2D50]">الحفلات</Link>

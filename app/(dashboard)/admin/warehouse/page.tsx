@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem } from "@/lib/firestore/warehouse";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,8 @@ import { Plus, Package, Pencil, Trash2, ImagePlus, X } from "lucide-react";
 
 export default function AdminWarehousePage() {
   const { showToast } = useToast();
+  const { can } = useAuth();
+  const canManage = can("warehouse", "manage");
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -238,10 +241,12 @@ export default function AdminWarehousePage() {
             {internalCount} داخلي · {externalCount} خارجي
           </p>
         </div>
-        <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
-          <Plus size={16} />
-          إضافة مادة
-        </Button>
+        {canManage && (
+          <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
+            <Plus size={16} />
+            إضافة مادة
+          </Button>
+        )}
       </div>
 
       {/* Filter */}
@@ -291,20 +296,22 @@ export default function AdminWarehousePage() {
                     <StatusBadge status={item.type} />
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(item)}
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(item)}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
