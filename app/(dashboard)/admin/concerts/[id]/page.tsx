@@ -19,7 +19,7 @@ import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -115,9 +115,11 @@ export default function AdminConcertDetailPage() {
   const [editFoodQtyValue, setEditFoodQtyValue] = useState("");
   const [addFoodCategoryId, setAddFoodCategoryId] = useState("");
   const [addFoodCheck, setAddFoodCheck] = useState<Record<string, { checked: boolean; quantity: string }>>({});
+  const [addFoodSearch, setAddFoodSearch] = useState("");
 
   const [addItemType, setAddItemType] = useState<"" | "internal" | "external">("");
   const [addItemCheck, setAddItemCheck] = useState<Record<string, { checked: boolean; quantity: string }>>({});
+  const [addItemSearch, setAddItemSearch] = useState("");
 
   useEffect(() => {
     if (id) loadData();
@@ -1138,7 +1140,7 @@ export default function AdminConcertDetailPage() {
             <Package size={16} className="text-indigo-600" />
             المواد ({items.length})
           </h3>
-          <Button size="sm" onClick={() => { setAddItemType(""); setAddItemCheck({}); setShowItemForm(true); }}>
+          <Button size="sm" onClick={() => { setAddItemType(""); setAddItemCheck({}); setAddItemSearch(""); setShowItemForm(true); }}>
             <Plus size={14} /> إضافة مادة
           </Button>
         </div>
@@ -1293,7 +1295,7 @@ export default function AdminConcertDetailPage() {
             أصناف الأكل ({concertFood.length})
           </h3>
           {foodCategories.length > 0 && (
-            <Button size="sm" onClick={() => { setAddFoodCategoryId(""); setAddFoodCheck({}); setShowFoodForm(true); }}>
+            <Button size="sm" onClick={() => { setAddFoodCategoryId(""); setAddFoodCheck({}); setAddFoodSearch(""); setShowFoodForm(true); }}>
               <Plus size={14} /> إضافة
             </Button>
           )}
@@ -1515,7 +1517,7 @@ export default function AdminConcertDetailPage() {
           {/* Type dropdown */}
           <select
             value={addItemType}
-            onChange={(e) => setAddItemType(e.target.value as "" | "internal" | "external")}
+            onChange={(e) => { setAddItemType(e.target.value as "" | "internal" | "external"); setAddItemSearch(""); }}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
           >
             <option value="">— اختر نوع المواد —</option>
@@ -1523,11 +1525,30 @@ export default function AdminConcertDetailPage() {
             <option value="external">خارجي</option>
           </select>
 
+          {/* Search */}
+          {addItemType && (
+            <div className="relative">
+              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={addItemSearch}
+                onChange={(e) => setAddItemSearch(e.target.value)}
+                placeholder="ابحث باسم المادة..."
+                className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+              />
+            </div>
+          )}
+
           {/* Checklist */}
           {addItemType && (() => {
             const existingIds = new Set(items.map((i) => i.itemId));
-            const typeItems = warehouseItems.filter((i) => i.type === (addItemType === "internal" ? "internal" : "external") && !existingIds.has(i.id));
-            if (typeItems.length === 0) return <p className="text-sm text-slate-400 text-center py-4">لا توجد مواد إضافية من هذا النوع</p>;
+            const q = addItemSearch.trim();
+            const typeItems = warehouseItems.filter((i) =>
+              i.type === (addItemType === "internal" ? "internal" : "external") &&
+              !existingIds.has(i.id) &&
+              (q === "" || i.name.includes(q))
+            );
+            if (typeItems.length === 0) return <p className="text-sm text-slate-400 text-center py-4">{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد إضافية من هذا النوع"}</p>;
             return (
               <div className="border border-indigo-100 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
                 <div className="divide-y divide-slate-50">
@@ -1620,7 +1641,7 @@ export default function AdminConcertDetailPage() {
           {/* Category dropdown */}
           <select
             value={addFoodCategoryId}
-            onChange={(e) => setAddFoodCategoryId(e.target.value)}
+            onChange={(e) => { setAddFoodCategoryId(e.target.value); setAddFoodSearch(""); }}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
           >
             <option value="">— اختر قسم الأكل —</option>
@@ -1629,13 +1650,29 @@ export default function AdminConcertDetailPage() {
             ))}
           </select>
 
+          {/* Search */}
+          {addFoodCategoryId && (
+            <div className="relative">
+              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={addFoodSearch}
+                onChange={(e) => setAddFoodSearch(e.target.value)}
+                placeholder="ابحث باسم الصنف..."
+                className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+              />
+            </div>
+          )}
+
           {/* Checklist for selected category */}
           {addFoodCategoryId && (() => {
             const cat = foodCategories.find((c) => c.id === addFoodCategoryId);
             if (!cat) return null;
             const existingOptions = new Set(concertFood.filter((f) => f.categoryId === cat.id).map((f) => f.selectedOption));
-            const options = cat.options.length > 0 ? cat.options.filter((o) => !existingOptions.has(o)) : (existingOptions.has(cat.name) ? [] : [""]);
-            if (options.length === 0) return <p className="text-sm text-slate-400 text-center py-4">تمت إضافة جميع أصناف هذا القسم</p>;
+            const q = addFoodSearch.trim();
+            let options = cat.options.length > 0 ? cat.options.filter((o) => !existingOptions.has(o)) : (existingOptions.has(cat.name) ? [] : [""]);
+            if (q) options = options.filter((o) => (o || cat.name).includes(q));
+            if (options.length === 0) return <p className="text-sm text-slate-400 text-center py-4">{q ? "لا توجد نتائج مطابقة للبحث" : "تمت إضافة جميع أصناف هذا القسم"}</p>;
             return (
               <div className="border border-orange-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
                 <div className="divide-y divide-slate-50">
