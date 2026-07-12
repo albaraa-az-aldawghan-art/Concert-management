@@ -19,6 +19,7 @@ export default function Home() {
       warehouse_manager: "/warehouse-manager",
       supervisor: "/supervisor",
       employee: "/employee",
+      kitchen: "/kitchen",
     };
     router.replace(dashboards[appUser.role] ?? "/login");
   }, [appUser, loading, router]);

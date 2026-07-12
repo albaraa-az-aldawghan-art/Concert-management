@@ -58,11 +58,17 @@ const employeeNav: NavItem[] = [
   { label: "الإعدادات",    href: "/settings",              icon: <Settings size={17} /> },
 ];
 
+const kitchenNav: NavItem[] = [
+  { label: "طلبات المطبخ", href: "/kitchen",   icon: <UtensilsCrossed size={17} /> },
+  { label: "الإعدادات",     href: "/settings",  icon: <Settings size={17} /> },
+];
+
 const navByRole: Record<string, NavItem[]> = {
   admin:             adminNav,
   warehouse_manager: warehouseManagerNav,
   supervisor:        supervisorNav,
   employee:          employeeNav,
+  kitchen:           kitchenNav,
 };
 
 const roleLabels: Record<string, string> = {
@@ -70,6 +76,7 @@ const roleLabels: Record<string, string> = {
   warehouse_manager: "مدير المخازن",
   supervisor:        "مشرف",
   employee:          "موظف",
+  kitchen:           "مطبخ",
 };
 
 interface SidebarContentProps {

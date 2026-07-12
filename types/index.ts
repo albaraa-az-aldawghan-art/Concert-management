@@ -1,6 +1,20 @@
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee";
+export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee" | "kitchen";
+
+export interface KitchenOrder {
+  id: string;
+  concertId: string;
+  concertNumber: number;
+  clientName: string;
+  concertDate: Timestamp | null;
+  venueName: string | null;
+  status: "sent" | "received";
+  sentAt: Timestamp;
+  sentBy: string;
+  receivedAt: Timestamp | null;
+  receivedBy: string | null;
+}
 
 export interface AppUser {
   uid: string;

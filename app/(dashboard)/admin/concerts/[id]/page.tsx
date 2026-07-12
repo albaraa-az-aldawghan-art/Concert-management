@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder } from "@/types";
+import { sendConcertToKitchen, getKitchenOrderByConcert } from "@/lib/firestore/kitchen";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation } from "lucide-react";
@@ -121,13 +122,16 @@ export default function AdminConcertDetailPage() {
   const [addItemCheck, setAddItemCheck] = useState<Record<string, { checked: boolean; quantity: string }>>({});
   const [addItemSearch, setAddItemSearch] = useState("");
 
+  const [kitchenOrder, setKitchenOrder] = useState<KitchenOrder | null>(null);
+  const [sendingKitchen, setSendingKitchen] = useState(false);
+
   useEffect(() => {
     if (id) loadData();
   }, [id]);
 
   async function loadData() {
     setLoading(true);
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData, kitchenData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id),
       getMissingItemsByConcert(id),
@@ -139,6 +143,7 @@ export default function AdminConcertDetailPage() {
       getUsersByRole("employee"),
       getConcertLogs(id),
       getRequestsByConcert(id),
+      getKitchenOrderByConcert(id),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -151,6 +156,7 @@ export default function AdminConcertDetailPage() {
     setAllEmployees(allEmps);
     setLogs(logsData);
     setRequests(requestsData);
+    setKitchenOrder(kitchenData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
@@ -653,6 +659,40 @@ export default function AdminConcertDetailPage() {
             <FileText size={15} />
             عرض الاتفاقية
           </a>
+          {concert.status !== "cancelled" && (
+            <button
+              onClick={async () => {
+                if (!appUser || sendingKitchen) return;
+                setSendingKitchen(true);
+                try {
+                  await sendConcertToKitchen(concert, appUser.name);
+                  setKitchenOrder(await getKitchenOrderByConcert(concert.id));
+                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ" : "تم إرسال الحفلة للمطبخ");
+                } catch {
+                  showToast("حدث خطأ أثناء الإرسال", "error");
+                } finally {
+                  setSendingKitchen(false);
+                }
+              }}
+              disabled={sendingKitchen}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
+                kitchenOrder?.status === "received"
+                  ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                  : kitchenOrder
+                  ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                  : "bg-orange-500 text-white hover:bg-orange-600"
+              }`}
+            >
+              <UtensilsCrossed size={15} />
+              {sendingKitchen
+                ? "جارٍ الإرسال..."
+                : kitchenOrder?.status === "received"
+                ? "المطبخ استلم ✓ — إعادة إرسال"
+                : kitchenOrder
+                ? "أُرسل للمطبخ — إعادة إرسال"
+                : "إرسال للمطبخ"}
+            </button>
+          )}
           {concert.status !== "cancelled" && (
             <button
               onClick={() => setShowCancelModal(true)}

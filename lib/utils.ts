@@ -33,6 +33,7 @@ export function getRoleLabel(role: string): string {
     warehouse_manager: "مدير المخازن",
     supervisor: "مشرف",
     employee: "موظف",
+    kitchen: "مطبخ",
   };
   return labels[role] ?? role;
 }

@@ -18,6 +18,7 @@ const roleOptions = [
   { value: "warehouse_manager", label: "مدير المخازن" },
   { value: "supervisor", label: "مشرف" },
   { value: "employee", label: "موظف" },
+  { value: "kitchen", label: "مطبخ" },
 ];
 
 const roleColors: Record<string, "blue" | "indigo" | "green" | "gray"> = {
@@ -25,6 +26,7 @@ const roleColors: Record<string, "blue" | "indigo" | "green" | "gray"> = {
   warehouse_manager: "indigo",
   supervisor: "green",
   employee: "gray",
+  kitchen: "indigo",
 };
 
 export default function UsersPage() {
@@ -165,7 +167,7 @@ export default function UsersPage() {
 
       {/* Filter */}
       <div className="flex gap-2 flex-wrap">
-        {["", "warehouse_manager", "supervisor", "employee"].map((role) => (
+        {["", "warehouse_manager", "supervisor", "employee", "kitchen"].map((role) => (
           <button
             key={role}
             onClick={() => setFilterRole(role)}

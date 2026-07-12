@@ -27,6 +27,7 @@ export default function LoginPage() {
         warehouse_manager: "/warehouse-manager",
         supervisor:        "/supervisor",
         employee:          "/employee",
+        kitchen:           "/kitchen",
       };
       router.push(dashboards[user.role] ?? "/");
     } catch {
