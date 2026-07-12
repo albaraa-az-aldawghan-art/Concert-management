@@ -18,6 +18,7 @@ export interface WarehouseItem {
   availableCount: number;
   type: "internal" | "external";
   pricePerUnit?: number | null;
+  imageUrl?: string | null;
   createdAt: Timestamp;
 }
 

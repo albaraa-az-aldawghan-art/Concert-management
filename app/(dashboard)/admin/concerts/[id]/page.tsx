@@ -18,6 +18,7 @@ import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest } from "@/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
@@ -1156,11 +1157,21 @@ export default function AdminConcertDetailPage() {
                   {internalItems.map((item) => (
                     <div key={item.id} className="flex flex-col justify-between gap-2 bg-slate-50 rounded-xl px-3.5 py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                          {item.assignedToEmployeeName && (
-                            <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
-                          )}
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          {(() => {
+                            const img = warehouseItems.find((w) => w.id === item.itemId)?.imageUrl;
+                            return img ? (
+                              <a href={img} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                <img src={thumbUrl(img, 120)} alt={item.itemName} loading="lazy" className="w-11 h-11 object-cover rounded-lg border border-slate-200" />
+                              </a>
+                            ) : null;
+                          })()}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                            {item.assignedToEmployeeName && (
+                              <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
+                            )}
+                          </div>
                         </div>
                         <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
                           <Trash2 size={13} />
@@ -1202,17 +1213,27 @@ export default function AdminConcertDetailPage() {
                   {externalItems.map((item) => (
                     <div key={item.id} className="flex flex-col justify-between gap-2 bg-slate-50 rounded-xl px-3.5 py-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
-                          {item.totalCost != null && (
-                            <p className="text-xs text-amber-600 mt-0.5">
-                              {item.unitCost?.toLocaleString("en-US")} ريال × {item.count} =
-                              <span className="font-bold mr-1">{item.totalCost.toLocaleString("en-US")} ريال</span>
-                            </p>
-                          )}
-                          {item.assignedToEmployeeName && (
-                            <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
-                          )}
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          {(() => {
+                            const img = warehouseItems.find((w) => w.id === item.itemId)?.imageUrl;
+                            return img ? (
+                              <a href={img} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                <img src={thumbUrl(img, 120)} alt={item.itemName} loading="lazy" className="w-11 h-11 object-cover rounded-lg border border-slate-200" />
+                              </a>
+                            ) : null;
+                          })()}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
+                            {item.totalCost != null && (
+                              <p className="text-xs text-amber-600 mt-0.5">
+                                {item.unitCost?.toLocaleString("en-US")} ريال × {item.count} =
+                                <span className="font-bold mr-1">{item.totalCost.toLocaleString("en-US")} ريال</span>
+                              </p>
+                            )}
+                            {item.assignedToEmployeeName && (
+                              <p className="text-xs text-slate-400 mt-0.5">مسند لـ: {item.assignedToEmployeeName}</p>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => setDeleteItemTarget(item)}

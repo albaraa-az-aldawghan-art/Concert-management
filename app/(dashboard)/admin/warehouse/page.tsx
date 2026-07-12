@@ -9,7 +9,8 @@ import { Input, Select } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
-import { Plus, Package, Pencil, Trash2 } from "lucide-react";
+import { uploadImage, thumbUrl } from "@/lib/cloudinary";
+import { Plus, Package, Pencil, Trash2, ImagePlus, X } from "lucide-react";
 
 export default function AdminWarehousePage() {
   const { showToast } = useToast();
@@ -28,6 +29,23 @@ export default function AdminWarehousePage() {
     type: "internal" as "internal" | "external",
     pricePerUnit: "",
   });
+  // Image state: existing URL (edit mode) + newly picked file with local preview
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  function pickImage(file: File | null) {
+    setImageFile(file);
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
+
+  function resetImage() {
+    pickImage(null);
+    setImageUrl(null);
+  }
 
   useEffect(() => { loadItems(); }, []);
 
@@ -47,6 +65,8 @@ export default function AdminWarehousePage() {
       type: item.type,
       pricePerUnit: String(item.pricePerUnit ?? ""),
     });
+    pickImage(null);
+    setImageUrl(item.imageUrl ?? null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -61,6 +81,13 @@ export default function AdminWarehousePage() {
     }
     try {
       const pricePerUnit = form.type === "external" && form.pricePerUnit ? parseFloat(form.pricePerUnit) : null;
+
+      // Upload the picked image to Cloudinary first (if any)
+      let finalImageUrl = imageUrl;
+      if (imageFile) {
+        finalImageUrl = await uploadImage(imageFile);
+      }
+
       if (editTarget) {
         await updateWarehouseItem(editTarget.id, {
           name: form.name,
@@ -68,6 +95,7 @@ export default function AdminWarehousePage() {
           availableCount: available,
           type: form.type,
           pricePerUnit,
+          imageUrl: finalImageUrl,
         });
         showToast("تم تحديث المادة بنجاح");
         setEditTarget(null);
@@ -78,14 +106,16 @@ export default function AdminWarehousePage() {
           availableCount: available,
           type: form.type,
           pricePerUnit,
+          imageUrl: finalImageUrl,
         });
         showToast("تم إضافة المادة بنجاح");
         setShowAdd(false);
       }
       setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" });
+      resetImage();
       loadItems();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }
@@ -111,6 +141,7 @@ export default function AdminWarehousePage() {
   const externalCount = items.filter((i) => i.type === "external").length;
 
   function renderForm(isEdit: boolean) {
+    const shownImage = imagePreview ?? imageUrl;
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
@@ -118,6 +149,39 @@ export default function AdminWarehousePage() {
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           required placeholder="مثال: كرسي، طاولة..." />
+
+        {/* Image picker */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 block mb-2">صورة المادة (اختياري)</label>
+          {shownImage ? (
+            <div className="relative w-28 h-28">
+              <img
+                src={shownImage}
+                alt="صورة المادة"
+                className="w-28 h-28 object-cover rounded-xl border border-slate-200"
+              />
+              <button
+                type="button"
+                onClick={resetImage}
+                className="absolute -top-2 -left-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow"
+                aria-label="إزالة الصورة"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center gap-1.5 w-28 h-28 border-2 border-dashed border-slate-300 hover:border-[#1C2D50] rounded-xl cursor-pointer text-slate-400 hover:text-[#1C2D50] transition-colors">
+              <ImagePlus size={22} />
+              <span className="text-xs font-medium">إضافة صورة</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+              />
+            </label>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Input
             label="العدد الإجمالي"
@@ -174,7 +238,7 @@ export default function AdminWarehousePage() {
             {internalCount} داخلي · {externalCount} خارجي
           </p>
         </div>
-        <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); setShowAdd(true); }}>
+        <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
           <Plus size={16} />
           إضافة مادة
         </Button>
@@ -211,9 +275,21 @@ export default function AdminWarehousePage() {
           {filtered.map((item) => (
             <Card key={item.id}>
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-slate-800">{item.name}</h3>
-                  <StatusBadge status={item.type} />
+                <div className="flex items-start gap-3 min-w-0">
+                  {item.imageUrl && (
+                    <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                      <img
+                        src={thumbUrl(item.imageUrl, 160)}
+                        alt={item.name}
+                        loading="lazy"
+                        className="w-14 h-14 object-cover rounded-xl border border-slate-200"
+                      />
+                    </a>
+                  )}
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-800 truncate">{item.name}</h3>
+                    <StatusBadge status={item.type} />
+                  </div>
                 </div>
                 <div className="flex gap-1">
                   <button

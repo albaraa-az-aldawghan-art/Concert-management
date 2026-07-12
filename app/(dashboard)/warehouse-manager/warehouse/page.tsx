@@ -9,6 +9,7 @@ import { Input, Select } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
+import { thumbUrl } from "@/lib/cloudinary";
 import { Plus, Package, Pencil, Trash2 } from "lucide-react";
 
 export default function WarehouseManagerWarehousePage() {
@@ -116,9 +117,21 @@ export default function WarehouseManagerWarehousePage() {
           {filtered.map((item) => (
             <Card key={item.id}>
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-slate-800">{item.name}</h3>
-                  <StatusBadge status={item.type} />
+                <div className="flex items-start gap-3 min-w-0">
+                  {item.imageUrl && (
+                    <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                      <img
+                        src={thumbUrl(item.imageUrl, 160)}
+                        alt={item.name}
+                        loading="lazy"
+                        className="w-14 h-14 object-cover rounded-xl border border-slate-200"
+                      />
+                    </a>
+                  )}
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-800 truncate">{item.name}</h3>
+                    <StatusBadge status={item.type} />
+                  </div>
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => openEdit(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"><Pencil size={15} /></button>
