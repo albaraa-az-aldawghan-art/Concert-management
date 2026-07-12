@@ -298,8 +298,10 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Search with live suggestions */}
-      <div className="relative z-[1100]">
+      {/* Search with live suggestions — the map sits in its own zIndex:0
+          stacking context, so a small z-index is enough for the dropdown to
+          cover it without floating above the sidebar/header */}
+      <div className="relative z-10">
         <div className="relative">
           <Search size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
