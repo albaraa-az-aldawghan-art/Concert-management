@@ -112,7 +112,6 @@ export default function ContractPage() {
   const [foodItems, setFoodItems] = useState<ConcertFood[]>([]);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<ConcertLog[]>([]);
-  const [showIosHint, setShowIosHint] = useState(false);
   const [sharing, setSharing] = useState(false);
   // Pre-calculated zoom so the print button does zero DOM work on click
   const cachedZoom = useRef<number>(88);
@@ -158,6 +157,7 @@ export default function ContractPage() {
       const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
       const zoom = isIOS ? cachedZoom.current : calcPrintZoom();
       document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
+      if (isIOS) applyIosBodyFix(); // browser-menu print on iOS still needs the blank-page fix
     }
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", resetPrintZoom);
@@ -266,66 +266,50 @@ export default function ContractPage() {
   const prevPriceBeforeVat = prevPrice !== null ? Math.round((prevPrice / (1 + vatRate / 100)) * 100) / 100 : null;
   const prevVat = prevPrice !== null && prevPriceBeforeVat !== null ? Math.round((prevPrice - prevPriceBeforeVat) * 100) / 100 : null;
 
-  // ── Share as PDF (server-side via Puppeteer API route) ───────────────
-  async function shareContractAsPDF() {
-    if (!concert) return;
-    setSharing(true);
+  // ── PDF generation ────────────────────────────────
+  // Uses html-to-image (SVG foreignObject) so the BROWSER renders the text —
+  // Arabic shaping/ligatures stay perfect on every platform, unlike html2canvas
+  // which re-draws glyphs itself and splits words like "لحم" into "ل ح م" on iOS.
+  async function generateContractPDF(): Promise<{ blob: Blob; filename: string }> {
+    const el = document.getElementById("contract-doc");
+    if (!el) throw new Error("contract element not found");
+
+    const [{ toCanvas }, { default: jsPDF }] = await Promise.all([
+      import("html-to-image"),
+      import("jspdf"),
+    ]);
+
+    // Webfonts must be fully loaded or the clone falls back to a system font
+    await document.fonts.ready;
+
+    // Switch the real viewport to desktop width so the browser re-layouts at
+    // 1000px and @media (max-width:700px) stops applying before we capture.
+    const vpMeta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+    const savedVp = vpMeta?.content ?? "";
+    if (vpMeta) vpMeta.content = "width=1000";
+
+    document.documentElement.classList.add("force-desktop-layout");
+    const savedW = el.style.width;
+    el.style.setProperty("width", PRINT_W + "px", "important");
+    el.style.setProperty("max-width", PRINT_W + "px", "important");
+
     try {
-      const el = document.getElementById("contract-doc");
-      if (!el) throw new Error("contract element not found");
-
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-
-      // Switch the real viewport to desktop width so the browser re-layouts at
-      // 1000px and @media (max-width:700px) stops applying before we measure
-      // or capture anything.
-      const vpMeta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
-      const savedVp = vpMeta?.content ?? "";
-      if (vpMeta) vpMeta.content = "width=1000";
-
-      document.documentElement.classList.add("force-desktop-layout");
-      const savedW = el.style.width;
-      el.style.setProperty("width", PRINT_W + "px", "important");
-      el.style.setProperty("max-width", PRINT_W + "px", "important");
-
-      // html2canvas mis-renders Arabic Typesetting's OpenType ligatures and
-      // breaks letter-spacing on Arabic text. Force Tahoma (which html2canvas
-      // handles correctly) and reset letter-spacing only during capture.
-      const captureStyle = document.createElement("style");
-      captureStyle.id = "pdf-capture-style";
-      captureStyle.textContent = `
-        #contract-doc, #contract-doc * {
-          font-family: 'Cairo', Arial, sans-serif !important;
-          letter-spacing: 0 !important;
-        }
-      `;
-      document.head.appendChild(captureStyle);
-
       // Give the browser 250ms to finish re-layout at the new viewport width
       await new Promise<void>((r) => setTimeout(r, 250));
 
       const captureH = el.scrollHeight;
-
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
+      const opts = {
+        pixelRatio: 2,
         backgroundColor: "#ffffff",
         width: PRINT_W,
         height: captureH,
-        windowWidth: 1000,
-        windowHeight: captureH,
-      });
+      };
 
-      // Restore viewport and styles immediately after capture
-      document.getElementById("pdf-capture-style")?.remove();
-      el.style.width = savedW;
-      el.style.removeProperty("max-width");
-      document.documentElement.classList.remove("force-desktop-layout");
-      if (vpMeta) vpMeta.content = savedVp;
+      // Safari loads fonts/images inside SVG foreignObject lazily — the first
+      // pass warms the cache, the second produces the complete capture.
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if (isSafari) await toCanvas(el, opts);
+      const canvas = await toCanvas(el, opts);
 
       // PDF sized exactly to content — image fills it completely, zero white space
       const pdfW = 210; // mm
@@ -333,52 +317,88 @@ export default function ContractPage() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
 
-      const filename = `عقد-${concert.clientName}.pdf`;
-      const blob = pdf.output("blob");
+      return { blob: pdf.output("blob"), filename: `عقد-${concert!.clientName}.pdf` };
+    } finally {
+      // Always restore viewport and styles, even if capture fails
+      el.style.width = savedW;
+      el.style.removeProperty("max-width");
+      document.documentElement.classList.remove("force-desktop-layout");
+      if (vpMeta) vpMeta.content = savedVp;
+    }
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const url = URL.createObjectURL(blob);
+    if (isIOS) {
+      // iOS blocks download links — open PDF in a new tab so user can save/share from there
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function shareContractAsPDF() {
+    if (!concert) return;
+    setSharing(true);
+    try {
+      const { blob, filename } = await generateContractPDF();
       const file = new File([blob], filename, { type: "application/pdf" });
 
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      let shared = false;
-
+      // Desktop share sheets (Windows/macOS) garble Arabic filenames —
+      // only use the native share sheet on mobile, download directly elsewhere.
+      const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
       if (
+        isMobile &&
         typeof navigator.share === "function" &&
         typeof navigator.canShare === "function" &&
         navigator.canShare({ files: [file] })
       ) {
         try {
           await navigator.share({ files: [file], title: filename });
-          shared = true;
+          return;
         } catch (shareErr) {
-          const m = shareErr instanceof Error ? shareErr.message : String(shareErr);
-          // User cancelled — not an error
-          if (m.toLowerCase().includes("abort") || m.toLowerCase().includes("cancel")) {
-            shared = true;
-          }
-          // Otherwise fall through to the download/open fallback below
+          const m = String(shareErr).toLowerCase();
+          if (m.includes("abort") || m.includes("cancel")) return; // user cancelled
+          // Real failure — fall through to download
         }
       }
 
-      if (!shared) {
-        const url = URL.createObjectURL(blob);
-        if (isIOS) {
-          // iOS blocks download links — open PDF in a new tab so user can share from there
-          window.open(url, "_blank");
-          setTimeout(() => URL.revokeObjectURL(url), 120_000);
-        } else {
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
-      }
+      downloadBlob(blob, filename);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("bort") && !msg.includes("cancel")) {
         alert("خطأ: " + msg);
       }
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  // Download button: desktop gets the native print dialog (fast + real printing),
+  // mobile generates the PDF directly — window.print takes ~60s on iOS Safari.
+  async function downloadContractPDF() {
+    const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+    if (!isMobile) {
+      const zoom = calcPrintZoom();
+      cachedZoom.current = zoom;
+      document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
+      window.print();
+      return;
+    }
+    setSharing(true);
+    try {
+      const { blob, filename } = await generateContractPDF();
+      downloadBlob(blob, filename);
+    } catch (err) {
+      alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSharing(false);
     }
@@ -626,21 +646,11 @@ export default function ContractPage() {
         {/* Print controls */}
         <div className="no-print" style={S.printBar}>
           <button
-            style={{ ...S.printBtn, minHeight: 44, touchAction: "manipulation" }}
-            onClick={() => {
-              const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-              if (isIOS) {
-                setShowIosHint(true);
-              } else {
-                // Recalculate fresh on every click for accuracy (no user-gesture restriction on non-iOS)
-                const zoom = calcPrintZoom();
-                cachedZoom.current = zoom;
-                document.documentElement.style.setProperty("--contract-zoom", `${zoom}%`);
-                window.print();
-              }
-            }}
+            disabled={sharing}
+            style={{ ...S.printBtn, minHeight: 44, touchAction: "manipulation", opacity: sharing ? 0.7 : 1 }}
+            onClick={downloadContractPDF}
           >
-            طباعة / تنزيل PDF
+            {sharing ? "جارٍ التوليد..." : "طباعة / تنزيل PDF"}
           </button>
           <button
             disabled={sharing}
@@ -657,61 +667,6 @@ export default function ContractPage() {
           >
             {sharing ? "جارٍ التوليد..." : "📤 مشاركة PDF"}
           </button>
-          {showIosHint && (
-            <div className="no-print" style={{
-              position: "fixed", inset: 0, zIndex: 9999,
-              background: "rgba(0,0,0,0.65)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 20, direction: "rtl",
-            }}>
-              <div style={{
-                background: "white", borderRadius: 20, padding: "28px 24px",
-                maxWidth: 360, width: "100%", textAlign: "center",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
-                <p style={{ fontWeight: 800, fontSize: 17, marginBottom: 10, color: "#1C2D50" }}>
-                  تنزيل العقد كـ PDF
-                </p>
-                <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, marginBottom: 20 }}>
-                  سيفتح مربع الطباعة. بعد ظهوره:<br />
-                  اضغط على <strong style={{ color: "#1C2D50" }}>PDF</strong> أو{" "}
-                  <strong style={{ color: "#1C2D50" }}>حفظ كـ PDF</strong>
-                </p>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button
-                    onClick={() => setShowIosHint(false)}
-                    style={{
-                      flex: 1, background: "#F1F5F9", color: "#64748B", border: "none",
-                      borderRadius: 12, padding: "13px 0", fontSize: 14,
-                      fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                      minHeight: 48, touchAction: "manipulation",
-                    }}
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    onClick={() => {
-                      // window.print() MUST be called first — any React state update
-                      // before it (even setShowIosHint) causes iOS Safari to block it
-                      document.documentElement.style.setProperty("--contract-zoom", `${cachedZoom.current}%`);
-                      applyIosBodyFix();
-                      window.print();
-                      setShowIosHint(false);
-                    }}
-                    style={{
-                      flex: 2, background: "#1C2D50", color: "white", border: "none",
-                      borderRadius: 12, padding: "13px 0", fontSize: 14,
-                      fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                      minHeight: 48, touchAction: "manipulation",
-                    }}
-                  >
-                    فتح نافذة التنزيل
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           <span style={{ fontSize: 12, color: "#64748B" }}>
             اتفاقية #{concert.concertNumber} — {concert.name}
           </span>
