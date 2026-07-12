@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getConcertById, getConcertItems, updateConcertItem,
+  getConcertById, getConcertItems, updateConcertItem, updateConcert,
   approveDelivery, approveReturn, setConcertLocation, supervisorDeliverToWarehouse,
   advanceToExecuting, markItemHasMissing,
 } from "@/lib/firestore/concerts";
@@ -12,7 +12,7 @@ import { reportMissingItem } from "@/lib/firestore/missing-items";
 import { getConcertFood } from "@/lib/firestore/food";
 import { createRequest, getRequestsByConcert } from "@/lib/firestore/requests";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
-import { getUserById } from "@/lib/firestore/users";
+import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,15 +52,16 @@ export default function SupervisorConcertDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignTarget, setAssignTarget] = useState<ConcertItem | null>(null);
+  // Concert-level employee assignment (checklist of ALL employees)
+  const [allEmployees, setAllEmployees] = useState<AppUser[]>([]);
+  const [showAssignEmployees, setShowAssignEmployees] = useState(false);
+  const [assignIds, setAssignIds] = useState<string[]>([]);
   const [confirmDelivery, setConfirmDelivery] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [confirmDeliverToWarehouse, setConfirmDeliverToWarehouse] = useState(false);
   const [confirmExecuting, setConfirmExecuting] = useState(false);
 
   const [requestForm, setRequestForm] = useState({ itemId: "", count: "1" });
-  const [assignEmployeeId, setAssignEmployeeId] = useState("");
 
   // Missing-item reporting (supervisor responsibility)
   const [showMissingModal, setShowMissingModal] = useState(false);
@@ -109,13 +110,15 @@ export default function SupervisorConcertDetailPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [concertData, itemsData, requestsData, warehouseData, foodData] = await Promise.all([
+      const [concertData, itemsData, requestsData, warehouseData, foodData, allEmps] = await Promise.all([
         getConcertById(id),
         getConcertItems(id),
         getRequestsByConcert(id),
         getWarehouseItems(),
         getConcertFood(id),
+        getUsersByRole("employee").catch(() => []),
       ]);
+      setAllEmployees(allEmps);
       setConcert(concertData);
       setItems(itemsData);
       setRequests(requestsData);
@@ -167,21 +170,15 @@ export default function SupervisorConcertDetailPage() {
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
   }
 
-  async function handleAssign(e: React.FormEvent) {
-    e.preventDefault();
-    if (!assignTarget || !assignEmployeeId) return;
-    const emp = employees.find((e) => e.uid === assignEmployeeId);
-    if (!emp) return;
+  // Concert-level assignment: the selected employees see the WHOLE concert
+  // (materials + food, read-only) in their "حفلاتي" page.
+  async function handleAssignEmployees() {
+    if (!concert) return;
     setSaving(true);
     try {
-      await updateConcertItem(assignTarget.id, {
-        assignedToEmployeeId: assignEmployeeId,
-        assignedToEmployeeName: emp.name,
-      });
-      showToast(`تم إسناد "${assignTarget.itemName}" إلى ${emp.name}`);
-      setShowAssignModal(false);
-      setAssignTarget(null);
-      setAssignEmployeeId("");
+      await updateConcert(concert.id, { employeeIds: assignIds });
+      showToast(assignIds.length > 0 ? `تم إسناد الحفلة لـ ${assignIds.length} موظف` : "تم تحديث الموظفين");
+      setShowAssignEmployees(false);
       loadData();
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
   }
@@ -455,21 +452,11 @@ export default function SupervisorConcertDetailPage() {
                   <p className="text-sm font-medium text-slate-800">{item.itemName}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <StatusBadge status={item.type} />
-                    {item.assignedToEmployeeName ? (
-                      <span className="text-xs text-slate-500">مسند لـ: {item.assignedToEmployeeName}</span>
-                    ) : (
-                      <span className="text-xs text-red-400">غير مسند</span>
-                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap justify-end">
                   <p className="text-lg font-bold text-[#1C2D50]">{item.count}</p>
                   <StatusBadge status={item.deliveryStatus} />
-                  {!isLocked && employees.length > 0 && (
-                    <Button size="sm" variant="outline" onClick={() => { setAssignTarget(item); setShowAssignModal(true); }}>
-                      إسناد
-                    </Button>
-                  )}
                   {/* Missing reports only make sense while receiving materials
                       back from the concert (executing → materials_returned) */}
                   {item.returnStatus === "has_missing" ? (
@@ -522,7 +509,16 @@ export default function SupervisorConcertDetailPage() {
 
       {/* Employees */}
       <Card>
-        <h3 className="font-bold text-slate-800 mb-3">الموظفون ({employees.length})</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setAssignIds(concert.employeeIds ?? []); setShowAssignEmployees(true); }}
+          >
+            <UserRound size={13} /> إسناد الموظفين
+          </Button>
+        </div>
         {employees.length === 0 ? (
           <p className="text-sm text-slate-400">لا يوجد موظفون في هذه الحفلة</p>
         ) : (
@@ -579,18 +575,51 @@ export default function SupervisorConcertDetailPage() {
         </form>
       </Modal>
 
-      <Modal open={showAssignModal} onClose={() => { setShowAssignModal(false); setAssignTarget(null); }} title={`إسناد "${assignTarget?.itemName}"`}>
-        <form onSubmit={handleAssign} className="space-y-4">
-          <Select label="اختر الموظف" value={assignEmployeeId} onChange={(e) => setAssignEmployeeId(e.target.value)} required placeholder="اختر موظفاً...">
-            {employees.map((emp) => (
-              <option key={emp.uid} value={emp.uid}>{emp.name}</option>
-            ))}
-          </Select>
-          <div className="flex gap-3 justify-end">
-            <Button variant="secondary" type="button" onClick={() => { setShowAssignModal(false); setAssignTarget(null); }}>إلغاء</Button>
-            <Button type="submit" loading={saving}>إسناد</Button>
+      {/* Concert-level employee assignment — checklist of all employees */}
+      <Modal open={showAssignEmployees} onClose={() => setShowAssignEmployees(false)} title="إسناد الحفلة للموظفين">
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            الموظفون المحددون ستظهر لهم الحفلة كاملة (المواد وأصناف الأكل) للاطلاع فقط
+          </p>
+          {allEmployees.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">لا يوجد موظفون في النظام</p>
+          ) : (
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              {allEmployees.map((emp) => {
+                const checked = assignIds.includes(emp.uid);
+                return (
+                  <label
+                    key={emp.uid}
+                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${checked ? "bg-[#EEF1F7]" : "hover:bg-slate-50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setAssignIds((prev) =>
+                          checked ? prev.filter((id) => id !== emp.uid) : [...prev, emp.uid]
+                        )
+                      }
+                      className="accent-[#1C2D50] cursor-pointer"
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <span className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold shrink-0">
+                      {emp.name.charAt(0)}
+                    </span>
+                    <span className={`text-sm ${checked ? "font-semibold text-slate-800" : "text-slate-600"}`}>{emp.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-slate-400">{assignIds.length} موظف محدد</span>
+            <div className="flex gap-3">
+              <Button variant="secondary" type="button" onClick={() => setShowAssignEmployees(false)}>إلغاء</Button>
+              <Button onClick={handleAssignEmployees} loading={saving}>إسناد</Button>
+            </div>
           </div>
-        </form>
+        </div>
       </Modal>
 
       <ConfirmModal
