@@ -470,11 +470,13 @@ export default function SupervisorConcertDetailPage() {
                       إسناد
                     </Button>
                   )}
+                  {/* Missing reports only make sense while receiving materials
+                      back from the concert (executing → materials_returned) */}
                   {item.returnStatus === "has_missing" ? (
                     <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-lg">
                       ⚠️ به مفقودات
                     </span>
-                  ) : (
+                  ) : (concert.status === "executing" || concert.status === "materials_returned") ? (
                     <Button
                       size="sm"
                       variant="danger"
@@ -482,7 +484,7 @@ export default function SupervisorConcertDetailPage() {
                     >
                       <AlertTriangle size={13} /> مفقودات
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}

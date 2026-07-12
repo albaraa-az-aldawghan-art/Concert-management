@@ -135,10 +135,11 @@ service cloud.firestore {
     }
 
     // ── المفقودات ──────────────────────────────────────────────
+    // التعديل والحذف للمدير فقط (أو دور مخصص منحه المدير هذه الصلاحية)
     match /missing_items/{itemId} {
       allow read:           if isAdmin() || isWarehouse() || isSupervisor() || pageOn('missing_items') || pageOn('concerts');
       allow create:         if signedIn();
-      allow update, delete: if isAdminOrWarehouse() || hasFeat('missing_items', 'resolve');
+      allow update, delete: if isAdmin() || hasFeat('missing_items', 'resolve');
     }
 
     // ── طلبات المطبخ ───────────────────────────────────────────
