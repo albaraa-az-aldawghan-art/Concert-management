@@ -401,36 +401,43 @@ export default function ContractPage() {
       return;
     }
 
-    // iOS blocks window.open after ANY await — open the tab NOW, inside the
-    // user gesture, then point it at the PDF once it's ready.
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    let pdfTab: Window | null = null;
-    if (isIOS) {
-      pdfTab = window.open("", "_blank");
-      if (pdfTab) {
-        pdfTab.document.write(
-          '<div style="font-family:sans-serif;text-align:center;margin-top:60px;direction:rtl;color:#1C2D50;font-size:17px">جارٍ تجهيز العقد...</div>'
-        );
-      }
-    }
-
     setSharing(true);
     try {
       const { blob, filename } = await generateContractPDF();
+
       if (isIOS) {
-        const url = URL.createObjectURL(blob);
-        if (pdfTab) {
-          pdfTab.location.href = url;
-        } else {
-          // Popup was blocked — open the PDF in the current tab (back returns to the contract)
-          window.location.href = url;
+        // iOS Safari silently fails to navigate a new tab to a blob: URL, so
+        // the native path for saving files is the share sheet — it includes
+        // "حفظ في الملفات" (Save to Files), which IS the iOS download.
+        const file = new File([blob], filename, { type: "application/pdf" });
+        if (
+          typeof navigator.share === "function" &&
+          typeof navigator.canShare === "function" &&
+          navigator.canShare({ files: [file] })
+        ) {
+          try {
+            await navigator.share({ files: [file], title: filename });
+            return;
+          } catch (shareErr) {
+            const m = String(shareErr).toLowerCase();
+            if (m.includes("abort") || m.includes("cancel")) return; // user closed the sheet
+            // Real failure — fall through to the anchor download below
+          }
         }
+        // Fallback: iOS 13+ supports the download attribute on blob URLs
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 120_000);
       } else {
         downloadBlob(blob, filename);
       }
     } catch (err) {
-      pdfTab?.close();
       alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSharing(false);
