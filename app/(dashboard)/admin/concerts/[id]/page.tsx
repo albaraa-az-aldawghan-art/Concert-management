@@ -131,19 +131,21 @@ export default function AdminConcertDetailPage() {
 
   async function loadData() {
     setLoading(true);
+    // Each secondary read falls back to empty on failure (e.g. Firestore rules
+    // lag behind a new collection) — one denied read must never brick the page.
     const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData, kitchenData] = await Promise.all([
       getConcertById(id),
-      getConcertItems(id),
-      getMissingItemsByConcert(id),
-      getFoodCategories(),
-      getConcertFood(id),
-      getConcertPayments(id),
-      getWarehouseItems(),
-      getUsersByRole("supervisor"),
-      getUsersByRole("employee"),
-      getConcertLogs(id),
-      getRequestsByConcert(id),
-      getKitchenOrderByConcert(id),
+      getConcertItems(id).catch(() => []),
+      getMissingItemsByConcert(id).catch(() => []),
+      getFoodCategories().catch(() => []),
+      getConcertFood(id).catch(() => []),
+      getConcertPayments(id).catch(() => []),
+      getWarehouseItems().catch(() => []),
+      getUsersByRole("supervisor").catch(() => []),
+      getUsersByRole("employee").catch(() => []),
+      getConcertLogs(id).catch(() => []),
+      getRequestsByConcert(id).catch(() => []),
+      getKitchenOrderByConcert(id).catch(() => null),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -159,8 +161,8 @@ export default function AdminConcertDetailPage() {
     setKitchenOrder(kitchenData);
 
     if (concertData) {
-      const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid)));
-      const empData = await Promise.all(concertData.employeeIds.map((uid) => getUserById(uid)));
+      const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
+      const empData = await Promise.all(concertData.employeeIds.map((uid) => getUserById(uid).catch(() => null)));
       setSupervisors(supData.filter(Boolean) as AppUser[]);
       setEmployees(empData.filter(Boolean) as AppUser[]);
     }
