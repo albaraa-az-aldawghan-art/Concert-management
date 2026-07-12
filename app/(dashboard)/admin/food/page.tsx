@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { FoodCategory } from "@/types";
-import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical, Search } from "lucide-react";
 
 /* ── Sortable card ── */
 function SortableCategoryCard({
@@ -127,6 +127,7 @@ export default function AdminFoodPage() {
 
   const [categories, setCategories] = useState<FoodCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<FoodCategory | null>(null);
@@ -155,7 +156,7 @@ export default function AdminFoodPage() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
-    if (!canReorder) return;
+    if (!reorderEnabled) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -230,6 +231,14 @@ export default function AdminFoodPage() {
     }
   }
 
+  // Match by category name OR any option inside it
+  const q = search.trim();
+  const displayed = q
+    ? categories.filter((c) => c.name.includes(q) || c.options.some((o) => o.includes(q)))
+    : categories;
+  // Dragging a filtered subset would corrupt the global order
+  const reorderEnabled = canReorder && q === "";
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -244,25 +253,39 @@ export default function AdminFoodPage() {
         )}
       </div>
 
+      {/* Search — matches the category name OR any of its options */}
+      <div className="relative sm:max-w-xs">
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ابحث باسم القسم أو الصنف..."
+          className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
+        />
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
-      ) : categories.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <UtensilsCrossed size={40} className="mb-3 opacity-40" />
-          <p>لم تتم إضافة أي أصناف بعد</p>
+          <p>{search.trim() ? "لا توجد نتائج مطابقة للبحث" : "لم تتم إضافة أي أصناف بعد"}</p>
         </Card>
       ) : (
         <>
-          <p className="text-xs text-slate-400 flex items-center gap-1.5">
-            <GripVertical size={13} />
-            اسحب الأقسام لإعادة الترتيب — سيُطبَّق على العقود وصفحة إنشاء الحفلة
-          </p>
+          {reorderEnabled && (
+            <p className="text-xs text-slate-400 flex items-center gap-1.5">
+              <GripVertical size={13} />
+              اسحب الأقسام لإعادة الترتيب — سيُطبَّق على العقود وصفحة إنشاء الحفلة
+            </p>
+          )}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={categories.map((c) => c.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={displayed.map((c) => c.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categories.map((cat) => (
+                {displayed.map((cat) => (
                   <SortableCategoryCard
                     key={cat.id}
                     cat={cat}
@@ -270,7 +293,7 @@ export default function AdminFoodPage() {
                     onDelete={setDeleteTarget}
                     canEdit={canEdit}
                     canDelete={canDelete}
-                    canReorder={canReorder}
+                    canReorder={reorderEnabled}
                   />
                 ))}
               </div>

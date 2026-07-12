@@ -26,7 +26,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
 import { uploadImage, thumbUrl } from "@/lib/cloudinary";
-import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical } from "lucide-react";
+import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search } from "lucide-react";
 
 /* ── Sortable item card — mirrors the food categories card design ── */
 function SortableItemCard({
@@ -172,6 +172,7 @@ export default function AdminWarehousePage() {
   const [deleteTarget, setDeleteTarget] = useState<WarehouseItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState("");
+  const [search, setSearch] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -310,11 +311,14 @@ export default function AdminWarehousePage() {
     }
   }
 
-  const filtered = filterType ? items.filter((i) => i.type === filterType) : items;
+  const q = search.trim();
+  const filtered = items.filter(
+    (i) => (!filterType || i.type === filterType) && (!q || i.name.includes(q))
+  );
   const internalCount = items.filter((i) => i.type === "internal").length;
   const externalCount = items.filter((i) => i.type === "external").length;
   // Dragging is only meaningful on the unfiltered global list
-  const canReorder = canEdit && filterType === "";
+  const canReorder = canEdit && filterType === "" && q === "";
 
   function renderForm(isEdit: boolean) {
     const shownImage = imagePreview ?? imageUrl;
@@ -422,21 +426,33 @@ export default function AdminWarehousePage() {
         )}
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2">
-        {["", "internal", "external"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setFilterType(t)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filterType === t
-                ? "bg-[#1C2D50] text-white"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {t === "" ? "الكل" : t === "internal" ? "داخلي" : "خارجي"}
-          </button>
-        ))}
+      {/* Search + Filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ابحث باسم المادة..."
+            className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
+          />
+        </div>
+        <div className="flex gap-2">
+          {["", "internal", "external"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFilterType(t)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                filterType === t
+                  ? "bg-[#1C2D50] text-white"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              {t === "" ? "الكل" : t === "internal" ? "داخلي" : "خارجي"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -446,7 +462,7 @@ export default function AdminWarehousePage() {
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />
-          <p>لا توجد مواد في المخزن</p>
+          <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد في المخزن"}</p>
         </Card>
       ) : (
         <>
