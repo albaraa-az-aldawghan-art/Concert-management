@@ -1,17 +1,163 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/contexts/AuthContext";
-import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem } from "@/lib/firestore/warehouse";
+import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem, updateWarehouseItemsOrder } from "@/lib/firestore/warehouse";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
-import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
 import { uploadImage, thumbUrl } from "@/lib/cloudinary";
-import { Plus, Package, Pencil, Trash2, ImagePlus, X } from "lucide-react";
+import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical } from "lucide-react";
+
+/* ── Sortable item card — mirrors the food categories card design ── */
+function SortableItemCard({
+  item,
+  canEdit,
+  canDelete,
+  canReorder,
+  onEdit,
+  onDelete,
+}: {
+  item: WarehouseItem;
+  canEdit: boolean;
+  canDelete: boolean;
+  canReorder: boolean;
+  onEdit: (item: WarehouseItem) => void;
+  onDelete: (item: WarehouseItem) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id, disabled: !canReorder });
+
+  const used = item.totalCount - item.availableCount;
+  const ratio = item.totalCount > 0 ? item.availableCount / item.totalCount : 0;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : undefined,
+      }}
+    >
+      <Card>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Drag handle */}
+            {canReorder && (
+              <button
+                {...attributes}
+                {...listeners}
+                className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
+                style={{ touchAction: "none" }}
+                aria-label="سحب لإعادة الترتيب"
+              >
+                <GripVertical size={18} />
+              </button>
+            )}
+            {/* Image / placeholder */}
+            {item.imageUrl ? (
+              <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                <img
+                  src={thumbUrl(item.imageUrl, 160)}
+                  alt={item.name}
+                  loading="lazy"
+                  className="w-12 h-12 object-cover rounded-xl border border-slate-200"
+                />
+              </a>
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                <Package size={18} className="text-slate-300" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-bold text-slate-800 text-base truncate">{item.name}</p>
+              <span
+                className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold mt-0.5 ${
+                  item.type === "internal"
+                    ? "bg-[#EEF1F7] text-[#1C2D50]"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {item.type === "internal" ? "داخلي" : "خارجي"}
+              </span>
+            </div>
+          </div>
+          {(canEdit || canDelete) && (
+            <div className="flex gap-1 shrink-0 mr-1">
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(item)}
+                  className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => onDelete(item)}
+                  className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Stats as pill chips — same language as the food options pills */}
+        <div className="flex flex-wrap gap-1.5">
+          <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
+            الإجمالي {item.totalCount}
+          </span>
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
+            item.availableCount === 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
+          }`}>
+            المتوفر {item.availableCount}
+          </span>
+          <span className="bg-orange-50 text-orange-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
+            المستخدم {used}
+          </span>
+          {item.type === "external" && item.pricePerUnit != null && (
+            <span className="bg-amber-50 text-amber-700 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
+              {item.pricePerUnit.toLocaleString("en-US")} ريال/حبة
+            </span>
+          )}
+        </div>
+
+        {/* Availability bar */}
+        <div className="mt-3 bg-slate-100 rounded-full h-1.5">
+          <div
+            className={`h-1.5 rounded-full transition-all ${
+              ratio > 0.5 ? "bg-emerald-500" : ratio > 0.2 ? "bg-orange-400" : "bg-red-400"
+            }`}
+            style={{ width: `${Math.max(ratio * 100, 2)}%` }}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 export default function AdminWarehousePage() {
   const { showToast } = useToast();
@@ -38,6 +184,29 @@ export default function AdminWarehousePage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    if (!canEdit) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    const reordered = arrayMove(items, oldIndex, newIndex);
+
+    setItems(reordered);
+    try {
+      await updateWarehouseItemsOrder(reordered.map((i) => i.id));
+    } catch {
+      showToast("حدث خطأ في حفظ الترتيب", "error");
+      loadItems();
+    }
+  }
 
   function pickImage(file: File | null) {
     setImageFile(file);
@@ -144,6 +313,8 @@ export default function AdminWarehousePage() {
   const filtered = filterType ? items.filter((i) => i.type === filterType) : items;
   const internalCount = items.filter((i) => i.type === "internal").length;
   const externalCount = items.filter((i) => i.type === "external").length;
+  // Dragging is only meaningful on the unfiltered global list
+  const canReorder = canEdit && filterType === "";
 
   function renderForm(isEdit: boolean) {
     const shownImage = imagePreview ?? imageUrl;
@@ -278,81 +449,34 @@ export default function AdminWarehousePage() {
           <p>لا توجد مواد في المخزن</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((item) => (
-            <Card key={item.id}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  {item.imageUrl && (
-                    <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                      <img
-                        src={thumbUrl(item.imageUrl, 160)}
-                        alt={item.name}
-                        loading="lazy"
-                        className="w-14 h-14 object-cover rounded-xl border border-slate-200"
-                      />
-                    </a>
-                  )}
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-slate-800 truncate">{item.name}</h3>
-                    <StatusBadge status={item.type} />
-                  </div>
-                </div>
-                {(canEdit || canDelete) && (
-                  <div className="flex gap-1">
-                    {canEdit && (
-                      <button
-                        onClick={() => openEdit(item)}
-                        className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button
-                        onClick={() => setDeleteTarget(item)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">الإجمالي</span>
-                  <span className="font-semibold text-slate-800">{item.totalCount}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">المتوفر</span>
-                  <span className={`font-semibold ${item.availableCount === 0 ? "text-red-600" : "text-green-600"}`}>
-                    {item.availableCount}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">المستخدم</span>
-                  <span className="font-semibold text-orange-600">
-                    {item.totalCount - item.availableCount}
-                  </span>
-                </div>
-                {item.type === "external" && item.pricePerUnit != null && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">سعر الحبة</span>
-                    <span className="font-semibold text-amber-600">{item.pricePerUnit.toLocaleString("en-US")} ريال</span>
-                  </div>
-                )}
-                {/* Progress bar */}
-                <div className="mt-2 bg-slate-100 rounded-full h-1.5">
-                  <div
-                    className="h-1.5 rounded-full bg-[#EEF1F7]0 transition-all"
-                    style={{ width: `${(item.availableCount / item.totalCount) * 100}%` }}
+        <>
+          {canReorder && (
+            <p className="text-xs text-slate-400 flex items-center gap-1.5">
+              <GripVertical size={13} />
+              اسحب المواد لإعادة الترتيب — الترتيب يظهر في كل القوائم
+            </p>
+          )}
+          {filterType !== "" && canEdit && (
+            <p className="text-xs text-slate-400">اختر «الكل» لتتمكن من إعادة الترتيب بالسحب</p>
+          )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filtered.map((i) => i.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.map((item) => (
+                  <SortableItemCard
+                    key={item.id}
+                    item={item}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    canReorder={canReorder}
+                    onEdit={openEdit}
+                    onDelete={setDeleteTarget}
                   />
-                </div>
+                ))}
               </div>
-            </Card>
-          ))}
-        </div>
+            </SortableContext>
+          </DndContext>
+        </>
       )}
 
       {/* Add Modal */}

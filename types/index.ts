@@ -56,6 +56,7 @@ export interface WarehouseItem {
   type: "internal" | "external";
   pricePerUnit?: number | null;
   imageUrl?: string | null;
+  order?: number;
   createdAt: Timestamp;
 }
 

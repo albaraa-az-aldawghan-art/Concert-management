@@ -8,6 +8,7 @@ import {
   deleteDoc,
   orderBy,
   query,
+  writeBatch,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -16,8 +17,11 @@ import { WarehouseItem } from "@/types";
 export async function addWarehouseItem(
   data: Omit<WarehouseItem, "id" | "createdAt">
 ): Promise<WarehouseItem> {
+  // New items go to the end of the custom order
+  const countSnap = await getDocs(collection(db, "warehouse_items"));
   const ref = await addDoc(collection(db, "warehouse_items"), {
     ...data,
+    order: countSnap.size,
     createdAt: Timestamp.now(),
   });
   const snap = await getDoc(ref);
@@ -28,7 +32,19 @@ export async function getWarehouseItems(): Promise<WarehouseItem[]> {
   const snap = await getDocs(
     query(collection(db, "warehouse_items"), orderBy("createdAt", "desc"))
   );
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WarehouseItem));
+  const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as WarehouseItem));
+  // Custom drag order first; items created before ordering existed keep
+  // their creation order at the end
+  return items.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+}
+
+// Persist the new order for all items in one batch write
+export async function updateWarehouseItemsOrder(orderedIds: string[]): Promise<void> {
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, index) => {
+    batch.update(doc(db, "warehouse_items", id), { order: index });
+  });
+  await batch.commit();
 }
 
 export async function getWarehouseItemById(id: string): Promise<WarehouseItem | null> {
