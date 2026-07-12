@@ -21,6 +21,9 @@ import {
   BarChart3,
   Settings,
   ChefHat,
+  Truck,
+  UserCog,
+  UserRound,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,15 +33,19 @@ interface NavItem {
 }
 
 const adminNav: NavItem[] = [
-  { label: "لوحة التحكم",   href: "/admin",                icon: <LayoutDashboard size={17} /> },
-  { label: "القائمة المالية", href: "/admin/finances",       icon: <BarChart3 size={17} /> },
-  { label: "الحفلات",        href: "/admin/concerts",        icon: <Music size={17} /> },
-  { label: "المستخدمون",     href: "/admin/users",           icon: <Users size={17} /> },
-  { label: "المخزن",         href: "/admin/warehouse",       icon: <Package size={17} /> },
-  { label: "أصناف الأكل",    href: "/admin/food",            icon: <UtensilsCrossed size={17} /> },
-  { label: "طلبات المطبخ",   href: "/kitchen",               icon: <ChefHat size={17} /> },
-  { label: "المفقودات",      href: "/admin/missing-items",   icon: <AlertTriangle size={17} /> },
-  { label: "الإعدادات",      href: "/settings",              icon: <Settings size={17} /> },
+  { label: "لوحة التحكم",   href: "/admin",                       icon: <LayoutDashboard size={17} /> },
+  { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
+  { label: "الحفلات",        href: "/admin/concerts",               icon: <Music size={17} /> },
+  { label: "المستخدمون",     href: "/admin/users",                  icon: <Users size={17} /> },
+  { label: "المخزن",         href: "/admin/warehouse",              icon: <Package size={17} /> },
+  { label: "طلبات المخزن",   href: "/warehouse-manager/orders",     icon: <Truck size={17} /> },
+  { label: "طلبات المواد",   href: "/warehouse-manager/requests",   icon: <ClipboardList size={17} /> },
+  { label: "أصناف الأكل",    href: "/admin/food",                   icon: <UtensilsCrossed size={17} /> },
+  { label: "طلبات المطبخ",   href: "/kitchen",                      icon: <ChefHat size={17} /> },
+  { label: "المشرفون",       href: "/supervisor/concerts",          icon: <UserCog size={17} /> },
+  { label: "الموظفون",       href: "/employee/assignments",         icon: <UserRound size={17} /> },
+  { label: "المفقودات",      href: "/admin/missing-items",          icon: <AlertTriangle size={17} /> },
+  { label: "الإعدادات",      href: "/settings",                     icon: <Settings size={17} /> },
 ];
 
 const warehouseManagerNav: NavItem[] = [

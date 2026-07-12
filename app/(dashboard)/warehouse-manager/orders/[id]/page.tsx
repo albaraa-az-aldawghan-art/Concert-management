@@ -10,7 +10,7 @@ import { getWarehouseOrderByConcert, confirmWarehouseOrder } from "@/lib/firesto
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { thumbUrl } from "@/lib/cloudinary";
-import { generateElementPDF, sharePdf, isMobileDevice } from "@/lib/pdf";
+import { generateElementPDF, downloadPdf, isMobileDevice } from "@/lib/pdf";
 import { Concert, ConcertItem, WarehouseItem, KitchenOrder } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { Printer, CheckCircle2, ChevronRight, Package } from "lucide-react";
@@ -71,7 +71,7 @@ export default function WarehouseOrderSheetPage() {
       const el = document.getElementById("warehouse-sheet");
       if (!el) throw new Error("sheet not found");
       const blob = await generateElementPDF(el);
-      await sharePdf(blob, `مخزن-حفلة-${concert?.concertNumber ?? ""}.pdf`);
+      downloadPdf(blob, `مخزن-حفلة-${concert?.concertNumber ?? ""}.pdf`);
     } catch (err) {
       alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -137,8 +137,10 @@ export default function WarehouseOrderSheetPage() {
           </div>
         </div>
 
-        {/* Printable sheet — materials only, no food */}
-        <div id="warehouse-sheet" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Printable sheet — materials only, no food. FIXED 733px width:
+            identical layout on every device, phones pan in the preview */}
+        <div className="overflow-x-auto pb-2">
+        <div id="warehouse-sheet" style={{ width: 733 }} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header */}
           <div className="bg-[#1C2D50] text-white px-5 py-4 flex items-center justify-between gap-3">
             <div>
@@ -149,7 +151,7 @@ export default function WarehouseOrderSheetPage() {
           </div>
 
           {/* Meta */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 px-5 py-3 border-b border-slate-100 text-sm">
+          <div className="grid grid-cols-4 gap-x-4 gap-y-2 px-5 py-3 border-b border-slate-100 text-sm">
             <div>
               <p className="text-[11px] text-slate-400">اسم العميل</p>
               <p className="font-bold text-slate-800">{concert.clientName}</p>
@@ -187,7 +189,7 @@ export default function WarehouseOrderSheetPage() {
                     <span className="inline-block bg-slate-100 text-slate-600 text-[11px] font-bold px-2.5 py-0.5 rounded-md mb-1.5">
                       {group.label} ({group.list.length})
                     </span>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    <div className="grid grid-cols-6 gap-1.5">
                       {group.list.map((it) => {
                         const img = itemImage(it);
                         return (
@@ -236,6 +238,7 @@ export default function WarehouseOrderSheetPage() {
               ? `✓ تم تأكيد الاستلام${order.receivedBy ? ` بواسطة ${order.receivedBy}` : ""}${order.receivedAt ? ` — ${formatDateTime(order.receivedAt)}` : ""}`
               : "بانتظار تأكيد الاستلام من المخزن"}
           </div>
+        </div>
         </div>
       </div>
     </>

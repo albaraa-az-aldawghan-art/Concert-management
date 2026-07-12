@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertsByEmployee, getConcertItems, confirmItemDelivery, confirmItemReturn, markItemHasMissing } from "@/lib/firestore/concerts";
+import { getConcertsByEmployee, getConcerts, getConcertItems, confirmItemDelivery, confirmItemReturn, markItemHasMissing } from "@/lib/firestore/concerts";
 import { getConcertById } from "@/lib/firestore/concerts";
 import { reportMissingItem } from "@/lib/firestore/missing-items";
 import { useToast } from "@/components/ui/toast";
@@ -32,18 +32,25 @@ export default function EmployeeAssignmentsPage() {
   const [confirmDelivery, setConfirmDelivery] = useState<ItemWithConcert | null>(null);
   const [confirmReturn, setConfirmReturn] = useState<ItemWithConcert | null>(null);
 
+  const isAdmin = appUser?.role === "admin";
+
   useEffect(() => { if (appUser) loadItems(); }, [appUser]);
 
   async function loadItems() {
     if (!appUser) return;
     setLoading(true);
     try {
-      const concerts = await getConcertsByEmployee(appUser.uid);
+      // Admin oversees every employee: all concerts, every assigned item
+      const concerts = isAdmin
+        ? await getConcerts()
+        : await getConcertsByEmployee(appUser.uid);
       const allItems: ItemWithConcert[] = [];
       for (const c of concerts) {
-        const concertItems = await getConcertItems(c.id);
+        const concertItems = await getConcertItems(c.id).catch(() => []);
         const mine = concertItems
-          .filter((i) => i.assignedToEmployeeId === appUser.uid)
+          .filter((i) =>
+            isAdmin ? i.assignedToEmployeeId != null : i.assignedToEmployeeId === appUser.uid
+          )
           .map((i) => ({ ...i, concertName: c.name }));
         allItems.push(...mine);
       }
@@ -120,8 +127,10 @@ export default function EmployeeAssignmentsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">موادي</h2>
-        <p className="text-sm text-slate-500">{items.length} مادة مسندة إليك</p>
+        <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "إسنادات الموظفين" : "موادي"}</h2>
+        <p className="text-sm text-slate-500">
+          {items.length} {isAdmin ? "مادة مسندة للموظفين — صلاحيات الموظف الكاملة" : "مادة مسندة إليك"}
+        </p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -149,7 +158,12 @@ export default function EmployeeAssignmentsPage() {
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-slate-800">{item.itemName}</h3>
-                  <p className="text-xs text-slate-400 mb-2">الحفلة: {item.concertName}</p>
+                  <p className="text-xs text-slate-400 mb-2">
+                    الحفلة: {item.concertName}
+                    {isAdmin && item.assignedToEmployeeName && (
+                      <span className="text-indigo-600 font-semibold"> · الموظف: {item.assignedToEmployeeName}</span>
+                    )}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     <StatusBadge status={item.type} />
                     <StatusBadge status={item.deliveryStatus} />

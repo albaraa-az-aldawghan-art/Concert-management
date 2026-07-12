@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertsBySupervisor } from "@/lib/firestore/concerts";
+import { getConcertsBySupervisor, getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Concert } from "@/types";
@@ -16,12 +16,17 @@ export default function SupervisorConcertsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("");
 
+  const isAdmin = appUser?.role === "admin";
+
   useEffect(() => {
     if (!appUser) return;
-    getConcertsBySupervisor(appUser.uid)
+    // The admin supervises everything — full list with full supervisor powers
+    const fetcher = isAdmin ? getConcerts() : getConcertsBySupervisor(appUser.uid);
+    fetcher
       .then((data) => setConcerts(data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser]);
 
   const filtered = filterStatus ? concerts.filter((c) => c.status === filterStatus) : concerts;
@@ -29,8 +34,8 @@ export default function SupervisorConcertsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">حفلاتي</h2>
-        <p className="text-sm text-slate-500">{concerts.length} حفلة</p>
+        <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "حفلات المشرفين" : "حفلاتي"}</h2>
+        <p className="text-sm text-slate-500">{concerts.length} حفلة{isAdmin ? " — صلاحيات المشرف الكاملة" : ""}</p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
