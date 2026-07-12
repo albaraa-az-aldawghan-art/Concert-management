@@ -40,21 +40,25 @@ export default function EmployeeAssignmentsPage() {
     if (!appUser) return;
     setLoading(true);
     try {
-      // Admin oversees every employee: all concerts, every assigned item
+      // Admin oversees every employee: all concerts, every assigned item.
+      // Fetch all concerts' items IN PARALLEL — sequential was too slow.
       const concerts = isAdmin
         ? await getConcerts()
         : await getConcertsByEmployee(appUser.uid);
-      const allItems: ItemWithConcert[] = [];
-      for (const c of concerts) {
-        const concertItems = await getConcertItems(c.id).catch(() => []);
-        const mine = concertItems
-          .filter((i) =>
-            isAdmin ? i.assignedToEmployeeId != null : i.assignedToEmployeeId === appUser.uid
-          )
-          .map((i) => ({ ...i, concertName: c.name }));
-        allItems.push(...mine);
-      }
-      setItems(allItems);
+      const perConcert = await Promise.all(
+        concerts.map((c) =>
+          getConcertItems(c.id)
+            .catch(() => [])
+            .then((concertItems) =>
+              concertItems
+                .filter((i) =>
+                  isAdmin ? i.assignedToEmployeeId != null : i.assignedToEmployeeId === appUser.uid
+                )
+                .map((i) => ({ ...i, concertName: c.name }))
+            )
+        )
+      );
+      setItems(perConcert.flat());
     } catch {
       showToast("حدث خطأ أثناء تحميل البيانات", "error");
     } finally {
