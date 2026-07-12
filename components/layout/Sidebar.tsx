@@ -65,7 +65,7 @@ const supervisorNav: NavItem[] = [
 
 const employeeNav: NavItem[] = [
   { label: "لوحة التحكم", href: "/employee",              icon: <LayoutDashboard size={17} /> },
-  { label: "موادي",        href: "/employee/assignments",  icon: <Package size={17} /> },
+  { label: "حفلاتي",       href: "/employee/assignments",  icon: <Music size={17} /> },
   { label: "الإعدادات",    href: "/settings",              icon: <Settings size={17} /> },
 ];
 
