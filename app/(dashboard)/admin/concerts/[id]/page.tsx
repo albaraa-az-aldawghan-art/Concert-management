@@ -1547,18 +1547,28 @@ export default function AdminConcertDetailPage() {
                             {isChecked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                           </button>
                         </div>
-                        <div className="flex-1 min-w-0"
+                        <div className="flex-1 min-w-0 flex items-center gap-2.5"
                           onClick={() => setAddItemCheck((prev) => ({ ...prev, [item.id]: { checked: !prev[item.id]?.checked, quantity: prev[item.id]?.quantity ?? "1" } }))}>
-                          <span className={`text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}>
-                            {item.name}
-                            <span className="text-xs text-slate-400 mr-1.5">(متوفر: {item.availableCount})</span>
-                          </span>
-                          {isChecked && hasPrice && (
-                            <p className="text-xs text-amber-600 mt-0.5">
-                              {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
-                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
-                            </p>
+                          {item.imageUrl && (
+                            <img
+                              src={thumbUrl(item.imageUrl, 120)}
+                              alt={item.name}
+                              loading="lazy"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer"
+                            />
                           )}
+                          <div className="min-w-0">
+                            <span className={`text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}>
+                              {item.name}
+                              <span className="text-xs text-slate-400 mr-1.5">(متوفر: {item.availableCount})</span>
+                            </span>
+                            {isChecked && hasPrice && (
+                              <p className="text-xs text-amber-600 mt-0.5">
+                                {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
+                                <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
                         {isChecked && (
                           <div className="flex items-center gap-1.5 shrink-0">

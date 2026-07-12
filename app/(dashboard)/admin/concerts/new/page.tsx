@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod } from "@/types";
+import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -630,22 +631,29 @@ export default function NewConcertPage() {
                         <div className="pt-0.5">
                           <Checkbox checked={isChecked} onToggle={() => toggleItem(item.id)} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div
-                            className={`text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
-                            onClick={() => toggleItem(item.id)}
-                          >
-                            {item.name}
-                            <span className="text-xs text-slate-400 mr-1.5">
-                              (متوفر: {item.availableCount})
-                            </span>
-                          </div>
-                          {isChecked && hasPrice && (
-                            <p className="text-xs text-amber-600 mt-1">
-                              {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
-                              <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
-                            </p>
+                        <div className="flex-1 min-w-0 flex items-center gap-2.5" onClick={() => toggleItem(item.id)}>
+                          {item.imageUrl && (
+                            <img
+                              src={thumbUrl(item.imageUrl, 120)}
+                              alt={item.name}
+                              loading="lazy"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer"
+                            />
                           )}
+                          <div className="min-w-0">
+                            <div className={`text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}>
+                              {item.name}
+                              <span className="text-xs text-slate-400 mr-1.5">
+                                (متوفر: {item.availableCount})
+                              </span>
+                            </div>
+                            {isChecked && hasPrice && (
+                              <p className="text-xs text-amber-600 mt-1">
+                                {item.pricePerUnit!.toLocaleString("en-US")} ريال × {qty} =
+                                <span className="font-bold mr-1">{(item.pricePerUnit! * qty).toLocaleString("en-US")} ريال</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
                         {isChecked && (
                           <div className="flex items-center gap-1.5 shrink-0">
