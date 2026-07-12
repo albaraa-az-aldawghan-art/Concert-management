@@ -6,8 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getConcertById, getConcertItems, updateConcertItem,
   approveDelivery, approveReturn, setConcertLocation, supervisorDeliverToWarehouse,
-  advanceToExecuting,
+  advanceToExecuting, markItemHasMissing,
 } from "@/lib/firestore/concerts";
+import { reportMissingItem } from "@/lib/firestore/missing-items";
 import { getConcertFood } from "@/lib/firestore/food";
 import { createRequest, getRequestsByConcert } from "@/lib/firestore/requests";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -20,7 +21,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { Concert, ConcertItem, AppUser, WarehouseItem, WarehouseRequest, ConcertFood } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed } from "lucide-react";
+import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -60,6 +61,44 @@ export default function SupervisorConcertDetailPage() {
 
   const [requestForm, setRequestForm] = useState({ itemId: "", count: "1" });
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
+
+  // Missing-item reporting (supervisor responsibility)
+  const [showMissingModal, setShowMissingModal] = useState(false);
+  const [missingTarget, setMissingTarget] = useState<ConcertItem | null>(null);
+  const [missingCount, setMissingCount] = useState("1");
+
+  async function handleReportMissing(e: React.FormEvent) {
+    e.preventDefault();
+    if (!missingTarget || !appUser || !concert) return;
+    const count = parseInt(missingCount);
+    if (isNaN(count) || count <= 0 || count > missingTarget.count) {
+      showToast("عدد غير صحيح", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await markItemHasMissing(missingTarget.id);
+      await reportMissingItem({
+        concertId: missingTarget.concertId,
+        concertName: concert.name,
+        itemId: missingTarget.itemId,
+        itemName: missingTarget.itemName,
+        missingCount: count,
+        type: missingTarget.type,
+        reportedBy: appUser.uid,
+        reportedByName: appUser.name,
+      });
+      showToast("تم الإبلاغ عن المفقودات");
+      setShowMissingModal(false);
+      setMissingTarget(null);
+      setMissingCount("1");
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Location setting by supervisor
   const [supervisorLocation, setSupervisorLocation] = useState<Location | null>(null);
@@ -423,12 +462,25 @@ export default function SupervisorConcertDetailPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap justify-end">
                   <p className="text-lg font-bold text-[#1C2D50]">{item.count}</p>
                   <StatusBadge status={item.deliveryStatus} />
                   {!isLocked && employees.length > 0 && (
                     <Button size="sm" variant="outline" onClick={() => { setAssignTarget(item); setShowAssignModal(true); }}>
                       إسناد
+                    </Button>
+                  )}
+                  {item.returnStatus === "has_missing" ? (
+                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-lg">
+                      ⚠️ به مفقودات
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => { setMissingTarget(item); setMissingCount("1"); setShowMissingModal(true); }}
+                    >
+                      <AlertTriangle size={13} /> مفقودات
                     </Button>
                   )}
                 </div>
@@ -437,6 +489,34 @@ export default function SupervisorConcertDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* Missing report modal */}
+      <Modal
+        open={showMissingModal}
+        onClose={() => { setShowMissingModal(false); setMissingTarget(null); }}
+        title="الإبلاغ عن مفقودات"
+      >
+        <form onSubmit={handleReportMissing} className="space-y-4">
+          <div className="bg-slate-50 rounded-xl p-3">
+            <p className="text-sm font-semibold text-slate-800">{missingTarget?.itemName}</p>
+            <p className="text-xs text-slate-500">الإجمالي: {missingTarget?.count} وحدة</p>
+          </div>
+          <Input
+            label="عدد المفقودات"
+            type="number"
+            min={1}
+            max={missingTarget?.count}
+            value={missingCount}
+            onChange={(e) => setMissingCount(e.target.value)}
+            required
+            helperText={`أقصى عدد: ${missingTarget?.count}`}
+          />
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" type="button" onClick={() => { setShowMissingModal(false); setMissingTarget(null); }}>إلغاء</Button>
+            <Button variant="danger" type="submit" loading={saving}>إبلاغ</Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Employees */}
       <Card>
