@@ -28,6 +28,15 @@ export default function WarehouseOrderSheetPage() {
   const [confirming, setConfirming] = useState(false);
   const [printing, setPrinting] = useState(false);
 
+  // Scale the fixed-width sheet down to fit small screens (preview only)
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const calc = () => setZoom(Math.min(1, (window.innerWidth - 40) / 733));
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+
   const allowed = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
 
   useEffect(() => {
@@ -116,6 +125,7 @@ export default function WarehouseOrderSheetPage() {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
+          .sheet-zoom { zoom: 1 !important; }
         }
       `}</style>
 
@@ -137,9 +147,8 @@ export default function WarehouseOrderSheetPage() {
           </div>
         </div>
 
-        {/* Printable sheet — materials only, no food. FIXED 733px width:
-            identical layout on every device, phones pan in the preview */}
-        <div className="overflow-x-auto pb-2">
+        {/* Printable sheet — FIXED 733px width, zoom-scaled to fit the screen */}
+        <div className="sheet-zoom pb-2" style={{ zoom } as React.CSSProperties}>
         <div id="warehouse-sheet" style={{ width: 733 }} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header */}
           <div className="bg-[#1C2D50] text-white px-5 py-4 flex items-center justify-between gap-3">
