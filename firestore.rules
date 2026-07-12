@@ -149,6 +149,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── طلبات المخزن للحفلات (نسخة المخزن من طلب المطبخ) ──────
+    match /warehouse_orders/{orderId} {
+      allow read:   if isAdmin() || isWarehouse() || pageOn('concerts');
+      allow create: if isAdmin() || hasFeat('concerts', 'send_kitchen');
+      allow update: if isAdmin() || isWarehouse() || hasFeat('concerts', 'send_kitchen');
+      allow delete: if isAdmin();
+    }
+
     // ── العدادات (ترقيم الحفلات تسلسلياً) ─────────────────────
     match /counters/{counterId} {
       allow read, write: if isAdmin() || hasFeat('concerts', 'create');

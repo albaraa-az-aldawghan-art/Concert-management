@@ -44,6 +44,7 @@ const adminNav: NavItem[] = [
 const warehouseManagerNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/warehouse-manager",                icon: <LayoutDashboard size={17} /> },
   { label: "المخزن",         href: "/warehouse-manager/warehouse",      icon: <Package size={17} /> },
+  { label: "طلبات الحفلات",  href: "/warehouse-manager/orders",         icon: <Music size={17} /> },
   { label: "طلبات المواد",   href: "/warehouse-manager/requests",       icon: <ClipboardList size={17} /> },
   { label: "المفقودات",      href: "/warehouse-manager/missing-items",  icon: <AlertTriangle size={17} /> },
   { label: "الإعدادات",      href: "/settings",                         icon: <Settings size={17} /> },

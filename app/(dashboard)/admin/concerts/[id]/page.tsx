@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder } from "@/types";
-import { sendConcertToKitchen, getKitchenOrderByConcert } from "@/lib/firestore/kitchen";
+import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation } from "lucide-react";
@@ -697,9 +697,12 @@ export default function AdminConcertDetailPage() {
                 if (!appUser || sendingKitchen) return;
                 setSendingKitchen(true);
                 try {
-                  await sendConcertToKitchen(concert, appUser.name);
+                  await Promise.all([
+                    sendConcertToKitchen(concert, appUser.name),
+                    sendConcertToWarehouse(concert, appUser.name),
+                  ]);
                   setKitchenOrder(await getKitchenOrderByConcert(concert.id));
-                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ" : "تم إرسال الحفلة للمطبخ");
+                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ والمخزن" : "تم إرسال الحفلة للمطبخ والمخزن");
                 } catch {
                   showToast("حدث خطأ أثناء الإرسال", "error");
                 } finally {
@@ -721,8 +724,8 @@ export default function AdminConcertDetailPage() {
                 : kitchenOrder?.status === "received"
                 ? "المطبخ استلم ✓ — إعادة إرسال"
                 : kitchenOrder
-                ? "أُرسل للمطبخ — إعادة إرسال"
-                : "إرسال للمطبخ"}
+                ? "أُرسل للمطبخ والمخزن — إعادة إرسال"
+                : "إرسال للمطبخ والمخزن"}
             </button>
           )}
           {fx.cancel && concert.status !== "cancelled" && (

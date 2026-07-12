@@ -5,68 +5,42 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems } from "@/lib/firestore/concerts";
-import { getConcertFood, getFoodCategories } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
-import { getKitchenOrderByConcert, confirmKitchenOrder } from "@/lib/firestore/kitchen";
+import { getWarehouseOrderByConcert, confirmWarehouseOrder } from "@/lib/firestore/kitchen";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { thumbUrl } from "@/lib/cloudinary";
 import { generateElementPDF, sharePdf, isMobileDevice } from "@/lib/pdf";
-import { Concert, ConcertItem, ConcertFood, FoodCategory, WarehouseItem, KitchenOrder } from "@/types";
+import { Concert, ConcertItem, WarehouseItem, KitchenOrder } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
-import { Printer, CheckCircle2, ChevronRight, UtensilsCrossed, Package } from "lucide-react";
+import { Printer, CheckCircle2, ChevronRight, Package } from "lucide-react";
 
-export default function KitchenSheetPage() {
+export default function WarehouseOrderSheetPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser, feat } = useAuth();
+  const { appUser } = useAuth();
   const { showToast } = useToast();
-  const canConfirm = feat("kitchen", "confirm");
 
   const [concert, setConcert] = useState<Concert | null>(null);
-  const [food, setFood] = useState<ConcertFood[]>([]);
   const [items, setItems] = useState<ConcertItem[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
-  const [categories, setCategories] = useState<FoodCategory[]>([]);
   const [order, setOrder] = useState<KitchenOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  // Desktop: native print dialog. Mobile (esp. iOS where window.print takes
-  // ~60s): generate a PDF fast and open the share sheet (Print/Save inside).
-  async function handlePrint() {
-    if (!isMobileDevice()) {
-      window.print();
-      return;
-    }
-    setPrinting(true);
-    try {
-      const el = document.getElementById("kitchen-sheet");
-      if (!el) throw new Error("sheet not found");
-      const blob = await generateElementPDF(el);
-      await sharePdf(blob, `مطبخ-حفلة-${concert?.concertNumber ?? ""}.pdf`);
-    } catch (err) {
-      alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setPrinting(false);
-    }
-  }
+  const allowed = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
 
   useEffect(() => {
     async function load() {
-      const [c, f, it, wh, cats, ord] = await Promise.all([
+      const [c, it, wh, ord] = await Promise.all([
         getConcertById(id),
-        getConcertFood(id),
         getConcertItems(id),
         getWarehouseItems(),
-        getFoodCategories(),
-        getKitchenOrderByConcert(id),
+        getWarehouseOrderByConcert(id),
       ]);
       setConcert(c);
-      setFood(f);
       setItems(it);
       setWarehouseItems(wh);
-      setCategories(cats);
       setOrder(ord);
       setLoading(false);
     }
@@ -77,14 +51,36 @@ export default function KitchenSheetPage() {
     if (!appUser || !order) return;
     setConfirming(true);
     try {
-      await confirmKitchenOrder(order.id, appUser.name);
-      setOrder(await getKitchenOrderByConcert(id));
+      await confirmWarehouseOrder(order.id, appUser.name);
+      setOrder(await getWarehouseOrderByConcert(id));
       showToast("تم تأكيد استلام الحفلة");
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
       setConfirming(false);
     }
+  }
+
+  async function handlePrint() {
+    if (!isMobileDevice()) {
+      window.print();
+      return;
+    }
+    setPrinting(true);
+    try {
+      const el = document.getElementById("warehouse-sheet");
+      if (!el) throw new Error("sheet not found");
+      const blob = await generateElementPDF(el);
+      await sharePdf(blob, `مخزن-حفلة-${concert?.concertNumber ?? ""}.pdf`);
+    } catch (err) {
+      alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  if (appUser && !allowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 
   if (loading) {
@@ -99,17 +95,6 @@ export default function KitchenSheetPage() {
     return <p className="text-center text-slate-400 py-12">لم يتم العثور على الحفلة</p>;
   }
 
-  // Group food by category, in the same custom order as the food admin page
-  const catOrder = new Map(categories.map((c, i) => [c.name, c.order ?? i]));
-  const groups = new Map<string, ConcertFood[]>();
-  for (const f of food) {
-    if (!groups.has(f.categoryName)) groups.set(f.categoryName, []);
-    groups.get(f.categoryName)!.push(f);
-  }
-  const sortedGroups = [...groups.entries()].sort(
-    (a, b) => (catOrder.get(a[0]) ?? 999) - (catOrder.get(b[0]) ?? 999)
-  );
-
   const itemImage = (it: ConcertItem) => warehouseItems.find((w) => w.id === it.itemId)?.imageUrl ?? null;
 
   return (
@@ -121,13 +106,12 @@ export default function KitchenSheetPage() {
           main { padding: 0 !important; }
           div[class*="mr-64"] { margin-right: 0 !important; }
           body { background: white !important; }
-          #kitchen-sheet {
+          #warehouse-sheet {
             box-shadow: none !important;
             border: none !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Keep each category block and material card whole on one page */
           .avoid-break {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
@@ -138,11 +122,11 @@ export default function KitchenSheetPage() {
       <div className="max-w-3xl mx-auto space-y-4">
         {/* Controls */}
         <div className="no-print flex items-center gap-2 flex-wrap">
-          <Link href="/kitchen" className="flex items-center gap-1 text-sm text-[#1C2D50] font-semibold">
+          <Link href="/warehouse-manager/orders" className="flex items-center gap-1 text-sm text-[#1C2D50] font-semibold">
             <ChevronRight size={16} /> العودة للطلبات
           </Link>
           <div className="mr-auto flex gap-2">
-            {order?.status === "sent" && canConfirm && (
+            {order?.status === "sent" && (
               <Button variant="success" size="sm" loading={confirming} onClick={handleConfirm}>
                 <CheckCircle2 size={14} /> تأكيد الاستلام
               </Button>
@@ -153,15 +137,15 @@ export default function KitchenSheetPage() {
           </div>
         </div>
 
-        {/* Printable sheet */}
-        <div id="kitchen-sheet" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Printable sheet — materials only, no food */}
+        <div id="warehouse-sheet" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header */}
           <div className="bg-[#1C2D50] text-white px-5 py-4 flex items-center justify-between gap-3">
             <div>
-              <p className="font-bold text-base">طلب مطبخ — حفلة #{concert.concertNumber}</p>
+              <p className="font-bold text-base">طلب مخزن — حفلة #{concert.concertNumber}</p>
               <p className="text-xs opacity-75 mt-0.5">مطعم الفريج لتقديم الوجبات</p>
             </div>
-            <UtensilsCrossed size={26} className="opacity-60" />
+            <Package size={26} className="opacity-60" />
           </div>
 
           {/* Meta */}
@@ -185,51 +169,11 @@ export default function KitchenSheetPage() {
             </div>
           </div>
 
-          {/* Food */}
+          {/* Materials — grouped internal/external, image-top photo cards */}
           <div className="px-5 py-3">
             <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
-              <UtensilsCrossed size={13} className="text-orange-500" />
-              الأقسام والأصناف
-            </p>
-            {sortedGroups.length === 0 ? (
-              <p className="text-sm text-slate-400">لا توجد أصناف أكل</p>
-            ) : (
-              <div className="space-y-2.5">
-                {sortedGroups.map(([catName, catFood]) => (
-                  <div key={catName} className="avoid-break">
-                    {/* Category header */}
-                    <span className="inline-block bg-[#1C2D50] text-white text-[12px] font-bold px-2.5 py-0.5 rounded-md">
-                      {catName}
-                      <span className="opacity-75 font-medium"> ({catFood.reduce((s, f) => s + (f.quantity ?? 0), 0)})</span>
-                    </span>
-                    {/* Items inline: "option ×qty ، option ×qty ، ..."
-                        The separator lives OUTSIDE the nowrap span so the line
-                        can wrap between items instead of overflowing off-page */}
-                    <p className="text-[13px] text-slate-700 leading-relaxed mt-1 pr-0.5" style={{ wordBreak: "break-word" }}>
-                      {catFood.map((f, i) => (
-                        <span key={f.id}>
-                          {i > 0 && <span className="text-slate-300">، </span>}
-                          <span className="whitespace-nowrap">
-                            {f.selectedOption}
-                            {f.quantity != null && f.quantity > 0 && (
-                              <b className="text-[#1C2D50] tabular-nums-auto"> ×{f.quantity}</b>
-                            )}
-                          </span>
-                          {f.notes && <span className="text-[11px] text-slate-400"> ({f.notes})</span>}{" "}
-                        </span>
-                      ))}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Materials — grouped internal/external, image-top photo cards */}
-          <div className="px-5 py-3 border-t border-slate-100">
-            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
               <Package size={13} className="text-indigo-500" />
-              المواد المستعملة
+              مواد الحفلة
             </p>
             {items.length === 0 ? (
               <p className="text-sm text-slate-400">لا توجد مواد</p>
@@ -290,7 +234,7 @@ export default function KitchenSheetPage() {
           }`}>
             {order?.status === "received"
               ? `✓ تم تأكيد الاستلام${order.receivedBy ? ` بواسطة ${order.receivedBy}` : ""}${order.receivedAt ? ` — ${formatDateTime(order.receivedAt)}` : ""}`
-              : "بانتظار تأكيد الاستلام من المطبخ"}
+              : "بانتظار تأكيد الاستلام من المخزن"}
           </div>
         </div>
       </div>
