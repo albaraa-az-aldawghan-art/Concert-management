@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllUsers, createUser, deleteUser } from "@/lib/firestore/users";
+import { getAllUsers } from "@/lib/firestore/users";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -79,14 +79,31 @@ export default function UsersPage() {
       const isCustom = form.role.startsWith("custom::");
       const role = (isCustom ? "custom" : form.role) as UserRole;
       const customRoleId = isCustom ? form.role.split("::")[1] : null;
-      await createUser(form.email, form.password, form.name, role, appUser.uid, customRoleId);
+
+      // Server-side creation via Admin SDK: keeps the admin's session intact
+      // and never leaves orphaned Auth accounts if a step fails.
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+          name: form.name.trim(),
+          role,
+          customRoleId,
+          callerIdToken: idToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "حدث خطأ أثناء الإنشاء");
+
       showToast("تم إنشاء المستخدم بنجاح");
       setShowAdd(false);
       setForm({ name: "", email: "", password: "", role: "employee" });
       loadUsers();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "حدث خطأ";
-      showToast(msg.includes("email-already") ? "البريد الإلكتروني مستخدم مسبقاً" : "حدث خطأ أثناء الإنشاء", "error");
+      showToast(err instanceof Error ? err.message : "حدث خطأ أثناء الإنشاء", "error");
     } finally {
       setSaving(false);
     }
@@ -145,17 +162,21 @@ export default function UsersPage() {
     if (!deleteTarget) return;
     setSaving(true);
     try {
-      await deleteUser(deleteTarget.uid);
+      // Server-side delete removes the Auth account too — the email becomes reusable
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUid: deleteTarget.uid, callerIdToken: idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "حدث خطأ أثناء الحذف");
+
       showToast("تم حذف المستخدم");
       setDeleteTarget(null);
       loadUsers();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
-        showToast("خطأ في الصلاحيات — تأكد من تحديث قواعد Firestore", "error");
-      } else {
-        showToast("حدث خطأ أثناء الحذف", "error");
-      }
+      showToast(err instanceof Error ? err.message : "حدث خطأ أثناء الحذف", "error");
     } finally {
       setSaving(false);
     }
