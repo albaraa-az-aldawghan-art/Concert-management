@@ -48,11 +48,23 @@ const adminNav: NavItem[] = [
       { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
     ],
   },
-  { label: "أصناف الأكل",    href: "/admin/food",                   icon: <UtensilsCrossed size={17} /> },
-  { label: "طلبات المطبخ",   href: "/kitchen",                      icon: <ChefHat size={17} /> },
-  { label: "المشرفون",       href: "/supervisor/concerts",          icon: <UserCog size={17} /> },
-  { label: "الموظفون",       href: "/employee/assignments",         icon: <UserRound size={17} /> },
-  { label: "المفقودات",      href: "/admin/missing-items",          icon: <AlertTriangle size={17} /> },
+  {
+    label: "أصناف الأكل",
+    href: "/admin/food",
+    icon: <UtensilsCrossed size={17} />,
+    children: [
+      { label: "طلبات المطبخ", href: "/kitchen", icon: <ChefHat size={15} /> },
+    ],
+  },
+  {
+    label: "المشرفون",
+    href: "/supervisor/concerts",
+    icon: <UserCog size={17} />,
+    children: [
+      { label: "الموظفون",  href: "/employee/assignments", icon: <UserRound size={15} /> },
+      { label: "المفقودات", href: "/admin/missing-items",  icon: <AlertTriangle size={15} /> },
+    ],
+  },
   { label: "الإعدادات",      href: "/settings",                     icon: <Settings size={17} /> },
 ];
 
