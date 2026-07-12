@@ -303,6 +303,16 @@ export default function ContractPage() {
         backgroundColor: "#ffffff",
         width: PRINT_W,
         height: captureH,
+        // The doc is centered with margin:auto — the clone copies the RESOLVED
+        // pixel margins, shifting content sideways and clipping the right edge.
+        // Zero them out so the capture starts exactly at the document's edge.
+        style: {
+          margin: "0",
+          marginLeft: "0",
+          marginRight: "0",
+          width: PRINT_W + "px",
+          maxWidth: PRINT_W + "px",
+        },
       };
 
       // Safari loads fonts/images inside SVG foreignObject lazily — the first
