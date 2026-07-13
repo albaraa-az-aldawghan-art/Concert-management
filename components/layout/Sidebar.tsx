@@ -38,7 +38,6 @@ const adminNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/admin",                       icon: <LayoutDashboard size={17} /> },
   { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
   { label: "الحفلات",        href: "/admin/concerts",               icon: <Music size={17} /> },
-  { label: "المستخدمون",     href: "/admin/users",                  icon: <Users size={17} /> },
   {
     label: "المخزن",
     href: "/admin/warehouse",
@@ -65,7 +64,14 @@ const adminNav: NavItem[] = [
       { label: "المفقودات", href: "/admin/missing-items",  icon: <AlertTriangle size={15} /> },
     ],
   },
-  { label: "الإعدادات",      href: "/settings",                     icon: <Settings size={17} /> },
+  {
+    label: "الإعدادات",
+    href: "/settings",
+    icon: <Settings size={17} />,
+    children: [
+      { label: "المستخدمون", href: "/admin/users", icon: <Users size={15} /> },
+    ],
+  },
 ];
 
 const warehouseManagerNav: NavItem[] = [
