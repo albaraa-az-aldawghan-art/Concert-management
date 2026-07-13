@@ -9,7 +9,10 @@ import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, tsToDateStr } from "@/components/ui/list-filters";
 import { Package, UtensilsCrossed, Music, CalendarDays, Clock, MapPin, ChevronLeft } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 interface ConcertSummary {
   concert: Concert;
@@ -24,6 +27,12 @@ export default function EmployeeAssignmentsPage() {
   const { showToast } = useToast();
   const [summaries, setSummaries] = useState<ConcertSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
+  const [timeFilter, setTimeFilter] = useState<"" | "upcoming" | "past">("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [search, dateF, timeFilter]);
 
   const isAdmin = appUser?.role === "admin";
 
@@ -67,21 +76,71 @@ export default function EmployeeAssignmentsPage() {
     );
   }
 
+  const todayStr = tsToDateStr({ toDate: () => new Date() });
+  const q = search.trim().toLowerCase();
+  const numQ = search.trim().replace(/^#/, "");
+  const filtered = summaries.filter(({ concert: c }) => {
+    const dStr = tsToDateStr(c.date);
+    if (timeFilter === "upcoming" && dStr < todayStr) return false;
+    if (timeFilter === "past" && dStr >= todayStr) return false;
+    if (!matchesDate(c.date, dateF)) return false;
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.venueName ?? "").toLowerCase().includes(q) ||
+      (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ))
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "حفلات الموظفين" : "حفلاتي"}</h2>
-        <p className="text-sm text-slate-500">{summaries.length} حفلة — اضغط على الحفلة لعرض تفاصيلها</p>
+        <p className="text-sm text-slate-500">{filtered.length} حفلة — اضغط على الحفلة لعرض تفاصيلها</p>
       </div>
 
-      {summaries.length === 0 ? (
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="بحث بالرقم التسلسلي، اسم الحفلة، أو المكان..."
+      />
+
+      <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="حفلة" />
+
+      {/* Own filter: upcoming vs past */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: "", label: "الكل" },
+          { key: "upcoming", label: "القادمة" },
+          { key: "past", label: "السابقة" },
+        ] as { key: "" | "upcoming" | "past"; label: string }[]).map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setTimeFilter(f.key)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              timeFilter === f.key
+                ? "bg-[#1C2D50] text-white"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Music size={40} className="mb-3 opacity-40" />
-          <p>لا توجد حفلات مسندة إليك</p>
+          <p>{summaries.length === 0 ? "لا توجد حفلات مسندة إليك" : "لا توجد نتائج مطابقة"}</p>
         </Card>
       ) : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {summaries.map(({ concert, materialsCount, foodCount }) => (
+          {paginated.map(({ concert, materialsCount, foodCount }) => (
             <Link key={concert.id} href={`/employee/assignments/${concert.id}`}>
               <Card className="hover:shadow-md hover:border-[#D4DCE8] transition-all cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2 mb-3">
@@ -125,6 +184,8 @@ export default function EmployeeAssignmentsPage() {
             </Link>
           ))}
         </div>
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+        </>
       )}
     </div>
   );

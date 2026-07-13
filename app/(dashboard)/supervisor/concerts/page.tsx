@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Concert, AppUser } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { Music, Calendar, MapPin, UserCog, UserRound } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 export default function SupervisorConcertsPage() {
   const { appUser } = useAuth();
@@ -19,6 +22,11 @@ export default function SupervisorConcertsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("");
   const [supFilter, setSupFilter] = useState(""); // admin: focus on one supervisor
+  const [search, setSearch] = useState("");
+  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [filterStatus, supFilter, search, dateF]);
 
   const isAdmin = appUser?.role === "admin";
 
@@ -49,11 +57,23 @@ export default function SupervisorConcertsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser]);
 
+  const q = search.trim().toLowerCase();
+  const numQ = search.trim().replace(/^#/, "");
   const filtered = concerts.filter(
     (c) =>
       (!filterStatus || c.status === filterStatus) &&
-      (!supFilter || c.supervisorIds.includes(supFilter))
+      (!supFilter || c.supervisorIds.includes(supFilter)) &&
+      matchesDate(c.date, dateF) &&
+      (!q ||
+        c.name.toLowerCase().includes(q) ||
+        (c.clientName ?? "").toLowerCase().includes(q) ||
+        (c.venueName ?? "").toLowerCase().includes(q) ||
+        (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ)))
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // The focused supervisor's team = union of employees across his concerts
   const focusedSupervisor = supervisors.find((s) => s.uid === supFilter) ?? null;
@@ -68,6 +88,14 @@ export default function SupervisorConcertsPage() {
         <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "حفلات المشرفين" : "حفلاتي"}</h2>
         <p className="text-sm text-slate-500">{concerts.length} حفلة{isAdmin ? " — صلاحيات المشرف الكاملة" : ""}</p>
       </div>
+
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="بحث بالرقم التسلسلي، اسم الحفلة، العميل، أو المكان..."
+      />
+
+      <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="حفلة" />
 
       {/* Admin: pick a supervisor to focus on his concerts and team */}
       {isAdmin && supervisors.length > 0 && (
@@ -141,8 +169,9 @@ export default function SupervisorConcertsPage() {
           <Music size={40} className="mb-3 opacity-40" /><p>لا توجد حفلات</p>
         </Card>
       ) : (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filtered.map((concert) => (
+          {paginated.map((concert) => (
             <Link key={concert.id} href={`/supervisor/concerts/${concert.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-start justify-between mb-2">
@@ -169,6 +198,8 @@ export default function SupervisorConcertsPage() {
             </Link>
           ))}
         </div>
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+        </>
       )}
     </div>
   );

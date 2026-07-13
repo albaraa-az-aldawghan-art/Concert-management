@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { KitchenOrder } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { UtensilsCrossed, Printer, CheckCircle2, Clock } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 export default function KitchenPage() {
   const { appUser, can, feat } = useAuth();
@@ -18,6 +21,12 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
+  const [statusF, setStatusF] = useState<"" | "sent" | "received">("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [search, dateF, statusF]);
 
   useEffect(() => { load(); }, []);
 
@@ -52,6 +61,21 @@ export default function KitchenPage() {
 
   const pending = orders.filter((o) => o.status === "sent");
   const received = orders.filter((o) => o.status === "received");
+
+  const q = search.trim().toLowerCase();
+  const numQ = search.trim().replace(/^#/, "");
+  const filtered = orders.filter(
+    (o) =>
+      (!statusF || o.status === statusF) &&
+      matchesDate(o.concertDate, dateF) &&
+      (!q ||
+        o.clientName.toLowerCase().includes(q) ||
+        (o.venueName ?? "").toLowerCase().includes(q) ||
+        String(o.concertNumber).padStart(3, "0").includes(numQ))
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   function OrderCard({ order }: { order: KitchenOrder }) {
     const isPending = order.status === "sent";
@@ -131,33 +155,51 @@ export default function KitchenPage() {
         </p>
       </div>
 
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="بحث برقم الحفلة، اسم العميل، أو المكان..."
+      />
+
+      <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="حفلة" />
+
+      {/* Status filter */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: "", label: "الكل", count: orders.length },
+          { key: "sent", label: "بانتظار الاستلام", count: pending.length },
+          { key: "received", label: "المستلمة", count: received.length },
+        ] as { key: "" | "sent" | "received"; label: string; count: number }[]).map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setStatusF(f.key)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              statusF === f.key
+                ? "bg-[#1C2D50] text-white"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {f.label}
+            <span className="mr-1.5 text-xs opacity-70">({f.count})</span>
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
-      ) : orders.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <UtensilsCrossed size={40} className="mb-3 opacity-40" />
-          <p>لم تُرسل أي حفلات للمطبخ بعد</p>
+          <p>{orders.length === 0 ? "لم تُرسل أي حفلات للمطبخ بعد" : "لا توجد نتائج مطابقة"}</p>
         </Card>
       ) : (
         <>
-          {pending.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-amber-700 mb-3">بانتظار الاستلام</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {pending.map((o) => <OrderCard key={o.id} order={o} />)}
-              </div>
-            </div>
-          )}
-          {received.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-slate-500 mb-3">المستلمة</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {received.map((o) => <OrderCard key={o.id} order={o} />)}
-              </div>
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {paginated.map((o) => <OrderCard key={o.id} order={o} />)}
+          </div>
+          <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
     </div>

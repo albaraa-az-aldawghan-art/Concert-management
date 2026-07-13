@@ -11,16 +11,25 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { WarehouseRequest, Concert } from "@/types";
 import { formatDateTime } from "@/lib/utils";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { ClipboardList, Check, X, PackageCheck } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 export default function WarehouseRequestsPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const [requests, setRequests] = useState<WarehouseRequest[]>([]);
   const [pendingReturn, setPendingReturn] = useState<Concert[]>([]);
+  const [concertDates, setConcertDates] = useState<Map<string, unknown>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("pending");
+  const [search, setSearch] = useState("");
+  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [filterStatus, search, dateF]);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -30,6 +39,7 @@ export default function WarehouseRequestsPage() {
       const [reqs, concerts] = await Promise.all([getAllRequests(), getConcerts()]);
       setRequests(reqs);
       setPendingReturn(concerts.filter((c) => c.supervisorDeliveredToWarehouse && !c.warehouseReturnConfirmed));
+      setConcertDates(new Map(concerts.map((c) => [c.id, c.date])));
     } catch {
       showToast("حدث خطأ أثناء التحميل", "error");
     } finally {
@@ -71,8 +81,20 @@ export default function WarehouseRequestsPage() {
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(null); }
   }
 
-  const filtered = filterStatus ? requests.filter((r) => r.status === filterStatus) : requests;
+  const q = search.trim().toLowerCase();
+  const filtered = requests.filter(
+    (r) =>
+      (!filterStatus || r.status === filterStatus) &&
+      matchesDate(concertDates.get(r.concertId) ?? r.createdAt, dateF) &&
+      (!q ||
+        r.itemName.toLowerCase().includes(q) ||
+        r.concertName.toLowerCase().includes(q) ||
+        r.supervisorName.toLowerCase().includes(q))
+  );
   const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -114,6 +136,14 @@ export default function WarehouseRequestsPage() {
         </div>
       )}
 
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="بحث باسم المادة، الحفلة، أو المشرف..."
+      />
+
+      <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="طلب" />
+
       {/* Requests section */}
       <div className="flex gap-2 flex-wrap">
         {["pending", "approved", "rejected", ""].map((s) => (
@@ -133,11 +163,13 @@ export default function WarehouseRequestsPage() {
         <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
-          <ClipboardList size={40} className="mb-3 opacity-40" /><p>لا توجد طلبات</p>
+          <ClipboardList size={40} className="mb-3 opacity-40" />
+          <p>{requests.length === 0 ? "لا توجد طلبات" : "لا توجد نتائج مطابقة"}</p>
         </Card>
       ) : (
+        <>
         <div className="space-y-3">
-          {filtered.map((req) => (
+          {paginated.map((req) => (
             <Card key={req.id} className={req.status === "pending" ? "border-yellow-200" : ""}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -170,6 +202,8 @@ export default function WarehouseRequestsPage() {
             </Card>
           ))}
         </div>
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+        </>
       )}
     </div>
   );
