@@ -321,14 +321,18 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
 }
 
 const permissionIcons: Record<string, React.ReactNode> = {
-  dashboard:     <LayoutDashboard size={17} />,
-  finances:      <BarChart3 size={17} />,
-  concerts:      <Music size={17} />,
-  users:         <Users size={17} />,
-  warehouse:     <Package size={17} />,
-  food:          <UtensilsCrossed size={17} />,
-  missing_items: <AlertTriangle size={17} />,
-  kitchen:       <ChefHat size={17} />,
+  dashboard:        <LayoutDashboard size={17} />,
+  finances:         <BarChart3 size={17} />,
+  concerts:         <Music size={17} />,
+  users:            <Users size={17} />,
+  warehouse:        <Package size={17} />,
+  warehouse_orders: <Truck size={17} />,
+  requests:         <ClipboardList size={17} />,
+  food:             <UtensilsCrossed size={17} />,
+  missing_items:    <AlertTriangle size={17} />,
+  kitchen:          <ChefHat size={17} />,
+  supervisor:       <UserCog size={17} />,
+  employees:        <UserRound size={17} />,
 };
 
 export function Sidebar() {

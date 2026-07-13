@@ -17,8 +17,13 @@ import { ClipboardList, Check, X, PackageCheck } from "lucide-react";
 const PAGE_SIZE = 10;
 
 export default function WarehouseRequestsPage() {
-  const { appUser } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
+  const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
+  const pageAllowed = isStaff || (appUser?.role === "custom" && can("requests"));
+  const canApprove = isStaff || feat("requests", "approve");
+  const canReject = isStaff || feat("requests", "reject");
+  const canConfirmReturn = isStaff || feat("requests", "confirm_return");
   const [requests, setRequests] = useState<WarehouseRequest[]>([]);
   const [pendingReturn, setPendingReturn] = useState<Concert[]>([]);
   const [concertDates, setConcertDates] = useState<Map<string, unknown>>(new Map());
@@ -96,6 +101,10 @@ export default function WarehouseRequestsPage() {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -120,16 +129,18 @@ export default function WarehouseRequestsPage() {
                     سلّم المشرف المواد للمخزن — بانتظار تأكيدك لإضافتها وتحمّل مسؤوليتها
                   </p>
                 </div>
-                <Button
-                  variant="success"
-                  size="sm"
-                  onClick={() => handleConfirmReturn(concert)}
-                  loading={saving === concert.id}
-                  className="gap-1 shrink-0"
-                >
-                  <Check size={14} />
-                  تم استلام المواد
-                </Button>
+                {canConfirmReturn && (
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => handleConfirmReturn(concert)}
+                    loading={saving === concert.id}
+                    className="gap-1 shrink-0"
+                  >
+                    <Check size={14} />
+                    تم استلام المواد
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
@@ -187,14 +198,18 @@ export default function WarehouseRequestsPage() {
                     <p className="text-2xl font-bold text-[#1C2D50]">{req.requestedCount}</p>
                     <p className="text-xs text-slate-400">مطلوب</p>
                   </div>
-                  {req.status === "pending" && (
+                  {req.status === "pending" && (canApprove || canReject) && (
                     <div className="flex gap-2">
-                      <Button variant="success" size="sm" onClick={() => handleApprove(req)} loading={saving === req.id} className="gap-1">
-                        <Check size={14} /> قبول
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleReject(req)} loading={saving === req.id} className="gap-1">
-                        <X size={14} /> رفض
-                      </Button>
+                      {canApprove && (
+                        <Button variant="success" size="sm" onClick={() => handleApprove(req)} loading={saving === req.id} className="gap-1">
+                          <Check size={14} /> قبول
+                        </Button>
+                      )}
+                      {canReject && (
+                        <Button variant="danger" size="sm" onClick={() => handleReject(req)} loading={saving === req.id} className="gap-1">
+                          <X size={14} /> رفض
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -39,6 +39,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     features: [
       { key: "totals", label: "بطاقات الإجماليات المالية" },
       { key: "table",  label: "جدول الحفلات المالي التفصيلي" },
+      { key: "vat",    label: "تعديل نسبة الضريبة (من الإعدادات)" },
     ],
   },
   {
@@ -75,8 +76,26 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     href: "/admin/warehouse",
     features: [
       { key: "add",    label: "إضافة مادة" },
-      { key: "edit",   label: "تعديل مادة وصورتها" },
+      { key: "edit",   label: "تعديل مادة وصورتها وترتيبها" },
       { key: "delete", label: "حذف مادة" },
+    ],
+  },
+  {
+    key: "warehouse_orders",
+    label: "طلبات المخزن",
+    href: "/warehouse-manager/orders",
+    features: [
+      { key: "confirm", label: "تأكيد استلام الحفلات" },
+    ],
+  },
+  {
+    key: "requests",
+    label: "طلبات المواد",
+    href: "/warehouse-manager/requests",
+    features: [
+      { key: "approve",        label: "قبول الطلبات وصرف المواد" },
+      { key: "reject",         label: "رفض الطلبات" },
+      { key: "confirm_return", label: "تأكيد استلام المواد المرتجعة من الحفلات" },
     ],
   },
   {
@@ -106,6 +125,27 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "confirm", label: "تأكيد استلام الحفلات" },
     ],
   },
+  {
+    key: "supervisor",
+    label: "المشرفون (تشغيل الحفلات)",
+    href: "/supervisor/concerts",
+    features: [
+      { key: "receive_materials", label: "استلام المواد من المخزن" },
+      { key: "set_location",      label: "تحديد موقع الحفلة" },
+      { key: "start_executing",   label: "بدء تنفيذ الحفلة" },
+      { key: "return_materials",  label: "استلام المواد من الحفلة" },
+      { key: "deliver_warehouse", label: "تسليم المواد للمخزن" },
+      { key: "request_materials", label: "طلب مواد من المخزن" },
+      { key: "assign_employees",  label: "إسناد الموظفين للحفلة" },
+      { key: "report_missing",    label: "الإبلاغ عن مفقودات" },
+    ],
+  },
+  {
+    key: "employees",
+    label: "الموظفون (عرض الحفلات)",
+    href: "/employee/assignments",
+    features: [],
+  },
 ];
 
 // Maps a pathname under /admin (or /kitchen) to its permission key.
@@ -119,6 +159,10 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/missing-items")) return "missing_items";
   if (pathname.startsWith("/admin")) return "dashboard";
   if (pathname.startsWith("/kitchen")) return "kitchen";
+  if (pathname.startsWith("/warehouse-manager/orders")) return "warehouse_orders";
+  if (pathname.startsWith("/warehouse-manager/requests")) return "requests";
+  if (pathname.startsWith("/supervisor")) return "supervisor";
+  if (pathname.startsWith("/employee")) return "employees";
   return null;
 }
 

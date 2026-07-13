@@ -15,7 +15,7 @@ import { Package, Printer, CheckCircle2, Clock } from "lucide-react";
 const PAGE_SIZE = 10;
 
 export default function WarehouseOrdersPage() {
-  const { appUser } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +27,9 @@ export default function WarehouseOrdersPage() {
 
   useEffect(() => { setPage(1); }, [search, dateF, statusF]);
 
-  const allowed = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
-  const canConfirm = allowed;
+  const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
+  const allowed = isStaff || (appUser?.role === "custom" && can("warehouse_orders"));
+  const canConfirm = isStaff || feat("warehouse_orders", "confirm");
 
   useEffect(() => { load(); }, []);
 

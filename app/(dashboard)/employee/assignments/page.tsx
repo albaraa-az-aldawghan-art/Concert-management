@@ -23,7 +23,7 @@ interface ConcertSummary {
 // Employees are pure VIEWERS: a grid of concert cards; clicking one opens an
 // organized read-only detail page.
 export default function EmployeeAssignmentsPage() {
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const { showToast } = useToast();
   const [summaries, setSummaries] = useState<ConcertSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,9 @@ export default function EmployeeAssignmentsPage() {
 
   useEffect(() => { setPage(1); }, [search, dateF, timeFilter]);
 
-  const isAdmin = appUser?.role === "admin";
+  // Admin and custom roles granted "employees" oversee all concerts
+  const isAdmin = appUser?.role === "admin" || (appUser?.role === "custom" && can("employees"));
+  const pageAllowed = isAdmin || appUser?.role === "employee";
 
   useEffect(() => {
     async function load() {
@@ -74,6 +76,10 @@ export default function EmployeeAssignmentsPage() {
         <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
       </div>
     );
+  }
+
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 
   const todayStr = tsToDateStr({ toDate: () => new Date() });

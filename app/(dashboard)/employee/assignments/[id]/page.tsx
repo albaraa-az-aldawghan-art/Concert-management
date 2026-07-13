@@ -18,7 +18,7 @@ import { Package, UtensilsCrossed, CalendarDays, Clock, MapPin, ChevronRight, Fi
 // images and counts, food sections with quantities. No actions whatsoever.
 export default function EmployeeConcertViewPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const { showToast } = useToast();
 
   const [concert, setConcert] = useState<Concert | null>(null);
@@ -62,7 +62,12 @@ export default function EmployeeConcertViewPage() {
     return <p className="text-center text-slate-400 py-12">لم يتم العثور على الحفلة</p>;
   }
 
-  // Employees may only open concerts they belong to
+  // Employees may only open concerts they belong to; admin and custom roles
+  // with the "employees" permission can open any concert
+  const overseer = appUser?.role === "admin" || (appUser?.role === "custom" && can("employees"));
+  if (appUser && !overseer && appUser.role !== "employee") {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
   if (appUser && appUser.role === "employee" && !concert.employeeIds.includes(appUser.uid)) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بعرض هذه الحفلة</p>;
   }

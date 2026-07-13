@@ -17,7 +17,7 @@ import { Printer, CheckCircle2, ChevronRight, Package } from "lucide-react";
 
 export default function WarehouseOrderSheetPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
 
   const [concert, setConcert] = useState<Concert | null>(null);
@@ -37,7 +37,9 @@ export default function WarehouseOrderSheetPage() {
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  const allowed = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
+  const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
+  const allowed = isStaff || (appUser?.role === "custom" && can("warehouse_orders"));
+  const canConfirmOrder = isStaff || feat("warehouse_orders", "confirm");
 
   useEffect(() => {
     async function load() {
@@ -136,7 +138,7 @@ export default function WarehouseOrderSheetPage() {
             <ChevronRight size={16} /> العودة للطلبات
           </Link>
           <div className="mr-auto flex gap-2">
-            {order?.status === "sent" && (
+            {order?.status === "sent" && canConfirmOrder && (
               <Button variant="success" size="sm" loading={confirming} onClick={handleConfirm}>
                 <CheckCircle2 size={14} /> تأكيد الاستلام
               </Button>

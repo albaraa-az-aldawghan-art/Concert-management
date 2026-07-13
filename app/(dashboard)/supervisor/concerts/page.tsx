@@ -15,7 +15,7 @@ import { Music, Calendar, MapPin, UserCog, UserRound } from "lucide-react";
 const PAGE_SIZE = 10;
 
 export default function SupervisorConcertsPage() {
-  const { appUser } = useAuth();
+  const { appUser, can } = useAuth();
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
@@ -28,7 +28,10 @@ export default function SupervisorConcertsPage() {
 
   useEffect(() => { setPage(1); }, [filterStatus, supFilter, search, dateF]);
 
-  const isAdmin = appUser?.role === "admin";
+  // Admin and custom roles granted the "supervisor" page oversee everything;
+  // real supervisors see their own concerts only.
+  const isAdmin = appUser?.role === "admin" || (appUser?.role === "custom" && can("supervisor"));
+  const pageAllowed = isAdmin || appUser?.role === "supervisor";
 
   useEffect(() => {
     if (!appUser) return;
@@ -81,6 +84,10 @@ export default function SupervisorConcertsPage() {
     ? [...new Set(filtered.flatMap((c) => c.employeeIds))]
     : [];
   const focusedEmployees = employees.filter((e) => focusedEmployeeIds.includes(e.uid));
+
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
 
   return (
     <div className="space-y-5">

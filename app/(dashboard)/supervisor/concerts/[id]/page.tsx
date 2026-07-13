@@ -39,7 +39,7 @@ interface Location { lat: number; lng: number; address: string; }
 
 export default function SupervisorConcertDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
 
   const [concert, setConcert] = useState<Concert | null>(null);
@@ -234,17 +234,27 @@ export default function SupervisorConcertDetailPage() {
     return <div className="text-center py-12 text-slate-400">الحفلة غير موجودة</div>;
   }
 
+  // Page access + feature gating: real supervisors and admin get everything;
+  // custom roles follow their granted "supervisor" checklist.
+  const role = appUser?.role;
+  const pageAllowed = role === "admin" || role === "supervisor" || (role === "custom" && can("supervisor"));
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
+  const fxs = (k: string) =>
+    role === "admin" || role === "supervisor" || feat("supervisor", k);
+
   const isLocked = concert.deliveryApproved;
-  const needsLocation = concert.deliveryApproved && !concert.location;
+  const needsLocation = concert.deliveryApproved && !concert.location && fxs("set_location");
   const isPlanned = concert.status === "planned";
-  const canReceiveMaterials = concert.status === "materials_requested" ||
-    (!concert.deliveryApproved && !isPlanned && concert.status !== "confirmed" && !concert.status);
-  const canStartExecuting = concert.status === "location_set" ||
-    (concert.status === "active" && !!concert.location);
-  const canReturnMaterials = concert.status === "executing";
-  const canDeliverToWarehouse = concert.status === "materials_returned" ||
+  const canReceiveMaterials = fxs("receive_materials") && (concert.status === "materials_requested" ||
+    (!concert.deliveryApproved && !isPlanned && concert.status !== "confirmed" && !concert.status));
+  const canStartExecuting = fxs("start_executing") && (concert.status === "location_set" ||
+    (concert.status === "active" && !!concert.location));
+  const canReturnMaterials = fxs("return_materials") && concert.status === "executing";
+  const canDeliverToWarehouse = fxs("deliver_warehouse") && (concert.status === "materials_returned" ||
     (concert.returnApproved && !concert.supervisorDeliveredToWarehouse &&
-     concert.status !== "executing" && concert.status !== "location_set" && concert.status !== "active");
+     concert.status !== "executing" && concert.status !== "location_set" && concert.status !== "active"));
   const isWaitingWarehouse = concert.status === "delivered_to_warehouse" ||
     (concert.supervisorDeliveredToWarehouse && !concert.warehouseReturnConfirmed);
 
@@ -414,9 +424,11 @@ export default function SupervisorConcertDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">طلب مواد من المخزن</h3>
-            <Button size="sm" onClick={() => setShowRequestForm(true)}>
-              <Plus size={14} /> طلب مادة
-            </Button>
+            {fxs("request_materials") && (
+              <Button size="sm" onClick={() => setShowRequestForm(true)}>
+                <Plus size={14} /> طلب مادة
+              </Button>
+            )}
           </div>
           {requests.length === 0 ? (
             <p className="text-sm text-slate-400">لم تطلب أي مواد بعد</p>
@@ -463,7 +475,7 @@ export default function SupervisorConcertDetailPage() {
                     <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-lg">
                       ⚠️ به مفقودات
                     </span>
-                  ) : (concert.status === "executing" || concert.status === "materials_returned") ? (
+                  ) : (fxs("report_missing") && (concert.status === "executing" || concert.status === "materials_returned")) ? (
                     <Button
                       size="sm"
                       variant="danger"
@@ -511,13 +523,15 @@ export default function SupervisorConcertDetailPage() {
       <Card>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => { setAssignIds(concert.employeeIds ?? []); setShowAssignEmployees(true); }}
-          >
-            <UserRound size={13} /> إسناد الموظفين
-          </Button>
+          {fxs("assign_employees") && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setAssignIds(concert.employeeIds ?? []); setShowAssignEmployees(true); }}
+            >
+              <UserRound size={13} /> إسناد الموظفين
+            </Button>
+          )}
         </div>
         {employees.length === 0 ? (
           <p className="text-sm text-slate-400">لا يوجد موظفون في هذه الحفلة</p>

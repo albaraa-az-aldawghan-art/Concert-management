@@ -23,8 +23,9 @@ import { CustomRole, PermissionPage } from "@/types";
 type PermMap = Partial<Record<PermissionPage, string[]>>;
 
 export default function SettingsPage() {
-  const { appUser } = useAuth();
+  const { appUser, feat } = useAuth();
   const { showToast } = useToast();
+  const canEditVat = appUser?.role === "admin" || feat("finances", "vat");
 
   const [form, setForm] = useState({ current: "", newPass: "", confirm: "" });
   const [saving, setSaving] = useState(false);
@@ -279,8 +280,8 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* VAT Rate — admin only */}
-      {appUser?.role === "admin" && (
+      {/* VAT Rate — admin or a custom role granted finances.vat */}
+      {canEditVat && (
         <Card>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
@@ -445,8 +446,8 @@ export default function SettingsPage() {
                       )}
                     </label>
 
-                    {/* Feature checklist */}
-                    {enabled && (
+                    {/* Feature checklist (pages without sub-features are view-only by nature) */}
+                    {enabled && p.features.length > 0 && (
                       <div className="bg-slate-50 border-t border-slate-100 px-4 py-2.5">
                         <button
                           type="button"

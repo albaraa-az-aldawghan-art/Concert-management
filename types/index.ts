@@ -10,9 +10,13 @@ export type PermissionPage =
   | "concerts"
   | "users"
   | "warehouse"
+  | "warehouse_orders"
+  | "requests"
   | "food"
   | "missing_items"
-  | "kitchen";
+  | "kitchen"
+  | "supervisor"
+  | "employees";
 
 export interface CustomRole {
   id: string;
