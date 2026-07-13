@@ -57,9 +57,10 @@ service cloud.firestore {
     }
 
     // ── الأدوار المخصصة ────────────────────────────────────────
+    // الكتابة للمدير أو دور مُنح صراحةً «إدارة الأدوار والصلاحيات»
     match /custom_roles/{roleId} {
       allow read:  if signedIn();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || hasFeat('settings', 'roles');
     }
 
     // ── الحفلات ────────────────────────────────────────────────
@@ -178,7 +179,7 @@ service cloud.firestore {
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
     match /settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('finances', 'vat');
+      allow write: if isAdmin() || hasFeat('settings', 'vat') || hasFeat('finances', 'vat');
     }
 
     // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────

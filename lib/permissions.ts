@@ -39,7 +39,6 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     features: [
       { key: "totals", label: "بطاقات الإجماليات المالية" },
       { key: "table",  label: "جدول الحفلات المالي التفصيلي" },
-      { key: "vat",    label: "تعديل نسبة الضريبة (من الإعدادات)" },
     ],
   },
   {
@@ -145,6 +144,15 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     label: "الموظفون (عرض الحفلات)",
     href: "/employee/assignments",
     features: [],
+  },
+  {
+    key: "settings",
+    label: "الإعدادات",
+    href: "/settings",
+    features: [
+      { key: "vat",   label: "تعديل نسبة الضريبة" },
+      { key: "roles", label: "إدارة الأدوار والصلاحيات (صلاحية حساسة)" },
+    ],
   },
 ];
 

@@ -16,7 +16,8 @@ export type PermissionPage =
   | "missing_items"
   | "kitchen"
   | "supervisor"
-  | "employees";
+  | "employees"
+  | "settings";
 
 export interface CustomRole {
   id: string;

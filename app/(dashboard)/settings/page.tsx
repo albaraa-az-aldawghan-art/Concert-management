@@ -25,7 +25,8 @@ type PermMap = Partial<Record<PermissionPage, string[]>>;
 export default function SettingsPage() {
   const { appUser, feat } = useAuth();
   const { showToast } = useToast();
-  const canEditVat = appUser?.role === "admin" || feat("finances", "vat");
+  const canEditVat = appUser?.role === "admin" || feat("settings", "vat") || feat("finances", "vat");
+  const canManageRoles = appUser?.role === "admin" || feat("settings", "roles");
 
   const [form, setForm] = useState({ current: "", newPass: "", confirm: "" });
   const [saving, setSaving] = useState(false);
@@ -46,8 +47,9 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (appUser?.role === "admin") loadRoles();
-  }, [appUser?.role]);
+    if (canManageRoles) loadRoles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManageRoles]);
 
   async function loadRoles() {
     try {
@@ -202,8 +204,8 @@ export default function SettingsPage() {
         <p className="text-sm text-slate-500 mt-0.5">{appUser?.email}</p>
       </div>
 
-      {/* ── Roles & Permissions — admin only ── */}
-      {appUser?.role === "admin" && (
+      {/* ── Roles & Permissions — admin or a role granted settings.roles ── */}
+      {canManageRoles && (
         <Card>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">

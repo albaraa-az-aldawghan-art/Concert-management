@@ -345,7 +345,8 @@ export function Sidebar() {
   const navItems: NavItem[] =
     appUser?.role === "custom"
       ? [
-          ...PERMISSION_PAGES.filter((p) => can(p.key)).map((p) => ({
+          // settings is appended statically below (password change is universal)
+          ...PERMISSION_PAGES.filter((p) => p.key !== "settings" && can(p.key)).map((p) => ({
             label: p.label,
             href: p.href,
             icon: permissionIcons[p.key],
