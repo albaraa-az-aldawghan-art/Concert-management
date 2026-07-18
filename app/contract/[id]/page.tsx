@@ -237,6 +237,7 @@ export default function ContractPage() {
   const prevDateObj = prevDateStr ? new Date(prevDateStr + "T12:00:00") : null;
   const prevDateFmt = prevDateObj ? `${fmtDate(prevDateObj)} — ${AR_DAYS[prevDateObj.getDay()]}` : null;
   const prevVenueName = fieldPrev["venueName"] ?? null;
+  const prevPeopleCount = fieldPrev["peopleCount"] ?? null;
 
   // ── Food change tracking ──────────────────────────
   // Deleted items disappear from the contract entirely; re-added items count
@@ -837,6 +838,15 @@ export default function ContractPage() {
                     {concert.venueName || "—"}
                   </span>
                 </div>
+                {(concert.peopleCount || prevPeopleCount) && (
+                  <div style={S.fld}>
+                    <span style={S.fl}>عدد الأشخاص</span>
+                    <span style={S.fv}>
+                      {prevPeopleCount && <Strike color="#94A3B8" style={S.oldVal}>{prevPeopleCount}</Strike>}
+                      {concert.peopleCount || "—"}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

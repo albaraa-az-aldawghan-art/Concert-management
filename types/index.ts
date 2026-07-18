@@ -36,6 +36,7 @@ export interface KitchenOrder {
   clientName: string;
   concertDate: Timestamp | null;
   venueName: string | null;
+  peopleCount?: string | null; // لقطة من الحفلة وقت الإرسال (الطلبات القديمة بدونها)
   status: "sent" | "received";
   sentAt: Timestamp;
   sentBy: string;
@@ -90,6 +91,7 @@ export interface Concert {
   name: string;
   date: Timestamp; // يتضمن وقت بدء الحفلة (datetime-local عند الإنشاء)
   venueName: string | null;
+  peopleCount: string | null; // عدد الأشخاص — نص حر يقبل كتابة وأرقاماً (اختياري)
   location: ConcertLocation | null;
   price: number;
   clientName: string | null;

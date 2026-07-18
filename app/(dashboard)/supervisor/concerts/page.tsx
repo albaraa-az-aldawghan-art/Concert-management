@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Concert, AppUser } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
-import { Music, Calendar, MapPin, UserCog, UserRound } from "lucide-react";
+import { Music, Calendar, MapPin, UserCog, UserRound, UsersRound } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -189,6 +189,9 @@ export default function SupervisorConcertsPage() {
                   <div className="flex items-center gap-2"><Calendar size={13} /><span>{formatDate(concert.date)}</span></div>
                   {concert.location?.address && (
                     <div className="flex items-start gap-2"><MapPin size={13} className="shrink-0 mt-0.5" /><span className="line-clamp-1">{concert.location.address}</span></div>
+                  )}
+                  {concert.peopleCount && (
+                    <div className="flex items-center gap-2"><UsersRound size={13} className="shrink-0" /><span className="line-clamp-1">{concert.peopleCount}</span></div>
                   )}
                 </div>
                 <div className="mt-3 pt-2 border-t border-slate-100 flex gap-2 flex-wrap">

@@ -115,6 +115,12 @@ export default function WarehouseOrdersPage() {
               <span className="font-semibold text-slate-800">{order.venueName}</span>
             </div>
           )}
+          {order.peopleCount && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">عدد الأشخاص</span>
+              <span className="font-semibold text-slate-800">{order.peopleCount}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-slate-500">أُرسلت في</span>
             <span className="text-slate-600 tabular-nums-auto">{formatDateTime(order.sentAt)}</span>

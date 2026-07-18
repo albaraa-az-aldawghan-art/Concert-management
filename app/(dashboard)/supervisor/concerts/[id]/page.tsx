@@ -21,7 +21,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { Concert, ConcertItem, AppUser, WarehouseItem, WarehouseRequest, ConcertFood } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle } from "lucide-react";
+import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle, UsersRound } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -318,13 +318,26 @@ export default function SupervisorConcertDetailPage() {
         </div>
       )}
 
-      {/* Date */}
+      {/* Date + People Count */}
       <Card>
-        <div className="flex items-center gap-2 text-slate-500 mb-1">
-          <Calendar size={14} />
-          <span className="text-xs font-medium">التاريخ</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          <div>
+            <div className="flex items-center gap-2 text-slate-500 mb-1">
+              <Calendar size={14} />
+              <span className="text-xs font-medium">التاريخ</span>
+            </div>
+            <p className="font-semibold text-slate-800 text-sm">{formatDate(concert.date)}</p>
+          </div>
+          {concert.peopleCount && (
+            <div>
+              <div className="flex items-center gap-2 text-slate-500 mb-1">
+                <UsersRound size={14} />
+                <span className="text-xs font-medium">عدد الأشخاص</span>
+              </div>
+              <p className="font-semibold text-slate-800 text-sm">{concert.peopleCount}</p>
+            </div>
+          )}
         </div>
-        <p className="font-semibold text-slate-800 text-sm">{formatDate(concert.date)}</p>
       </Card>
 
       {/* Client Info */}

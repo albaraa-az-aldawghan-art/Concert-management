@@ -194,6 +194,12 @@ export default function KitchenSheetPage() {
               <p className="text-[11px] text-slate-400">وقت الإرسال</p>
               <p className="font-bold text-slate-800 tabular-nums-auto">{order ? formatDateTime(order.sentAt) : "—"}</p>
             </div>
+            {concert.peopleCount && (
+              <div>
+                <p className="text-[11px] text-slate-400">عدد الأشخاص</p>
+                <p className="font-bold text-slate-800">👥 {concert.peopleCount}</p>
+              </div>
+            )}
           </div>
 
           {/* Food */}

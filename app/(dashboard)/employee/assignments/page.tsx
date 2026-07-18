@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, tsToDateStr } from "@/components/ui/list-filters";
-import { Package, UtensilsCrossed, Music, CalendarDays, Clock, MapPin, ChevronLeft } from "lucide-react";
+import { Package, UtensilsCrossed, Music, CalendarDays, Clock, MapPin, ChevronLeft, UsersRound } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -171,6 +171,12 @@ export default function EmployeeAssignmentsPage() {
                     <p className="flex items-center gap-1.5">
                       <MapPin size={13} className="text-slate-400 shrink-0" />
                       <span className="truncate">{concert.venueName}</span>
+                    </p>
+                  )}
+                  {concert.peopleCount && (
+                    <p className="flex items-center gap-1.5">
+                      <UsersRound size={13} className="text-slate-400 shrink-0" />
+                      <span className="truncate">{concert.peopleCount}</span>
                     </p>
                   )}
                 </div>

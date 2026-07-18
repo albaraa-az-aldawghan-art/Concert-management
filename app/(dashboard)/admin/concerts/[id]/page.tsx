@@ -20,7 +20,7 @@ import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, 
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -84,6 +84,8 @@ export default function AdminConcertDetailPage() {
   const [editDate, setEditDate] = useState("");
   const [showEditVenueName, setShowEditVenueName] = useState(false);
   const [editVenueName, setEditVenueName] = useState("");
+  const [showEditPeopleCount, setShowEditPeopleCount] = useState(false);
+  const [editPeopleCount, setEditPeopleCount] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelHasRefund, setCancelHasRefund] = useState(false);
@@ -480,6 +482,24 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم تغيير اسم المكان من "${oldName}" إلى "${newName ?? "—"}"`, createdBy: appUser.uid, field: "venueName", oldValue: oldName, newValue: newName ?? "" });
       showToast("تم تحديث اسم المكان");
       setShowEditVenueName(false);
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSavePeopleCount() {
+    if (!concert || !appUser) return;
+    setSaving(true);
+    try {
+      const oldCount = concert.peopleCount || "—";
+      const newCount = editPeopleCount.trim() || null;
+      await updateConcert(concert.id, { peopleCount: newCount });
+      await addConcertLog({ concertId: concert.id, description: `تم تغيير عدد الأشخاص من "${oldCount}" إلى "${newCount ?? "—"}"`, createdBy: appUser.uid, field: "peopleCount", oldValue: oldCount, newValue: newCount ?? "" });
+      showToast("تم تحديث عدد الأشخاص");
+      setShowEditPeopleCount(false);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -949,6 +969,21 @@ export default function AdminConcertDetailPage() {
             </button>}
           </div>
           <p className="text-sm text-slate-700 line-clamp-2">{concert.venueName || "—"}</p>
+        </Card>
+        <Card>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-slate-500">
+              <UsersRound size={15} />
+              <span className="text-xs font-medium">عدد الأشخاص</span>
+            </div>
+            {fx.edit && <button
+              onClick={() => { setEditPeopleCount(concert.peopleCount ?? ""); setShowEditPeopleCount(true); }}
+              className="text-slate-300 hover:text-blue-500 transition-colors"
+            >
+              <Pencil size={13} />
+            </button>}
+          </div>
+          <p className="text-sm text-slate-700 line-clamp-2">{concert.peopleCount || "—"}</p>
         </Card>
         <Card>
           <div className="flex items-center gap-2 text-slate-500 mb-1">
@@ -1878,6 +1913,29 @@ export default function AdminConcertDetailPage() {
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" type="button" onClick={() => setShowEditVenueName(false)}>إلغاء</Button>
             <Button onClick={handleSaveVenueName} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit People Count Modal */}
+      <Modal open={showEditPeopleCount} onClose={() => setShowEditPeopleCount(false)} title="تعديل عدد الأشخاص">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+              عدد الأشخاص <span className="text-slate-400 font-normal">— اتركه فارغاً لإزالته</span>
+            </label>
+            <input
+              type="text"
+              value={editPeopleCount}
+              onChange={(e) => setEditPeopleCount(e.target.value)}
+              placeholder="مثال: 300 شخص — رجال ونساء"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowEditPeopleCount(false)}>إلغاء</Button>
+            <Button onClick={handleSavePeopleCount} loading={saving}>حفظ</Button>
           </div>
         </div>
       </Modal>

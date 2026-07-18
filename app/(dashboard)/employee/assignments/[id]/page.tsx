@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Concert, ConcertItem, ConcertFood, WarehouseItem } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
-import { Package, UtensilsCrossed, CalendarDays, Clock, MapPin, ChevronRight, FileText } from "lucide-react";
+import { Package, UtensilsCrossed, CalendarDays, Clock, MapPin, ChevronRight, FileText, UsersRound } from "lucide-react";
 
 // Read-only concert detail for employees: what, when, where — materials with
 // images and counts, food sections with quantities. No actions whatsoever.
@@ -119,6 +119,12 @@ export default function EmployeeConcertViewPage() {
             <p className="text-[11px] text-slate-400 flex items-center gap-1"><MapPin size={11} /> المكان</p>
             <p className="font-bold text-slate-800">{concert.venueName || "—"}</p>
           </div>
+          {concert.peopleCount && (
+            <div>
+              <p className="text-[11px] text-slate-400 flex items-center gap-1"><UsersRound size={11} /> عدد الأشخاص</p>
+              <p className="font-bold text-slate-800">{concert.peopleCount}</p>
+            </div>
+          )}
         </div>
       </div>
 

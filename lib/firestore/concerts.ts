@@ -42,6 +42,7 @@ export async function createConcert(
       clientPhone: data.clientPhone ?? null,
       clientPhone2: data.clientPhone2 ?? null,
       venueName: data.venueName ?? null,
+      peopleCount: data.peopleCount ?? null,
       status: data.status ?? "planned",
       deliveryApproved: false,
       deliveryApprovedBy: null,

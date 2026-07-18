@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod } from "@/types";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
-import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search } from "lucide-react";
+import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const LocationPickerDynamic = dynamic(
@@ -90,6 +90,7 @@ export default function NewConcertPage() {
     clientPhone2: "",
     notes: "",
     venueName: "",
+    peopleCount: "",
     supervisorIds: [] as string[],
     employeeIds: [] as string[],
   });
@@ -250,6 +251,7 @@ export default function NewConcertPage() {
         deposit: depositTotal > 0 ? depositTotal : null,
         location,
         venueName: form.venueName.trim() || null,
+        peopleCount: form.peopleCount.trim() || null,
         notes: form.notes.trim() || null,
         clientName: form.clientName || null,
         clientPhone: form.clientPhone || null,
@@ -501,6 +503,19 @@ export default function NewConcertPage() {
           <input type="text" value={form.venueName}
             onChange={(e) => setForm({ ...form, venueName: e.target.value })}
             placeholder="مثال: قاعة الفريج — حي النرجس"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+        </Card>
+
+        {/* ── People Count ── */}
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <UsersRound size={16} className="text-[#1C2D50]" />
+            <h3 className="font-bold text-slate-700">عدد الأشخاص</h3>
+            <span className="text-slate-400 text-xs font-normal">(اختياري)</span>
+          </div>
+          <input type="text" value={form.peopleCount}
+            onChange={(e) => setForm({ ...form, peopleCount: e.target.value })}
+            placeholder="مثال: 300 شخص — رجال ونساء"
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
         </Card>
 

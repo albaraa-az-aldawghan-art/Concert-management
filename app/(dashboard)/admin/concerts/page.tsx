@@ -12,7 +12,7 @@ import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import {
   Plus, Music, CalendarDays, Search, Hash,
-  Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users,
+  Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users, UsersRound,
 } from "lucide-react";
 
 type StatusFilter = "all" | "planned" | "confirmed" | "materials_requested" | "active" | "location_set" | "executing" | "materials_returned" | "delivered_to_warehouse" | "warehouse_confirmed" | "completed";
@@ -381,6 +381,11 @@ export default function AdminConcertsPage() {
                     {c.venueName && (
                       <span className="flex items-center gap-1">
                         <MapPin size={11} />{c.venueName}
+                      </span>
+                    )}
+                    {c.peopleCount && (
+                      <span className="flex items-center gap-1">
+                        <UsersRound size={11} />{c.peopleCount}
                       </span>
                     )}
                     <span className="flex items-center gap-1">
