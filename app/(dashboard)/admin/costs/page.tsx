@@ -18,10 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
+import { CameraScanModal } from "@/components/ui/camera-scan-modal";
 import { SearchBox } from "@/components/ui/list-filters";
 import { CostItem, CostSettings, CostDepartment } from "@/types";
 import {
-  Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package,
+  Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera,
 } from "lucide-react";
 
 function ItemCard({
@@ -114,6 +115,7 @@ export default function AdminCostsPage() {
   const [editTarget, setEditTarget] = useState<CostItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CostItem | null>(null);
   const [labelTarget, setLabelTarget] = useState<CostItem | null>(null);
+  const [showBarcodeCamera, setShowBarcodeCamera] = useState(false);
 
   const [form, setForm] = useState({ name: "", unit: "", barcodeMode: "generate" as "generate" | "supplier", barcode: "" });
   const [bulkNames, setBulkNames] = useState("");
@@ -320,7 +322,13 @@ export default function AdminCostsPage() {
                 </button>
               </div>
               {form.barcodeMode === "supplier" ? (
-                <Input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="امسح الباركود أو اكتب رقمه" autoFocus />
+                <div className="flex gap-2">
+                  <Input className="flex-1" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="امسح الباركود أو اكتب رقمه" autoFocus />
+                  <button type="button" onClick={() => setShowBarcodeCamera(true)}
+                    className="shrink-0 px-3 rounded-xl border border-slate-200 text-slate-500 hover:text-[#1C2D50] hover:border-[#1C2D50] transition-colors" title="مسح بالكاميرا">
+                    <Camera size={16} />
+                  </button>
+                </div>
               ) : (
                 <p className="text-xs text-slate-500">سيُولَّد رقم باركود داخلي فريد تلقائياً بعد الحفظ، ويمكنك طباعته كملصق فوراً.</p>
               )}
@@ -413,6 +421,12 @@ export default function AdminCostsPage() {
       </Modal>
 
       <BarcodeLabelModal open={!!labelTarget} onClose={() => setLabelTarget(null)} item={labelTarget} />
+
+      <CameraScanModal
+        open={showBarcodeCamera}
+        onClose={() => setShowBarcodeCamera(false)}
+        onScan={(scanned) => { setForm((prev) => ({ ...prev, barcode: scanned })); setShowBarcodeCamera(false); }}
+      />
 
       <ConfirmModal
         open={!!deleteTarget}
