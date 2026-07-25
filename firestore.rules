@@ -171,15 +171,41 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ── العدادات (ترقيم الحفلات تسلسلياً) ─────────────────────
+    // ── العدادات (ترقيم الحفلات تسلسلياً، وباركود التكاليف) ────
     match /counters/{counterId} {
-      allow read, write: if isAdmin() || hasFeat('concerts', 'create');
+      allow read, write: if isAdmin() || hasFeat('concerts', 'create') || hasFeat('costs', 'manage_items');
     }
 
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
     match /settings/{docId} {
       allow read:  if signedIn();
       allow write: if isAdmin() || hasFeat('settings', 'vat') || hasFeat('finances', 'vat');
+    }
+
+    // ── التكاليف (خامات الإنتاج بالباركود) ────────────────────
+    match /cost_items/{barcode} {
+      allow read:   if signedIn();
+      allow create: if isAdmin() || hasFeat('costs', 'manage_items') || hasFeat('costs', 'record_incoming');
+      allow update: if isAdmin() || hasFeat('costs', 'manage_items') ||
+        hasFeat('costs', 'record_incoming') || hasFeat('costs', 'record_outgoing');
+      allow delete: if isAdmin() || hasFeat('costs', 'manage_items');
+    }
+
+    match /cost_incoming/{entryId} {
+      allow read:           if isAdmin() || pageOn('costs');
+      allow create:         if isAdmin() || hasFeat('costs', 'record_incoming');
+      allow update, delete: if isAdmin();
+    }
+
+    match /cost_outgoing/{entryId} {
+      allow read:           if isAdmin() || pageOn('costs') || pageOn('concerts');
+      allow create:         if isAdmin() || hasFeat('costs', 'record_outgoing');
+      allow update, delete: if isAdmin();
+    }
+
+    match /cost_settings/{docId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin() || hasFeat('costs', 'manage_items');
     }
 
     // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────

@@ -154,6 +154,17 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "roles", label: "إدارة الأدوار والصلاحيات (صلاحية حساسة)" },
     ],
   },
+  {
+    key: "costs",
+    label: "التكاليف",
+    href: "/admin/costs",
+    features: [
+      { key: "manage_items",    label: "إدارة الأصناف والوحدات والأقسام وتوليد الباركود" },
+      { key: "record_incoming", label: "تسجيل الوارد من الموردين" },
+      { key: "record_outgoing", label: "تسجيل المنصرف للأقسام والحفلات" },
+      { key: "view_balance",    label: "عرض رصيد الأصناف" },
+    ],
+  },
 ];
 
 // Maps a pathname under /admin (or /kitchen) to its permission key.
@@ -165,6 +176,7 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/warehouse")) return "warehouse";
   if (pathname.startsWith("/admin/food")) return "food";
   if (pathname.startsWith("/admin/missing-items")) return "missing_items";
+  if (pathname.startsWith("/admin/costs")) return "costs";
   if (pathname.startsWith("/admin")) return "dashboard";
   if (pathname.startsWith("/kitchen")) return "kitchen";
   if (pathname.startsWith("/warehouse-manager/orders")) return "warehouse_orders";

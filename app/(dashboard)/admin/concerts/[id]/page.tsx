@@ -16,11 +16,12 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder, CostOutgoing } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
+import { getCostOutgoingByConcert } from "@/lib/firestore/costs";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -50,6 +51,7 @@ export default function AdminConcertDetailPage() {
   const [concert, setConcert] = useState<Concert | null>(null);
   const [items, setItems] = useState<ConcertItem[]>([]);
   const [missing, setMissing] = useState<MissingItem[]>([]);
+  const [costOutgoing, setCostOutgoing] = useState<CostOutgoing[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
   const [allSupervisors, setAllSupervisors] = useState<AppUser[]>([]);
@@ -135,7 +137,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData, kitchenData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData, kitchenData, costOutgoingData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -148,6 +150,7 @@ export default function AdminConcertDetailPage() {
       getConcertLogs(id).catch(() => []),
       getRequestsByConcert(id).catch(() => []),
       getKitchenOrderByConcert(id).catch(() => null),
+      getCostOutgoingByConcert(id).catch(() => []),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -161,6 +164,7 @@ export default function AdminConcertDetailPage() {
     setLogs(logsData);
     setRequests(requestsData);
     setKitchenOrder(kitchenData);
+    setCostOutgoing(costOutgoingData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
@@ -1483,6 +1487,41 @@ export default function AdminConcertDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* Raw Materials Cost (from التكاليف) */}
+      {costOutgoing.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Barcode size={16} className="text-[#1C2D50]" />
+              تكلفة المواد الخام ({costOutgoing.length})
+            </h3>
+            <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+              {costOutgoing.reduce((sum, e) => sum + e.totalCost, 0).toLocaleString("en-US")} ريال
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
+                  <th className="py-2 px-2 font-semibold">الصنف</th>
+                  <th className="py-2 px-2 font-semibold">الكمية</th>
+                  <th className="py-2 px-2 font-semibold">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costOutgoing.map((e) => (
+                  <tr key={e.id} className="border-b border-slate-50 last:border-none">
+                    <td className="py-2 px-2 font-medium text-slate-800">{e.itemName}</td>
+                    <td className="py-2 px-2 tabular-nums-auto text-slate-600">{e.quantity.toLocaleString("en-US")} {e.unit}</td>
+                    <td className="py-2 px-2 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Missing Items */}
       {missing.length > 0 && (

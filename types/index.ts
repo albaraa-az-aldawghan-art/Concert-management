@@ -17,7 +17,8 @@ export type PermissionPage =
   | "kitchen"
   | "supervisor"
   | "employees"
-  | "settings";
+  | "settings"
+  | "costs";
 
 export interface CustomRole {
   id: string;
@@ -231,4 +232,58 @@ export interface MissingItem {
   reportedBy: string;
   reportedByName: string;
   reportedAt: Timestamp;
+}
+
+/* ── التكاليف (خامات الإنتاج بالباركود) ──────────────────────── */
+
+export interface CostItem {
+  id: string; // = الباركود نفسه (معرّف المستند)
+  name: string;
+  barcodeSource: "supplier" | "generated";
+  unit: string; // ثابتة لهذا الصنف — تُختار عند التسجيل ولا تتغيّر تلقائياً
+  totalIn: number;
+  totalOut: number;
+  order?: number;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+export interface CostIncoming {
+  id: string;
+  itemBarcode: string;
+  itemName: string;
+  supplierName: string;
+  unit: string; // نسخة من وحدة الصنف وقت التسجيل — للعرض والتدقيق فقط
+  quantity: number;
+  priceBeforeVat: number;
+  totalBeforeVat: number;
+  invoiceDate: string; // yyyy-mm-dd
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+export interface CostOutgoing {
+  id: string;
+  itemBarcode: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  totalCost: number;
+  departmentName: string;
+  concertId: string | null;
+  concertName: string | null;
+  manualConcertName: string | null;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+export interface CostDepartment {
+  name: string;
+  concertLinked: boolean;
+}
+
+export interface CostSettings {
+  units: string[];
+  departments: CostDepartment[];
 }

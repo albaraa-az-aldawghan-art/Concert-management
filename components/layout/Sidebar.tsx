@@ -25,6 +25,10 @@ import {
   UserCog,
   UserRound,
   ChevronDown,
+  Barcode,
+  PackagePlus,
+  PackageMinus,
+  Scale,
 } from "lucide-react";
 
 interface NavItem {
@@ -53,6 +57,16 @@ const adminNav: NavItem[] = [
     icon: <UtensilsCrossed size={17} />,
     children: [
       { label: "طلبات المطبخ", href: "/kitchen", icon: <ChefHat size={15} /> },
+    ],
+  },
+  {
+    label: "التكاليف",
+    href: "/admin/costs",
+    icon: <Barcode size={17} />,
+    children: [
+      { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
+      { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
+      { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
   {
@@ -339,6 +353,7 @@ const permissionIcons: Record<string, React.ReactNode> = {
   kitchen:          <ChefHat size={17} />,
   supervisor:       <UserCog size={17} />,
   employees:        <UserRound size={17} />,
+  costs:            <Barcode size={17} />,
 };
 
 export function Sidebar() {
