@@ -149,6 +149,7 @@ export default function CostsIncomingPage() {
                 <th className="px-4 py-3 font-semibold">المورد</th>
                 <th className="px-4 py-3 font-semibold">الوحدة</th>
                 <th className="px-4 py-3 font-semibold">الكمية</th>
+                <th className="px-4 py-3 font-semibold">السعر قبل الضريبة</th>
                 <th className="px-4 py-3 font-semibold">التاريخ</th>
                 <th className="px-4 py-3 font-semibold">الإجمالي</th>
                 {isAdmin && <th className="px-4 py-3"></th>}
@@ -161,6 +162,7 @@ export default function CostsIncomingPage() {
                   <td className="px-4 py-3 text-slate-600">{e.supplierName || "—"}</td>
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
                   <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-600">{e.priceBeforeVat.toLocaleString("en-US")} ريال</td>
                   <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.invoiceDate}</td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalBeforeVat.toLocaleString("en-US")} ريال</td>
                   {isAdmin && (

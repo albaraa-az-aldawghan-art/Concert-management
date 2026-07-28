@@ -67,10 +67,10 @@ export default function CostsBalancePage() {
               <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                 <th className="px-4 py-3 font-semibold">الصنف</th>
                 <th className="px-4 py-3 font-semibold">الباركود</th>
-                <th className="px-4 py-3 font-semibold">الوحدة</th>
                 <th className="px-4 py-3 font-semibold">الوارد</th>
                 <th className="px-4 py-3 font-semibold">المنصرف</th>
                 <th className="px-4 py-3 font-semibold">الرصيد</th>
+                <th className="px-4 py-3 font-semibold">الوحدة</th>
               </tr>
             </thead>
             <tbody>
@@ -80,12 +80,12 @@ export default function CostsBalancePage() {
                   <tr key={item.id} className="border-b border-slate-50 last:border-none">
                     <td className="px-4 py-3 font-semibold text-slate-800">{item.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.id}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.unit}</td>
                     <td className="px-4 py-3 tabular-nums-auto text-emerald-600 font-medium">{(item.totalIn ?? 0).toLocaleString("en-US")}</td>
                     <td className="px-4 py-3 tabular-nums-auto text-orange-600 font-medium">{(item.totalOut ?? 0).toLocaleString("en-US")}</td>
                     <td className={`px-4 py-3 tabular-nums-auto font-bold ${balance <= 0 ? "text-red-600" : "text-[#1C2D50]"}`}>
-                      {balance.toLocaleString("en-US")} {item.unit}
+                      {balance.toLocaleString("en-US")}
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{item.unit}</td>
                   </tr>
                 );
               })}

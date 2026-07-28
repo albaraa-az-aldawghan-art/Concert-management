@@ -102,6 +102,7 @@ export async function createCostItemGenerated(data: {
       barcodeSource: "generated",
       totalIn: 0,
       totalOut: 0,
+      totalInValue: 0,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
@@ -128,6 +129,7 @@ export async function createCostItemFromSupplierBarcode(data: {
       barcodeSource: "supplier",
       totalIn: 0,
       totalOut: 0,
+      totalInValue: 0,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
@@ -196,7 +198,10 @@ export async function addCostIncoming(data: {
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
-    tx.update(itemRef, { totalIn: (item.totalIn ?? 0) + data.quantity });
+    tx.update(itemRef, {
+      totalIn: (item.totalIn ?? 0) + data.quantity,
+      totalInValue: (item.totalInValue ?? 0) + totalBeforeVat,
+    });
   });
 }
 
@@ -207,7 +212,10 @@ export async function deleteCostIncoming(entry: CostIncoming): Promise<void> {
     const itemSnap = await tx.get(itemRef);
     if (itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
-      tx.update(itemRef, { totalIn: Math.max(0, (item.totalIn ?? 0) - entry.quantity) });
+      tx.update(itemRef, {
+        totalIn: Math.max(0, (item.totalIn ?? 0) - entry.quantity),
+        totalInValue: Math.max(0, (item.totalInValue ?? 0) - entry.totalBeforeVat),
+      });
     }
     tx.delete(entryRef);
   });
@@ -239,6 +247,7 @@ export async function addCostOutgoing(data: {
   concertId: string | null;
   concertName: string | null;
   manualConcertName: string | null;
+  dispenseDate: string;
   createdBy: string;
 }): Promise<void> {
   const itemRef = doc(db, "cost_items", data.itemBarcode);
@@ -263,6 +272,7 @@ export async function addCostOutgoing(data: {
       concertId: data.concertId,
       concertName: data.concertName,
       manualConcertName: data.manualConcertName,
+      dispenseDate: data.dispenseDate,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });

@@ -243,6 +243,7 @@ export interface CostItem {
   unit: string; // ثابتة لهذا الصنف — تُختار عند التسجيل ولا تتغيّر تلقائياً
   totalIn: number;
   totalOut: number;
+  totalInValue?: number; // مجموع (الكمية × السعر) لكل عمليات الوارد — لحساب متوسط سعر التكلفة
   order?: number;
   createdAt: Timestamp;
   createdBy: string;
@@ -274,6 +275,7 @@ export interface CostOutgoing {
   concertId: string | null;
   concertName: string | null;
   manualConcertName: string | null;
+  dispenseDate: string; // yyyy-mm-dd — تاريخ الصرف الفعلي
   createdAt: Timestamp;
   createdBy: string;
 }

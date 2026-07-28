@@ -36,7 +36,7 @@ export default function CostsOutgoingPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [scannedItem, setScannedItem] = useState<CostItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CostOutgoing | null>(null);
-  const [form, setForm] = useState({ quantity: "", unitPrice: "", departmentName: "" });
+  const [form, setForm] = useState({ quantity: "", unitPrice: "", departmentName: "", dispenseDate: "" });
   const [concertMode, setConcertMode] = useState<"registered" | "manual">("registered");
   const [concertSearch, setConcertSearch] = useState("");
   const [pickedConcert, setPickedConcert] = useState<Concert | null>(null);
@@ -58,7 +58,7 @@ export default function CostsOutgoingPage() {
 
   function openAdd() {
     setScannedItem(null);
-    setForm({ quantity: "", unitPrice: "", departmentName: settings.departments[0]?.name ?? "" });
+    setForm({ quantity: "", unitPrice: "", departmentName: settings.departments[0]?.name ?? "", dispenseDate: new Date().toISOString().slice(0, 10) });
     setConcertMode("registered");
     setConcertSearch("");
     setPickedConcert(null);
@@ -73,6 +73,9 @@ export default function CostsOutgoingPage() {
       return;
     }
     setScannedItem(item);
+    // متوسط سعر التكلفة = إجمالي قيمة الوارد ÷ إجمالي كمية الوارد لهذا الصنف
+    const avgPrice = item.totalIn > 0 ? (item.totalInValue ?? 0) / item.totalIn : 0;
+    setForm((prev) => ({ ...prev, unitPrice: avgPrice > 0 ? avgPrice.toFixed(2) : "" }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -82,6 +85,7 @@ export default function CostsOutgoingPage() {
     const unitPrice = parseFloat(form.unitPrice);
     if (!quantity || quantity <= 0) { showToast("أدخل كمية صحيحة", "error"); return; }
     if (!form.departmentName) { showToast("اختر القسم", "error"); return; }
+    if (!form.dispenseDate) { showToast("أدخل تاريخ الصرف", "error"); return; }
     setSaving(true);
     try {
       await addCostOutgoing({
@@ -92,6 +96,7 @@ export default function CostsOutgoingPage() {
         concertId: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.id ?? null : null,
         concertName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.name ?? null : null,
         manualConcertName: selectedDept?.concertLinked && concertMode === "manual" ? manualConcertName.trim() || null : null,
+        dispenseDate: form.dispenseDate,
         createdBy: appUser.uid,
       });
       showToast("تم تسجيل عملية المنصرف");
@@ -125,7 +130,7 @@ export default function CostsOutgoingPage() {
 
   const q = search.trim();
   const filtered = entries
-    .filter((e) => matchesDate(e.createdAt, dateF))
+    .filter((e) => matchesDate(e.dispenseDate ?? e.createdAt, dateF))
     .filter((e) => !deptFilter || e.departmentName === deptFilter)
     .filter((e) => !q || e.itemName.includes(q) || e.itemBarcode.includes(q) || (e.concertName ?? "").includes(q) || (e.manualConcertName ?? "").includes(q));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -162,7 +167,7 @@ export default function CostsOutgoingPage() {
           </button>
         ))}
       </div>
-      <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ العملية" matchedCount={filtered.length} unitLabel="عملية" />
+      <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الصرف" matchedCount={filtered.length} unitLabel="عملية" />
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -182,6 +187,7 @@ export default function CostsOutgoingPage() {
                 <th className="px-4 py-3 font-semibold">الوحدة</th>
                 <th className="px-4 py-3 font-semibold">الكمية</th>
                 <th className="px-4 py-3 font-semibold">القسم / الحفلة</th>
+                <th className="px-4 py-3 font-semibold">تاريخ الصرف</th>
                 <th className="px-4 py-3 font-semibold">الإجمالي</th>
                 {isAdmin && <th className="px-4 py-3"></th>}
               </tr>
@@ -193,6 +199,7 @@ export default function CostsOutgoingPage() {
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
                   <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
                   <td className="px-4 py-3 text-slate-600">{e.concertName || e.manualConcertName || e.departmentName}</td>
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.dispenseDate ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
                   {isAdmin && (
                     <td className="px-4 py-3">
@@ -233,6 +240,9 @@ export default function CostsOutgoingPage() {
                   <Input label={`الكمية المنصرفة (${scannedItem.unit})`} type="number" min={0} step="0.01" required
                     value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                 </div>
+
+                <Input label="تاريخ الصرف" type="date" required
+                  value={form.dispenseDate} onChange={(e) => setForm({ ...form, dispenseDate: e.target.value })} />
 
                 <Select label="القسم" required value={form.departmentName} onChange={(e) => setForm({ ...form, departmentName: e.target.value })}>
                   {settings.departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
@@ -278,7 +288,7 @@ export default function CostsOutgoingPage() {
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <Input label="سعر الصنف (للوحدة)" type="number" min={0} step="0.01"
+                  <Input label="سعر الصنف (للوحدة)" helperText="مُعبّأ تلقائياً بمتوسط سعر التكلفة — يمكن تعديله" type="number" min={0} step="0.01"
                     value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
                   <div>
                     <label className="text-sm font-semibold text-slate-700 block mb-1.5">إجمالي تكلفة المنصرف</label>
