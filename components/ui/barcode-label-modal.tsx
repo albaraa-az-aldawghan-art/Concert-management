@@ -21,7 +21,10 @@ export function BarcodeLabelModal({
   onClose: () => void;
   item: { id: string; name: string } | null;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // SVG وليس canvas: تنزيل الملصق يستنسخ عقدة DOM (cloneNode) قبل الالتقاط،
+  // واستنساخ <canvas> ينتج لوحة فارغة (الرسم لا يُنسخ)، بينما محتوى <svg> عقد
+  // DOM حقيقية تُستنسخ بشكل صحيح — فيظهر الباركود في الـPDF المُنزَّل.
+  const svgRef = useRef<SVGSVGElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -30,8 +33,8 @@ export function BarcodeLabelModal({
     let cancelled = false;
     (async () => {
       const { default: JsBarcode } = await import("jsbarcode");
-      if (cancelled || !canvasRef.current) return;
-      JsBarcode(canvasRef.current, item.id, {
+      if (cancelled || !svgRef.current) return;
+      JsBarcode(svgRef.current, item.id, {
         format: "CODE128",
         width: 2,
         height: 55,
@@ -69,7 +72,7 @@ export function BarcodeLabelModal({
         >
           <p className="text-[11px] font-bold text-[#1C2D50] mb-1">الفريج — إدارة الفعاليات</p>
           <p className="font-bold text-slate-800 text-sm mb-2 leading-tight">{item.name}</p>
-          <canvas ref={canvasRef} />
+          <svg ref={svgRef} />
         </div>
         <Button onClick={handleDownload} loading={downloading} className="w-full justify-center">
           <Download size={15} />
