@@ -51,7 +51,9 @@ export function BarcodeLabelModal({
     if (!labelRef.current || !item) return;
     setDownloading(true);
     try {
-      const blob = await generateElementPDF(labelRef.current);
+      // صفحة بعرض 100مم تقارب الحجم الفعلي للملصق، فيُطبع بمقاس واقعي
+      // يُلصق على المنتج بدل أن يمتد بعرض ورقة A4 كاملة.
+      const blob = await generateElementPDF(labelRef.current, 100);
       downloadPdf(blob, `باركود-${item.name}.pdf`);
     } catch (err) {
       alert("خطأ: " + (err instanceof Error ? err.message : String(err)));

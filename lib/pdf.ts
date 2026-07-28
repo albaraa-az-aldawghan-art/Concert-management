@@ -47,7 +47,7 @@ function centerHorizontally(canvas: HTMLCanvasElement): HTMLCanvasElement {
   return out;
 }
 
-export async function generateElementPDF(el: HTMLElement): Promise<Blob> {
+export async function generateElementPDF(el: HTMLElement, pageWidthMm = 210): Promise<Blob> {
   const [{ toCanvas }, { default: jsPDF }] = await Promise.all([
     import("html-to-image"),
     import("jspdf"),
@@ -107,9 +107,15 @@ export async function generateElementPDF(el: HTMLElement): Promise<Blob> {
     if (isSafari) await toCanvas(wrapper, opts);
     const canvas = centerHorizontally(await toCanvas(wrapper, opts));
 
-    const pdfW = 210; // mm
+    const pdfW = pageWidthMm;
     const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
+    // jsPDF SWAPS the page dimensions when they contradict the requested
+    // orientation (see getPageFormat). Hard-coding "portrait" for a wide/short
+    // capture produced a page narrower than the image, so addImage drew past
+    // the right edge and the content came out cut off. Derive the orientation
+    // from the real aspect ratio so the page always matches the image exactly.
+    const orientation = pdfH >= pdfW ? "portrait" : "landscape";
+    const pdf = new jsPDF({ orientation, unit: "mm", format: [pdfW, pdfH] });
     pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
     return pdf.output("blob");
   } finally {
