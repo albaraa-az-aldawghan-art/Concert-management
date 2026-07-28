@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getConcertById, getConcertPayments, getConcertLogs } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
+import { canvasToPdfBlob } from "@/lib/pdf";
 import { Concert, ConcertPayment, ConcertFood, ConcertLog, PaymentMethod } from "@/types";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -272,10 +273,7 @@ export default function ContractPage() {
     const el = document.getElementById("contract-doc");
     if (!el) throw new Error("contract element not found");
 
-    const [{ toCanvas }, { default: jsPDF }] = await Promise.all([
-      import("html-to-image"),
-      import("jspdf"),
-    ]);
+    const { toCanvas } = await import("html-to-image");
 
     // Webfonts must be fully loaded or the clone falls back to a system font
     await document.fonts.ready;
@@ -320,12 +318,9 @@ export default function ContractPage() {
       const canvas = await toCanvas(el, opts);
 
       // PDF sized exactly to content — image fills it completely, zero white space
-      const pdfW = 210; // mm
-      const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfW, pdfH] });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
+      const blob = await canvasToPdfBlob(canvas);
 
-      return { blob: pdf.output("blob"), filename: `عقد-${concert!.clientName}.pdf` };
+      return { blob, filename: `عقد-${concert!.clientName}.pdf` };
     } finally {
       // Always restore viewport and styles, even if capture fails
       el.style.width = savedW;

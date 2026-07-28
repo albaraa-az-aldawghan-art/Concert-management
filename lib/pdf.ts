@@ -48,10 +48,7 @@ function centerHorizontally(canvas: HTMLCanvasElement): HTMLCanvasElement {
 }
 
 export async function generateElementPDF(el: HTMLElement, pageWidthMm = 210): Promise<Blob> {
-  const [{ toCanvas }, { default: jsPDF }] = await Promise.all([
-    import("html-to-image"),
-    import("jspdf"),
-  ]);
+  const { toCanvas } = await import("html-to-image");
 
   await document.fonts.ready;
 
@@ -107,20 +104,32 @@ export async function generateElementPDF(el: HTMLElement, pageWidthMm = 210): Pr
     if (isSafari) await toCanvas(wrapper, opts);
     const canvas = centerHorizontally(await toCanvas(wrapper, opts));
 
-    const pdfW = pageWidthMm;
-    const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
-    // jsPDF SWAPS the page dimensions when they contradict the requested
-    // orientation (see getPageFormat). Hard-coding "portrait" for a wide/short
-    // capture produced a page narrower than the image, so addImage drew past
-    // the right edge and the content came out cut off. Derive the orientation
-    // from the real aspect ratio so the page always matches the image exactly.
-    const orientation = pdfH >= pdfW ? "portrait" : "landscape";
-    const pdf = new jsPDF({ orientation, unit: "mm", format: [pdfW, pdfH] });
-    pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
-    return pdf.output("blob");
+    return canvasToPdfBlob(canvas, pageWidthMm);
   } finally {
     wrapper.remove();
   }
+}
+
+// Wraps a captured canvas in a PDF page sized exactly to it.
+//
+// Every PDF in the app goes through here so the page-sizing rule below lives
+// in exactly one place: jsPDF's getPageFormat SWAPS pageWidth/pageHeight
+// whenever they contradict the requested orientation, so hard-coding
+// "portrait" on a capture that is wider than it is tall yields a page
+// NARROWER than the image — addImage then paints past the right edge and the
+// content is silently cut off. Deriving the orientation from the real aspect
+// ratio guarantees the page always matches the image.
+export async function canvasToPdfBlob(
+  canvas: HTMLCanvasElement,
+  pageWidthMm = 210
+): Promise<Blob> {
+  const { default: jsPDF } = await import("jspdf");
+  const pdfW = pageWidthMm;
+  const pdfH = Math.round((canvas.height / canvas.width) * pdfW * 10) / 10;
+  const orientation = pdfH >= pdfW ? "portrait" : "landscape";
+  const pdf = new jsPDF({ orientation, unit: "mm", format: [pdfW, pdfH] });
+  pdf.addImage(canvas.toDataURL("image/jpeg", 0.93), "JPEG", 0, 0, pdfW, pdfH);
+  return pdf.output("blob");
 }
 
 // Direct download on every platform — iOS 13+ Safari shows its download
