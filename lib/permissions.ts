@@ -26,7 +26,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "remaining",       label: "إجمالي المتبقي" },
       { key: "costs",           label: "مصاريف القاعات والنقل" },
       { key: "collection_rate", label: "نسبة التحصيل" },
-      { key: "counters",        label: "عدادات النظام (مستخدمون، مخزن، مفقودات)" },
+      { key: "counters",        label: "عدادات النظام (مستخدمون، موارد، مفقودات)" },
       { key: "status_chart",    label: "مخطط حالة الحفلات" },
       { key: "recent",          label: "آخر الحفلات" },
       { key: "quick_links",     label: "الروابط السريعة" },
@@ -71,7 +71,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
   },
   {
     key: "warehouse",
-    label: "المخزن",
+    label: "الموارد",
     href: "/admin/warehouse",
     features: [
       { key: "add",    label: "إضافة مادة" },
@@ -81,7 +81,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
   },
   {
     key: "warehouse_orders",
-    label: "طلبات المخزن",
+    label: "طلبات الموارد",
     href: "/warehouse-manager/orders",
     features: [
       { key: "confirm", label: "تأكيد استلام الحفلات" },
@@ -129,12 +129,12 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     label: "المشرفون (تشغيل الحفلات)",
     href: "/supervisor/concerts",
     features: [
-      { key: "receive_materials", label: "استلام المواد من المخزن" },
+      { key: "receive_materials", label: "استلام المواد من الموارد" },
       { key: "set_location",      label: "تحديد موقع الحفلة" },
       { key: "start_executing",   label: "بدء تنفيذ الحفلة" },
       { key: "return_materials",  label: "استلام المواد من الحفلة" },
-      { key: "deliver_warehouse", label: "تسليم المواد للمخزن" },
-      { key: "request_materials", label: "طلب مواد من المخزن" },
+      { key: "deliver_warehouse", label: "تسليم المواد للموارد" },
+      { key: "request_materials", label: "طلب مواد من الموارد" },
       { key: "assign_employees",  label: "إسناد الموظفين للحفلة" },
       { key: "report_missing",    label: "الإبلاغ عن مفقودات" },
     ],

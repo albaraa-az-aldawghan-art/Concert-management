@@ -128,7 +128,7 @@ export default function AdminDashboard() {
       {feat("dashboard", "counters") && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "المستخدمون", value: usersCount, icon: <Users size={18} />, href: "/admin/users", color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]" },
-          { label: "أغراض المخزن", value: itemsCount, icon: <Package size={18} />, href: "/admin/warehouse", color: "text-indigo-600", bg: "bg-indigo-50" },
+          { label: "أغراض الموارد", value: itemsCount, icon: <Package size={18} />, href: "/admin/warehouse", color: "text-indigo-600", bg: "bg-indigo-50" },
           { label: "المفقودات", value: missingCount, icon: <AlertTriangle size={18} />, href: "/admin/missing-items", color: "text-red-600", bg: "bg-red-50" },
           { label: "الحفلات الكلية", value: concerts.length, icon: <Music size={18} />, href: "/admin/concerts", color: "text-violet-600", bg: "bg-violet-50" },
         ].map((s) => (

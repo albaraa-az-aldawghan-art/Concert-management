@@ -391,7 +391,7 @@ export default function SettingsPage() {
             label="اسم الدور"
             value={roleName}
             onChange={(e) => setRoleName(e.target.value)}
-            placeholder="مثال: محاسب، مدير حفلات، مشرف مخزن..."
+            placeholder="مثال: محاسب، مدير حفلات، مشرف موارد..."
             required
           />
 

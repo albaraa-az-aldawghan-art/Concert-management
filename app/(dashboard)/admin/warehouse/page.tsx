@@ -383,7 +383,7 @@ export default function AdminWarehousePage() {
           value={form.type}
           onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external", pricePerUnit: "" })}
         >
-          <option value="internal">داخلي (من المخزن)</option>
+          <option value="internal">داخلي (من الموارد)</option>
           <option value="external">خارجي (مستأجر)</option>
         </Select>
         {form.type === "external" && (
@@ -413,7 +413,7 @@ export default function AdminWarehousePage() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">المخزن</h2>
+          <h2 className="text-xl font-bold text-slate-800">الموارد</h2>
           <p className="text-sm text-slate-500">
             {internalCount} داخلي · {externalCount} خارجي
           </p>
@@ -462,7 +462,7 @@ export default function AdminWarehousePage() {
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />
-          <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد في المخزن"}</p>
+          <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد في الموارد"}</p>
         </Card>
       ) : (
         <>

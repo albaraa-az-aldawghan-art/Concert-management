@@ -58,7 +58,7 @@ export default function WarehouseRequestsPage() {
     try {
       await decreaseAvailableCount(req.itemId, req.requestedCount);
       await approveRequest(req.id, appUser.uid);
-      showToast("تمت الموافقة وتم صرف المواد من المخزن");
+      showToast("تمت الموافقة وتم صرف المواد من الموارد");
       loadAll();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "حدث خطأ";
@@ -81,7 +81,7 @@ export default function WarehouseRequestsPage() {
     setSaving(concert.id);
     try {
       await confirmWarehouseReturn(concert.id, appUser.uid);
-      showToast(`تم استلام مواد "${concert.name}" وإضافتها للمخزن — أنت مسؤول عنها الآن`);
+      showToast(`تم استلام مواد "${concert.name}" وإضافتها للموارد — أنت مسؤول عنها الآن`);
       loadAll();
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(null); }
   }
@@ -126,7 +126,7 @@ export default function WarehouseRequestsPage() {
                 <div>
                   <p className="font-bold text-slate-800">{concert.name}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    سلّم المشرف المواد للمخزن — بانتظار تأكيدك لإضافتها وتحمّل مسؤوليتها
+                    سلّم المشرف المواد للموارد — بانتظار تأكيدك لإضافتها وتحمّل مسؤوليتها
                   </p>
                 </div>
                 {canConfirmReturn && (

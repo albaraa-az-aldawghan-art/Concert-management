@@ -16,7 +16,7 @@ import { getRoleLabel, formatDate } from "@/lib/utils";
 import { Plus, Trash2, Users, Pencil } from "lucide-react";
 
 const roleOptions = [
-  { value: "warehouse_manager", label: "مدير المخازن" },
+  { value: "warehouse_manager", label: "مدير الموارد" },
   { value: "supervisor", label: "مشرف" },
   { value: "employee", label: "موظف" },
   { value: "kitchen", label: "مطبخ" },

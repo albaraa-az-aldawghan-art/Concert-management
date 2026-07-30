@@ -726,7 +726,7 @@ export default function AdminConcertDetailPage() {
                     sendConcertToWarehouse(concert, appUser.name),
                   ]);
                   setKitchenOrder(await getKitchenOrderByConcert(concert.id));
-                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ والمخزن" : "تم إرسال الحفلة للمطبخ والمخزن");
+                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ والموارد" : "تم إرسال الحفلة للمطبخ والموارد");
                 } catch {
                   showToast("حدث خطأ أثناء الإرسال", "error");
                 } finally {
@@ -748,8 +748,8 @@ export default function AdminConcertDetailPage() {
                 : kitchenOrder?.status === "received"
                 ? "المطبخ استلم ✓ — إعادة إرسال"
                 : kitchenOrder
-                ? "أُرسل للمطبخ والمخزن — إعادة إرسال"
-                : "إرسال للمطبخ والمخزن"}
+                ? "أُرسل للمطبخ والموارد — إعادة إرسال"
+                : "إرسال للمطبخ والموارد"}
             </button>
           )}
           {fx.cancel && concert.status !== "cancelled" && (
@@ -791,13 +791,13 @@ export default function AdminConcertDetailPage() {
         const STAGES = [
           { status: "planned",                label: "غير مؤكدة",          desc: "في انتظار الدفعة الأولى" },
           { status: "confirmed",              label: "مؤكدة",              desc: "تم استلام الدفعة الأولى" },
-          { status: "materials_requested",    label: "طلب المواد",          desc: "المشرف طلب مواد من المخزن" },
-          { status: "active",                 label: "استلام المواد",       desc: "المشرف استلم المواد من المخزن" },
+          { status: "materials_requested",    label: "طلب المواد",          desc: "المشرف طلب مواد من الموارد" },
+          { status: "active",                 label: "استلام المواد",       desc: "المشرف استلم المواد من الموارد" },
           { status: "location_set",           label: "تحديد الموقع",        desc: "تم تحديد موقع الحفلة" },
           { status: "executing",              label: "تنفيذ الحفلة",        desc: "الحفلة جارية الآن" },
           { status: "materials_returned",     label: "استلام المواد",       desc: "المشرف استلم المواد من الحفلة" },
-          { status: "delivered_to_warehouse", label: "تسليم للمخزن",        desc: "المشرف سلّم المواد للمخزن" },
-          { status: "warehouse_confirmed",    label: "تأكيد المخزن",        desc: "مدير المخازن أكد الاستلام" },
+          { status: "delivered_to_warehouse", label: "تسليم للموارد",        desc: "المشرف سلّم المواد للموارد" },
+          { status: "warehouse_confirmed",    label: "تأكيد الموارد",        desc: "مدير الموارد أكد الاستلام" },
           { status: "completed",              label: "مكتملة",             desc: "التسوية المالية منتهية" },
         ];
         const currentIdx = STATUS_ORDER.indexOf(concert.status);

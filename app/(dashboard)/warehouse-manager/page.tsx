@@ -26,7 +26,7 @@ export default function WarehouseManagerDashboard() {
   }, []);
 
   const cards = [
-    { label: "أغراض المخزن", value: stats.items, icon: <Package size={24} />, href: "/warehouse-manager/warehouse", bg: "bg-indigo-50", text: "text-indigo-600" },
+    { label: "أغراض الموارد", value: stats.items, icon: <Package size={24} />, href: "/warehouse-manager/warehouse", bg: "bg-indigo-50", text: "text-indigo-600" },
     { label: "طلبات معلقة", value: stats.pendingRequests, icon: <ClipboardList size={24} />, href: "/warehouse-manager/requests", bg: "bg-yellow-50", text: "text-yellow-600" },
     { label: "المفقودات", value: stats.missing, icon: <AlertTriangle size={24} />, href: "/warehouse-manager/missing-items", bg: "bg-red-50", text: "text-red-600" },
   ];
@@ -42,8 +42,8 @@ export default function WarehouseManagerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">لوحة تحكم مدير المخازن</h2>
-        <p className="text-sm text-slate-500 mt-1">نظرة عامة على المخزن والطلبات</p>
+        <h2 className="text-xl font-bold text-slate-800">لوحة تحكم مدير الموارد</h2>
+        <p className="text-sm text-slate-500 mt-1">نظرة عامة على الموارد والطلبات</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

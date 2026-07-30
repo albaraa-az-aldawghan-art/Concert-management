@@ -158,7 +158,7 @@ export default function WarehouseOrdersPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">طلبات الحفلات — المخزن</h2>
+        <h2 className="text-xl font-bold text-slate-800">طلبات الحفلات — الموارد</h2>
         <p className="text-sm text-slate-500">
           {pending.length} بانتظار الاستلام · {received.length} مستلمة
         </p>
@@ -201,7 +201,7 @@ export default function WarehouseOrdersPage() {
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />
-          <p>{orders.length === 0 ? "لم تُرسل أي حفلات للمخزن بعد" : "لا توجد نتائج مطابقة"}</p>
+          <p>{orders.length === 0 ? "لم تُرسل أي حفلات للموارد بعد" : "لا توجد نتائج مطابقة"}</p>
         </Card>
       ) : (
         <>

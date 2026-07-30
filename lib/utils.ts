@@ -40,7 +40,7 @@ export function formatTime(timestamp: Timestamp | null | undefined): string {
 export function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
     admin: "مدير",
-    warehouse_manager: "مدير المخازن",
+    warehouse_manager: "مدير الموارد",
     supervisor: "مشرف",
     employee: "موظف",
     kitchen: "مطبخ",

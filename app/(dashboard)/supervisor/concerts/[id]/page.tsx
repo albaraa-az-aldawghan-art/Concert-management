@@ -163,7 +163,7 @@ export default function SupervisorConcertDetailPage() {
         type: item.type,
         requestedCount: parseInt(requestForm.count),
       });
-      showToast("تم إرسال طلب المادة إلى مدير المخازن");
+      showToast("تم إرسال طلب المادة إلى مدير الموارد");
       setShowRequestForm(false);
       setRequestForm({ itemId: "", count: "1" });
       loadData();
@@ -188,7 +188,7 @@ export default function SupervisorConcertDetailPage() {
     setSaving(true);
     try {
       await approveDelivery(id, appUser.uid);
-      showToast("تم استلام المواد من المخزن — حدد موقع الحفلة");
+      showToast("تم استلام المواد من الموارد — حدد موقع الحفلة");
       setConfirmDelivery(false);
       loadData();
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
@@ -199,7 +199,7 @@ export default function SupervisorConcertDetailPage() {
     setSaving(true);
     try {
       await approveReturn(id, appUser.uid);
-      showToast("تم استلام المواد من الحفلة — الخطوة التالية: تسليمها للمخزن");
+      showToast("تم استلام المواد من الحفلة — الخطوة التالية: تسليمها للموارد");
       setConfirmReturn(false);
       loadData();
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
@@ -210,7 +210,7 @@ export default function SupervisorConcertDetailPage() {
     setSaving(true);
     try {
       await supervisorDeliverToWarehouse(id, appUser.uid);
-      showToast("تم تسليم المواد إلى المخزن — بانتظار تأكيد مدير المخازن");
+      showToast("تم تسليم المواد إلى الموارد — بانتظار تأكيد مدير الموارد");
       setConfirmDeliverToWarehouse(false);
       loadData();
     } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
@@ -277,7 +277,7 @@ export default function SupervisorConcertDetailPage() {
           {canReceiveMaterials && (
             <Button variant="success" onClick={() => setConfirmDelivery(true)}>
               <CheckCircle size={16} />
-              تم استلام المواد من المخزن
+              تم استلام المواد من الموارد
             </Button>
           )}
           {canStartExecuting && (
@@ -295,13 +295,13 @@ export default function SupervisorConcertDetailPage() {
           {canDeliverToWarehouse && (
             <Button onClick={() => setConfirmDeliverToWarehouse(true)}>
               <CheckCircle size={16} />
-              تم تسليم المواد إلى المخزن
+              تم تسليم المواد إلى الموارد
             </Button>
           )}
           {isWaitingWarehouse && (
             <button disabled className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-slate-200 text-slate-400 cursor-not-allowed">
               <CheckCircle size={16} />
-              {concert.warehouseReturnConfirmed ? "تم تأكيد الاستلام من المخزن ✓" : "بانتظار تأكيد مدير المخازن..."}
+              {concert.warehouseReturnConfirmed ? "تم تأكيد الاستلام من الموارد ✓" : "بانتظار تأكيد مدير الموارد..."}
             </button>
           )}
         </div>
@@ -413,19 +413,19 @@ export default function SupervisorConcertDetailPage() {
           <CheckCircle size={18} className={concert.deliveryApproved ? "text-green-600" : "text-yellow-500"} />
           <div>
             <p className="font-semibold text-sm">
-              {concert.deliveryApproved ? "تم استلام المواد من المخزن — أنت مسؤول عنها" : "في انتظار استلام المواد من المخزن"}
+              {concert.deliveryApproved ? "تم استلام المواد من الموارد — أنت مسؤول عنها" : "في انتظار استلام المواد من الموارد"}
             </p>
             {concert.returnApproved && (
               <p className="text-xs text-green-600 mt-0.5">✓ تم استلام المواد من الحفلة</p>
             )}
             {concert.supervisorDeliveredToWarehouse && (
-              <p className="text-xs text-green-600 mt-0.5">✓ تم تسليم المواد إلى المخزن</p>
+              <p className="text-xs text-green-600 mt-0.5">✓ تم تسليم المواد إلى الموارد</p>
             )}
             {concert.supervisorDeliveredToWarehouse && (
               <p className="text-xs mt-0.5" style={{ color: concert.warehouseReturnConfirmed ? "#16a34a" : "#94a3b8" }}>
                 {concert.warehouseReturnConfirmed
-                  ? "✓ تم تأكيد استلامها من مدير المخازن"
-                  : "⏳ بانتظار تأكيد مدير المخازن"}
+                  ? "✓ تم تأكيد استلامها من مدير الموارد"
+                  : "⏳ بانتظار تأكيد مدير الموارد"}
               </p>
             )}
           </div>
@@ -436,7 +436,7 @@ export default function SupervisorConcertDetailPage() {
       {!isLocked && !isPlanned && (
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-800">طلب مواد من المخزن</h3>
+            <h3 className="font-bold text-slate-800">طلب مواد من الموارد</h3>
             {fxs("request_materials") && (
               <Button size="sm" onClick={() => setShowRequestForm(true)}>
                 <Plus size={14} /> طلب مادة
@@ -585,7 +585,7 @@ export default function SupervisorConcertDetailPage() {
       )}
 
       {/* Modals */}
-      <Modal open={showRequestForm} onClose={() => setShowRequestForm(false)} title="طلب مادة من المخزن">
+      <Modal open={showRequestForm} onClose={() => setShowRequestForm(false)} title="طلب مادة من الموارد">
         <form onSubmit={handleRequest} className="space-y-4">
           <Select label="المادة" value={requestForm.itemId} onChange={(e) => setRequestForm({ ...requestForm, itemId: e.target.value })} required placeholder="اختر مادة...">
             {warehouseItems.map((item) => (
@@ -653,9 +653,9 @@ export default function SupervisorConcertDetailPage() {
         open={confirmDelivery}
         onClose={() => setConfirmDelivery(false)}
         onConfirm={handleApproveDelivery}
-        title="تم استلام الحفل والمواد من المخزن"
-        message="بتأكيدك هذا تؤكد استلام جميع المواد من المخزن وتصبح مسؤولاً عنها. بعد التأكيد ستحتاج لتحديد موقع الحفلة."
-        confirmLabel="نعم، تم الاستلام من المخزن"
+        title="تم استلام الحفل والمواد من الموارد"
+        message="بتأكيدك هذا تؤكد استلام جميع المواد من الموارد وتصبح مسؤولاً عنها. بعد التأكيد ستحتاج لتحديد موقع الحفلة."
+        confirmLabel="نعم، تم الاستلام من الموارد"
         variant="primary"
         loading={saving}
       />
@@ -665,7 +665,7 @@ export default function SupervisorConcertDetailPage() {
         onClose={() => setConfirmReturn(false)}
         onConfirm={handleApproveReturn}
         title="تم استلام المواد من الحفلة"
-        message="بتأكيدك هذا تؤكد استلامك جميع المواد من موظفي الحفلة. الخطوة التالية: تسليمها إلى المخزن."
+        message="بتأكيدك هذا تؤكد استلامك جميع المواد من موظفي الحفلة. الخطوة التالية: تسليمها إلى الموارد."
         confirmLabel="نعم، تم الاستلام من الحفلة"
         variant="primary"
         loading={saving}
@@ -675,9 +675,9 @@ export default function SupervisorConcertDetailPage() {
         open={confirmDeliverToWarehouse}
         onClose={() => setConfirmDeliverToWarehouse(false)}
         onConfirm={handleDeliverToWarehouse}
-        title="تم تسليم المواد إلى المخزن"
-        message="بتأكيدك هذا تؤكد تسليم جميع المواد إلى مدير المخازن. سيقوم بتأكيد الاستلام وإضافتها للمخزن."
-        confirmLabel="نعم، تم التسليم للمخزن"
+        title="تم تسليم المواد إلى الموارد"
+        message="بتأكيدك هذا تؤكد تسليم جميع المواد إلى مدير الموارد. سيقوم بتأكيد الاستلام وإضافتها للموارد."
+        confirmLabel="نعم، تم التسليم للموارد"
         variant="primary"
         loading={saving}
       />

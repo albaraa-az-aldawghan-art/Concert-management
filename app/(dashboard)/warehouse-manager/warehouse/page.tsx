@@ -90,7 +90,7 @@ export default function WarehouseManagerWarehousePage() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">إدارة المخزن</h2>
+          <h2 className="text-xl font-bold text-slate-800">إدارة الموارد</h2>
           <p className="text-sm text-slate-500">{items.length} غرض</p>
         </div>
         <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal" }); setShowAdd(true); }}>
@@ -166,7 +166,7 @@ export default function WarehouseManagerWarehousePage() {
             <Input label="المتوفر" type="number" min={0} value={form.availableCount} onChange={(e) => setForm({ ...form, availableCount: e.target.value })} required />
           </div>
           <Select label="النوع" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}>
-            <option value="internal">داخلي (من المخزن)</option>
+            <option value="internal">داخلي (من الموارد)</option>
             <option value="external">خارجي (مستأجر)</option>
           </Select>
           <div className="flex gap-3 justify-end pt-2">
@@ -183,7 +183,7 @@ export default function WarehouseManagerWarehousePage() {
             <Input label="المتوفر" type="number" min={0} value={form.availableCount} onChange={(e) => setForm({ ...form, availableCount: e.target.value })} required />
           </div>
           <Select label="النوع" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}>
-            <option value="internal">داخلي (من المخزن)</option>
+            <option value="internal">داخلي (من الموارد)</option>
             <option value="external">خارجي (مستأجر)</option>
           </Select>
           <div className="flex gap-3 justify-end pt-2">

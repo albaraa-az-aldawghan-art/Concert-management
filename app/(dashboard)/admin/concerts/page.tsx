@@ -29,8 +29,8 @@ const STATUS_LABEL: Record<string, string> = {
   location_set:           "تحديد الموقع",
   executing:              "تنفيذ الحفلة",
   materials_returned:     "استلام مواد الحفلة",
-  delivered_to_warehouse: "تسليم للمخزن",
-  warehouse_confirmed:    "تأكيد المخزن",
+  delivered_to_warehouse: "تسليم للموارد",
+  warehouse_confirmed:    "تأكيد الموارد",
   completed:              "مكتملة",
 };
 const STATUS_COLOR: Record<string, string> = {
@@ -296,8 +296,8 @@ export default function AdminConcertsPage() {
           { key: "location_set",           label: "تحديد الموقع" },
           { key: "executing",              label: "تنفيذ الحفلة" },
           { key: "materials_returned",     label: "استلام مواد الحفلة" },
-          { key: "delivered_to_warehouse", label: "تسليم للمخزن" },
-          { key: "warehouse_confirmed",    label: "تأكيد المخزن" },
+          { key: "delivered_to_warehouse", label: "تسليم للموارد" },
+          { key: "warehouse_confirmed",    label: "تأكيد الموارد" },
           { key: "completed",              label: "مكتملة" },
         ] as { key: StatusFilter; label: string }[]).map((f) => {
           const count = f.key === "all"

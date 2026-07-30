@@ -43,11 +43,11 @@ const adminNav: NavItem[] = [
   { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
   { label: "الحفلات",        href: "/admin/concerts",               icon: <Music size={17} /> },
   {
-    label: "المخزن",
+    label: "الموارد",
     href: "/admin/warehouse",
     icon: <Package size={17} />,
     children: [
-      { label: "طلبات المخزن", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
+      { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
       { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
     ],
   },
@@ -91,11 +91,11 @@ const adminNav: NavItem[] = [
 const warehouseManagerNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/warehouse-manager",                icon: <LayoutDashboard size={17} /> },
   {
-    label: "المخزن",
+    label: "الموارد",
     href: "/warehouse-manager/warehouse",
     icon: <Package size={17} />,
     children: [
-      { label: "طلبات المخزن", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
+      { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
       { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
     ],
   },
@@ -130,7 +130,7 @@ const navByRole: Record<string, NavItem[]> = {
 
 const roleLabels: Record<string, string> = {
   admin:             "مدير النظام",
-  warehouse_manager: "مدير المخازن",
+  warehouse_manager: "مدير الموارد",
   supervisor:        "مشرف",
   employee:          "موظف",
   kitchen:           "مطبخ",

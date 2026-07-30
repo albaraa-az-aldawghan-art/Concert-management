@@ -82,7 +82,7 @@ export default function WarehouseOrderSheetPage() {
       const el = document.getElementById("warehouse-sheet");
       if (!el) throw new Error("sheet not found");
       const blob = await generateElementPDF(el);
-      downloadPdf(blob, `مخزن-حفلة-${concert?.concertNumber ?? ""}.pdf`);
+      downloadPdf(blob, `موارد-حفلة-${concert?.concertNumber ?? ""}.pdf`);
     } catch (err) {
       alert("خطأ: " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -155,7 +155,7 @@ export default function WarehouseOrderSheetPage() {
           {/* Header */}
           <div className="bg-[#1C2D50] text-white px-5 py-4 flex items-center justify-between gap-3">
             <div>
-              <p className="font-bold text-base">طلب مخزن — حفلة #{concert.concertNumber}</p>
+              <p className="font-bold text-base">طلب موارد — حفلة #{concert.concertNumber}</p>
               <p className="text-xs opacity-75 mt-0.5">مطعم الفريج لتقديم الوجبات</p>
             </div>
             <Package size={26} className="opacity-60" />
@@ -253,7 +253,7 @@ export default function WarehouseOrderSheetPage() {
           }`}>
             {order?.status === "received"
               ? `✓ تم تأكيد الاستلام${order.receivedBy ? ` بواسطة ${order.receivedBy}` : ""}${order.receivedAt ? ` — ${formatDateTime(order.receivedAt)}` : ""}`
-              : "بانتظار تأكيد الاستلام من المخزن"}
+              : "بانتظار تأكيد الاستلام من الموارد"}
           </div>
         </div>
         </div>

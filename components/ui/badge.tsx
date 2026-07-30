@@ -43,8 +43,8 @@ export function StatusBadge({ status }: { status: string }) {
     location_set:           { label: "تحديد الموقع",          variant: "indigo"  },
     executing:              { label: "تنفيذ الحفلة",          variant: "green"   },
     materials_returned:     { label: "استلام مواد الحفلة",    variant: "orange"  },
-    delivered_to_warehouse: { label: "تسليم للمخزن",          variant: "orange"  },
-    warehouse_confirmed:    { label: "تأكيد المخزن",          variant: "blue"    },
+    delivered_to_warehouse: { label: "تسليم للموارد",          variant: "orange"  },
+    warehouse_confirmed:    { label: "تأكيد الموارد",          variant: "blue"    },
     completed:              { label: "مكتملة",               variant: "gray"    },
     cancelled:              { label: "ملغاة",                variant: "red"     },
     // حالات أخرى
