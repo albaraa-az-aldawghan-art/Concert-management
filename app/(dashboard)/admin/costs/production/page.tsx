@@ -4,16 +4,18 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getCostItems, getCostProductions, addCostProduction, deleteCostProduction, updateProductionRecipe,
+  createCostItemGenerated, getCostSettings,
 } from "@/lib/firestore/costs";
+import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine } from "@/types";
 import { averageCost, itemBalance } from "@/lib/recipes";
-import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle } from "lucide-react";
+import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -42,6 +44,10 @@ export default function CostsProductionPage() {
   const [inputs, setInputs] = useState<InputLine[]>([]);
   const [inputSearch, setInputSearch] = useState("");
   const [prodDate, setProdDate] = useState("");
+  const [units, setUnits] = useState<string[]>([]);
+  const [creatingOutput, setCreatingOutput] = useState(false);
+  const [newOutputUnit, setNewOutputUnit] = useState("");
+  const [labelTarget, setLabelTarget] = useState<{ id: string; name: string } | null>(null);
   const [notes, setNotes] = useState("");
 
   useEffect(() => { setPage(1); }, [search, dateF]);
@@ -49,9 +55,14 @@ export default function CostsProductionPage() {
 
   async function load() {
     setLoading(true);
-    const [i, p] = await Promise.all([getCostItems(), getCostProductions().catch(() => [] as CostProduction[])]);
+    const [i, p, st] = await Promise.all([
+      getCostItems(),
+      getCostProductions().catch(() => [] as CostProduction[]),
+      getCostSettings().catch(() => ({ units: [], departments: [] })),
+    ]);
     setItems(i);
     setProductions(p);
+    setUnits(st.units);
     setLoading(false);
   }
 
@@ -59,6 +70,7 @@ export default function CostsProductionPage() {
     setOutput(null); setOutputSearch(""); setOutputQty("");
     setInputs([]); setInputSearch("");
     setProdDate(new Date().toISOString().slice(0, 10));
+    setNewOutputUnit(units[0] ?? "");
     setNotes("");
     setShowAdd(true);
   }
@@ -74,6 +86,25 @@ export default function CostsProductionPage() {
       if (!outputQty) setOutputQty(String(item.productionRecipe[0].perQty || 1));
     } else {
       setInputs([]);
+    }
+  }
+
+  /* الصنف المُنتَج يُنشأ هنا ويُولَّد له باركوده — فالإنتاج هو لحظة ميلاده */
+  async function createOutput() {
+    const name = outputSearch.trim();
+    if (!appUser || !name || !newOutputUnit) return;
+    setCreatingOutput(true);
+    try {
+      const created = await createCostItemGenerated({ name, unit: newOutputUnit, createdBy: appUser.uid });
+      setItems((prev) => [...prev, created]);
+      setOutput(created);
+      setOutputSearch("");
+      setInputs([]);
+      showToast(`أُنشئ الصنف وتولّد باركوده: ${created.id}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setCreatingOutput(false);
     }
   }
 
@@ -115,6 +146,7 @@ export default function CostsProductionPage() {
       });
       showToast("تم تسجيل الإنتاج");
       setShowAdd(false);
+      if (output.barcodeSource === "generated") setLabelTarget({ id: output.id, name: output.name });
       load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
@@ -260,7 +292,7 @@ export default function CostsProductionPage() {
                 <div className="min-w-0">
                   <p className="font-bold text-slate-800 text-sm truncate">{output.name}</p>
                   <p className="text-[11px] text-slate-500">
-                    الوحدة: {output.unit}
+                    <span className="font-mono">{output.id}</span> · الوحدة: {output.unit}
                     {output.productionRecipe?.length ? " · عُبّئت خلطته القياسية" : ""}
                   </p>
                 </div>
@@ -273,17 +305,43 @@ export default function CostsProductionPage() {
                   placeholder="ابحث عن الصنف الجاهز (مثال: بطاطس جاهزة للتشغيل)..."
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
                 {oq && (
-                  <div className="mt-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
-                    {outputChoices.length === 0 ? (
-                      <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج — سجّل الصنف أولاً من صفحة أصناف التكاليف</p>
-                    ) : outputChoices.map((i) => (
-                      <button key={i.id} type="button" onClick={() => pickOutput(i)}
-                        className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
-                        <span className="truncate">{i.name}</span>
-                        <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    {outputChoices.length > 0 && (
+                      <div className="mt-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                        {outputChoices.map((i) => (
+                          <button key={i.id} type="button" onClick={() => pickOutput(i)}
+                            className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
+                            <span className="truncate">{i.name}</span>
+                            <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* صنف جديد؟ يُنشأ ويُولَّد باركوده هنا — الإنتاج هو لحظة ميلاده */}
+                    <div className="mt-2 border border-dashed border-emerald-300 bg-emerald-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+                        <Barcode size={13} />
+                        صنف جديد؟ أنشئه هنا ويُولَّد له باركود داخلي
+                      </p>
+                      <div className="flex gap-2 items-end">
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[11px] text-slate-500 block mb-1">الاسم</label>
+                          <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm truncate">{oq}</div>
+                        </div>
+                        <div className="w-28 shrink-0">
+                          <label className="text-[11px] text-slate-500 block mb-1">الوحدة</label>
+                          <select value={newOutputUnit} onChange={(e) => setNewOutputUnit(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <Button type="button" size="sm" variant="success" loading={creatingOutput}
+                          onClick={createOutput} disabled={!newOutputUnit}>
+                          إنشاء
+                        </Button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </>
             )}
@@ -380,6 +438,9 @@ export default function CostsProductionPage() {
           )}
         </div>
       </Modal>
+
+      {/* ملصق باركود المُنتَج — يُلصق على الخلطة بعد تجهيزها */}
+      <BarcodeLabelModal open={!!labelTarget} onClose={() => setLabelTarget(null)} item={labelTarget} />
 
       <ConfirmModal
         open={!!deleteTarget}
