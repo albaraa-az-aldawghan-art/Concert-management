@@ -28,7 +28,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className="h-full">
+    // ar-u-nu-latn: عربية بأرقام لاتينية — يجعل المتصفح يرسم أرقام
+    // حقول التاريخ والرقم بـ 0-9 لا ٠-٩
+    <html lang="ar-u-nu-latn" dir="rtl" className="h-full">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

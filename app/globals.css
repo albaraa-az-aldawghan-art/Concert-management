@@ -36,6 +36,9 @@
 * {
   font-family: 'Cairo', sans-serif;
   box-sizing: border-box;
+  /* الأرقام لاتينية في كل الموقع: بعض الخطوط العربية تستبدل 0-9 بـ ٠-٩
+     تلقائياً عبر خاصية anum — نُطفئها هنا فلا يحدث ذلك في أي مكان */
+  font-feature-settings: "anum" 0;
 }
 
 html {
@@ -67,6 +70,13 @@ button, a, [role="button"] {
 /* Numbers line up in tables and stat cards */
 table, .tabular-nums-auto {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "anum" 0, "tnum" 1;
+}
+
+/* حقول الإدخال الأصلية (التاريخ والرقم) ترسم أرقامها حسب لغة المتصفح —
+   نثبّتها لاتينية أيضاً */
+input, select, textarea {
+  font-feature-settings: "anum" 0;
 }
 
 /* ── Motion ── */

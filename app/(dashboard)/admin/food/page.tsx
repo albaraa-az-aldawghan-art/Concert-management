@@ -29,8 +29,18 @@ import { Input } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { FoodCategory, FoodOptionDef, RecipeLine, CostItem } from "@/types";
 import { optionDefsOf, optionsFromDefs, newOptionId, itemBalance } from "@/lib/recipes";
+import { normalizeDecimalInput } from "@/lib/utils";
 import { getCostItems } from "@/lib/firestore/costs";
 import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical, Search, Barcode } from "lucide-react";
+
+/** سطر وصفة أثناء التحرير — الكميات نصوص لتقبل «3.» و«3.2» */
+interface RecipeDraft {
+  barcode: string;
+  itemName: string;
+  unit: string;
+  qty: string;
+  perQty: string;
+}
 
 /* ── Sortable card ── */
 function SortableCategoryCard({
@@ -145,7 +155,7 @@ export default function AdminFoodPage() {
   /* محرر الوصفة */
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [recipeTarget, setRecipeTarget] = useState<FoodOptionDef | null>(null);
-  const [recipeLines, setRecipeLines] = useState<RecipeLine[]>([]);
+  const [recipeLines, setRecipeLines] = useState<RecipeDraft[]>([]);
   const [recipeSearch, setRecipeSearch] = useState("");
 
   const sensors = useSensors(
@@ -249,19 +259,36 @@ export default function AdminFoodPage() {
 
   function openRecipe(def: FoodOptionDef) {
     setRecipeTarget(def);
-    setRecipeLines(def.recipe ? [...def.recipe] : []);
+    setRecipeLines(
+      (def.recipe ?? []).map((l) => ({ ...l, qty: String(l.qty), perQty: String(l.perQty) }))
+    );
     setRecipeSearch("");
   }
 
   function addRecipeLine(item: CostItem) {
     if (recipeLines.some((l) => l.barcode === item.id)) return;
-    setRecipeLines((prev) => [...prev, { barcode: item.id, itemName: item.name, unit: item.unit, qty: 1, perQty: 1 }]);
+    setRecipeLines((prev) => [...prev, { barcode: item.id, itemName: item.name, unit: item.unit, qty: "1", perQty: "1" }]);
     setRecipeSearch("");
+  }
+
+  /* الكميات تُحفظ نصاً أثناء التحرير: تحويلها لرقم مع كل ضغطة يبتر
+     النقطة فور كتابتها («3.» ← 3) فيستحيل إدخال 3.2 */
+  function setLineField(idx: number, field: "qty" | "perQty", raw: string) {
+    const v = normalizeDecimalInput(raw);
+    setRecipeLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
   }
 
   function applyRecipe() {
     if (!recipeTarget) return;
-    const clean = recipeLines.filter((l) => l.qty > 0 && l.perQty > 0);
+    const clean: RecipeLine[] = recipeLines
+      .map((l) => ({
+        barcode: l.barcode,
+        itemName: l.itemName,
+        unit: l.unit,
+        qty: parseFloat(l.qty) || 0,
+        perQty: parseFloat(l.perQty) || 0,
+      }))
+      .filter((l) => l.qty > 0 && l.perQty > 0);
     setFormOptions((prev) =>
       prev.map((o) => (o.id === recipeTarget.id ? { ...o, recipe: clean.length ? clean : undefined } : o))
     );
@@ -538,29 +565,53 @@ export default function AdminFoodPage() {
       <Modal open={!!recipeTarget} onClose={() => setRecipeTarget(null)}
         title={recipeTarget ? `وصفة: ${recipeTarget.name}` : ""} size="lg">
         <div className="space-y-4">
-          <p className="text-xs text-slate-500 leading-relaxed">
-            حدّد كم يستهلك هذا الصنف من كل خام. تستطيع كتابتها كنسبة —
-            «5 كجم لكل 10 أطباق» — بدل حساب الكسر يدوياً.
-          </p>
+          <div className="text-xs text-slate-600 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-3 py-2.5 leading-relaxed">
+            اكتب كم يستهلك هذا الصنف من كل خام <strong>كنسبة</strong> بدل حساب الكسر يدوياً:
+            <br />
+            <span className="font-semibold text-[#1C2D50]">3.2 كجم بطاطس لكل 10 أطباق</span> — تُقبل الكسور العشرية بالنقطة أو الفاصلة.
+          </div>
 
           {recipeLines.length === 0 ? (
-            <p className="text-sm text-slate-400">لا توجد خامات في الوصفة بعد</p>
+            <p className="text-sm text-slate-400">لا توجد خامات في الوصفة بعد — أضِفها من الأسفل</p>
           ) : (
             <div className="space-y-2">
-              {recipeLines.map((line, idx) => (
-                <div key={line.barcode} className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2">
-                  <span className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{line.itemName}</span>
-                  <input type="number" min={0} step="0.001" value={line.qty}
-                    onChange={(e) => setRecipeLines((prev) => prev.map((l, i) => i === idx ? { ...l, qty: parseFloat(e.target.value) || 0 } : l))}
-                    className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
-                  <span className="text-xs text-slate-500 shrink-0">{line.unit} لكل</span>
-                  <input type="number" min={1} step="1" value={line.perQty}
-                    onChange={(e) => setRecipeLines((prev) => prev.map((l, i) => i === idx ? { ...l, perQty: parseInt(e.target.value) || 1 } : l))}
-                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
-                  <button type="button" onClick={() => setRecipeLines((prev) => prev.filter((_, i) => i !== idx))}
-                    className="text-slate-400 hover:text-red-500 shrink-0"><X size={14} /></button>
-                </div>
-              ))}
+              {/* عناوين الأعمدة — الحقلان كانا رقمين بلا تسمية */}
+              <div className="hidden sm:flex items-center gap-2 px-3 text-[11px] font-semibold text-slate-500">
+                <span className="flex-1 min-w-0">الخام</span>
+                <span className="w-24 text-center">الكمية المستهلكة</span>
+                <span className="w-14 text-center">الوحدة</span>
+                <span className="w-24 text-center">لكل كم طبق</span>
+                <span className="w-5" />
+              </div>
+
+              {recipeLines.map((line, idx) => {
+                const q = parseFloat(line.qty) || 0;
+                const per = parseFloat(line.perQty) || 0;
+                const each = per > 0 ? Math.round((q / per) * 10000) / 10000 : 0;
+                const invalid = q <= 0 || per <= 0;
+                return (
+                  <div key={line.barcode}
+                    className={`border rounded-xl px-3 py-2 ${invalid ? "border-amber-200 bg-amber-50" : "border-slate-200"}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{line.itemName}</span>
+                      <input type="text" inputMode="decimal" dir="ltr" value={line.qty} placeholder="0"
+                        onChange={(e) => setLineField(idx, "qty", e.target.value)}
+                        className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
+                      <span className="w-14 text-center text-xs text-slate-500 shrink-0">{line.unit}</span>
+                      <input type="text" inputMode="decimal" dir="ltr" value={line.perQty} placeholder="1"
+                        onChange={(e) => setLineField(idx, "perQty", e.target.value)}
+                        className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
+                      <button type="button" onClick={() => setRecipeLines((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-slate-400 hover:text-red-500 shrink-0 w-5"><X size={14} /></button>
+                    </div>
+                    <p className={`text-[11px] mt-1 tabular-nums-auto ${invalid ? "text-amber-700 font-semibold" : "text-slate-400"}`}>
+                      {invalid
+                        ? "أدخل كميةً أكبر من صفر في الحقلين — وإلا لن يُحفظ هذا السطر"
+                        : `${q.toLocaleString("en-US")} ${line.unit} لكل ${per.toLocaleString("en-US")} طبق = ${each.toLocaleString("en-US")} ${line.unit} للطبق الواحد`}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
 

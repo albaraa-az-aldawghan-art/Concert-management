@@ -6,6 +6,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/* ── الأرقام ──────────────────────────────────────────────────
+   كل الأرقام في الموقع لاتينية. المستخدم قد يكتب بلوحة مفاتيح عربية
+   فتخرج ٣٫٢ أو ٣،٢ — تُحوَّل هنا إلى 3.2 بدل أن تُرفض. */
+
+const ARABIC_INDIC = "٠١٢٣٤٥٦٧٨٩";
+const EASTERN_ARABIC = "۰۱۲۳۴۵۶۷۸۹";
+
+export function toLatinDigits(input: string): string {
+  return input.replace(/[٠-٩۰-۹]/g, (ch) => {
+    const i = ARABIC_INDIC.indexOf(ch);
+    return String(i >= 0 ? i : EASTERN_ARABIC.indexOf(ch));
+  });
+}
+
+/** يُهيّئ ما كُتب في حقل رقم عشري: أرقام لاتينية، فاصلة عشرية واحدة،
+ *  ويقبل النص الجزئي («3.») كي لا تُبتر النقطة أثناء الكتابة. */
+export function normalizeDecimalInput(input: string): string {
+  let s = toLatinDigits(input).replace(/[٫،,]/g, ".").replace(/[^\d.]/g, "");
+  const first = s.indexOf(".");
+  if (first !== -1) s = s.slice(0, first + 1) + s.slice(first + 1).replace(/\./g, "");
+  return s;
+}
+
 export function formatDate(timestamp: Timestamp | null | undefined): string {
   if (!timestamp) return "—";
   const d = timestamp.toDate();
