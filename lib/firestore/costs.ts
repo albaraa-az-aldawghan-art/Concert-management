@@ -12,7 +12,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment } from "@/types";
+import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment, CostProduction, RecipeLine } from "@/types";
 
 /* ── إعدادات التكاليف (الوحدات والأقسام) ────────────────────── */
 
@@ -229,6 +229,128 @@ export async function deleteCostIncoming(entry: CostIncoming): Promise<void> {
       });
     }
     tx.delete(entryRef);
+  });
+}
+
+/* ── الإنتاج (الخلطات) ──────────────────────────────────────
+   تستهلك مواد خام وتُنتج صنفاً جاهزاً له باركوده الخاص. تكلفة
+   المُنتَج = مجموع تكاليف مدخلاته، فيصير متوسط سعره صادقاً تلقائياً
+   ومنه تُحسب تكلفة أصناف الأكل المرتبطة به. */
+
+export async function getCostProductions(): Promise<CostProduction[]> {
+  const snap = await getDocs(collection(db, "cost_production"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as CostProduction))
+    .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+}
+
+export async function addCostProduction(data: {
+  outputBarcode: string;
+  outputQty: number;
+  inputs: { barcode: string; qty: number }[];
+  productionDate: string;
+  notes: string | null;
+  createdBy: string;
+}): Promise<void> {
+  if (data.outputQty <= 0) throw new Error("أدخل كمية إنتاج صحيحة");
+  if (data.inputs.length === 0) throw new Error("أضف مادة خام واحدة على الأقل");
+  if (data.inputs.some((i) => i.barcode === data.outputBarcode)) {
+    throw new Error("لا يمكن أن يكون الصنف المُنتَج أحد مدخلاته");
+  }
+
+  const outputRef = doc(db, "cost_items", data.outputBarcode);
+  const inputRefs = data.inputs.map((i) => doc(db, "cost_items", i.barcode));
+  const productionRef = doc(collection(db, "cost_production"));
+
+  await runTransaction(db, async (tx) => {
+    // كل القراءات قبل أي كتابة — شرط معاملات Firestore
+    const outputSnap = await tx.get(outputRef);
+    if (!outputSnap.exists()) throw new Error("الصنف المُنتَج غير مسجّل");
+    const inputSnaps = await Promise.all(inputRefs.map((r) => tx.get(r)));
+
+    const output = outputSnap.data() as Omit<CostItem, "id">;
+    const lines: CostProduction["inputs"] = [];
+    let totalCost = 0;
+
+    for (let i = 0; i < data.inputs.length; i++) {
+      const snap = inputSnaps[i];
+      const req = data.inputs[i];
+      if (!snap.exists()) throw new Error("إحدى المواد الخام غير مسجّلة");
+      const item = snap.data() as Omit<CostItem, "id">;
+      const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
+      if (req.qty > balance) {
+        throw new Error(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
+      }
+      // متوسط سعر الشراء وقت الإنتاج هو تكلفة المدخل
+      const unitCost = (item.totalIn ?? 0) > 0 ? (item.totalInValue ?? 0) / (item.totalIn as number) : 0;
+      const lineCost = Math.round(unitCost * req.qty * 100) / 100;
+      totalCost += lineCost;
+      lines.push({
+        barcode: req.barcode,
+        itemName: item.name,
+        unit: item.unit,
+        qty: req.qty,
+        unitCost: Math.round(unitCost * 100) / 100,
+        totalCost: lineCost,
+      });
+    }
+
+    totalCost = Math.round(totalCost * 100) / 100;
+    const unitCost = Math.round((totalCost / data.outputQty) * 100) / 100;
+
+    tx.set(productionRef, {
+      outputBarcode: data.outputBarcode,
+      outputName: output.name,
+      outputUnit: output.unit,
+      outputQty: data.outputQty,
+      inputs: lines,
+      totalCost,
+      unitCost,
+      productionDate: data.productionDate,
+      notes: data.notes,
+      createdAt: Timestamp.now(),
+      createdBy: data.createdBy,
+    });
+
+    // المدخلات تُستهلك، والمُنتَج يدخل المخزون بتكلفته المحسوبة
+    for (let i = 0; i < inputRefs.length; i++) {
+      const item = inputSnaps[i].data() as Omit<CostItem, "id">;
+      tx.update(inputRefs[i], { totalOut: (item.totalOut ?? 0) + data.inputs[i].qty });
+    }
+    tx.update(outputRef, {
+      totalIn: (output.totalIn ?? 0) + data.outputQty,
+      totalInValue: (output.totalInValue ?? 0) + totalCost,
+    });
+  });
+}
+
+export async function deleteCostProduction(entry: CostProduction): Promise<void> {
+  const outputRef = doc(db, "cost_items", entry.outputBarcode);
+  const inputRefs = entry.inputs.map((i) => doc(db, "cost_items", i.barcode));
+  await runTransaction(db, async (tx) => {
+    const outputSnap = await tx.get(outputRef);
+    const inputSnaps = await Promise.all(inputRefs.map((r) => tx.get(r)));
+
+    if (outputSnap.exists()) {
+      const o = outputSnap.data() as Omit<CostItem, "id">;
+      tx.update(outputRef, {
+        totalIn: Math.max(0, (o.totalIn ?? 0) - entry.outputQty),
+        totalInValue: Math.max(0, (o.totalInValue ?? 0) - entry.totalCost),
+      });
+    }
+    for (let i = 0; i < inputRefs.length; i++) {
+      if (!inputSnaps[i].exists()) continue;
+      const item = inputSnaps[i].data() as Omit<CostItem, "id">;
+      tx.update(inputRefs[i], { totalOut: Math.max(0, (item.totalOut ?? 0) - entry.inputs[i].qty) });
+    }
+    tx.delete(doc(db, "cost_production", entry.id));
+  });
+}
+
+/** حفظ الخلطة القياسية على الصنف المُنتَج — تُعبّئ نموذج الإنتاج تلقائياً */
+export async function updateProductionRecipe(barcode: string, recipe: RecipeLine[]): Promise<void> {
+  await updateDoc(doc(db, "cost_items", barcode), {
+    productionRecipe: recipe.length ? recipe : null,
   });
 }
 

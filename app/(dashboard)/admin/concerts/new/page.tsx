@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
-import { aggregateRequirements, totalEstimatedCost } from "@/lib/recipes";
+import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf } from "@/lib/recipes";
 import { getCostItems } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
@@ -341,6 +341,7 @@ export default function NewConcertPage() {
     costItems
   );
   const foodEstimatedCost = totalEstimatedCost(foodRequirements);
+  const optionStock = (cat: FoodCategory, opt: string, qty: number) => optionStockOf(cat, opt, qty, costItems);
 
   /* ── Items split by type ── */
   const internalItems = warehouseItems.filter((i) => i.type === "internal");
@@ -809,9 +810,19 @@ export default function NewConcertPage() {
                               </svg>
                             )}
                           </button>
-                          <span className={`flex-1 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
+                          <span className={`flex-1 min-w-0 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
                             onClick={() => toggleFood(cat.id, opt)}>
                             {label}
+                            {/* المتوفر من خامات وصفة هذا الصنف */}
+                            {(() => {
+                              const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0);
+                              if (!st) return null;
+                              return (
+                                <span className={`block text-[10px] mt-0.5 tabular-nums-auto ${st.short ? "text-red-600 font-semibold" : "text-slate-400"}`}>
+                                  {st.text}
+                                </span>
+                              );
+                            })()}
                           </span>
                           {isChecked && (
                             <div className="flex items-center gap-1.5 shrink-0">

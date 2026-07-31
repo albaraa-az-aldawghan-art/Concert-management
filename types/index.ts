@@ -295,7 +295,36 @@ export interface CostItem {
   totalIn: number;
   totalOut: number;
   totalInValue?: number; // مجموع (الكمية × السعر) لكل عمليات الوارد — لحساب متوسط سعر التكلفة
+  /** الخلطة القياسية لإنتاج هذا الصنف من مواد خام أخرى — تُعبّئ نموذج الإنتاج
+   *  تلقائياً. وجودها يعني أن هذا صنف «مُنتَج» لا مُشترى مباشرةً. */
+  productionRecipe?: RecipeLine[];
   order?: number;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+/** عملية إنتاج: تستهلك مواد خام وتُنتج كمية من صنف جاهز.
+ *  تكلفة المُنتَج = مجموع تكاليف مدخلاته، فيصير متوسط سعره صادقاً تلقائياً. */
+export interface CostProduction {
+  id: string;
+  outputBarcode: string;
+  outputName: string;
+  outputUnit: string;
+  outputQty: number;
+  inputs: {
+    barcode: string;
+    itemName: string;
+    unit: string;
+    qty: number;
+    unitCost: number;   // متوسط سعر المدخل وقت الإنتاج
+    totalCost: number;
+  }[];
+  /** مجموع تكلفة المدخلات = القيمة المضافة لمخزون المُنتَج */
+  totalCost: number;
+  /** تكلفة الوحدة الواحدة من المُنتَج */
+  unitCost: number;
+  productionDate: string; // yyyy-mm-dd
+  notes: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }

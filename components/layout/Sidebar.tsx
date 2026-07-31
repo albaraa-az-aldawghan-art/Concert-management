@@ -30,6 +30,7 @@ import {
   PackageMinus,
   Scale,
   TrendingUp,
+  FlaskConical,
 } from "lucide-react";
 
 interface NavItem {
@@ -65,6 +66,7 @@ const adminNav: NavItem[] = [
     icon: <Barcode size={17} />,
     children: [
       { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
+      { label: "الإنتاج", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],

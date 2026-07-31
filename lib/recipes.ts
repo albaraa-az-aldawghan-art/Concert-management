@@ -109,3 +109,36 @@ export function aggregateRequirements(
 export function totalEstimatedCost(rows: RequirementRow[]): number {
   return Math.round(rows.reduce((s, r) => s + r.estimatedCost, 0) * 100) / 100;
 }
+
+/** سطر مختصر يظهر بجانب صنف الأكل مباشرة: المتوفر من خاماته.
+ *  يُرجع null إن لم تكن للصنف وصفة أصلاً. عند إدخال كمية يُقارن
+ *  المطلوب بالمتوفر ويُعلَّم النقص. */
+export function optionStock(
+  cat: FoodCategory,
+  optionName: string,
+  quantity: number,
+  costItems: CostItem[]
+): { text: string; short: boolean } | null {
+  const def = findOptionDef(cat, optionName);
+  if (!def?.recipe?.length) return null;
+
+  const parts: string[] = [];
+  let short = false;
+
+  for (const line of def.recipe) {
+    const item = costItems.find((i) => i.id === line.barcode);
+    const available = itemBalance(item);
+    const unit = item?.unit ?? line.unit;
+    if (quantity > 0) {
+      const required = Math.round(lineRequirement(line, quantity) * 1000) / 1000;
+      const isShort = required > available;
+      if (isShort) short = true;
+      parts.push(
+        `${item?.name ?? line.itemName}: ${required.toLocaleString("en-US")}/${available.toLocaleString("en-US")} ${unit}`
+      );
+    } else {
+      parts.push(`${item?.name ?? line.itemName}: متوفر ${available.toLocaleString("en-US")} ${unit}`);
+    }
+  }
+  return { text: parts.join(" · "), short };
+}

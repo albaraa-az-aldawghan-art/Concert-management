@@ -1,0 +1,395 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  getCostItems, getCostProductions, addCostProduction, deleteCostProduction, updateProductionRecipe,
+} from "@/lib/firestore/costs";
+import { useToast } from "@/components/ui/toast";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { CostItem, CostProduction, RecipeLine } from "@/types";
+import { averageCost, itemBalance } from "@/lib/recipes";
+import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle } from "lucide-react";
+
+const PAGE_SIZE = 10;
+
+interface InputLine { barcode: string; itemName: string; unit: string; qty: string; }
+
+export default function CostsProductionPage() {
+  const { appUser, can, feat } = useAuth();
+  const { showToast } = useToast();
+  const isAdmin = appUser?.role === "admin";
+  const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
+  const canRecord = isAdmin || feat("costs", "record_incoming");
+
+  const [items, setItems] = useState<CostItem[]>([]);
+  const [productions, setProductions] = useState<CostProduction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
+  const [page, setPage] = useState(1);
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CostProduction | null>(null);
+  const [output, setOutput] = useState<CostItem | null>(null);
+  const [outputSearch, setOutputSearch] = useState("");
+  const [outputQty, setOutputQty] = useState("");
+  const [inputs, setInputs] = useState<InputLine[]>([]);
+  const [inputSearch, setInputSearch] = useState("");
+  const [prodDate, setProdDate] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => { setPage(1); }, [search, dateF]);
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const [i, p] = await Promise.all([getCostItems(), getCostProductions().catch(() => [] as CostProduction[])]);
+    setItems(i);
+    setProductions(p);
+    setLoading(false);
+  }
+
+  function openAdd() {
+    setOutput(null); setOutputSearch(""); setOutputQty("");
+    setInputs([]); setInputSearch("");
+    setProdDate(new Date().toISOString().slice(0, 10));
+    setNotes("");
+    setShowAdd(true);
+  }
+
+  /* اختيار المُنتَج يُعبّئ خلطته القياسية إن وُجدت */
+  function pickOutput(item: CostItem) {
+    setOutput(item);
+    setOutputSearch("");
+    if (item.productionRecipe?.length) {
+      setInputs(item.productionRecipe.map((l) => ({
+        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty),
+      })));
+      if (!outputQty) setOutputQty(String(item.productionRecipe[0].perQty || 1));
+    } else {
+      setInputs([]);
+    }
+  }
+
+  function addInput(item: CostItem) {
+    if (inputs.some((l) => l.barcode === item.id)) return;
+    setInputs((prev) => [...prev, { barcode: item.id, itemName: item.name, unit: item.unit, qty: "" }]);
+    setInputSearch("");
+  }
+
+  const parsedInputs = inputs
+    .map((l) => ({ ...l, n: parseFloat(l.qty) || 0 }))
+    .filter((l) => l.n > 0);
+
+  const estimatedCost = parsedInputs.reduce((s, l) => {
+    const it = items.find((i) => i.id === l.barcode);
+    return s + averageCost(it) * l.n;
+  }, 0);
+  const outQty = parseFloat(outputQty) || 0;
+  const unitCost = outQty > 0 ? estimatedCost / outQty : 0;
+
+  const shortages = parsedInputs.filter((l) => {
+    const it = items.find((i) => i.id === l.barcode);
+    return l.n > itemBalance(it);
+  });
+
+  async function handleSave() {
+    if (!appUser || !output) return;
+    if (outQty <= 0) { showToast("أدخل كمية الإنتاج", "error"); return; }
+    if (parsedInputs.length === 0) { showToast("أضف مادة خام واحدة على الأقل بكمية", "error"); return; }
+    setSaving(true);
+    try {
+      await addCostProduction({
+        outputBarcode: output.id,
+        outputQty: outQty,
+        inputs: parsedInputs.map((l) => ({ barcode: l.barcode, qty: l.n })),
+        productionDate: prodDate,
+        notes: notes.trim() || null,
+        createdBy: appUser.uid,
+      });
+      showToast("تم تسجيل الإنتاج");
+      setShowAdd(false);
+      load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* حفظ المدخلات الحالية كخلطة قياسية لهذا المُنتَج */
+  async function handleSaveRecipe() {
+    if (!output || parsedInputs.length === 0 || outQty <= 0) return;
+    setSaving(true);
+    try {
+      const recipe: RecipeLine[] = parsedInputs.map((l) => ({
+        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: l.n, perQty: outQty,
+      }));
+      await updateProductionRecipe(output.id, recipe);
+      showToast(`حُفظت كخلطة قياسية لـ"${output.name}"`);
+      load();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setSaving(true);
+    try {
+      await deleteCostProduction(deleteTarget);
+      showToast("تم حذف عملية الإنتاج وإرجاع الكميات");
+      setDeleteTarget(null);
+      load();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
+
+  const q = search.trim();
+  const filtered = productions
+    .filter((p) => matchesDate(p.productionDate ?? p.createdAt, dateF))
+    .filter((p) => !q || p.outputName.includes(q) || p.inputs.some((i) => i.itemName.includes(q)));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const oq = outputSearch.trim();
+  const outputChoices = oq ? items.filter((i) => i.name.includes(oq)).slice(0, 20) : [];
+  const iq = inputSearch.trim();
+  const inputChoices = iq
+    ? items.filter((i) => i.name.includes(iq) && i.id !== output?.id && !inputs.some((l) => l.barcode === i.id)).slice(0, 20)
+    : [];
+
+  const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">الإنتاج (الخلطات)</h2>
+          <p className="text-sm text-slate-500">{productions.length} عملية إنتاج مسجّلة</p>
+        </div>
+        {canRecord && (
+          <Button onClick={openAdd}><Plus size={16} /> تسجيل إنتاج</Button>
+        )}
+      </div>
+
+      <div className="flex items-start gap-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-4 py-3 text-xs text-[#1C2D50] leading-relaxed">
+        <FlaskConical size={15} className="shrink-0 mt-0.5" />
+        <p>
+          تسجيل الإنتاج يخصم المواد الخام من المخزون ويضيف الصنف الجاهز إليه
+          <b> بتكلفة مدخلاته</b> — فيصير متوسط سعره صادقاً، ومنه تُحسب تكلفة أصناف الأكل المرتبطة به.
+        </p>
+      </div>
+
+      <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف المُنتَج أو المواد الخام..." />
+      <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الإنتاج" matchedCount={filtered.length} unitLabel="عملية" />
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
+        </div>
+      ) : paginated.length === 0 ? (
+        <Card className="flex flex-col items-center py-12 text-slate-400">
+          <FlaskConical size={40} className="mb-3 opacity-40" />
+          <p>لا توجد عمليات إنتاج مطابقة</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {paginated.map((p) => (
+            <Card key={p.id}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800">
+                    {p.outputName}
+                    <span className="text-sm font-normal text-slate-500 mr-2 tabular-nums-auto">
+                      {p.outputQty.toLocaleString("en-US")} {p.outputUnit}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400 tabular-nums-auto">
+                    {p.productionDate} · تكلفة الوحدة {money(p.unitCost)} ريال
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="font-bold text-[#1C2D50] tabular-nums-auto">{money(p.totalCost)} ريال</span>
+                  {isAdmin && (
+                    <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                {p.inputs.map((i) => (
+                  <span key={i.barcode} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto">
+                    {i.itemName} {i.qty.toLocaleString("en-US")} {i.unit}
+                  </span>
+                ))}
+              </div>
+              {p.notes && <p className="text-xs text-slate-400 mt-2">{p.notes}</p>}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+
+      {/* تسجيل إنتاج */}
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="تسجيل إنتاج" size="lg">
+        <div className="space-y-4">
+          {/* الصنف المُنتَج */}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">الصنف المُنتَج</label>
+            {output ? (
+              <div className="flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 text-sm truncate">{output.name}</p>
+                  <p className="text-[11px] text-slate-500">
+                    الوحدة: {output.unit}
+                    {output.productionRecipe?.length ? " · عُبّئت خلطته القياسية" : ""}
+                  </p>
+                </div>
+                <button type="button" onClick={() => { setOutput(null); setInputs([]); }}
+                  className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
+              </div>
+            ) : (
+              <>
+                <input type="text" value={outputSearch} onChange={(e) => setOutputSearch(e.target.value)}
+                  placeholder="ابحث عن الصنف الجاهز (مثال: بطاطس جاهزة للتشغيل)..."
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                {oq && (
+                  <div className="mt-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                    {outputChoices.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج — سجّل الصنف أولاً من صفحة أصناف التكاليف</p>
+                    ) : outputChoices.map((i) => (
+                      <button key={i.id} type="button" onClick={() => pickOutput(i)}
+                        className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
+                        <span className="truncate">{i.name}</span>
+                        <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {output && (
+            <>
+              <Input label={`الكمية المُنتَجة (${output.unit})`} type="number" min={0} step="0.01" required
+                value={outputQty} onChange={(e) => setOutputQty(e.target.value)} />
+
+              {/* المدخلات */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">المواد الخام المستهلكة</label>
+                {inputs.length === 0 ? (
+                  <p className="text-xs text-slate-400 mb-2">لم تُضَف مواد بعد</p>
+                ) : (
+                  <div className="space-y-1.5 mb-2">
+                    {inputs.map((l, idx) => {
+                      const it = items.find((i) => i.id === l.barcode);
+                      const bal = itemBalance(it);
+                      const n = parseFloat(l.qty) || 0;
+                      const short = n > bal;
+                      return (
+                        <div key={l.barcode}
+                          className={`flex items-center gap-2 border rounded-xl px-3 py-2 ${short ? "border-red-200 bg-red-50" : "border-slate-200"}`}>
+                          <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{l.itemName}</span>
+                          <input type="number" min={0} step="0.001" value={l.qty}
+                            onChange={(e) => setInputs((prev) => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
+                            placeholder="0"
+                            className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
+                          <span className="text-xs text-slate-500 shrink-0 w-10">{l.unit}</span>
+                          <span className={`text-[10px] shrink-0 tabular-nums-auto ${short ? "text-red-600 font-semibold" : "text-slate-400"}`}>
+                            {short ? `المتوفر ${bal}` : `متوفر ${bal}`}
+                          </span>
+                          <button type="button" onClick={() => setInputs((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-red-500 shrink-0"><X size={14} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <input type="text" value={inputSearch} onChange={(e) => setInputSearch(e.target.value)}
+                  placeholder="أضف مادة خام..."
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                {iq && (
+                  <div className="mt-1.5 max-h-36 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                    {inputChoices.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج</p>
+                    ) : inputChoices.map((i) => (
+                      <button key={i.id} type="button" onClick={() => addInput(i)}
+                        className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
+                        <span className="truncate">{i.name}</span>
+                        <span className="text-[10px] text-slate-400 shrink-0">متوفر {itemBalance(i)} {i.unit}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {shortages.length > 0 && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <p>الكمية غير كافية من: {shortages.map((s) => s.itemName).join("، ")}</p>
+                </div>
+              )}
+
+              {estimatedCost > 0 && (
+                <div className="flex justify-between px-3 py-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl text-sm">
+                  <span className="font-semibold text-[#1C2D50]">تكلفة الإنتاج</span>
+                  <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+                    {money(estimatedCost)} ريال
+                    {outQty > 0 && <span className="text-xs font-normal"> · {money(unitCost)} لكل {output.unit}</span>}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="تاريخ الإنتاج" type="date" required value={prodDate} onChange={(e) => setProdDate(e.target.value)} />
+                <Input label="ملاحظة (اختياري)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+
+              <div className="flex gap-2 justify-between items-center pt-1">
+                <button type="button" onClick={handleSaveRecipe}
+                  disabled={saving || parsedInputs.length === 0 || outQty <= 0}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] disabled:opacity-40">
+                  <Save size={13} /> حفظ كخلطة قياسية لهذا الصنف
+                </button>
+                <div className="flex gap-3">
+                  <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button>
+                  <Button onClick={handleSave} loading={saving} disabled={shortages.length > 0}>تسجيل الإنتاج</Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="حذف عملية الإنتاج"
+        message={`سيُخصم ${deleteTarget?.outputQty} ${deleteTarget?.outputUnit} من "${deleteTarget?.outputName}" وتُعاد المواد الخام لمخزونها. متابعة؟`}
+        confirmLabel="حذف"
+        loading={saving}
+      />
+    </div>
+  );
+}

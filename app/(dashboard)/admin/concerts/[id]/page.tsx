@@ -15,9 +15,10 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
-import { getCostOutgoingByConcert } from "@/lib/firestore/costs";
+import { getCostOutgoingByConcert, getCostItems } from "@/lib/firestore/costs";
+import { aggregateRequirements, totalEstimatedCost, optionStock } from "@/lib/recipes";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
@@ -79,6 +80,7 @@ export default function AdminConcertDetailPage() {
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   /* ── فواتير مصروفات الحفلة ── */
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [expenses, setExpenses] = useState<ConcertExpense[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -145,7 +147,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -160,6 +162,7 @@ export default function AdminConcertDetailPage() {
       getCostOutgoingByConcert(id).catch(() => []),
       getExpensesByConcert(id).catch(() => []),
       getExpenseSettings().catch(() => ({ types: [] })),
+      getCostItems().catch(() => [] as CostItem[]),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -175,6 +178,7 @@ export default function AdminConcertDetailPage() {
     setCostOutgoing(costOutgoingData);
     setExpenses(expensesData);
     setExpenseTypes(expenseSettings.types);
+    setCostItems(costItemsData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
@@ -719,6 +723,19 @@ export default function AdminConcertDetailPage() {
     : expenseStatus === "cancelled" ? "الحفلة ملغاة"
     : "لا صلاحية للإضافة";
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0);
+
+  const addFoodRequirements = aggregateRequirements(
+    Object.entries(addFoodCheck)
+      .filter(([, st]) => st.checked)
+      .map(([k, st]) => {
+        const [catId, opt] = k.split(":::");
+        const cat = foodCategories.find((c) => c.id === catId);
+        return { categoryId: catId, selectedOption: opt || cat?.name || "", quantity: parseInt(st.quantity) || 0 };
+      }),
+    foodCategories,
+    costItems
+  );
+  const addFoodEstimatedCost = totalEstimatedCost(addFoodRequirements);
 
   // Safety net for pure-view roles: block any button that slipped past the
   // per-feature rendering below.
@@ -1900,9 +1917,18 @@ export default function AdminConcertDetailPage() {
                         >
                           {isChecked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                         </button>
-                        <span className={`flex-1 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
+                        <span className={`flex-1 min-w-0 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
                           onClick={() => setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" } }))}>
                           {label}
+                          {(() => {
+                            const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0, costItems);
+                            if (!st) return null;
+                            return (
+                              <span className={`block text-[10px] mt-0.5 tabular-nums-auto ${st.short ? "text-red-600 font-semibold" : "text-slate-400"}`}>
+                                {st.text}
+                              </span>
+                            );
+                          })()}
                         </span>
                         {isChecked && (
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -1929,6 +1955,32 @@ export default function AdminConcertDetailPage() {
                 const cat = foodCategories.find((c) => c.id === catId)!;
                 return <span key={k} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{opt || cat?.name}{s.quantity ? ` × ${s.quantity}` : ""}</span>;
               })}
+            </div>
+          )}
+
+          {/* احتياج الخامات حسب وصفات ما اختير الآن */}
+          {addFoodRequirements.length > 0 && (
+            <div className="border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-slate-600">الخامات المطلوبة حسب الوصفات</p>
+                <span className="text-xs font-bold text-[#1C2D50] tabular-nums-auto">
+                  تكلفة تقديرية: {addFoodEstimatedCost.toLocaleString("en-US")} ريال
+                </span>
+              </div>
+              <div className="space-y-1">
+                {addFoodRequirements.map((r) => (
+                  <div key={r.barcode}
+                    className={`flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg ${
+                      r.short ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-700"
+                    }`}>
+                    <span className="truncate flex-1">{r.itemName}</span>
+                    <span className="tabular-nums-auto shrink-0">{r.required.toLocaleString("en-US")} {r.unit}</span>
+                    <span className="tabular-nums-auto shrink-0 text-[10px] opacity-75">
+                      {r.short ? `المتوفر ${r.available.toLocaleString("en-US")} فقط` : `متوفر ${r.available.toLocaleString("en-US")}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

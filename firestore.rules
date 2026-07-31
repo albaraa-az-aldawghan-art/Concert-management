@@ -190,6 +190,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // الإنتاج (الخلطات) — يستهلك خاماً ويُنتج صنفاً جاهزاً بتكلفة مدخلاته
+    match /cost_production/{entryId} {
+      allow read:           if isAdmin() || pageOn('costs') || pageOn('profitability');
+      allow create:         if isAdmin() || hasFeat('costs', 'record_incoming');
+      allow update:         if isAdmin();
+      allow delete:         if isAdmin();
+    }
+
     match /cost_outgoing/{entryId} {
       allow read:           if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
       allow create:         if isAdmin() || hasFeat('costs', 'record_outgoing');
