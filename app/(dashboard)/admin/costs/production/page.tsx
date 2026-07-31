@@ -200,12 +200,13 @@ export default function CostsProductionPage() {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // القائمتان تعرضان كل الأصناف افتراضياً، والبحث يضيّقها — لا يُشترط
+  // أن يتذكّر المستخدم الاسم قبل أن يرى ما لديه
   const oq = outputSearch.trim();
-  const outputChoices = oq ? items.filter((i) => i.name.includes(oq)).slice(0, 20) : [];
+  const outputChoices = oq ? items.filter((i) => i.name.includes(oq) || i.id.includes(oq)) : items;
   const iq = inputSearch.trim();
-  const inputChoices = iq
-    ? items.filter((i) => i.name.includes(iq) && i.id !== output?.id && !inputs.some((l) => l.barcode === i.id)).slice(0, 20)
-    : [];
+  const available = items.filter((i) => i.id !== output?.id && !inputs.some((l) => l.barcode === i.id));
+  const inputChoices = iq ? available.filter((i) => i.name.includes(iq) || i.id.includes(iq)) : available;
 
   const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
@@ -304,19 +305,24 @@ export default function CostsProductionPage() {
                 <input type="text" value={outputSearch} onChange={(e) => setOutputSearch(e.target.value)}
                   placeholder="ابحث عن الصنف الجاهز (مثال: بطاطس جاهزة للتشغيل)..."
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                <div className="mt-1.5 max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                  {outputChoices.length === 0 ? (
+                    <p className="text-xs text-slate-400 p-3 text-center">
+                      {items.length === 0 ? "لا توجد أصناف مسجّلة بعد" : "لا توجد نتائج مطابقة"}
+                    </p>
+                  ) : outputChoices.map((i) => (
+                    <button key={i.id} type="button" onClick={() => pickOutput(i)}
+                      className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-800 truncate">{i.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{i.id}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
+                    </button>
+                  ))}
+                </div>
                 {oq && (
                   <>
-                    {outputChoices.length > 0 && (
-                      <div className="mt-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
-                        {outputChoices.map((i) => (
-                          <button key={i.id} type="button" onClick={() => pickOutput(i)}
-                            className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
-                            <span className="truncate">{i.name}</span>
-                            <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                     {/* صنف جديد؟ يُنشأ ويُولَّد باركوده هنا — الإنتاج هو لحظة ميلاده */}
                     <div className="mt-2 border border-dashed border-emerald-300 bg-emerald-50 rounded-xl p-3">
                       <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
@@ -386,19 +392,24 @@ export default function CostsProductionPage() {
                 <input type="text" value={inputSearch} onChange={(e) => setInputSearch(e.target.value)}
                   placeholder="أضف مادة خام..."
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-                {iq && (
-                  <div className="mt-1.5 max-h-36 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
-                    {inputChoices.length === 0 ? (
-                      <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج</p>
-                    ) : inputChoices.map((i) => (
+                <div className="mt-1.5 max-h-44 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                  {inputChoices.length === 0 ? (
+                    <p className="text-xs text-slate-400 p-2.5 text-center">
+                      {available.length === 0 ? "لا توجد أصناف أخرى متاحة" : "لا توجد نتائج مطابقة"}
+                    </p>
+                  ) : inputChoices.map((i) => {
+                    const bal = itemBalance(i);
+                    return (
                       <button key={i.id} type="button" onClick={() => addInput(i)}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
                         <span className="truncate">{i.name}</span>
-                        <span className="text-[10px] text-slate-400 shrink-0">متوفر {itemBalance(i)} {i.unit}</span>
+                        <span className={`text-[10px] shrink-0 tabular-nums-auto ${bal <= 0 ? "text-red-600 font-semibold" : "text-slate-400"}`}>
+                          متوفر {bal.toLocaleString("en-US")} {i.unit}
+                        </span>
                       </button>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </div>
 
               {shortages.length > 0 && (
