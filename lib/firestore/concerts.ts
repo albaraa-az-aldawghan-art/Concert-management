@@ -351,16 +351,25 @@ export async function updateConcertItemCount(itemId: string, newCount: number): 
   });
 }
 
-export async function updateConcertExternalCost(concertId: string): Promise<void> {
+/** يعيد حساب قيمتي مواد الحفلة من الموارد:
+ *  - externalItemsCost: المواد المستأجرة — تكلفة نقدية فعلية تدخل في الربح
+ *  - internalItemsValue: المواد المملوكة — قيمة الأصول الموظّفة، للعرض فقط
+ *    ولا تُخصم من الربح لأنها ترجع بعد الحفلة وتُستعمل مرات كثيرة */
+export async function updateConcertItemCosts(concertId: string): Promise<void> {
   const snap = await getDocs(
     query(collection(db, "concert_items"), where("concertId", "==", concertId))
   );
   const allItems = snap.docs.map((d) => d.data() as ConcertItem);
-  const externalCost = allItems
-    .filter((i) => i.type === "external")
-    .reduce((sum, i) => sum + ((i.totalCost as number) ?? 0), 0);
+  const sumBy = (type: "internal" | "external") =>
+    allItems
+      .filter((i) => i.type === type)
+      .reduce((sum, i) => sum + ((i.totalCost as number) ?? 0), 0);
+
+  const externalCost = sumBy("external");
+  const internalValue = sumBy("internal");
   await updateDoc(doc(db, "concerts", concertId), {
     externalItemsCost: externalCost > 0 ? externalCost : null,
+    internalItemsValue: internalValue > 0 ? internalValue : null,
   });
 }
 

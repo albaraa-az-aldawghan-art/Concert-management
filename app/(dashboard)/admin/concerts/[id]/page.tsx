@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertExternalCost, cancelConcert } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -255,7 +255,7 @@ export default function AdminConcertDetailPage() {
       // يعدّل الحجز في الموارد بالفرق داخل معاملة قبل حفظ الكمية الجديدة
       await updateConcertItemCount(editItemQtyTarget.id, newCount);
       await updateConcertItem(editItemQtyTarget.id, { totalCost: newTotalCost });
-      if (editItemQtyTarget.type === "external") await updateConcertExternalCost(concert.id);
+      await updateConcertItemCosts(concert.id);
       await addConcertLog({
         concertId: id,
         description: `تم تعديل كمية ${editItemQtyTarget.itemName} من ${oldCount} إلى ${newCount}${editItemQtyTarget.type === "external" && newTotalCost != null ? ` (التكلفة: ${newTotalCost.toLocaleString("en-US")} ريال)` : ""}`,
@@ -344,7 +344,7 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       await deleteConcertItem(deleteItemTarget.id);
-      await updateConcertExternalCost(concert.id);
+      await updateConcertItemCosts(concert.id);
       await addConcertLog({ concertId: id, description: `تم حذف مادة: ${deleteItemTarget.itemName} × ${deleteItemTarget.count}`, createdBy: appUser.uid });
       showToast("تم حذف المادة من الحفلة");
       setDeleteItemTarget(null);
@@ -365,11 +365,11 @@ export default function AdminConcertDetailPage() {
       for (const [itemId, s] of entries) {
         const item = warehouseItems.find((i) => i.id === itemId)!;
         const count = parseInt(s.quantity) || 1;
-        const unitCost = item.type === "external" ? (item.pricePerUnit ?? null) : null;
+        const unitCost = item.pricePerUnit ?? null;
         const totalCost = unitCost != null ? unitCost * count : null;
         await addConcertItem({ concertId: concert.id, itemId: item.id, itemName: item.name, type: item.type, count, unitCost, totalCost, assignedToEmployeeId: null, assignedToEmployeeName: null });
       }
-      await updateConcertExternalCost(concert.id);
+      await updateConcertItemCosts(concert.id);
       const names = entries.map(([itemId, s]) => { const item = warehouseItems.find((i) => i.id === itemId)!; return `${item.name} × ${parseInt(s.quantity) || 1}`; }).join("، ");
       await addConcertLog({ concertId: concert.id, description: `تمت إضافة مواد: ${names}`, createdBy: appUser.uid });
       showToast("تمت إضافة المواد");

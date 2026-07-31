@@ -161,7 +161,7 @@ export default function NewConcertPage() {
       .map(([itemId, s]) => {
         const item = warehouseItems.find((i) => i.id === itemId)!;
         const count = parseInt(s.quantity) || 1;
-        const unitCost = item.type === "external" ? (item.pricePerUnit ?? null) : null;
+        const unitCost = item.pricePerUnit ?? null;
         const totalCost = unitCost != null ? unitCost * count : null;
         return { itemId, itemName: item.name, type: item.type, count, unitCost, totalCost };
       })

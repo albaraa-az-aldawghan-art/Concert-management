@@ -138,7 +138,7 @@ function SortableItemCard({
           <span className="bg-orange-50 text-orange-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
             المستخدم {used}
           </span>
-          {item.type === "external" && item.pricePerUnit != null && (
+          {item.pricePerUnit != null && (
             <span className="bg-amber-50 text-amber-700 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
               {item.pricePerUnit.toLocaleString("en-US")} ريال/حبة
             </span>
@@ -255,7 +255,8 @@ export default function AdminWarehousePage() {
       return;
     }
     try {
-      const pricePerUnit = form.type === "external" && form.pricePerUnit ? parseFloat(form.pricePerUnit) : null;
+      // السعر يُحفظ للنوعين: الخارجي تكلفة فعلية، والداخلي لتقييم المفقودات
+      const pricePerUnit = form.pricePerUnit ? parseFloat(form.pricePerUnit) : null;
 
       // Upload the picked image to Cloudinary first (if any)
       let finalImageUrl = imageUrl;
@@ -381,22 +382,26 @@ export default function AdminWarehousePage() {
         <Select
           label="النوع"
           value={form.type}
-          onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external", pricePerUnit: "" })}
+          onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}
         >
           <option value="internal">داخلي (من الموارد)</option>
           <option value="external">خارجي (مستأجر)</option>
         </Select>
-        {form.type === "external" && (
-          <Input
-            label="سعر الحبة (ريال)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.pricePerUnit}
-            onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
-            placeholder="0.00 ريال (اختياري)"
-          />
-        )}
+        <Input
+          label="سعر الحبة (ريال)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={form.pricePerUnit}
+          onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
+          placeholder="0.00 ريال (اختياري)"
+          helperText={
+            form.type === "external"
+              ? "تكلفة فعلية تُحتسب على الحفلة"
+              : "للعرض وتقييم المفقودات فقط — لا تُحتسب على الحفلة لأن المادة مملوكة وترجع"
+          }
+        />
+
         <div className="flex gap-3 justify-end pt-2">
           <Button variant="secondary" type="button" onClick={() => { setShowAdd(false); setEditTarget(null); }}>
             إلغاء

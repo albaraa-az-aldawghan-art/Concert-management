@@ -126,6 +126,9 @@ export interface Concert {
   laborCost: number | null;
   vatRate: number | null;
   externalItemsCost?: number | null;
+  /** قيمة المواد الداخلية (المملوكة) المستخدمة — للعرض وتقييم الأصول الموظّفة
+   *  فقط، ولا تُخصم من الربح لأنها ترجع بعد الحفلة وتُستعمل مرات كثيرة */
+  internalItemsValue?: number | null;
   cancelledAt?: Timestamp | null;
   cancellationReason?: string | null;
   refundAmount?: number | null;
