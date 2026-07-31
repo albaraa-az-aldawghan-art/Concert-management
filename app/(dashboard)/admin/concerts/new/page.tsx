@@ -272,20 +272,23 @@ export default function NewConcertPage() {
         createdBy: appUser.uid,
       });
 
+      // تسلسلياً: كل إضافة معاملة تقرأ نفس مستند الحفلة، والتوازي هنا
+      // يُحدث تزاحماً وإعادة محاولات بلا فائدة
+      for (const item of selectedItems) {
+        await addConcertItem({
+          concertId: concert.id,
+          itemId: item.itemId,
+          itemName: item.itemName,
+          type: item.type,
+          count: item.count,
+          unitCost: item.unitCost ?? null,
+          totalCost: item.totalCost ?? null,
+          assignedToEmployeeId: null,
+          assignedToEmployeeName: null,
+        });
+      }
+
       await Promise.all([
-        ...selectedItems.map((item) =>
-          addConcertItem({
-            concertId: concert.id,
-            itemId: item.itemId,
-            itemName: item.itemName,
-            type: item.type,
-            count: item.count,
-            unitCost: item.unitCost ?? null,
-            totalCost: item.totalCost ?? null,
-            assignedToEmployeeId: null,
-            assignedToEmployeeName: null,
-          })
-        ),
         ...selectedFood.map((f) =>
           addConcertFood({
             concertId: concert.id,

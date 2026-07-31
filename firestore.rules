@@ -70,17 +70,19 @@ service cloud.firestore {
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       allow list: if isAdmin() || isWarehouse() || pageOn('concerts') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('requests') ||
+        pageOn('supervisor') || pageOn('employees') || pageOn('requests') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       allow create: if isAdmin() || hasFeat('concerts', 'create');
-      allow update: if isAdmin() ||
+      // isWarehouse() كان ناقصاً: مدير موارد حقيقي لم يكن يستطيع تأكيد
+      // استلام المواد المرتجعة رغم ظهور الزر له
+      allow update: if isAdmin() || isWarehouse() ||
         hasFeat('concerts', 'edit') || hasFeat('concerts', 'assign') ||
         hasFeat('concerts', 'payments') || hasFeat('concerts', 'cancel') ||
         hasFeat('supervisor', 'receive_materials') || hasFeat('supervisor', 'set_location') ||
         hasFeat('supervisor', 'start_executing') || hasFeat('supervisor', 'return_materials') ||
         hasFeat('supervisor', 'deliver_warehouse') || hasFeat('supervisor', 'assign_employees') ||
-        hasFeat('supervisor', 'request_materials') || hasFeat('requests', 'confirm_return') ||
+        hasFeat('supervisor', 'request_materials') || hasFeat('warehouse_orders', 'confirm_return') ||
         (isSupervisor() && uid() in resource.data.supervisorIds);
       allow delete: if isAdmin() || hasFeat('concerts', 'delete');
     }
@@ -90,10 +92,12 @@ service cloud.firestore {
     match /concert_items/{itemId} {
       allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee() || isKitchen() ||
         pageOn('concerts') || pageOn('kitchen') || pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders');
-      allow create: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') || hasFeat('requests', 'approve');
-      allow update: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') ||
-        hasFeat('supervisor', 'report_missing') || hasFeat('requests', 'approve');
-      allow delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
+      allow create: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
+      // مدير الموارد يحتاج التعديل ليُفرج عن الحجز (stockHeld) عند تأكيد الاستلام
+      allow update: if isAdmin() || isSupervisor() || isWarehouse() || hasFeat('concerts', 'materials') ||
+        hasFeat('supervisor', 'report_missing') || hasFeat('warehouse_orders', 'confirm_return');
+      allow delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') ||
+        hasFeat('concerts', 'delete');
     }
 
     // ── دفعات الحفلات (بيانات مالية) ───────────────────────────
@@ -132,7 +136,7 @@ service cloud.firestore {
       allow write: if isAdminOrWarehouse() ||
         hasFeat('warehouse', 'add') || hasFeat('warehouse', 'edit') || hasFeat('warehouse', 'delete') ||
         hasFeat('concerts', 'materials') ||
-        hasFeat('requests', 'approve') || hasFeat('requests', 'confirm_return');
+        hasFeat('warehouse_orders', 'confirm_return');
     }
 
     // ── طلبات الموارد ───────────────────────────────────────────

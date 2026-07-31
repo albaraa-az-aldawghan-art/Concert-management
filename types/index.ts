@@ -152,6 +152,9 @@ export interface ConcertItem {
   assignedToEmployeeName: string | null;
   deliveryStatus: DeliveryStatus;
   returnStatus: ReturnStatus;
+  /** هل هذه المادة تحجز حالياً من رصيد الموارد؟ تُكتب من الكود الجديد فقط،
+   *  فالمواد المسجّلة قبل تفعيل الحجز (undefined) لا تُعاد أبداً. */
+  stockHeld?: boolean;
   createdAt: Timestamp;
 }
 
