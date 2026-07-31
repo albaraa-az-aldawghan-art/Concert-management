@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertExternalCost, cancelConcert } from "@/lib/firestore/concerts";
-import { getRequestsByConcert } from "@/lib/firestore/requests";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -16,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, WarehouseRequest, KitchenOrder, CostOutgoing } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert } from "@/lib/firestore/costs";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
@@ -96,7 +95,6 @@ export default function AdminConcertDetailPage() {
   const [cancelRefundDate, setCancelRefundDate] = useState("");
   const [cancelRefundMethod, setCancelRefundMethod] = useState<PaymentMethod>("cash");
   const [logs, setLogs] = useState<ConcertLog[]>([]);
-  const [requests, setRequests] = useState<WarehouseRequest[]>([]);
   const [saving, setSaving] = useState(false);
   const [paidSaving, setPaidSaving] = useState(false);
 
@@ -138,7 +136,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, requestsData, kitchenData, costOutgoingData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -149,7 +147,6 @@ export default function AdminConcertDetailPage() {
       getUsersByRole("supervisor").catch(() => []),
       getUsersByRole("employee").catch(() => []),
       getConcertLogs(id).catch(() => []),
-      getRequestsByConcert(id).catch(() => []),
       getKitchenOrderByConcert(id).catch(() => null),
       getCostOutgoingByConcert(id).catch(() => []),
     ]);
@@ -163,7 +160,6 @@ export default function AdminConcertDetailPage() {
     setAllSupervisors(allSups);
     setAllEmployees(allEmps);
     setLogs(logsData);
-    setRequests(requestsData);
     setKitchenOrder(kitchenData);
     setCostOutgoing(costOutgoingData);
 
@@ -820,24 +816,6 @@ export default function AdminConcertDetailPage() {
                   : stage.next
                     ? `الخطوة التالية: ${stage.next}`
                     : "بانتظار تأكيد مدير الموارد لاستلام المواد"}
-              </div>
-            )}
-
-            {/* طلبات المواد المرتبطة بالحفلة — إن وُجدت */}
-            {requests.length > 0 && (
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold text-slate-500 mb-2">حالة طلبات المواد</p>
-                <div className="space-y-1.5">
-                  {requests.map((req) => (
-                    <div key={req.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{req.itemName}</p>
-                        <p className="text-xs text-slate-400">عدد: {req.requestedCount}</p>
-                      </div>
-                      <StatusBadge status={req.status} />
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 

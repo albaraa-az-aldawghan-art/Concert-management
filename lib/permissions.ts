@@ -85,15 +85,6 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     href: "/warehouse-manager/orders",
     features: [
       { key: "confirm", label: "تأكيد استلام الحفلات" },
-    ],
-  },
-  {
-    key: "requests",
-    label: "طلبات المواد",
-    href: "/warehouse-manager/requests",
-    features: [
-      { key: "approve",        label: "قبول الطلبات وصرف المواد" },
-      { key: "reject",         label: "رفض الطلبات" },
       { key: "confirm_return", label: "تأكيد استلام المواد المرتجعة من الحفلات" },
     ],
   },
@@ -134,7 +125,6 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "start_executing",   label: "بدء تنفيذ الحفلة" },
       { key: "return_materials",  label: "استلام المواد من الحفلة" },
       { key: "deliver_warehouse", label: "تسليم المواد للموارد" },
-      { key: "request_materials", label: "طلب مواد من الموارد" },
       { key: "assign_employees",  label: "إسناد الموظفين للحفلة" },
       { key: "report_missing",    label: "الإبلاغ عن مفقودات" },
     ],
@@ -180,7 +170,6 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin")) return "dashboard";
   if (pathname.startsWith("/kitchen")) return "kitchen";
   if (pathname.startsWith("/warehouse-manager/orders")) return "warehouse_orders";
-  if (pathname.startsWith("/warehouse-manager/requests")) return "requests";
   if (pathname.startsWith("/supervisor")) return "supervisor";
   if (pathname.startsWith("/employee")) return "employees";
   return null;

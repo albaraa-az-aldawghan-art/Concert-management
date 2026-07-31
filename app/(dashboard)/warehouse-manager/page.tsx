@@ -3,23 +3,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
-import { getPendingRequests } from "@/lib/firestore/requests";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
+import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
-import { Package, ClipboardList, AlertTriangle, ChevronLeft } from "lucide-react";
+import { Package, PackageCheck, AlertTriangle, ChevronLeft } from "lucide-react";
 
 export default function WarehouseManagerDashboard() {
-  const [stats, setStats] = useState({ items: 0, pendingRequests: 0, missing: 0 });
+  const [stats, setStats] = useState({ items: 0, pendingReturns: 0, missing: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [items, requests, missing] = await Promise.all([
+      const [items, concerts, missing] = await Promise.all([
         getWarehouseItems(),
-        getPendingRequests(),
+        getConcerts().catch(() => []),
         getAllMissingItems(),
       ]);
-      setStats({ items: items.length, pendingRequests: requests.length, missing: missing.length });
+      const pendingReturns = concerts.filter(
+        (c) => c.supervisorDeliveredToWarehouse && !c.warehouseReturnConfirmed
+      ).length;
+      setStats({ items: items.length, pendingReturns, missing: missing.length });
       setLoading(false);
     }
     load();
@@ -27,7 +30,7 @@ export default function WarehouseManagerDashboard() {
 
   const cards = [
     { label: "أغراض الموارد", value: stats.items, icon: <Package size={24} />, href: "/warehouse-manager/warehouse", bg: "bg-indigo-50", text: "text-indigo-600" },
-    { label: "طلبات معلقة", value: stats.pendingRequests, icon: <ClipboardList size={24} />, href: "/warehouse-manager/requests", bg: "bg-yellow-50", text: "text-yellow-600" },
+    { label: "مرتجعات بانتظار التأكيد", value: stats.pendingReturns, icon: <PackageCheck size={24} />, href: "/warehouse-manager/orders", bg: "bg-orange-50", text: "text-orange-600" },
     { label: "المفقودات", value: stats.missing, icon: <AlertTriangle size={24} />, href: "/warehouse-manager/missing-items", bg: "bg-red-50", text: "text-red-600" },
   ];
 
@@ -65,18 +68,18 @@ export default function WarehouseManagerDashboard() {
         ))}
       </div>
 
-      {stats.pendingRequests > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50">
+      {stats.pendingReturns > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
           <div className="flex items-center gap-3">
-            <ClipboardList size={20} className="text-yellow-600" />
+            <PackageCheck size={20} className="text-orange-600" />
             <div className="flex-1">
-              <p className="font-semibold text-yellow-800">
-                لديك {stats.pendingRequests} طلب معلق
+              <p className="font-semibold text-orange-800">
+                {stats.pendingReturns} حفلة بانتظار تأكيد استلام موادها
               </p>
-              <p className="text-sm text-yellow-600">يحتاج مراجعتك وتأكيد الصرف</p>
+              <p className="text-sm text-orange-600">بتأكيدك تُعاد الكميات لرصيد الموارد</p>
             </div>
-            <Link href="/warehouse-manager/requests">
-              <button className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors">
+            <Link href="/warehouse-manager/orders">
+              <button className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors">
                 مراجعة
               </button>
             </Link>

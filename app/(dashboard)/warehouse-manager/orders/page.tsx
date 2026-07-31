@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getWarehouseOrders, confirmWarehouseOrder } from "@/lib/firestore/kitchen";
+import { getConcerts, confirmWarehouseReturn } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { KitchenOrder } from "@/types";
+import { KitchenOrder, Concert } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
-import { Package, Printer, CheckCircle2, Clock } from "lucide-react";
+import { Package, Printer, CheckCircle2, Clock, PackageCheck, Check } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -18,6 +19,7 @@ export default function WarehouseOrdersPage() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [pendingReturn, setPendingReturn] = useState<Concert[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -30,17 +32,40 @@ export default function WarehouseOrdersPage() {
   const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
   const allowed = isStaff || (appUser?.role === "custom" && can("warehouse_orders"));
   const canConfirm = isStaff || feat("warehouse_orders", "confirm");
+  const canConfirmReturn = isStaff || feat("warehouse_orders", "confirm_return");
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     try {
-      setOrders(await getWarehouseOrders());
+      // قائمة الطلبات لا تنتظر قائمة المرتجعات — تُحمَّلان معاً
+      const [ord, concerts] = await Promise.all([
+        getWarehouseOrders(),
+        getConcerts().catch(() => [] as Concert[]),
+      ]);
+      setOrders(ord);
+      setPendingReturn(
+        concerts.filter((c) => c.supervisorDeliveredToWarehouse && !c.warehouseReturnConfirmed)
+      );
     } catch {
       showToast("حدث خطأ أثناء التحميل", "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleConfirmReturn(concert: Concert) {
+    if (!appUser) return;
+    setConfirmingId(concert.id);
+    try {
+      await confirmWarehouseReturn(concert.id, appUser.uid);
+      showToast(`تم استلام مواد "${concert.name}" وإعادتها للرصيد`);
+      load();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setConfirmingId(null);
     }
   }
 
@@ -158,11 +183,49 @@ export default function WarehouseOrdersPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-slate-800">طلبات الحفلات — الموارد</h2>
+        <h2 className="text-xl font-bold text-slate-800">الموارد — الطلبات والمرتجعات</h2>
         <p className="text-sm text-slate-500">
           {pending.length} بانتظار الاستلام · {received.length} مستلمة
+          {pendingReturn.length > 0 && ` · ${pendingReturn.length} مرتجع بانتظار التأكيد`}
         </p>
       </div>
+
+      {/* مواد راجعة من الحفلات بانتظار تأكيد الاستلام — يختفي القسم إذا لم يوجد شيء */}
+      {pendingReturn.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <PackageCheck size={18} className="text-orange-600" />
+            <h3 className="font-bold text-slate-800">مواد بانتظار تأكيد استلامها من الحفلات</h3>
+            <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+              {pendingReturn.length}
+            </span>
+          </div>
+          {pendingReturn.map((concert) => (
+            <Card key={concert.id} className="border-orange-200 bg-orange-50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-slate-800">{concert.name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    سلّم المشرف المواد — بتأكيدك تُعاد الكميات للرصيد عدا المُبلَّغ عنه كمفقود
+                  </p>
+                </div>
+                {canConfirmReturn && (
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => handleConfirmReturn(concert)}
+                    loading={confirmingId === concert.id}
+                    className="gap-1 shrink-0"
+                  >
+                    <Check size={14} />
+                    تم استلام المواد
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <SearchBox
         value={search}

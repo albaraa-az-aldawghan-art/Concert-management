@@ -48,7 +48,6 @@ const adminNav: NavItem[] = [
     icon: <Package size={17} />,
     children: [
       { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
-      { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
     ],
   },
   {
@@ -96,7 +95,6 @@ const warehouseManagerNav: NavItem[] = [
     icon: <Package size={17} />,
     children: [
       { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
-      { label: "طلبات المواد", href: "/warehouse-manager/requests", icon: <ClipboardList size={15} /> },
     ],
   },
   { label: "المفقودات",      href: "/warehouse-manager/missing-items",  icon: <AlertTriangle size={17} /> },
@@ -347,7 +345,6 @@ const permissionIcons: Record<string, React.ReactNode> = {
   users:            <Users size={17} />,
   warehouse:        <Package size={17} />,
   warehouse_orders: <Truck size={17} />,
-  requests:         <ClipboardList size={17} />,
   food:             <UtensilsCrossed size={17} />,
   missing_items:    <AlertTriangle size={17} />,
   kitchen:          <ChefHat size={17} />,

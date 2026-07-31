@@ -10,7 +10,6 @@ import {
 } from "@/lib/firestore/concerts";
 import { reportMissingItem } from "@/lib/firestore/missing-items";
 import { getConcertFood } from "@/lib/firestore/food";
-import { createRequest, getRequestsByConcert } from "@/lib/firestore/requests";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -19,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { Concert, ConcertItem, AppUser, WarehouseItem, WarehouseRequest, ConcertFood } from "@/types";
+import { Concert, ConcertItem, AppUser, WarehouseItem, ConcertFood } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, hasStartedExecuting } from "@/lib/concert-status";
 import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle, UsersRound } from "lucide-react";
@@ -45,14 +44,12 @@ export default function SupervisorConcertDetailPage() {
 
   const [concert, setConcert] = useState<Concert | null>(null);
   const [items, setItems] = useState<ConcertItem[]>([]);
-  const [requests, setRequests] = useState<WarehouseRequest[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [showRequestForm, setShowRequestForm] = useState(false);
   // Concert-level employee assignment (checklist of ALL employees)
   const [allEmployees, setAllEmployees] = useState<AppUser[]>([]);
   const [showAssignEmployees, setShowAssignEmployees] = useState(false);
@@ -62,7 +59,6 @@ export default function SupervisorConcertDetailPage() {
   const [confirmDeliverToWarehouse, setConfirmDeliverToWarehouse] = useState(false);
   const [confirmExecuting, setConfirmExecuting] = useState(false);
 
-  const [requestForm, setRequestForm] = useState({ itemId: "", count: "1" });
 
   // Missing-item reporting (supervisor responsibility)
   const [showMissingModal, setShowMissingModal] = useState(false);
@@ -111,10 +107,9 @@ export default function SupervisorConcertDetailPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [concertData, itemsData, requestsData, warehouseData, foodData, allEmps] = await Promise.all([
+      const [concertData, itemsData, warehouseData, foodData, allEmps] = await Promise.all([
         getConcertById(id),
         getConcertItems(id),
-        getRequestsByConcert(id),
         getWarehouseItems(),
         getConcertFood(id),
         getUsersByRole("employee").catch(() => []),
@@ -122,7 +117,6 @@ export default function SupervisorConcertDetailPage() {
       setAllEmployees(allEmps);
       setConcert(concertData);
       setItems(itemsData);
-      setRequests(requestsData);
       setWarehouseItems(warehouseData);
       setConcertFood(foodData);
 
@@ -145,30 +139,6 @@ export default function SupervisorConcertDetailPage() {
       showToast("تم تحديد موقع الحفلة بنجاح");
       loadData();
     } catch { showToast("حدث خطأ", "error"); } finally { setSavingLocation(false); }
-  }
-
-  async function handleRequest(e: React.FormEvent) {
-    e.preventDefault();
-    if (!appUser || !concert) return;
-    const item = warehouseItems.find((i) => i.id === requestForm.itemId);
-    if (!item) return;
-    setSaving(true);
-    try {
-      await createRequest({
-        concertId: id,
-        concertName: concert.name,
-        supervisorId: appUser.uid,
-        supervisorName: appUser.name,
-        itemId: item.id,
-        itemName: item.name,
-        type: item.type,
-        requestedCount: parseInt(requestForm.count),
-      });
-      showToast("تم إرسال طلب المادة إلى مدير الموارد");
-      setShowRequestForm(false);
-      setRequestForm({ itemId: "", count: "1" });
-      loadData();
-    } catch { showToast("حدث خطأ", "error"); } finally { setSaving(false); }
   }
 
   // Concert-level assignment: the selected employees see the WHOLE concert
@@ -437,35 +407,6 @@ export default function SupervisorConcertDetailPage() {
         </div>
       </Card>
 
-      {/* Request Items */}
-      {!isLocked && !isPlanned && (
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-800">طلب مواد من الموارد</h3>
-            {fxs("request_materials") && (
-              <Button size="sm" onClick={() => setShowRequestForm(true)}>
-                <Plus size={14} /> طلب مادة
-              </Button>
-            )}
-          </div>
-          {requests.length === 0 ? (
-            <p className="text-sm text-slate-400">لم تطلب أي مواد بعد</p>
-          ) : (
-            <div className="space-y-2">
-              {requests.map((req) => (
-                <div key={req.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{req.itemName}</p>
-                    <p className="text-xs text-slate-400">طلب: {req.requestedCount}</p>
-                  </div>
-                  <StatusBadge status={req.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
       {/* Concert Items */}
       <Card>
         <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -590,22 +531,6 @@ export default function SupervisorConcertDetailPage() {
       )}
 
       {/* Modals */}
-      <Modal open={showRequestForm} onClose={() => setShowRequestForm(false)} title="طلب مادة من الموارد">
-        <form onSubmit={handleRequest} className="space-y-4">
-          <Select label="المادة" value={requestForm.itemId} onChange={(e) => setRequestForm({ ...requestForm, itemId: e.target.value })} required placeholder="اختر مادة...">
-            {warehouseItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} ({item.type === "internal" ? "داخلي" : "خارجي"}) — متوفر: {item.availableCount}
-              </option>
-            ))}
-          </Select>
-          <Input label="العدد المطلوب" type="number" min={1} value={requestForm.count} onChange={(e) => setRequestForm({ ...requestForm, count: e.target.value })} required />
-          <div className="flex gap-3 justify-end">
-            <Button variant="secondary" type="button" onClick={() => setShowRequestForm(false)}>إلغاء</Button>
-            <Button type="submit" loading={saving}>إرسال الطلب</Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Concert-level employee assignment — checklist of all employees */}
       <Modal open={showAssignEmployees} onClose={() => setShowAssignEmployees(false)} title="إسناد الحفلة للموظفين">

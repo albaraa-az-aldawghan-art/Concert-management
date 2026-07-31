@@ -12,7 +12,6 @@ const pageTitles: Record<string, string> = {
   "/admin/missing-items": "المفقودات",
   "/warehouse-manager": "لوحة التحكم",
   "/warehouse-manager/warehouse": "إدارة الموارد",
-  "/warehouse-manager/requests": "طلبات المواد",
   "/warehouse-manager/missing-items": "المفقودات",
   "/supervisor": "لوحة التحكم",
   "/supervisor/concerts": "حفلاتي",

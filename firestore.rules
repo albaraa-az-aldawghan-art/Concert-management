@@ -66,11 +66,11 @@ service cloud.firestore {
     // ── الحفلات ────────────────────────────────────────────────
     match /concerts/{concertId} {
       allow get: if isAdmin() || isWarehouse() || isKitchen() || pageOn('concerts') || pageOn('kitchen') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('requests') || pageOn('warehouse_orders') ||
+        pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       allow list: if isAdmin() || isWarehouse() || pageOn('concerts') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('requests') || pageOn('warehouse_orders') ||
+        pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       allow create: if isAdmin() || hasFeat('concerts', 'create');
@@ -82,7 +82,7 @@ service cloud.firestore {
         hasFeat('supervisor', 'receive_materials') || hasFeat('supervisor', 'set_location') ||
         hasFeat('supervisor', 'start_executing') || hasFeat('supervisor', 'return_materials') ||
         hasFeat('supervisor', 'deliver_warehouse') || hasFeat('supervisor', 'assign_employees') ||
-        hasFeat('supervisor', 'request_materials') || hasFeat('warehouse_orders', 'confirm_return') ||
+        hasFeat('warehouse_orders', 'confirm_return') ||
         (isSupervisor() && uid() in resource.data.supervisorIds);
       allow delete: if isAdmin() || hasFeat('concerts', 'delete');
     }
@@ -137,17 +137,6 @@ service cloud.firestore {
         hasFeat('warehouse', 'add') || hasFeat('warehouse', 'edit') || hasFeat('warehouse', 'delete') ||
         hasFeat('concerts', 'materials') ||
         hasFeat('warehouse_orders', 'confirm_return');
-    }
-
-    // ── طلبات الموارد ───────────────────────────────────────────
-    match /warehouse_requests/{reqId} {
-      allow read: if isAdmin() || isWarehouse() || pageOn('concerts') || pageOn('requests') || pageOn('supervisor') ||
-        (isSupervisor() && resource.data.supervisorId == uid());
-      allow create: if isAdmin() || hasFeat('concerts', 'materials') || hasFeat('supervisor', 'request_materials') ||
-        (isSupervisor() && request.resource.data.supervisorId == uid());
-      allow update: if isAdminOrWarehouse() || hasFeat('concerts', 'materials') ||
-        hasFeat('requests', 'approve') || hasFeat('requests', 'reject');
-      allow delete: if isAdmin();
     }
 
     // ── المفقودات ──────────────────────────────────────────────

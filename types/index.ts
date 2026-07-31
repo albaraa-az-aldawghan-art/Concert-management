@@ -11,7 +11,6 @@ export type PermissionPage =
   | "users"
   | "warehouse"
   | "warehouse_orders"
-  | "requests"
   | "food"
   | "missing_items"
   | "kitchen"
@@ -155,24 +154,6 @@ export interface ConcertItem {
   /** هل هذه المادة تحجز حالياً من رصيد الموارد؟ تُكتب من الكود الجديد فقط،
    *  فالمواد المسجّلة قبل تفعيل الحجز (undefined) لا تُعاد أبداً. */
   stockHeld?: boolean;
-  createdAt: Timestamp;
-}
-
-export type RequestStatus = "pending" | "approved" | "rejected";
-
-export interface WarehouseRequest {
-  id: string;
-  concertId: string;
-  concertName: string;
-  supervisorId: string;
-  supervisorName: string;
-  itemId: string;
-  itemName: string;
-  type: "internal" | "external";
-  requestedCount: number;
-  status: RequestStatus;
-  approvedBy: string | null;
-  approvedAt: Timestamp | null;
   createdAt: Timestamp;
 }
 
