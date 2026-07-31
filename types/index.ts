@@ -73,16 +73,12 @@ export interface ConcertLocation {
   address: string;
 }
 
+// أربع حالات فقط. الحالات الوسيطة السبع القديمة أصبحت علامات إنجاز
+// على الحفلة (deliveryApproved, executingStarted…) وتُترجم عند القراءة
+// عبر normalizeStatus في lib/concert-status.ts
 export type ConcertStatus =
   | "planned"
   | "confirmed"
-  | "materials_requested"
-  | "active"
-  | "location_set"
-  | "executing"
-  | "materials_returned"
-  | "delivered_to_warehouse"
-  | "warehouse_confirmed"
   | "completed"
   | "cancelled";
 

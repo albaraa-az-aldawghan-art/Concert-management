@@ -24,11 +24,6 @@ export async function createRequest(
     createdAt: Timestamp.now(),
   });
 
-  const concertSnap = await getDoc(doc(db, "concerts", data.concertId));
-  if (concertSnap.data()?.status === "confirmed") {
-    await updateDoc(doc(db, "concerts", data.concertId), { status: "materials_requested" });
-  }
-
   const snap = await getDoc(ref);
   return { id: ref.id, ...snap.data() } as WarehouseRequest;
 }

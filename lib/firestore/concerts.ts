@@ -123,13 +123,10 @@ export async function deleteConcert(id: string) {
 }
 
 export async function approveDelivery(concertId: string, supervisorId: string) {
-  const snap = await getDoc(doc(db, "concerts", concertId));
-  const hasLocation = !!(snap.data()?.location);
   await updateDoc(doc(db, "concerts", concertId), {
     deliveryApproved: true,
     deliveryApprovedBy: supervisorId,
     deliveryApprovedAt: Timestamp.now(),
-    status: hasLocation ? "location_set" : "active",
   });
 }
 
@@ -137,23 +134,15 @@ export async function setConcertLocation(
   concertId: string,
   location: { lat: number; lng: number; address: string }
 ) {
-  const snap = await getDoc(doc(db, "concerts", concertId));
-  const currentStatus = snap.data()?.status;
-  const update: Record<string, unknown> = { location };
-  if (currentStatus === "active") update.status = "location_set";
-  await updateDoc(doc(db, "concerts", concertId), update);
+  await updateDoc(doc(db, "concerts", concertId), { location });
 }
 
-export async function advanceToMaterialsRequested(concertId: string) {
-  await updateDoc(doc(db, "concerts", concertId), { status: "materials_requested" });
-}
-
-export async function advanceToLocationSet(concertId: string) {
-  await updateDoc(doc(db, "concerts", concertId), { status: "location_set" });
-}
-
-export async function advanceToExecuting(concertId: string) {
-  await updateDoc(doc(db, "concerts", concertId), { status: "executing" });
+export async function advanceToExecuting(concertId: string, uid: string) {
+  await updateDoc(doc(db, "concerts", concertId), {
+    executingStarted: true,
+    executingStartedAt: Timestamp.now(),
+    executingStartedBy: uid,
+  });
 }
 
 export async function approveReturn(concertId: string, supervisorId: string) {
@@ -161,7 +150,6 @@ export async function approveReturn(concertId: string, supervisorId: string) {
     returnApproved: true,
     returnApprovedBy: supervisorId,
     returnApprovedAt: Timestamp.now(),
-    status: "materials_returned",
   });
 }
 
@@ -169,7 +157,6 @@ export async function supervisorDeliverToWarehouse(concertId: string, uid: strin
   await updateDoc(doc(db, "concerts", concertId), {
     supervisorDeliveredToWarehouse: true,
     supervisorDeliveredToWarehouseAt: Timestamp.now(),
-    status: "delivered_to_warehouse",
   });
 }
 
@@ -200,7 +187,6 @@ export async function confirmWarehouseReturn(concertId: string, uid: string) {
     warehouseReturnConfirmed: true,
     warehouseReturnConfirmedBy: uid,
     warehouseReturnConfirmedAt: Timestamp.now(),
-    status: "warehouse_confirmed",
   });
 }
 

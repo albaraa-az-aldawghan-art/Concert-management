@@ -21,6 +21,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { Concert, ConcertItem, AppUser, WarehouseItem, WarehouseRequest, ConcertFood } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { normalizeStatus, hasStartedExecuting } from "@/lib/concert-status";
 import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle, UsersRound } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -217,9 +218,10 @@ export default function SupervisorConcertDetailPage() {
   }
 
   async function handleAdvanceToExecuting() {
+    if (!appUser) return;
     setSaving(true);
     try {
-      await advanceToExecuting(id);
+      await advanceToExecuting(id, appUser.uid);
       showToast("الحفلة في مرحلة التنفيذ — بالتوفيق!");
       setConfirmExecuting(false);
       loadData();
@@ -244,19 +246,22 @@ export default function SupervisorConcertDetailPage() {
   const fxs = (k: string) =>
     role === "admin" || role === "supervisor" || feat("supervisor", k);
 
+  /* خطوات التشغيل الخمس — تعتمد كلها على العلامات المحفوظة مع الحفلة
+     لا على مرحلتها، فكل خطوة تُفتح فور اكتمال ما قبلها ولا تنفتح مرتين. */
+  const started = hasStartedExecuting(concert);
   const isLocked = concert.deliveryApproved;
   const needsLocation = concert.deliveryApproved && !concert.location && fxs("set_location");
-  const isPlanned = concert.status === "planned";
-  const canReceiveMaterials = fxs("receive_materials") && (concert.status === "materials_requested" ||
-    (!concert.deliveryApproved && !isPlanned && concert.status !== "confirmed" && !concert.status));
-  const canStartExecuting = fxs("start_executing") && (concert.status === "location_set" ||
-    (concert.status === "active" && !!concert.location));
-  const canReturnMaterials = fxs("return_materials") && concert.status === "executing";
-  const canDeliverToWarehouse = fxs("deliver_warehouse") && (concert.status === "materials_returned" ||
-    (concert.returnApproved && !concert.supervisorDeliveredToWarehouse &&
-     concert.status !== "executing" && concert.status !== "location_set" && concert.status !== "active"));
-  const isWaitingWarehouse = concert.status === "delivered_to_warehouse" ||
-    (concert.supervisorDeliveredToWarehouse && !concert.warehouseReturnConfirmed);
+  const isPlanned = normalizeStatus(concert.status) === "planned";
+  const isCancelled = normalizeStatus(concert.status) === "cancelled";
+
+  const canReceiveMaterials  = fxs("receive_materials")  && !isCancelled && !isPlanned && !concert.deliveryApproved;
+  const canStartExecuting    = fxs("start_executing")    && !isCancelled && concert.deliveryApproved && !!concert.location && !started;
+  const canReturnMaterials   = fxs("return_materials")   && !isCancelled && started && !concert.returnApproved;
+  const canDeliverToWarehouse= fxs("deliver_warehouse")  && !isCancelled && concert.returnApproved && !concert.supervisorDeliveredToWarehouse;
+  const isWaitingWarehouse   = concert.supervisorDeliveredToWarehouse && !concert.warehouseReturnConfirmed;
+  // الإبلاغ عن المفقودات متاح من بدء التنفيذ حتى يستلم المخزن المواد —
+  // بعد الاستلام يكون المخزون قد أُعيد، فبلاغ متأخر يفسد الأرصدة.
+  const canReportMissing = fxs("report_missing") && started && !concert.warehouseReturnConfirmed;
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -483,12 +488,12 @@ export default function SupervisorConcertDetailPage() {
                   <p className="text-lg font-bold text-[#1C2D50]">{item.count}</p>
                   <StatusBadge status={item.deliveryStatus} />
                   {/* Missing reports only make sense while receiving materials
-                      back from the concert (executing → materials_returned) */}
+                      back from the concert */}
                   {item.returnStatus === "has_missing" ? (
                     <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-lg">
                       ⚠️ به مفقودات
                     </span>
-                  ) : (fxs("report_missing") && (concert.status === "executing" || concert.status === "materials_returned")) ? (
+                  ) : canReportMissing ? (
                     <Button
                       size="sm"
                       variant="danger"
