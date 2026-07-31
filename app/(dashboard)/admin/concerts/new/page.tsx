@@ -98,9 +98,6 @@ export default function NewConcertPage() {
   const [hallCostValue, setHallCostValue] = useState("");
   const [hallCostDate, setHallCostDate] = useState("");
   const [hallCostRecipient, setHallCostRecipient] = useState("");
-  const [transportCost, setTransportCost] = useState("");
-  const [laborCount, setLaborCount] = useState("");
-  const [laborPricePerUnit, setLaborPricePerUnit] = useState("");
 
   /* ── Items checklist ── */
   const [activeItemType, setActiveItemType] = useState<"" | "internal" | "external">("");
@@ -262,10 +259,10 @@ export default function NewConcertPage() {
         hallCostValue: hallCostValue ? parseFloat(hallCostValue) : null,
         hallCostDate: hallCostDate || null,
         hallCostRecipient: hallCostRecipient.trim() || null,
-        transportCost: transportCost ? parseFloat(transportCost) : null,
-        laborCount: laborCount ? parseInt(laborCount) : null,
-        laborPricePerUnit: laborPricePerUnit ? parseFloat(laborPricePerUnit) : null,
-        laborCost: (laborCount && laborPricePerUnit) ? parseInt(laborCount) * parseFloat(laborPricePerUnit) : null,
+        transportCost: null,
+        laborCount: null,
+        laborPricePerUnit: null,
+        laborCost: null,
         vatRate,
         externalItemsCost,
         status: depositTotal > 0 ? "confirmed" : "planned",
@@ -452,46 +449,11 @@ export default function NewConcertPage() {
               )}
             </div>
 
-            {/* Transport Cost */}
-            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">
-                تكلفة النقل <span className="text-slate-400 font-normal text-xs">(اختياري)</span>
-              </p>
-              <input type="number" min={0} step="0.01" value={transportCost}
-                onChange={(e) => setTransportCost(e.target.value)}
-                placeholder="0.00 ريال"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-            </div>
-
-            {/* Labor Cost */}
-            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">
-                تكلفة العمالة <span className="text-slate-400 font-normal text-xs">(اختياري)</span>
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-500 font-medium block mb-1">عدد العمالة</label>
-                  <input type="number" min={0} step="1" value={laborCount}
-                    onChange={(e) => setLaborCount(e.target.value)}
-                    placeholder="0"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 font-medium block mb-1">سعر الواحد (ريال)</label>
-                  <input type="number" min={0} step="0.01" value={laborPricePerUnit}
-                    onChange={(e) => setLaborPricePerUnit(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-                </div>
-              </div>
-              {laborCount && laborPricePerUnit && (
-                <div className="flex justify-between px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
-                  <span className="text-sm font-semibold text-blue-700">الإجمالي</span>
-                  <span className="font-bold text-blue-700">
-                    {(parseInt(laborCount) * parseFloat(laborPricePerUnit)).toLocaleString("en-US")} ريال
-                  </span>
-                </div>
-              )}
+            {/* النقل والعمالة صارا فواتير تُضاف على الحفلة بعد تأكيدها،
+                فلا يُدخَلان هنا لأن الحفلة تُنشأ غير مؤكدة */}
+            <div className="border border-dashed border-slate-200 rounded-xl p-4 text-xs text-slate-400 leading-relaxed">
+              مصاريف النقل والعمالة وغيرها تُضاف كفواتير من صفحة الحفلة بعد تأكيدها،
+              فيُحفظ لكل فاتورة مبلغها وتاريخها ومورّدها.
             </div>
           </div>
         </Card>

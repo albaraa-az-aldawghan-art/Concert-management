@@ -201,6 +201,20 @@ service cloud.firestore {
       allow write: if isAdmin() || hasFeat('costs', 'manage_items');
     }
 
+    // ── فواتير مصروفات الحفلة ─────────────────────────────────
+    // تُقرأ من صفحة الحفلة والقائمة المالية وصفحة الربحية
+    match /concert_expenses/{expenseId} {
+      allow read:   if isAdmin() || pageOn('concerts') || pageOn('finances') || pageOn('profitability');
+      allow create: if isAdmin() || hasFeat('concerts', 'payments') || hasFeat('concerts', 'edit');
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || hasFeat('concerts', 'payments') || hasFeat('concerts', 'edit');
+    }
+
+    match /expense_settings/{docId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin() || hasFeat('settings', 'roles') || hasFeat('concerts', 'edit');
+    }
+
     // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

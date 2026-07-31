@@ -120,10 +120,15 @@ export interface Concert {
   hallCostValue: number | null;
   hallCostDate: string | null;
   hallCostRecipient: string | null;
+  /* الثلاثة مشتقّة من concert_expenses — تُعاد كتابتها بعد كل فاتورة،
+     تماماً كما يُشتق deposit من الدفعات. لا تُكتب يدوياً في أي مكان. */
   transportCost: number | null;
-  laborCount: number | null;
-  laborPricePerUnit: number | null;
   laborCost: number | null;
+  otherExpensesCost?: number | null;
+  /** @deprecated بقايا نموذج العمالة القديم — تفصيلته صارت في وصف الفاتورة */
+  laborCount: number | null;
+  /** @deprecated */
+  laborPricePerUnit: number | null;
   vatRate: number | null;
   externalItemsCost?: number | null;
   /** قيمة المواد الداخلية (المملوكة) المستخدمة — للعرض وتقييم الأصول الموظّفة
@@ -206,6 +211,41 @@ export interface ConcertLog {
   field?: string;     // which field changed, e.g. "date" | "venueName"
   oldValue?: string;  // previous value (ISO date string for dates, plain text for others)
   newValue?: string;  // new value
+}
+
+/* ── فواتير مصروفات الحفلة ─────────────────────────────────────
+   كل مصروف تشغيلي (سيارات، عمالة، أخرى) فاتورة مستقلة موجّهة لحفلة.
+   مجاميعها تُكتب على الحفلة في transportCost/laborCost/otherExpensesCost. */
+
+/** المفاتيح الثابتة التي تُشتق منها حقول الحفلة — بقية الأنواع تدخل في «أخرى» */
+export type ExpenseKind = "transport" | "labor" | "other";
+
+export interface ExpenseType {
+  name: string;
+  /** أي حقل مشتق يتغذى من هذا النوع */
+  kind: ExpenseKind;
+}
+
+export interface ExpenseSettings {
+  types: ExpenseType[];
+}
+
+export interface ConcertExpense {
+  id: string;
+  concertId: string;
+  concertNumber: number | null;
+  clientName: string | null;
+  /** اسم النوع كما اختير وقت الإدخال */
+  type: string;
+  kind: ExpenseKind;
+  description: string | null;
+  supplierName: string | null;
+  amount: number;
+  /** هل المبلغ المُدخل شامل الضريبة؟ يُطبَّع عند حساب الربح */
+  vatIncluded: boolean;
+  invoiceDate: string; // yyyy-mm-dd
+  createdAt: Timestamp;
+  createdBy: string;
 }
 
 export interface MissingItem {

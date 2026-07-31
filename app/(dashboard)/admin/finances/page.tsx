@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
-import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users } from "lucide-react";
+import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -126,8 +126,9 @@ export default function FinancesPage() {
   const totalTransport = filtered.reduce((s, c) => s + (c.transportCost ?? 0), 0);
   const totalExternal  = filtered.reduce((s, c) => s + (c.externalItemsCost ?? 0), 0);
   const totalLabor     = filtered.reduce((s, c) => s + (c.laborCost ?? 0), 0);
-  const totalAllCosts  = totalHall + totalTransport + totalExternal + totalLabor;
-  const netRevenue     = totalRevenue - totalHall - totalTransport - totalExternal - totalLabor;
+  const totalOther     = filtered.reduce((s, c) => s + (c.otherExpensesCost ?? 0), 0);
+  const totalAllCosts  = totalHall + totalTransport + totalExternal + totalLabor + totalOther;
+  const netRevenue     = totalRevenue - totalAllCosts;
   const rate           = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -361,6 +362,16 @@ export default function FinancesPage() {
         </Card>
         <Card>
           <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+              <Receipt size={18} className="text-amber-600" />
+            </div>
+            <p className="text-xs text-slate-500">مصروفات أخرى</p>
+          </div>
+          <p className="text-2xl font-bold text-amber-700">{totalOther.toLocaleString("en-US")}</p>
+          <p className="text-xs text-slate-400">ريال</p>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center">
               <CheckCircle2 size={18} className="text-teal-600" />
             </div>
@@ -482,7 +493,7 @@ export default function FinancesPage() {
                   {paginated.map((c, idx) => {
                     const hall = calcHallCost(c);
                     const remaining = (c.price ?? 0) - (c.deposit ?? 0);
-                    const concertTotalCosts = hall + (c.transportCost ?? 0) + (c.externalItemsCost ?? 0) + (c.laborCost ?? 0);
+                    const concertTotalCosts = hall + (c.transportCost ?? 0) + (c.externalItemsCost ?? 0) + (c.laborCost ?? 0) + (c.otherExpensesCost ?? 0);
                     const isShaded = idx % 2 === 0;
                     return (
                       <tr key={c.id} className={`transition-colors hover:bg-slate-100 ${isShaded ? "bg-slate-50" : "bg-white"}`}>

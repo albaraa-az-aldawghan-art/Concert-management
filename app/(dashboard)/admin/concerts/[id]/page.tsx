@@ -14,14 +14,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/input";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing } from "@/types";
+import { Input, Select } from "@/components/ui/input";
+import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert } from "@/lib/firestore/costs";
+import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode, Receipt } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -77,11 +78,19 @@ export default function AdminConcertDetailPage() {
   const [editHallCostRecipient, setEditHallCostRecipient] = useState("");
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [editNotes, setEditNotes] = useState("");
-  const [showEditTransport, setShowEditTransport] = useState(false);
-  const [editTransportCost, setEditTransportCost] = useState("");
-  const [showEditLabor, setShowEditLabor] = useState(false);
-  const [editLaborCount, setEditLaborCount] = useState("");
-  const [editLaborPricePerUnit, setEditLaborPricePerUnit] = useState("");
+  /* ── فواتير مصروفات الحفلة ── */
+  const [expenses, setExpenses] = useState<ConcertExpense[]>([]);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [deleteExpenseTarget, setDeleteExpenseTarget] = useState<ConcertExpense | null>(null);
+  const [expenseForm, setExpenseForm] = useState({
+    type: "",
+    amount: "",
+    vatIncluded: false,
+    invoiceDate: "",
+    supplierName: "",
+    description: "",
+  });
   const [showEditDate, setShowEditDate] = useState(false);
   const [editDate, setEditDate] = useState("");
   const [showEditVenueName, setShowEditVenueName] = useState(false);
@@ -136,7 +145,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -149,6 +158,8 @@ export default function AdminConcertDetailPage() {
       getConcertLogs(id).catch(() => []),
       getKitchenOrderByConcert(id).catch(() => null),
       getCostOutgoingByConcert(id).catch(() => []),
+      getExpensesByConcert(id).catch(() => []),
+      getExpenseSettings().catch(() => ({ types: [] })),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -162,6 +173,8 @@ export default function AdminConcertDetailPage() {
     setLogs(logsData);
     setKitchenOrder(kitchenData);
     setCostOutgoing(costOutgoingData);
+    setExpenses(expensesData);
+    setExpenseTypes(expenseSettings.types);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
@@ -438,17 +451,47 @@ export default function AdminConcertDetailPage() {
     }
   }
 
-  async function handleSaveTransport() {
+  function openAddExpense() {
+    setExpenseForm({
+      type: expenseTypes[0]?.name ?? "",
+      amount: "",
+      vatIncluded: false,
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      supplierName: "",
+      description: "",
+    });
+    setShowAddExpense(true);
+  }
+
+  async function handleAddExpense(e: React.FormEvent) {
+    e.preventDefault();
     if (!concert || !appUser) return;
+    const amount = parseFloat(expenseForm.amount);
+    if (!amount || amount <= 0) { showToast("أدخل مبلغاً صحيحاً", "error"); return; }
+    const picked = expenseTypes.find((t) => t.name === expenseForm.type);
+    if (!picked) { showToast("اختر نوع المصروف", "error"); return; }
     setSaving(true);
     try {
-      const cost = editTransportCost ? parseFloat(editTransportCost) : null;
-      const oldDesc = concert.transportCost ? `${concert.transportCost.toLocaleString("en-US")} ريال` : "بدون";
-      const newDesc = cost ? `${cost.toLocaleString("en-US")} ريال` : "بدون";
-      await updateConcert(concert.id, { transportCost: cost });
-      await addConcertLog({ concertId: concert.id, description: `تم تغيير تكلفة النقل من ${oldDesc} إلى ${newDesc}`, createdBy: appUser.uid });
-      showToast("تم تحديث تكلفة النقل");
-      setShowEditTransport(false);
+      await addConcertExpense({
+        concertId: concert.id,
+        concertNumber: concert.concertNumber ?? null,
+        clientName: concert.clientName ?? null,
+        type: picked.name,
+        kind: picked.kind,
+        description: expenseForm.description.trim() || null,
+        supplierName: expenseForm.supplierName.trim() || null,
+        amount,
+        vatIncluded: expenseForm.vatIncluded,
+        invoiceDate: expenseForm.invoiceDate,
+        createdBy: appUser.uid,
+      });
+      await addConcertLog({
+        concertId: concert.id,
+        description: `أُضيفت فاتورة ${picked.name} بمبلغ ${amount.toLocaleString("en-US")} ريال`,
+        createdBy: appUser.uid,
+      });
+      showToast("تمت إضافة الفاتورة");
+      setShowAddExpense(false);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -457,17 +500,18 @@ export default function AdminConcertDetailPage() {
     }
   }
 
-  async function handleSaveLabor() {
-    if (!concert || !appUser) return;
+  async function handleDeleteExpense() {
+    if (!deleteExpenseTarget || !appUser || !concert) return;
     setSaving(true);
     try {
-      const count = editLaborCount ? parseInt(editLaborCount) : null;
-      const price = editLaborPricePerUnit ? parseFloat(editLaborPricePerUnit) : null;
-      const total = count && price ? count * price : null;
-      await updateConcert(concert.id, { laborCount: count, laborPricePerUnit: price, laborCost: total });
-      await addConcertLog({ concertId: concert.id, description: `تم تحديث تكلفة العمالة: ${count ?? 0} × ${price?.toLocaleString("en-US") ?? 0} = ${total?.toLocaleString("en-US") ?? 0} ريال`, createdBy: appUser.uid });
-      showToast("تم تحديث تكلفة العمالة");
-      setShowEditLabor(false);
+      await deleteConcertExpense(deleteExpenseTarget);
+      await addConcertLog({
+        concertId: concert.id,
+        description: `حُذفت فاتورة ${deleteExpenseTarget.type} بمبلغ ${deleteExpenseTarget.amount.toLocaleString("en-US")} ريال`,
+        createdBy: appUser.uid,
+      });
+      showToast("تم حذف الفاتورة");
+      setDeleteExpenseTarget(null);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -664,6 +708,17 @@ export default function AdminConcertDetailPage() {
     cancel: feat("concerts", "cancel"),
   };
   const hasAnyPower = Object.values(fx).some(Boolean);
+
+  /* فواتير المصروفات — تُدخَل للحفلة المؤكدة أو المكتملة فقط. فاتورة
+     السيارة كثيراً ما تصل بعد انتهاء الحفلة، فحصرها في «مؤكدة» يعطّل العمل. */
+  const expenseStatus = normalizeStatus(concert.status);
+  const expenseStageOk = expenseStatus === "confirmed" || expenseStatus === "completed";
+  const canAddExpense = (fx.payments || fx.edit) && expenseStageOk;
+  const expenseGateReason =
+    expenseStatus === "planned" ? "تُضاف بعد تأكيد الحفلة"
+    : expenseStatus === "cancelled" ? "الحفلة ملغاة"
+    : "لا صلاحية للإضافة";
+  const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0);
 
   // Safety net for pure-view roles: block any button that slipped past the
   // per-feature rendering below.
@@ -994,54 +1049,34 @@ export default function AdminConcertDetailPage() {
           )}
         </Card>
 
-        {/* Transport Cost */}
+        {/* مصاريف الحفلة — فواتير. المجاميع مشتقّة منها ولا تُحرَّر يدوياً */}
         <Card>
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 text-slate-500">
-              <BadgeDollarSign size={15} />
-              <span className="text-xs font-medium">تكلفة النقل</span>
+              <Receipt size={15} />
+              <span className="text-xs font-medium">مصاريف الحفلة</span>
             </div>
-            {fx.edit && <button
-              onClick={() => { setEditTransportCost(String(concert.transportCost ?? "")); setShowEditTransport(true); }}
-              className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
-            >
-              <Pencil size={11} />
-              تعديل
-            </button>}
+            {canAddExpense && (
+              <button
+                onClick={openAddExpense}
+                className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
+              >
+                <Plus size={11} />
+                فاتورة
+              </button>
+            )}
           </div>
-          {concert.transportCost ? (
-            <p className="font-bold text-slate-800 text-lg">{concert.transportCost.toLocaleString("en-US")} ريال</p>
-          ) : (
-            <p className="text-slate-400 text-sm">لم يُضَف بعد</p>
-          )}
-        </Card>
-
-        {/* Labor Cost */}
-        <Card>
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-slate-500">
-              <Users size={15} />
-              <span className="text-xs font-medium">تكلفة العمالة</span>
-            </div>
-            {fx.edit && <button
-              onClick={() => { setEditLaborCount(String(concert.laborCount ?? "")); setEditLaborPricePerUnit(String(concert.laborPricePerUnit ?? "")); setShowEditLabor(true); }}
-              className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
-            >
-              <Pencil size={11} />
-              تعديل
-            </button>}
-          </div>
-          {concert.laborCost ? (
+          {expensesTotal > 0 ? (
             <div>
-              <p className="font-bold text-slate-800 text-lg">{concert.laborCost.toLocaleString("en-US")} ريال</p>
-              {concert.laborCount && concert.laborPricePerUnit && (
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {concert.laborCount} عامل × {concert.laborPricePerUnit.toLocaleString("en-US")} ريال
-                </p>
-              )}
+              <p className="font-bold text-slate-800 text-lg tabular-nums-auto">
+                {expensesTotal.toLocaleString("en-US")} ريال
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">{expenses.length} فاتورة</p>
             </div>
           ) : (
-            <p className="text-slate-400 text-sm">لم يُضَف بعد</p>
+            <p className="text-slate-400 text-sm">
+              {canAddExpense ? "لم تُضَف فواتير بعد" : expenseGateReason}
+            </p>
           )}
         </Card>
       </div>
@@ -1438,6 +1473,56 @@ export default function AdminConcertDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* فواتير مصاريف الحفلة */}
+      {expenses.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Receipt size={16} className="text-[#1C2D50]" />
+              مصاريف الحفلة ({expenses.length})
+            </h3>
+            <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+              {expensesTotal.toLocaleString("en-US")} ريال
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
+                  <th className="py-2 px-2 font-semibold">النوع</th>
+                  <th className="py-2 px-2 font-semibold">المورّد / الوصف</th>
+                  <th className="py-2 px-2 font-semibold">التاريخ</th>
+                  <th className="py-2 px-2 font-semibold">المبلغ</th>
+                  {canAddExpense && <th className="py-2 px-2"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((e) => (
+                  <tr key={e.id} className="border-b border-slate-50 last:border-none">
+                    <td className="py-2 px-2 font-medium text-slate-800">{e.type}</td>
+                    <td className="py-2 px-2 text-slate-500 text-xs">
+                      {[e.supplierName, e.description].filter(Boolean).join(" — ") || "—"}
+                    </td>
+                    <td className="py-2 px-2 tabular-nums-auto text-slate-500">{e.invoiceDate}</td>
+                    <td className="py-2 px-2 tabular-nums-auto font-semibold text-[#1C2D50]">
+                      {e.amount.toLocaleString("en-US")} ريال
+                      {e.vatIncluded && <span className="block text-[10px] font-normal text-slate-400">شامل الضريبة</span>}
+                    </td>
+                    {canAddExpense && (
+                      <td className="py-2 px-2">
+                        <button onClick={() => setDeleteExpenseTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Raw Materials Cost (from التكاليف) */}
       {costOutgoing.length > 0 && (
@@ -2031,76 +2116,48 @@ export default function AdminConcertDetailPage() {
         </div>
       </Modal>
 
-      {/* Edit Transport Cost Modal */}
-      <Modal open={showEditTransport} onClose={() => setShowEditTransport(false)} title="تعديل تكلفة النقل">
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
-              تكلفة النقل (ريال) <span className="text-slate-400 font-normal">— اتركه فارغاً لإزالتها</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={editTransportCost}
-              onChange={(e) => setEditTransportCost(e.target.value)}
-              placeholder="0.00"
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
-              autoFocus
-            />
+      {/* إضافة فاتورة مصروف */}
+      <Modal open={showAddExpense} onClose={() => setShowAddExpense(false)} title="إضافة فاتورة مصروف">
+        <form onSubmit={handleAddExpense} className="space-y-4">
+          <Select label="نوع المصروف" required value={expenseForm.type}
+            onChange={(e) => setExpenseForm({ ...expenseForm, type: e.target.value })}>
+            {expenseTypes.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+          </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="المبلغ (ريال)" type="number" min={0} step="0.01" required autoFocus
+              value={expenseForm.amount}
+              onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} />
+            <Input label="تاريخ الفاتورة" type="date" required
+              value={expenseForm.invoiceDate}
+              onChange={(e) => setExpenseForm({ ...expenseForm, invoiceDate: e.target.value })} />
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input type="checkbox" checked={expenseForm.vatIncluded}
+              onChange={(e) => setExpenseForm({ ...expenseForm, vatIncluded: e.target.checked })} />
+            المبلغ شامل الضريبة
+            <span className="text-xs text-slate-400">— يُطبَّع عند حساب الربح</span>
+          </label>
+          <Input label="المورّد (اختياري)" value={expenseForm.supplierName}
+            onChange={(e) => setExpenseForm({ ...expenseForm, supplierName: e.target.value })} />
+          <Input label="وصف (اختياري)" value={expenseForm.description}
+            onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+            placeholder="مثال: سيارتان نقل من المستودع للقاعة" />
           <div className="flex gap-3 justify-end pt-1">
-            <Button variant="secondary" type="button" onClick={() => setShowEditTransport(false)}>إلغاء</Button>
-            <Button onClick={handleSaveTransport} loading={saving}>حفظ</Button>
+            <Button variant="secondary" type="button" onClick={() => setShowAddExpense(false)}>إلغاء</Button>
+            <Button type="submit" loading={saving}>حفظ الفاتورة</Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
-      {/* Edit Labor Cost Modal */}
-      <Modal open={showEditLabor} onClose={() => setShowEditLabor(false)} title="تعديل تكلفة العمالة">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-1.5">عدد العمالة</label>
-              <input
-                type="number"
-                min={0}
-                step="1"
-                value={editLaborCount}
-                onChange={(e) => setEditLaborCount(e.target.value)}
-                placeholder="0"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-1.5">سعر الواحد (ريال)</label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={editLaborPricePerUnit}
-                onChange={(e) => setEditLaborPricePerUnit(e.target.value)}
-                placeholder="0.00"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
-              />
-            </div>
-          </div>
-          {editLaborCount && editLaborPricePerUnit && (
-            <div className="flex justify-between px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
-              <span className="text-sm font-semibold text-blue-700">الإجمالي</span>
-              <span className="font-bold text-blue-700">
-                {(parseInt(editLaborCount) * parseFloat(editLaborPricePerUnit)).toLocaleString("en-US")} ريال
-              </span>
-            </div>
-          )}
-          <p className="text-xs text-slate-400">اتركهما فارغَين لإزالة تكلفة العمالة</p>
-          <div className="flex gap-3 justify-end pt-1">
-            <Button variant="secondary" type="button" onClick={() => setShowEditLabor(false)}>إلغاء</Button>
-            <Button onClick={handleSaveLabor} loading={saving}>حفظ</Button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmModal
+        open={!!deleteExpenseTarget}
+        onClose={() => setDeleteExpenseTarget(null)}
+        onConfirm={handleDeleteExpense}
+        title="حذف الفاتورة"
+        message={`سيُخصم ${deleteExpenseTarget?.amount.toLocaleString("en-US")} ريال من مصاريف الحفلة. متابعة؟`}
+        confirmLabel="حذف"
+        loading={saving}
+      />
 
       {/* Edit Price Modal */}
       <Modal open={showEditPrice} onClose={() => setShowEditPrice(false)} title="تعديل سعر الحفلة">
