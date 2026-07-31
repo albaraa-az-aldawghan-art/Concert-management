@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
+import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
 import { CostOutgoing, CostItem, CostSettings, Concert } from "@/types";
-import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle } from "lucide-react";
+import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -39,6 +39,8 @@ export default function CostsOutgoingPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [scannedItem, setScannedItem] = useState<CostItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CostOutgoing | null>(null);
+  const [settleTarget, setSettleTarget] = useState<CostOutgoing | null>(null);
+  const [settleForm, setSettleForm] = useState({ returned: "", damaged: "", reason: "", date: "" });
   const [form, setForm] = useState({ quantity: "", unitPrice: "", departmentName: "", dispenseDate: "" });
   const [concertMode, setConcertMode] = useState<"registered" | "manual">("registered");
   const [concertSearch, setConcertSearch] = useState("");
@@ -107,6 +109,36 @@ export default function CostsOutgoingPage() {
       });
       showToast("تم تسجيل عملية المنصرف");
       setShowAdd(false);
+      load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openSettle(e: CostOutgoing) {
+    setSettleTarget(e);
+    setSettleForm({ returned: "", damaged: "", reason: "", date: new Date().toISOString().slice(0, 10) });
+  }
+
+  async function handleSettle() {
+    if (!appUser || !settleTarget) return;
+    const returned = parseFloat(settleForm.returned) || 0;
+    const damaged = parseFloat(settleForm.damaged) || 0;
+    if (returned + damaged <= 0) { showToast("أدخل كمية مرتجعة أو تالفة", "error"); return; }
+    if (damaged > 0 && !settleForm.reason.trim()) { showToast("اكتب سبب التلف", "error"); return; }
+    setSaving(true);
+    try {
+      await settleCostOutgoing(settleTarget, {
+        returnedQty: returned,
+        damagedQty: damaged,
+        reason: settleForm.reason.trim(),
+        damageDate: settleForm.date,
+        createdBy: appUser.uid,
+      });
+      showToast(damaged > 0 ? "سُجّل المرتجع والتالف" : "رجعت الكمية للمخزون");
+      setSettleTarget(null);
       load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
@@ -229,7 +261,7 @@ export default function CostsOutgoingPage() {
                 <th className="px-4 py-3 font-semibold">القسم / الحفلة</th>
                 <th className="px-4 py-3 font-semibold">تاريخ الصرف</th>
                 <th className="px-4 py-3 font-semibold">الإجمالي</th>
-                {isAdmin && <th className="px-4 py-3"></th>}
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -237,7 +269,20 @@ export default function CostsOutgoingPage() {
                 <tr key={e.id} className="border-b border-slate-50 last:border-none">
                   <td className="px-4 py-3 font-semibold text-slate-800">{e.itemName}</td>
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
-                  <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 tabular-nums-auto">
+                    {e.quantity.toLocaleString("en-US")}
+                    {((e.returnedQty ?? 0) > 0 || (e.damagedQty ?? 0) > 0) && (
+                      <span className="block text-[10px]">
+                        {(e.returnedQty ?? 0) > 0 && (
+                          <span className="text-emerald-600">مرتجع {e.returnedQty!.toLocaleString("en-US")}</span>
+                        )}
+                        {(e.returnedQty ?? 0) > 0 && (e.damagedQty ?? 0) > 0 && <span className="text-slate-300"> · </span>}
+                        {(e.damagedQty ?? 0) > 0 && (
+                          <span className="text-red-600">تالف {e.damagedQty!.toLocaleString("en-US")}</span>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">
                     {e.concertId ? (
                       <>
@@ -254,13 +299,21 @@ export default function CostsOutgoingPage() {
                   </td>
                   <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.dispenseDate ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
-                  {isAdmin && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => setDeleteTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  )}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {canRecord && e.quantity - (e.returnedQty ?? 0) - (e.damagedQty ?? 0) > 0 && (
+                        <button onClick={() => openSettle(e)} title="إرجاع للمخزون أو تسجيل تالف"
+                          className="text-slate-400 hover:text-emerald-600 transition-colors">
+                          <Undo2 size={14} />
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button onClick={() => setDeleteTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -391,12 +444,72 @@ export default function CostsOutgoingPage() {
         </div>
       </Modal>
 
+      {/* إرجاع / تالف — يُستعمل غالباً بعد إلغاء حفلة صُرفت خاماتها */}
+      <Modal open={!!settleTarget} onClose={() => setSettleTarget(null)} title="إرجاع أو تسجيل تالف">
+        {settleTarget && (() => {
+          const remaining = settleTarget.quantity - (settleTarget.returnedQty ?? 0) - (settleTarget.damagedQty ?? 0);
+          const ret = parseFloat(settleForm.returned) || 0;
+          const dmg = parseFloat(settleForm.damaged) || 0;
+          const over = ret + dmg > remaining + 1e-9;
+          const consumed = settleTarget.quantity - (settleTarget.returnedQty ?? 0) - (settleTarget.damagedQty ?? 0) - ret - dmg;
+          return (
+            <div className="space-y-4">
+              <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+                <p className="font-bold text-slate-800 text-sm">{settleTarget.itemName}</p>
+                <p className="text-[11px] text-slate-500 tabular-nums-auto mt-0.5">
+                  صُرف {settleTarget.quantity.toLocaleString("en-US")} {settleTarget.unit}
+                  {settleTarget.clientName || settleTarget.concertName
+                    ? ` · ${settleTarget.clientName || settleTarget.concertName}`
+                    : ` · ${settleTarget.departmentName}`}
+                  {" · "}المتبقي غير المسوّى {remaining.toLocaleString("en-US")} {settleTarget.unit}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input label={`رجع للمخزون (${settleTarget.unit})`} type="number" min={0} step="0.001"
+                  value={settleForm.returned} onChange={(e) => setSettleForm({ ...settleForm, returned: e.target.value })} />
+                <Input label={`تالف (${settleTarget.unit})`} type="number" min={0} step="0.001"
+                  value={settleForm.damaged} onChange={(e) => setSettleForm({ ...settleForm, damaged: e.target.value })} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="سبب التلف" value={settleForm.reason} placeholder="مثال: إلغاء الحفلة وتلف الخلطة"
+                  onChange={(e) => setSettleForm({ ...settleForm, reason: e.target.value })} />
+                <Input label="التاريخ" type="date" value={settleForm.date}
+                  onChange={(e) => setSettleForm({ ...settleForm, date: e.target.value })} />
+              </div>
+
+              {over ? (
+                <p className="text-xs text-red-600 font-semibold">
+                  المجموع أكبر من المتبقي ({remaining.toLocaleString("en-US")} {settleTarget.unit})
+                </p>
+              ) : (
+                <div className="text-xs text-slate-600 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-3 py-2.5 leading-relaxed tabular-nums-auto">
+                  المرتجع يعود للرصيد · التالف لا يعود ويُقيَّد خسارة عامة لا تكلفة حفلة.
+                  <br />
+                  ستُصبح التكلفة المحمَّلة على الحفلة{" "}
+                  <span className="font-bold text-[#1C2D50]">
+                    {(Math.round(consumed * settleTarget.unitPrice * 100) / 100).toLocaleString("en-US")} ريال
+                  </span>{" "}
+                  ({consumed.toLocaleString("en-US")} {settleTarget.unit} استُهلكت فعلاً)
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-1">
+                <Button variant="secondary" type="button" onClick={() => setSettleTarget(null)}>إلغاء</Button>
+                <Button onClick={handleSettle} loading={saving} disabled={over || ret + dmg <= 0}>حفظ</Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
       <ConfirmModal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="حذف عملية المنصرف"
-        message={`سيُعاد ${deleteTarget?.quantity} ${deleteTarget?.unit} إلى رصيد "${deleteTarget?.itemName}". متابعة؟`}
+        message={`سيُعاد ${deleteTarget ? deleteTarget.quantity - (deleteTarget.returnedQty ?? 0) : 0} ${deleteTarget?.unit} إلى رصيد "${deleteTarget?.itemName}". متابعة؟`}
         confirmLabel="حذف"
         loading={saving}
       />

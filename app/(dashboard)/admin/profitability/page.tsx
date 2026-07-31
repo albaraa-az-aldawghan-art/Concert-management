@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts } from "@/lib/firestore/concerts";
-import { getCostOutgoing } from "@/lib/firestore/costs";
+import { getCostOutgoing, getCostDamages } from "@/lib/firestore/costs";
 import { getAllExpenses, expenseNetAmount } from "@/lib/firestore/expenses";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { Concert, CostOutgoing, ConcertExpense } from "@/types";
+import { Concert, CostOutgoing, ConcertExpense, CostDamage } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
@@ -52,6 +52,7 @@ export default function ProfitabilityPage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [expenses, setExpenses] = useState<ConcertExpense[]>([]);
+  const [damages, setDamages] = useState<CostDamage[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
@@ -60,17 +61,20 @@ export default function ProfitabilityPage() {
 
   useEffect(() => { setPage(1); }, [search, dateF]);
 
+
   useEffect(() => {
     async function load() {
       // ثلاث قراءات كاملة تُجمَّع في الذاكرة — بلا استعلامات متعددة ولا فهارس
-      const [c, o, e] = await Promise.all([
+      const [c, o, e, d] = await Promise.all([
         getConcerts(),
         getCostOutgoing().catch(() => [] as CostOutgoing[]),
         getAllExpenses().catch(() => [] as ConcertExpense[]),
+        getCostDamages().catch(() => [] as CostDamage[]),
       ]);
       setConcerts(c);
       setOutgoing(o);
       setExpenses(e);
+      setDamages(d);
       setLoading(false);
     }
     load();
@@ -161,6 +165,8 @@ export default function ProfitabilityPage() {
   const tProfit = tNet - tCosts;
   const tInternal = sum(activeRows, (r) => r.internalValue);
   const tCancelledLoss = sum(cancelledRows, (r) => r.totalCosts + r.refund);
+  // التالف خسارة عامة لا تكلفة حفلة — أُخرج من totalCost عند تسجيله
+  const tDamage = Math.round(damages.reduce((s, d) => s + d.totalCost, 0) * 100) / 100;
 
   const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -211,8 +217,8 @@ export default function ProfitabilityPage() {
       </div>
 
       {/* بنود تُعرض ولا تُحتسب */}
-      {(tInternal > 0 || orphanRaw > 0 || tCancelledLoss > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {(tInternal > 0 || orphanRaw > 0 || tCancelledLoss > 0 || tDamage > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {tInternal > 0 && (
             <Card className="border-slate-200">
               <p className="text-xs text-slate-500 mb-1">قيمة المواد الداخلية المستخدمة</p>
@@ -227,6 +233,15 @@ export default function ProfitabilityPage() {
               </p>
               <p className="text-lg font-bold text-orange-700 tabular-nums-auto">{money(orphanRaw)} ريال</p>
               <p className="text-[11px] text-orange-600 mt-0.5">صُرفت باسم مكتوب يدوياً فلا تُحمَّل على أي حفلة</p>
+            </Card>
+          )}
+          {tDamage > 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <p className="text-xs text-red-700 mb-1 flex items-center gap-1">
+                <AlertTriangle size={12} /> خسارة التالف
+              </p>
+              <p className="text-lg font-bold text-red-700 tabular-nums-auto">{money(tDamage)} ريال</p>
+              <p className="text-[11px] text-red-600 mt-0.5">{damages.length} قيد — خامات تلفت فلا تُحمَّل على حفلة</p>
             </Card>
           )}
           {tCancelledLoss > 0 && (

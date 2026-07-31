@@ -199,9 +199,18 @@ service cloud.firestore {
     }
 
     match /cost_outgoing/{entryId} {
-      allow read:           if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
-      allow create:         if isAdmin() || hasFeat('costs', 'record_outgoing');
-      allow update, delete: if isAdmin();
+      allow read:   if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
+      allow create: if isAdmin() || hasFeat('costs', 'record_outgoing');
+      // التحديث = تسوية مرتجع/تالف، وهي من عمل من يصرف لا من المدير وحده
+      allow update: if isAdmin() || hasFeat('costs', 'record_outgoing');
+      allow delete: if isAdmin();
+    }
+
+    match /cost_damage/{entryId} {
+      allow read:   if isAdmin() || pageOn('costs') || pageOn('profitability');
+      allow create: if isAdmin() || hasFeat('costs', 'record_outgoing');
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /cost_settings/{docId} {

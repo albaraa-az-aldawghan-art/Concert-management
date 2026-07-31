@@ -339,6 +339,28 @@ export interface CostProduction {
   createdBy: string;
 }
 
+/** تالف: خامة أو خلطة فُقدت فعلاً — لا تعود للمخزون ولا تُحمَّل على حفلة.
+ *  مصدرها إمّا تلف في المستودع، أو جزء صُرف لحفلة ثم تلف (فألغيت مثلاً). */
+export interface CostDamage {
+  id: string;
+  itemBarcode: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  reason: string;
+  source: "store" | "outgoing";
+  /** عملية الصرف التي تلف جزؤها — للتتبع ومنع الحذف المزدوج */
+  outgoingId?: string | null;
+  concertId?: string | null;
+  concertName?: string | null;
+  clientName?: string | null;
+  damageDate: string; // yyyy-mm-dd
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
 export interface CostIncoming {
   id: string;
   itemBarcode: string;
@@ -368,6 +390,10 @@ export interface CostOutgoing {
   clientName?: string | null;
   manualConcertName: string | null;
   dispenseDate: string; // yyyy-mm-dd — تاريخ الصرف الفعلي
+  /** ما رجع للمخزون صالحاً، وما تلف ولم يرجع. الاثنان يُخصمان من
+   *  totalCost فلا تُحمَّل الحفلة إلا ما استُهلك فعلاً. */
+  returnedQty?: number;
+  damagedQty?: number;
   createdAt: Timestamp;
   createdBy: string;
 }

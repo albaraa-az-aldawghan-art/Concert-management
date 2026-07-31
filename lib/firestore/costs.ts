@@ -12,7 +12,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment, CostProduction, RecipeLine } from "@/types";
+import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment, CostProduction, CostDamage, RecipeLine } from "@/types";
 
 /* ── إعدادات التكاليف (الوحدات والأقسام) ────────────────────── */
 
@@ -422,6 +422,8 @@ export async function addCostOutgoing(data: {
       clientName: data.clientName,
       manualConcertName: data.manualConcertName,
       dispenseDate: data.dispenseDate,
+      returnedQty: 0,
+      damagedQty: 0,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
@@ -432,12 +434,161 @@ export async function addCostOutgoing(data: {
 export async function deleteCostOutgoing(entry: CostOutgoing): Promise<void> {
   const itemRef = doc(db, "cost_items", entry.itemBarcode);
   const entryRef = doc(db, "cost_outgoing", entry.id);
+  // ما رجع للمخزون سبق أن خُصم من totalOut، فإرجاعه هنا مرة أخرى يضخّم
+  // الرصيد. ما تلف بقي خارج المخزون فحذف العملية لا يعيده.
+  const stillOut = entry.quantity - (entry.returnedQty ?? 0);
   await runTransaction(db, async (tx) => {
     const itemSnap = await tx.get(itemRef);
     if (itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
-      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - entry.quantity) });
+      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - stillOut) });
     }
     tx.delete(entryRef);
+  });
+}
+
+/* ── التالف والمرتجع ──────────────────────────────────────────
+   تسوية عملية صرف: جزء يرجع للمخزون صالحاً، وجزء تلف فلا يرجع.
+   في الحالتين لا تُحمَّل الحفلة إلا ما استُهلك فعلاً، والتالف يُقيَّد
+   خسارة عامة لا تكلفة حفلة — وإلا ظهر التلف وكأنه استهلاك. */
+
+export async function settleCostOutgoing(
+  entry: CostOutgoing,
+  data: { returnedQty: number; damagedQty: number; reason: string; damageDate: string; createdBy: string }
+): Promise<void> {
+  const returned = Math.round((data.returnedQty || 0) * 1000) / 1000;
+  const damaged = Math.round((data.damagedQty || 0) * 1000) / 1000;
+  if (returned < 0 || damaged < 0) throw new Error("الكميات لا تقبل قيماً سالبة");
+  if (returned + damaged <= 0) throw new Error("أدخل كمية مرتجعة أو تالفة");
+
+  const alreadyReturned = entry.returnedQty ?? 0;
+  const alreadyDamaged = entry.damagedQty ?? 0;
+  const remaining = entry.quantity - alreadyReturned - alreadyDamaged;
+  if (returned + damaged > remaining + 1e-9) {
+    throw new Error(`المتبقي من هذه العملية ${remaining} ${entry.unit} فقط`);
+  }
+
+  const itemRef = doc(db, "cost_items", entry.itemBarcode);
+  const entryRef = doc(db, "cost_outgoing", entry.id);
+  const damageRef = doc(collection(db, "cost_damage"));
+
+  const newReturned = alreadyReturned + returned;
+  const newDamaged = alreadyDamaged + damaged;
+  const consumed = entry.quantity - newReturned - newDamaged;
+
+  await runTransaction(db, async (tx) => {
+    const itemSnap = await tx.get(itemRef);
+
+    tx.update(entryRef, {
+      returnedQty: newReturned,
+      damagedQty: newDamaged,
+      // التكلفة المحمَّلة على الحفلة تنكمش لما استُهلك فقط
+      totalCost: Math.round(consumed * entry.unitPrice * 100) / 100,
+    });
+
+    // المرتجع فقط يعود للرصيد — التالف خرج ولن يعود
+    if (returned > 0 && itemSnap.exists()) {
+      const item = itemSnap.data() as Omit<CostItem, "id">;
+      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - returned) });
+    }
+
+    if (damaged > 0) {
+      tx.set(damageRef, {
+        itemBarcode: entry.itemBarcode,
+        itemName: entry.itemName,
+        unit: entry.unit,
+        quantity: damaged,
+        unitCost: entry.unitPrice,
+        totalCost: Math.round(damaged * entry.unitPrice * 100) / 100,
+        reason: data.reason,
+        source: "outgoing",
+        outgoingId: entry.id,
+        concertId: entry.concertId ?? null,
+        concertName: entry.concertName ?? null,
+        clientName: entry.clientName ?? null,
+        damageDate: data.damageDate,
+        createdAt: Timestamp.now(),
+        createdBy: data.createdBy,
+      });
+    }
+  });
+}
+
+export async function getCostDamages(): Promise<CostDamage[]> {
+  const snap = await getDocs(collection(db, "cost_damage"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as CostDamage))
+    .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+}
+
+/** تلف داخل المستودع — يخرج من الرصيد مباشرةً بلا حفلة */
+export async function addStoreDamage(data: {
+  itemBarcode: string;
+  quantity: number;
+  reason: string;
+  damageDate: string;
+  createdBy: string;
+}): Promise<void> {
+  if (data.quantity <= 0) throw new Error("أدخل كمية صحيحة");
+  const itemRef = doc(db, "cost_items", data.itemBarcode);
+  const damageRef = doc(collection(db, "cost_damage"));
+  await runTransaction(db, async (tx) => {
+    const itemSnap = await tx.get(itemRef);
+    if (!itemSnap.exists()) throw new Error("الصنف غير مسجّل");
+    const item = itemSnap.data() as Omit<CostItem, "id">;
+    const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
+    if (data.quantity > balance) {
+      throw new Error(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
+    }
+    const unitCost = (item.totalIn ?? 0) > 0 ? (item.totalInValue ?? 0) / (item.totalIn as number) : 0;
+    tx.set(damageRef, {
+      itemBarcode: data.itemBarcode,
+      itemName: item.name,
+      unit: item.unit,
+      quantity: data.quantity,
+      unitCost: Math.round(unitCost * 100) / 100,
+      totalCost: Math.round(unitCost * data.quantity * 100) / 100,
+      reason: data.reason,
+      source: "store",
+      outgoingId: null,
+      concertId: null,
+      concertName: null,
+      clientName: null,
+      damageDate: data.damageDate,
+      createdAt: Timestamp.now(),
+      createdBy: data.createdBy,
+    });
+    tx.update(itemRef, { totalOut: (item.totalOut ?? 0) + data.quantity });
+  });
+}
+
+/** حذف قيد تالف — يرجع الكمية للرصيد فقط إن كان تلفاً في المستودع.
+ *  تالف عملية صرف خرج مع الصرف نفسه، فحذف قيده لا يعيده للمخزون بل
+ *  يعيد تحميل قيمته على الحفلة. */
+export async function deleteCostDamage(entry: CostDamage): Promise<void> {
+  const itemRef = doc(db, "cost_items", entry.itemBarcode);
+  const damageRef = doc(db, "cost_damage", entry.id);
+  const outRef = entry.outgoingId ? doc(db, "cost_outgoing", entry.outgoingId) : null;
+
+  await runTransaction(db, async (tx) => {
+    const itemSnap = await tx.get(itemRef);
+    const outSnap = outRef ? await tx.get(outRef) : null;
+
+    if (entry.source === "store" && itemSnap.exists()) {
+      const item = itemSnap.data() as Omit<CostItem, "id">;
+      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - entry.quantity) });
+    }
+
+    if (outRef && outSnap?.exists()) {
+      const out = outSnap.data() as Omit<CostOutgoing, "id">;
+      const newDamaged = Math.max(0, (out.damagedQty ?? 0) - entry.quantity);
+      const consumed = out.quantity - (out.returnedQty ?? 0) - newDamaged;
+      tx.update(outRef, {
+        damagedQty: newDamaged,
+        totalCost: Math.round(consumed * out.unitPrice * 100) / 100,
+      });
+    }
+
+    tx.delete(damageRef);
   });
 }

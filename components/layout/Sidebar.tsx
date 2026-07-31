@@ -68,6 +68,7 @@ const adminNav: NavItem[] = [
       { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
       { label: "الإنتاج", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
+      { label: "التالف", href: "/admin/costs/damage", icon: <AlertTriangle size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
