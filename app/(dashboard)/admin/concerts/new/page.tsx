@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
-import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf } from "@/lib/recipes";
+import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode } from "@/lib/recipes";
 import { getCostItems } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
@@ -813,6 +813,9 @@ export default function NewConcertPage() {
                           <span className={`flex-1 min-w-0 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
                             onClick={() => toggleFood(cat.id, opt)}>
                             {label}
+                            {optionCostBarcode(cat, opt) && (
+                              <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold mr-1.5 align-middle">إنتاج</span>
+                            )}
                             {/* المتوفر من خامات وصفة هذا الصنف */}
                             {(() => {
                               const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0);

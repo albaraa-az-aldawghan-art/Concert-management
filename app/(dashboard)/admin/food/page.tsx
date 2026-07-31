@@ -28,9 +28,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { FoodCategory, FoodOptionDef, RecipeLine, CostItem } from "@/types";
-import { optionDefsOf, optionsFromDefs, newOptionId } from "@/lib/recipes";
+import { optionDefsOf, optionsFromDefs, newOptionId, itemBalance } from "@/lib/recipes";
 import { getCostItems } from "@/lib/firestore/costs";
-import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical, Search } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, Pencil, X, GripVertical, Search, Barcode } from "lucide-react";
 
 /* ── Sortable card ── */
 function SortableCategoryCard({
@@ -138,6 +138,8 @@ export default function AdminFoodPage() {
   const [formName, setFormName] = useState("");
   const [formOptions, setFormOptions] = useState<FoodOptionDef[]>([]);
   const [optionInput, setOptionInput] = useState("");
+  const [addMode, setAddMode] = useState<"cost" | "manual">("cost");
+  const [costSearch, setCostSearch] = useState("");
   const [renameTarget, setRenameTarget] = useState<FoodOptionDef | null>(null);
   const [renameValue, setRenameValue] = useState("");
   /* محرر الوصفة */
@@ -189,6 +191,8 @@ export default function AdminFoodPage() {
     setFormName("");
     setFormOptions([]);
     setOptionInput("");
+    setAddMode("cost");
+    setCostSearch("");
     setShowForm(true);
   }
 
@@ -197,6 +201,8 @@ export default function AdminFoodPage() {
     setFormName(cat.name);
     setFormOptions(optionDefsOf(cat).filter((d) => d.id !== "" || cat.options.length > 0));
     setOptionInput("");
+    setAddMode("cost");
+    setCostSearch("");
     setShowForm(true);
   }
 
@@ -205,6 +211,28 @@ export default function AdminFoodPage() {
     if (!v || formOptions.some((o) => o.name === v)) return;
     setFormOptions((prev) => [...prev, { id: newOptionId(), name: v }]);
     setOptionInput("");
+  }
+
+  /* إضافة صنف أكل مصدره التكاليف مباشرةً — الخلطة الجاهزة التي أُنتجت
+     تصير هي الصنف، ووصفته سطر واحد يشير إليها. الافتراضي وحدة واحدة لكل
+     طبق، ويُعدَّل من محرّر الوصفة حسب الواقع. */
+  function addOptionFromCostItem(item: CostItem) {
+    if (formOptions.some((o) => o.costItemBarcode === item.id)) {
+      showToast("هذا الصنف مضاف مسبقاً في هذا القسم", "error");
+      return;
+    }
+    // نفس الاسم قد يتكرر بخلطتين مختلفتين (بطاطس مشويّة/بروستد) فنميّزه بالباركود
+    const name = formOptions.some((o) => o.name === item.name) ? `${item.name} (${item.id})` : item.name;
+    setFormOptions((prev) => [
+      ...prev,
+      {
+        id: newOptionId(),
+        name,
+        costItemBarcode: item.id,
+        recipe: [{ barcode: item.id, itemName: item.name, unit: item.unit, qty: 1, perQty: 1 }],
+      },
+    ]);
+    setCostSearch("");
   }
 
   /* إعادة التسمية تحفظ الوصفة لأن الربط بالمعرّف لا بالاسم */
@@ -274,6 +302,17 @@ export default function AdminFoodPage() {
       setSaving(false);
     }
   }
+
+  // أصناف التكاليف المعروضة للاختيار — المُنتَجة (الخلطات) أولاً لأنها
+  // الأقرب لأصناف الأكل، ثم بقية الخامات لمن يبيعها كما هي
+  const cq = costSearch.trim();
+  const costChoices = costItems
+    .filter((i) => !cq || i.name.includes(cq) || i.id.includes(cq))
+    .sort((a, b) => {
+      const ap = a.productionRecipe?.length ? 0 : 1;
+      const bp = b.productionRecipe?.length ? 0 : 1;
+      return ap !== bp ? ap - bp : a.name.localeCompare(b.name, "ar");
+    });
 
   // Match by category name OR any option inside it
   const q = search.trim();
@@ -362,19 +401,75 @@ export default function AdminFoodPage() {
 
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-2">الأصناف</label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={optionInput}
-                onChange={(e) => setOptionInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOption(); } }}
-                placeholder="اكتب صنفاً واضغط Enter أو إضافة..."
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
-              />
-              <Button type="button" variant="outline" onClick={addOption} size="sm">
-                <Plus size={14} />
-              </Button>
+
+            <div className="flex gap-2 mb-2.5">
+              {([
+                { key: "cost", label: "من التكاليف والإنتاج" },
+                { key: "manual", label: "كتابة اسم يدوياً" },
+              ] as const).map((t) => (
+                <button key={t.key} type="button" onClick={() => setAddMode(t.key)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${
+                    addMode === t.key ? "border-[#1C2D50] bg-[#EEF1F7] text-[#1C2D50]" : "border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
+
+            {addMode === "manual" ? (
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={optionInput}
+                  onChange={(e) => setOptionInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOption(); } }}
+                  placeholder="اكتب صنفاً واضغط Enter أو إضافة..."
+                  className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
+                />
+                <Button type="button" variant="outline" onClick={addOption} size="sm">
+                  <Plus size={14} />
+                </Button>
+              </div>
+            ) : (
+              <div className="mb-3">
+                <input type="text" value={costSearch} onChange={(e) => setCostSearch(e.target.value)}
+                  placeholder="ابحث في أصناف التكاليف بالاسم أو الباركود..."
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                <div className="mt-1.5 max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                  {costChoices.length === 0 ? (
+                    <p className="text-xs text-slate-400 p-3 text-center">
+                      {costItems.length === 0
+                        ? "لا توجد أصناف تكاليف — سجّلها أولاً من صفحة التكاليف"
+                        : "لا توجد نتائج مطابقة"}
+                    </p>
+                  ) : costChoices.map((i) => {
+                    const used = formOptions.some((o) => o.costItemBarcode === i.id);
+                    return (
+                      <button key={i.id} type="button" disabled={used} onClick={() => addOptionFromCostItem(i)}
+                        className="w-full text-right px-3 py-2 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-slate-800 truncate">
+                            {i.name}
+                            {i.productionRecipe?.length ? (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold mr-1.5">إنتاج</span>
+                            ) : null}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono">{i.id}</p>
+                        </div>
+                        <span className={`text-[11px] font-semibold tabular-nums-auto shrink-0 ${itemBalance(i) <= 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {itemBalance(i).toLocaleString("en-US")} {i.unit}
+                        </span>
+                        {used && <span className="text-[10px] text-slate-400 shrink-0">مضاف</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  الصنف المختار يصير صنف أكل مرتبطاً بباركوده، فتُقرأ تكلفته ورصيده تلقائياً.
+                  الافتراضي وحدة واحدة لكل طبق — عدّله من زر الوصفة إن اختلف.
+                </p>
+              </div>
+            )}
             {formOptions.length === 0 ? (
               <p className="text-xs text-slate-400">لا توجد أصناف — القسم سيُضاف بدون أصناف</p>
             ) : (
@@ -385,7 +480,12 @@ export default function AdminFoodPage() {
                     className="flex items-center gap-2 bg-[#EEF1F7] text-[#1C2D50] text-sm px-3 py-2 rounded-xl"
                   >
                     <span className="font-medium flex-1 min-w-0 truncate">{opt.name}</span>
-                    {opt.recipe?.length ? (
+                    {opt.costItemBarcode ? (
+                      <span title={opt.costItemBarcode}
+                        className="flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                        <Barcode size={10} /> من التكاليف
+                      </span>
+                    ) : opt.recipe?.length ? (
                       <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
                         وصفة: {opt.recipe.length} خام
                       </span>

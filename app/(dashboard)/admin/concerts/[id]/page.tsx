@@ -18,7 +18,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostItems } from "@/lib/firestore/costs";
-import { aggregateRequirements, totalEstimatedCost, optionStock } from "@/lib/recipes";
+import { aggregateRequirements, totalEstimatedCost, optionStock, optionCostBarcode } from "@/lib/recipes";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
@@ -1920,6 +1920,9 @@ export default function AdminConcertDetailPage() {
                         <span className={`flex-1 min-w-0 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
                           onClick={() => setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" } }))}>
                           {label}
+                          {optionCostBarcode(cat, opt) && (
+                            <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold mr-1.5 align-middle">إنتاج</span>
+                          )}
                           {(() => {
                             const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0, costItems);
                             if (!st) return null;

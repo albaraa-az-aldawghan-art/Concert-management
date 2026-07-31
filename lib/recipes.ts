@@ -22,6 +22,11 @@ export function findOptionDef(cat: FoodCategory, optionName: string): FoodOption
   return defs.find((d) => d.name === optionName) ?? defs.find((d) => d.id === optionName) ?? null;
 }
 
+/** باركود التكاليف المرتبط بصنف أكل — null إن كان اسماً مكتوباً فقط */
+export function optionCostBarcode(cat: FoodCategory, optionName: string): string | null {
+  return findOptionDef(cat, optionName)?.costItemBarcode ?? null;
+}
+
 /** يبني options من optionDefs — يجب أن يُكتبا معاً دائماً */
 export function optionsFromDefs(defs: FoodOptionDef[]): string[] {
   return defs.filter((d) => d.id !== "" || d.name).map((d) => d.name);

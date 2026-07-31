@@ -184,6 +184,10 @@ export interface FoodOptionDef {
   id: string;
   name: string;
   recipe?: RecipeLine[];
+  /** باركود صنف التكاليف الذي *هو* صنف الأكل نفسه — الخلطة الجاهزة التي
+   *  أنتجتها التكاليف. وجوده يعني أن هذا الصنف مصدره التكاليف لا اسماً
+   *  مكتوباً، فتُقرأ تكلفته ورصيده منه مباشرة. */
+  costItemBarcode?: string | null;
 }
 
 export interface FoodCategory {
