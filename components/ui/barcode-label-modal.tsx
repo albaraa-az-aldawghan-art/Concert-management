@@ -12,6 +12,14 @@ import { Download } from "lucide-react";
    بنفس قارئ الباركود. التنزيل مباشر (PDF) على كل الأجهزة، بلا مشاركة.
    ═══════════════════════════════════════════════════════════════ */
 
+/** yyyy-mm-dd ← dd/mm/yyyy بأرقام لاتينية، وبلا new Date تفادياً
+ *  لانزياح المنطقة الزمنية الذي يُنقص يوماً كاملاً */
+function fmt(d?: string | null): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return y && m && day ? `${day}/${m}/${y}` : d;
+}
+
 export function BarcodeLabelModal({
   open,
   onClose,
@@ -19,7 +27,7 @@ export function BarcodeLabelModal({
 }: {
   open: boolean;
   onClose: () => void;
-  item: { id: string; name: string } | null;
+  item: { id: string; name: string; productionDate?: string | null; expiryDate?: string | null } | null;
 }) {
   // SVG وليس canvas: تنزيل الملصق يستنسخ عقدة DOM (cloneNode) قبل الالتقاط،
   // واستنساخ <canvas> ينتج لوحة فارغة (الرسم لا يُنسخ)، بينما محتوى <svg> عقد
@@ -72,8 +80,16 @@ export function BarcodeLabelModal({
           style={{ width: 300 }}
           className="bg-white border-2 border-slate-200 rounded-xl px-4 py-4 flex flex-col items-center text-center"
         >
-          <p className="text-[11px] font-bold text-[#1C2D50] mb-1">الفريج — إدارة الفعاليات</p>
-          <p className="font-bold text-slate-800 text-sm mb-2 leading-tight">{item.name}</p>
+          {/* الترتيب: الفريج ← التاريخ من/إلى ← اسم الصنف ← الباركود */}
+          <p className="text-[13px] font-bold text-[#1C2D50]">الفريج</p>
+          {(item.productionDate || item.expiryDate) && (
+            <div className="flex items-center justify-center gap-3 text-[10px] font-semibold text-slate-600 mt-1 mb-0.5 tabular-nums-auto">
+              <span>من: {fmt(item.productionDate) || "—"}</span>
+              <span className="text-slate-300">|</span>
+              <span>إلى: {fmt(item.expiryDate) || "—"}</span>
+            </div>
+          )}
+          <p className="font-bold text-slate-800 text-sm mt-1 mb-2 leading-tight">{item.name}</p>
           <svg ref={svgRef} />
         </div>
         <Button onClick={handleDownload} loading={downloading} className="w-full justify-center">

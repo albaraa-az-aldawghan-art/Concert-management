@@ -25,6 +25,13 @@ import {
   Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera,
 } from "lucide-react";
 
+/** yyyy-mm-dd ← dd/mm/yyyy بأرقام لاتينية بلا انزياح منطقة زمنية */
+function fmtDate(d?: string | null): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return y && m && day ? `${day}/${m}/${y}` : d;
+}
+
 function ItemCard({
   item,
   canEdit,
@@ -41,6 +48,7 @@ function ItemCard({
   onLabel: (i: CostItem) => void;
 }) {
   const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
+  const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
   return (
     <Card>
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -69,6 +77,20 @@ function ItemCard({
         >
           الرصيد {balance} {item.unit}
         </span>
+        {item.productionDate && (
+          <span className="bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
+            الإنتاج {fmtDate(item.productionDate)}
+          </span>
+        )}
+        {item.expiryDate && (
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
+              expired ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"
+            }`}
+          >
+            {expired ? "منتهٍ" : "ينتهي"} {fmtDate(item.expiryDate)}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100">
         {item.barcodeSource === "generated" && (
@@ -117,7 +139,10 @@ export default function AdminCostsPage() {
   const [labelTarget, setLabelTarget] = useState<CostItem | null>(null);
   const [showBarcodeCamera, setShowBarcodeCamera] = useState(false);
 
-  const [form, setForm] = useState({ name: "", unit: "", barcodeMode: "generate" as "generate" | "supplier", barcode: "" });
+  const [form, setForm] = useState({
+    name: "", unit: "", barcodeMode: "generate" as "generate" | "supplier", barcode: "",
+    productionDate: "", expiryDate: "",
+  });
   const [bulkNames, setBulkNames] = useState("");
   const [bulkUnit, setBulkUnit] = useState("");
 
@@ -136,33 +161,45 @@ export default function AdminCostsPage() {
   }
 
   function openAdd() {
-    setForm({ name: "", unit: settings.units[0] ?? "", barcodeMode: "generate", barcode: "" });
+    setForm({
+      name: "", unit: settings.units[0] ?? "", barcodeMode: "generate", barcode: "",
+      productionDate: "", expiryDate: "",
+    });
     setShowAdd(true);
   }
 
   function openEdit(item: CostItem) {
     setEditTarget(item);
-    setForm({ name: item.name, unit: item.unit, barcodeMode: "generate", barcode: "" });
+    setForm({
+      name: item.name, unit: item.unit, barcodeMode: "generate", barcode: "",
+      productionDate: item.productionDate ?? "", expiryDate: item.expiryDate ?? "",
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!appUser || !form.name.trim() || !form.unit) return;
+    // تاريخ انتهاء أسبق من تاريخ الإنتاج يُطبع على الملصق فيربك المستودع
+    if (form.productionDate && form.expiryDate && form.expiryDate < form.productionDate) {
+      showToast("تاريخ الانتهاء يجب أن يكون بعد تاريخ الإنتاج", "error");
+      return;
+    }
+    const dates = { productionDate: form.productionDate || null, expiryDate: form.expiryDate || null };
     setSaving(true);
     try {
       if (editTarget) {
-        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit });
+        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates });
         showToast("تم تحديث الصنف");
         setEditTarget(null);
       } else if (form.barcodeMode === "supplier") {
         if (!form.barcode.trim()) { showToast("أدخل رقم الباركود", "error"); setSaving(false); return; }
         await createCostItemFromSupplierBarcode({
-          name: form.name.trim(), unit: form.unit, barcode: form.barcode.trim(), createdBy: appUser.uid,
+          name: form.name.trim(), unit: form.unit, barcode: form.barcode.trim(), ...dates, createdBy: appUser.uid,
         });
         showToast("تم تسجيل الصنف");
         setShowAdd(false);
       } else {
-        const created = await createCostItemGenerated({ name: form.name.trim(), unit: form.unit, createdBy: appUser.uid });
+        const created = await createCostItemGenerated({ name: form.name.trim(), unit: form.unit, ...dates, createdBy: appUser.uid });
         showToast("تم تسجيل الصنف وتوليد باركوده");
         setShowAdd(false);
         setLabelTarget(created);
@@ -307,6 +344,17 @@ export default function AdminCostsPage() {
             <option value="" disabled>اختر الوحدة</option>
             {settings.units.map((u) => <option key={u} value={u}>{u}</option>)}
           </Select>
+
+          <div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="تاريخ الإنتاج (من)" type="date" value={form.productionDate}
+                onChange={(e) => setForm({ ...form, productionDate: e.target.value })} />
+              <Input label="تاريخ الانتهاء (إلى)" type="date" value={form.expiryDate}
+                min={form.productionDate || undefined}
+                onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
+            </div>
+            <p className="text-xs text-slate-500 mt-1.5">اختياريان — إن أُدخلا طُبعا على ملصق الباركود.</p>
+          </div>
 
           {!editTarget && (
             <div>

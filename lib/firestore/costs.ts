@@ -84,6 +84,8 @@ export async function getCostItemByBarcode(barcode: string): Promise<CostItem | 
 export async function createCostItemGenerated(data: {
   name: string;
   unit: string;
+  productionDate?: string | null;
+  expiryDate?: string | null;
   createdBy: string;
 }): Promise<CostItem> {
   const counterRef = doc(db, "counters", "cost_items");
@@ -103,6 +105,8 @@ export async function createCostItemGenerated(data: {
       totalIn: 0,
       totalOut: 0,
       totalInValue: 0,
+      productionDate: data.productionDate || null,
+      expiryDate: data.expiryDate || null,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
@@ -116,6 +120,8 @@ export async function createCostItemFromSupplierBarcode(data: {
   name: string;
   unit: string;
   barcode: string;
+  productionDate?: string | null;
+  expiryDate?: string | null;
   createdBy: string;
 }): Promise<CostItem> {
   const barcode = data.barcode.trim();
@@ -130,6 +136,8 @@ export async function createCostItemFromSupplierBarcode(data: {
       totalIn: 0,
       totalOut: 0,
       totalInValue: 0,
+      productionDate: data.productionDate || null,
+      expiryDate: data.expiryDate || null,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
@@ -153,7 +161,7 @@ export async function bulkCreateCostItems(
 
 export async function updateCostItem(
   barcode: string,
-  data: Partial<Pick<CostItem, "name" | "unit">>
+  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate">>
 ): Promise<void> {
   // الوحدة تُقفل بعد أول وارد: تغييرها لاحقاً يجعل كل وصفة تشير لهذا
   // الصنف خاطئة بصمت (كجم → شوال = خمسون ضعفاً) ويفسد فحص الرصيد.
@@ -249,6 +257,7 @@ export async function addCostProduction(data: {
   outputQty: number;
   inputs: { barcode: string; qty: number }[];
   productionDate: string;
+  expiryDate?: string | null;
   notes: string | null;
   createdBy: string;
 }): Promise<void> {
@@ -307,6 +316,7 @@ export async function addCostProduction(data: {
       totalCost,
       unitCost,
       productionDate: data.productionDate,
+      expiryDate: data.expiryDate || null,
       notes: data.notes,
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
@@ -317,9 +327,13 @@ export async function addCostProduction(data: {
       const item = inputSnaps[i].data() as Omit<CostItem, "id">;
       tx.update(inputRefs[i], { totalOut: (item.totalOut ?? 0) + data.inputs[i].qty });
     }
+    // تاريخا الدفعة يُنسخان على الصنف نفسه، فتُطبع إعادة الملصق من صفحة
+    // الأصناف بتاريخ آخر دفعة أُنتجت لا بتاريخ التسجيل القديم
     tx.update(outputRef, {
       totalIn: (output.totalIn ?? 0) + data.outputQty,
       totalInValue: (output.totalInValue ?? 0) + totalCost,
+      productionDate: data.productionDate,
+      expiryDate: data.expiryDate || null,
     });
   });
 }

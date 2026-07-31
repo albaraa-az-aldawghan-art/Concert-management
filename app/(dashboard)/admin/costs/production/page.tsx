@@ -15,11 +15,34 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine } from "@/types";
 import { averageCost, itemBalance } from "@/lib/recipes";
-import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode } from "lucide-react";
+import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
 interface InputLine { barcode: string; itemName: string; unit: string; qty: string; }
+
+const DAY_MS = 86400000;
+
+/** مدة صلاحية الصنف بالأيام مأخوذة من آخر دفعة — تُعاد على الدفعة الجديدة
+ *  فلا يُعاد حسابها يدوياً كل مرة. حساب بالـUTC كي لا ينزاح يوم. */
+function shelfLifeDays(item: CostItem): number | null {
+  if (!item.productionDate || !item.expiryDate) return null;
+  const from = Date.parse(item.productionDate + "T00:00:00Z");
+  const to = Date.parse(item.expiryDate + "T00:00:00Z");
+  if (isNaN(from) || isNaN(to) || to <= from) return null;
+  return Math.round((to - from) / DAY_MS);
+}
+
+function addDays(date: string, days: number): string {
+  const t = Date.parse(date + "T00:00:00Z");
+  return isNaN(t) ? "" : new Date(t + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+function fmtDate(d?: string | null): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return y && m && day ? `${day}/${m}/${y}` : d;
+}
 
 export default function CostsProductionPage() {
   const { appUser, can, feat } = useAuth();
@@ -44,10 +67,13 @@ export default function CostsProductionPage() {
   const [inputs, setInputs] = useState<InputLine[]>([]);
   const [inputSearch, setInputSearch] = useState("");
   const [prodDate, setProdDate] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [units, setUnits] = useState<string[]>([]);
   const [creatingOutput, setCreatingOutput] = useState(false);
   const [newOutputUnit, setNewOutputUnit] = useState("");
-  const [labelTarget, setLabelTarget] = useState<{ id: string; name: string } | null>(null);
+  const [labelTarget, setLabelTarget] = useState<
+    { id: string; name: string; productionDate?: string | null; expiryDate?: string | null } | null
+  >(null);
   const [notes, setNotes] = useState("");
 
   useEffect(() => { setPage(1); }, [search, dateF]);
@@ -70,6 +96,7 @@ export default function CostsProductionPage() {
     setOutput(null); setOutputSearch(""); setOutputQty("");
     setInputs([]); setInputSearch("");
     setProdDate(new Date().toISOString().slice(0, 10));
+    setExpiryDate("");
     setNewOutputUnit(units[0] ?? "");
     setNotes("");
     setShowAdd(true);
@@ -79,6 +106,9 @@ export default function CostsProductionPage() {
   function pickOutput(item: CostItem) {
     setOutput(item);
     setOutputSearch("");
+    // مدة صلاحية آخر دفعة تُطبَّق على هذه الدفعة ابتداءً من تاريخ إنتاجها
+    const days = shelfLifeDays(item);
+    setExpiryDate(days != null && prodDate ? addDays(prodDate, days) : "");
     if (item.productionRecipe?.length) {
       setInputs(item.productionRecipe.map((l) => ({
         barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty),
@@ -95,7 +125,11 @@ export default function CostsProductionPage() {
     if (!appUser || !name || !newOutputUnit) return;
     setCreatingOutput(true);
     try {
-      const created = await createCostItemGenerated({ name, unit: newOutputUnit, createdBy: appUser.uid });
+      const created = await createCostItemGenerated({
+        name, unit: newOutputUnit,
+        productionDate: prodDate || null, expiryDate: expiryDate || null,
+        createdBy: appUser.uid,
+      });
       setItems((prev) => [...prev, created]);
       setOutput(created);
       setOutputSearch("");
@@ -134,6 +168,10 @@ export default function CostsProductionPage() {
     if (!appUser || !output) return;
     if (outQty <= 0) { showToast("أدخل كمية الإنتاج", "error"); return; }
     if (parsedInputs.length === 0) { showToast("أضف مادة خام واحدة على الأقل بكمية", "error"); return; }
+    if (expiryDate && prodDate && expiryDate < prodDate) {
+      showToast("تاريخ الانتهاء يجب أن يكون بعد تاريخ الإنتاج", "error");
+      return;
+    }
     setSaving(true);
     try {
       await addCostProduction({
@@ -141,12 +179,18 @@ export default function CostsProductionPage() {
         outputQty: outQty,
         inputs: parsedInputs.map((l) => ({ barcode: l.barcode, qty: l.n })),
         productionDate: prodDate,
+        expiryDate: expiryDate || null,
         notes: notes.trim() || null,
         createdBy: appUser.uid,
       });
       showToast("تم تسجيل الإنتاج");
       setShowAdd(false);
-      if (output.barcodeSource === "generated") setLabelTarget({ id: output.id, name: output.name });
+      if (output.barcodeSource === "generated") {
+        setLabelTarget({
+          id: output.id, name: output.name,
+          productionDate: prodDate, expiryDate: expiryDate || null,
+        });
+      }
       load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
@@ -255,11 +299,24 @@ export default function CostsProductionPage() {
                     </span>
                   </p>
                   <p className="text-xs text-slate-400 tabular-nums-auto">
-                    {p.productionDate} · تكلفة الوحدة {money(p.unitCost)} ريال
+                    {fmtDate(p.productionDate)}
+                    {p.expiryDate && <span className="text-amber-600"> ← {fmtDate(p.expiryDate)}</span>}
+                    {" · "}تكلفة الوحدة {money(p.unitCost)} ريال
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-bold text-[#1C2D50] tabular-nums-auto">{money(p.totalCost)} ريال</span>
+                  {/* إعادة طباعة ملصق هذه الدفعة بتاريخيها هي، لا بتاريخ آخر دفعة */}
+                  <button
+                    onClick={() => setLabelTarget({
+                      id: p.outputBarcode, name: p.outputName,
+                      productionDate: p.productionDate, expiryDate: p.expiryDate ?? null,
+                    })}
+                    className="text-slate-400 hover:text-[#1C2D50] transition-colors"
+                    title="طباعة ملصق هذه الدفعة"
+                  >
+                    <Printer size={14} />
+                  </button>
                   {isAdmin && (
                     <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors">
                       <Trash2 size={14} />
@@ -430,9 +487,12 @@ export default function CostsProductionPage() {
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <Input label="تاريخ الإنتاج" type="date" required value={prodDate} onChange={(e) => setProdDate(e.target.value)} />
-                <Input label="ملاحظة (اختياري)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <Input label="تاريخ الإنتاج (من)" type="date" required value={prodDate} onChange={(e) => setProdDate(e.target.value)} />
+                <Input label="تاريخ الانتهاء (إلى)" type="date" value={expiryDate} min={prodDate || undefined}
+                  onChange={(e) => setExpiryDate(e.target.value)} />
               </div>
+              <p className="text-[11px] text-slate-500 -mt-2">التاريخان يُطبعان على ملصق باركود هذه الدفعة.</p>
+              <Input label="ملاحظة (اختياري)" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
               <div className="flex gap-2 justify-between items-center pt-1">
                 <button type="button" onClick={handleSaveRecipe}

@@ -298,6 +298,10 @@ export interface CostItem {
   /** الخلطة القياسية لإنتاج هذا الصنف من مواد خام أخرى — تُعبّئ نموذج الإنتاج
    *  تلقائياً. وجودها يعني أن هذا صنف «مُنتَج» لا مُشترى مباشرةً. */
   productionRecipe?: RecipeLine[];
+  /** تاريخ الإنتاج وتاريخ الانتهاء — اختياريان (مواد كثيرة بلا صلاحية).
+   *  يُطبعان على ملصق الباركود. yyyy-mm-dd */
+  productionDate?: string | null;
+  expiryDate?: string | null;
   order?: number;
   createdAt: Timestamp;
   createdBy: string;
@@ -324,6 +328,8 @@ export interface CostProduction {
   /** تكلفة الوحدة الواحدة من المُنتَج */
   unitCost: number;
   productionDate: string; // yyyy-mm-dd
+  /** انتهاء صلاحية هذه الدفعة تحديداً — يُطبع على ملصقها */
+  expiryDate?: string | null;
   notes: string | null;
   createdAt: Timestamp;
   createdBy: string;
