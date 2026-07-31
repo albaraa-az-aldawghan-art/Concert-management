@@ -246,6 +246,7 @@ export async function addCostOutgoing(data: {
   departmentName: string;
   concertId: string | null;
   concertName: string | null;
+  clientName: string | null;
   manualConcertName: string | null;
   dispenseDate: string;
   createdBy: string;
@@ -271,6 +272,7 @@ export async function addCostOutgoing(data: {
       departmentName: data.departmentName,
       concertId: data.concertId,
       concertName: data.concertName,
+      clientName: data.clientName,
       manualConcertName: data.manualConcertName,
       dispenseDate: data.dispenseDate,
       createdAt: Timestamp.now(),

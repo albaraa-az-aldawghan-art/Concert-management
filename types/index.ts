@@ -258,6 +258,8 @@ export interface CostOutgoing {
   departmentName: string;
   concertId: string | null;
   concertName: string | null;
+  /** لقطة من اسم العميل وقت الصرف — اسم الحفلة قابل للتعديل لاحقاً فينحرف */
+  clientName?: string | null;
   manualConcertName: string | null;
   dispenseDate: string; // yyyy-mm-dd — تاريخ الصرف الفعلي
   createdAt: Timestamp;

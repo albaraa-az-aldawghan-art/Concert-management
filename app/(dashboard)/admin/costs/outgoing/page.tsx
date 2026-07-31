@@ -11,8 +11,10 @@ import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { BarcodeScanInput } from "@/components/ui/barcode-scan-input";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { formatDate } from "@/lib/utils";
+import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
 import { CostOutgoing, CostItem, CostSettings, Concert } from "@/types";
-import { Plus, PackageMinus, Trash2, CheckCircle2, Music } from "lucide-react";
+import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -95,6 +97,7 @@ export default function CostsOutgoingPage() {
         departmentName: form.departmentName,
         concertId: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.id ?? null : null,
         concertName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.name ?? null : null,
+        clientName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.clientName ?? null : null,
         manualConcertName: selectedDept?.concertLinked && concertMode === "manual" ? manualConcertName.trim() || null : null,
         dispenseDate: form.dispenseDate,
         createdBy: appUser.uid,
@@ -132,15 +135,33 @@ export default function CostsOutgoingPage() {
   const filtered = entries
     .filter((e) => matchesDate(e.dispenseDate ?? e.createdAt, dateF))
     .filter((e) => !deptFilter || e.departmentName === deptFilter)
-    .filter((e) => !q || e.itemName.includes(q) || e.itemBarcode.includes(q) || (e.concertName ?? "").includes(q) || (e.manualConcertName ?? "").includes(q));
+    .filter((e) => !q || e.itemName.includes(q) || e.itemBarcode.includes(q) || (e.concertName ?? "").includes(q) || (e.clientName ?? "").includes(q) || (e.manualConcertName ?? "").includes(q));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const total = parseFloat(form.quantity || "0") * parseFloat(form.unitPrice || "0");
+
+  // عمليات صرف باسم مكتوب يدوياً — لا تظهر في تكلفة أي حفلة، فنُظهر حجمها
+  // كي لا يكون النقص في حساب الربحية خفياً
+  const orphanEntries = entries.filter((e) => !e.concertId && e.manualConcertName);
+  const orphanTotal = orphanEntries.reduce((s, e) => s + e.totalCost, 0);
+
+  // الحفلات المتاحة للربط: الملغاة مستبعدة، والأحدث تاريخاً أولاً
   const cq = concertSearch.trim().toLowerCase();
-  const filteredConcerts = cq
-    ? concerts.filter((c) => c.name.toLowerCase().includes(cq) || String(c.concertNumber ?? "").includes(cq))
-    : concerts.slice(0, 20);
+  const numQ = concertSearch.trim().replace(/^#/, "");
+  const selectableConcerts = concerts
+    .filter((c) => normalizeStatus(c.status) !== "cancelled")
+    .sort((a, b) => (b.date?.seconds ?? 0) - (a.date?.seconds ?? 0));
+  const filteredConcerts = (cq
+    ? selectableConcerts.filter(
+        (c) =>
+          c.name.toLowerCase().includes(cq) ||
+          (c.clientName ?? "").toLowerCase().includes(cq) ||
+          (c.venueName ?? "").toLowerCase().includes(cq) ||
+          (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ))
+      )
+    : selectableConcerts
+  ).slice(0, 30);
 
   return (
     <div className="space-y-5">
@@ -156,8 +177,24 @@ export default function CostsOutgoingPage() {
         )}
       </div>
 
+      {/* عمليات باسم مكتوب يدوياً لا تُحتسب على أي حفلة — نُظهر حجم النقص */}
+      {orphanEntries.length > 0 && (
+        <div className="flex items-start gap-2.5 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={16} className="text-orange-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-orange-800">
+              {orphanEntries.length} عملية صرف باسم مكتوب يدوياً — بإجمالي{" "}
+              <span className="tabular-nums-auto">{orphanTotal.toLocaleString("en-US")}</span> ريال
+            </p>
+            <p className="text-xs text-orange-600 mt-0.5">
+              هذه المبالغ لا تظهر ضمن تكلفة أي حفلة. اختر الحفلة من القائمة بدل كتابة الاسم لتُحتسب عليها.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف أو الحفلة أو الباركود..." />
+        <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف أو العميل أو الحفلة أو الباركود..." />
       </div>
       <div className="flex gap-2 flex-wrap">
         {["", ...settings.departments.map((d) => d.name)].map((d) => (
@@ -198,7 +235,20 @@ export default function CostsOutgoingPage() {
                   <td className="px-4 py-3 font-semibold text-slate-800">{e.itemName}</td>
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
                   <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
-                  <td className="px-4 py-3 text-slate-600">{e.concertName || e.manualConcertName || e.departmentName}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {e.concertId ? (
+                      <>
+                        <span className="text-slate-800">{e.clientName || e.concertName}</span>
+                        <span className="block text-[10px] text-slate-400">{e.departmentName}</span>
+                      </>
+                    ) : e.manualConcertName ? (
+                      <span className="inline-flex items-center gap-1 text-orange-600" title="غير مرتبط بحفلة — لا يدخل في تكلفتها">
+                        <AlertTriangle size={11} /> {e.manualConcertName}
+                      </span>
+                    ) : (
+                      e.departmentName
+                    )}
+                  </td>
                   <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.dispenseDate ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
                   {isAdmin && (
@@ -262,23 +312,52 @@ export default function CostsOutgoingPage() {
                     </div>
                     {concertMode === "registered" ? (
                       <div>
-                        <input type="text" value={pickedConcert ? pickedConcert.name : concertSearch}
-                          onChange={(e) => { setPickedConcert(null); setConcertSearch(e.target.value); }}
-                          placeholder="ابحث باسم الحفلة أو رقمها..."
-                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-                        {!pickedConcert && concertSearch && (
-                          <div className="mt-1.5 max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
-                            {filteredConcerts.length === 0 ? (
-                              <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج</p>
-                            ) : filteredConcerts.map((c) => (
-                              <button key={c.id} type="button" onClick={() => { setPickedConcert(c); setConcertSearch(""); }}
-                                className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2">
-                                <Music size={13} className="text-slate-400 shrink-0" />
-                                <span className="truncate">{c.name}</span>
-                                {c.concertNumber != null && <span className="text-[10px] text-slate-400 mr-auto">#{String(c.concertNumber).padStart(3, "0")}</span>}
-                              </button>
-                            ))}
+                        {pickedConcert ? (
+                          <div className="flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-slate-800 truncate">
+                                {pickedConcert.clientName || pickedConcert.name}
+                              </p>
+                              <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                                {formatDate(pickedConcert.date)}
+                                {pickedConcert.concertNumber != null && ` · #${String(pickedConcert.concertNumber).padStart(3, "0")}`}
+                              </p>
+                            </div>
+                            <button type="button" onClick={() => setPickedConcert(null)}
+                              className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
                           </div>
+                        ) : (
+                          <>
+                            <input type="text" value={concertSearch}
+                              onChange={(e) => setConcertSearch(e.target.value)}
+                              placeholder="ابحث باسم العميل أو الحفلة أو رقمها أو المكان..."
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                            <div className="mt-1.5 max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                              {filteredConcerts.length === 0 ? (
+                                <p className="text-xs text-slate-400 p-2.5">لا توجد نتائج</p>
+                              ) : filteredConcerts.map((c) => (
+                                <button key={c.id} type="button" onClick={() => { setPickedConcert(c); setConcertSearch(""); }}
+                                  className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center gap-2">
+                                  <Music size={13} className="text-slate-400 shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-slate-800 truncate">{c.clientName || c.name}</p>
+                                    <p className="text-[10px] text-slate-400 tabular-nums-auto">
+                                      {formatDate(c.date)}
+                                      {c.venueName ? ` · ${c.venueName}` : ""}
+                                    </p>
+                                  </div>
+                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${statusColor(c.status)}`}>
+                                    {statusLabel(c.status)}
+                                  </span>
+                                  {c.concertNumber != null && (
+                                    <span className="text-[10px] text-slate-400 shrink-0 tabular-nums-auto">
+                                      #{String(c.concertNumber).padStart(3, "0")}
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </>
                         )}
                       </div>
                     ) : (
