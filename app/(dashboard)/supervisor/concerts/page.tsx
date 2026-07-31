@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Concert, AppUser } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { STATUS_FILTERS, normalizeStatus } from "@/lib/concert-status";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { Music, Calendar, MapPin, UserCog, UserRound, UsersRound } from "lucide-react";
 
@@ -64,7 +65,7 @@ export default function SupervisorConcertsPage() {
   const numQ = search.trim().replace(/^#/, "");
   const filtered = concerts.filter(
     (c) =>
-      (!filterStatus || c.status === filterStatus) &&
+      (!filterStatus || normalizeStatus(c.status) === filterStatus) &&
       (!supFilter || c.supervisorIds.includes(supFilter)) &&
       matchesDate(c.date, dateF) &&
       (!q ||
@@ -162,9 +163,9 @@ export default function SupervisorConcertsPage() {
       )}
 
       <div className="flex gap-2 flex-wrap">
-        {["", "planned", "active", "completed"].map((s) => (
-          <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filterStatus === s ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
-            {s === "" ? "الكل" : s === "planned" ? "مخططة" : s === "active" ? "جارية" : "منتهية"}
+        {STATUS_FILTERS.map((f) => (
+          <button key={f.key} onClick={() => setFilterStatus(f.key === "all" ? "" : f.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${(filterStatus || "all") === f.key ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+            {f.label}
           </button>
         ))}
       </div>

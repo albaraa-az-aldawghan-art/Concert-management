@@ -7,6 +7,7 @@ import { getConcertsBySupervisor } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Concert } from "@/types";
+import { hasStartedExecuting } from "@/lib/concert-status";
 import { formatDate } from "@/lib/utils";
 import { Music, Calendar, MapPin, ChevronLeft } from "lucide-react";
 
@@ -23,7 +24,7 @@ export default function SupervisorDashboard() {
       .finally(() => setLoading(false));
   }, [appUser]);
 
-  const active = concerts.filter((c) => c.status === "active").length;
+  const active = concerts.filter((c) => hasStartedExecuting(c) && !c.warehouseReturnConfirmed).length;
   const pending = concerts.filter((c) => !c.deliveryApproved).length;
 
   if (loading) {

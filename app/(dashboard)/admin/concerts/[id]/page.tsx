@@ -20,6 +20,7 @@ import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, 
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert } from "@/lib/firestore/costs";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
+import { normalizeStatus, operationalStage } from "@/lib/concert-status";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
@@ -537,7 +538,6 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       const updates: Partial<Concert> = { location: editLocation };
-      if (concert.status === "active" && editLocation) updates.status = "location_set";
       await updateConcert(concert.id, updates);
       const desc = editLocation ? `تم تغيير الموقع إلى: ${editLocation.address}` : "تم إزالة الموقع";
       await addConcertLog({ concertId: concert.id, description: desc, createdBy: appUser.uid });
@@ -715,7 +715,7 @@ export default function AdminConcertDetailPage() {
               عرض الاتفاقية
             </a>
           )}
-          {fx.kitchen && concert.status !== "cancelled" && (
+          {fx.kitchen && normalizeStatus(concert.status) !== "cancelled" && (
             <button
               onClick={async () => {
                 if (!appUser || sendingKitchen) return;
@@ -752,7 +752,7 @@ export default function AdminConcertDetailPage() {
                 : "إرسال للمطبخ والموارد"}
             </button>
           )}
-          {fx.cancel && concert.status !== "cancelled" && (
+          {fx.cancel && normalizeStatus(concert.status) !== "cancelled" && (
             <button
               onClick={() => setShowCancelModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
@@ -765,7 +765,7 @@ export default function AdminConcertDetailPage() {
       </div>
 
       {/* Cancellation notice */}
-      {concert.status === "cancelled" && (
+      {normalizeStatus(concert.status) === "cancelled" && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex flex-col gap-1">
           <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
             <XCircle size={16} />
@@ -783,106 +783,76 @@ export default function AdminConcertDetailPage() {
 
       {/* ── Pipeline ── مراحل الحفلة التسلسلية */}
       {fx.stages && (() => {
-        const STATUS_ORDER = [
-          "planned", "confirmed", "materials_requested", "active",
-          "location_set", "executing", "materials_returned",
-          "delivered_to_warehouse", "warehouse_confirmed", "completed",
-        ];
-        const STAGES = [
-          { status: "planned",                label: "غير مؤكدة",          desc: "في انتظار الدفعة الأولى" },
-          { status: "confirmed",              label: "مؤكدة",              desc: "تم استلام الدفعة الأولى" },
-          { status: "materials_requested",    label: "طلب المواد",          desc: "المشرف طلب مواد من الموارد" },
-          { status: "active",                 label: "استلام المواد",       desc: "المشرف استلم المواد من الموارد" },
-          { status: "location_set",           label: "تحديد الموقع",        desc: "تم تحديد موقع الحفلة" },
-          { status: "executing",              label: "تنفيذ الحفلة",        desc: "الحفلة جارية الآن" },
-          { status: "materials_returned",     label: "استلام المواد",       desc: "المشرف استلم المواد من الحفلة" },
-          { status: "delivered_to_warehouse", label: "تسليم للموارد",        desc: "المشرف سلّم المواد للموارد" },
-          { status: "warehouse_confirmed",    label: "تأكيد الموارد",        desc: "مدير الموارد أكد الاستلام" },
-          { status: "completed",              label: "مكتملة",             desc: "التسوية المالية منتهية" },
-        ];
-        const currentIdx = STATUS_ORDER.indexOf(concert.status);
+        const stage = operationalStage(concert);
+        const isCancelled = normalizeStatus(concert.status) === "cancelled";
         return (
           <Card>
-            <h3 className="font-bold text-slate-800 mb-4">مراحل الحفلة</h3>
-
-            {/* Scrollable horizontal pipeline */}
-            <div className="overflow-x-auto pb-3">
-              <div className="flex items-start gap-0 min-w-max">
-                {STAGES.map((stage, i) => {
-                  const isCompleted = i < currentIdx;
-                  const isCurrent   = i === currentIdx;
-                  return (
-                    <div key={stage.status} className="flex items-start">
-                      <div className="flex flex-col items-center w-[72px]">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                          isCompleted ? "bg-green-500 border-green-500" :
-                          isCurrent   ? "bg-[#1C2D50] border-[#1C2D50]" :
-                                        "bg-white border-slate-200"
-                        }`}>
-                          {isCompleted
-                            ? <Check size={13} className="text-white" />
-                            : <span className={`text-[10px] font-bold ${isCurrent ? "text-white" : "text-slate-400"}`}>{i + 1}</span>
-                          }
-                        </div>
-                        <p className={`text-[9px] font-semibold text-center mt-1.5 leading-tight px-0.5 ${
-                          isCompleted ? "text-green-600" :
-                          isCurrent   ? "text-[#1C2D50]" :
-                                        "text-slate-400"
-                        }`}>{stage.label}</p>
-                      </div>
-                      {i < STAGES.length - 1 && (
-                        <div className={`h-0.5 w-5 mt-4 shrink-0 ${i < currentIdx ? "bg-green-400" : "bg-slate-200"}`} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-800">سير عمل الحفلة</h3>
+              <span className="text-xs font-semibold text-slate-500">
+                {concert.warehouseReturnConfirmed ? "اكتمل التشغيل ✓" : `${stage.done} من ${stage.steps.length}`}
+              </span>
             </div>
 
-            {/* Current stage description */}
-            <div className={`mt-3 rounded-xl px-4 py-3 text-sm ${
-              concert.status === "completed" ? "bg-green-50 border border-green-100" :
-              "bg-[#EEF1F7] border border-[#D4DCE8]"
-            }`}>
-              <p className={`font-semibold ${concert.status === "completed" ? "text-green-700" : "text-[#1C2D50]"}`}>
-                المرحلة الحالية: {STAGES[Math.max(0, currentIdx)]?.label}
-              </p>
-              <p className="text-slate-500 text-xs mt-0.5">{STAGES[Math.max(0, currentIdx)]?.desc}</p>
-            </div>
-
-            {/* Sub-states: materials_requested → warehouse requests */}
-            {concert.status === "materials_requested" && (
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold text-slate-500 mb-2">حالة طلبات المواد</p>
-                {requests.length === 0 ? (
-                  <p className="text-sm text-slate-400">لا توجد طلبات بعد</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {requests.map((req) => (
-                      <div key={req.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{req.itemName}</p>
-                          <p className="text-xs text-slate-400">عدد: {req.requestedCount}</p>
-                        </div>
-                        <StatusBadge status={req.status} />
-                      </div>
-                    ))}
+            {/* قائمة إنجاز خطوات المشرف — مشتقة من العلامات المحفوظة لا من الحالة */}
+            <div className="space-y-2">
+              {stage.steps.map((s, i) => (
+                <div key={s.label} className="flex items-center gap-3">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 shrink-0 ${
+                    s.done ? "bg-green-500 border-green-500" : "bg-white border-slate-200"
+                  }`}>
+                    {s.done
+                      ? <Check size={12} className="text-white" />
+                      : <span className="text-[10px] font-bold text-slate-400">{i + 1}</span>}
                   </div>
-                )}
+                  <p className={`text-sm ${s.done ? "text-slate-700 font-medium" : "text-slate-400"}`}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {!isCancelled && (
+              <div className="mt-3 rounded-xl px-4 py-2.5 text-xs bg-[#EEF1F7] border border-[#D4DCE8] text-[#1C2D50] font-semibold">
+                {concert.warehouseReturnConfirmed
+                  ? "تم استلام كل المواد من الحفلة"
+                  : stage.next
+                    ? `الخطوة التالية: ${stage.next}`
+                    : "بانتظار تأكيد مدير الموارد لاستلام المواد"}
               </div>
             )}
 
-            {/* Admin action: financial settlement */}
-            {concert.status === "warehouse_confirmed" && !concert.isPaid && (
+            {/* طلبات المواد المرتبطة بالحفلة — إن وُجدت */}
+            {requests.length > 0 && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold text-slate-500 mb-2">حالة طلبات المواد</p>
+                <div className="space-y-1.5">
+                  {requests.map((req) => (
+                    <div key={req.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{req.itemName}</p>
+                        <p className="text-xs text-slate-400">عدد: {req.requestedCount}</p>
+                      </div>
+                      <StatusBadge status={req.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* التسوية المالية — لم تعد مرهونة بمرحلة وسيطة، وإلا تعذّر إغلاق
+                أي حفلة (ومنها الحفلات بلا مواد أصلاً) */}
+            {!concert.isPaid && !isCancelled && (
               <div className="mt-4 border-t border-slate-100 pt-4">
                 <p className="text-xs font-semibold text-slate-500 mb-2">الخطوة التالية — التسوية المالية</p>
+                {!concert.warehouseReturnConfirmed && stage.done > 0 && (
+                  <p className="text-xs text-orange-600 mb-2">⚠ لم يُؤكَّد استلام مواد الحفلة من المشرف بعد</p>
+                )}
                 <Button onClick={handleMarkAsPaid} loading={paidSaving} disabled={!fx.payments} className="w-full gap-2">
                   <CheckCircle2 size={16} />
                   تأكيد التسوية المالية وإغلاق الحفلة
                 </Button>
               </div>
             )}
-            {concert.status === "completed" && concert.isPaid && (
+            {concert.isPaid && (
               <div className="mt-4 border-t border-green-100 pt-4 flex items-center gap-2 text-green-600 text-sm font-semibold">
                 <CheckCircle2 size={16} />
                 الحفلة مكتملة بالكامل ✓

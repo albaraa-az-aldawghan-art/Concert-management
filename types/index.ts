@@ -107,6 +107,10 @@ export interface Concert {
   returnApproved: boolean;
   returnApprovedBy: string | null;
   returnApprovedAt: Timestamp | null;
+  // بدء التنفيذ — كان محفوظاً في الحالة وحدها قبل اختصار المراحل
+  executingStarted?: boolean;
+  executingStartedAt?: Timestamp | null;
+  executingStartedBy?: string | null;
   supervisorDeliveredToWarehouse: boolean;
   supervisorDeliveredToWarehouseAt: Timestamp | null;
   warehouseReturnConfirmed: boolean;

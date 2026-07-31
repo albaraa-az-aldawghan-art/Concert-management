@@ -9,6 +9,7 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
+import { STATUS_LABEL, normalizeStatus, statusLabel } from "@/lib/concert-status";
 import {
   Users, Package, Music, AlertTriangle, ChevronLeft,
   TrendingUp, Wallet, Clock, CheckCircle2, CalendarDays, BarChart3,
@@ -42,9 +43,11 @@ export default function AdminDashboard() {
     load();
   }, []);
 
-  const planned   = concerts.filter((c) => c.status === "planned").length;
-  const active    = concerts.filter((c) => c.status === "active").length;
-  const completed = concerts.filter((c) => c.status === "completed").length;
+  // يُحسب بعد التوحيد فلا تسقط أي حفلة خارج الأعمدة كما كان يحدث سابقاً
+  const planned   = concerts.filter((c) => normalizeStatus(c.status) === "planned").length;
+  const confirmed = concerts.filter((c) => normalizeStatus(c.status) === "confirmed").length;
+  const completed = concerts.filter((c) => normalizeStatus(c.status) === "completed").length;
+  const cancelled = concerts.filter((c) => normalizeStatus(c.status) === "cancelled").length;
 
   const totalRevenue    = concerts.reduce((s, c) => s + (c.price ?? 0), 0);
   const totalCollected  = concerts.reduce((s, c) => s + (c.deposit ?? 0), 0);
@@ -157,9 +160,10 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-4">
             {[
-              { label: "مخططة", value: planned, color: "bg-[#EEF1F7]0", text: "text-[#1C2D50]", bg: "bg-[#EEF1F7]" },
-              { label: "جارية", value: active, color: "bg-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "مكتملة", value: completed, color: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-50" },
+              { label: STATUS_LABEL.planned,   value: planned,   color: "bg-yellow-400",  text: "text-yellow-700",  bg: "bg-yellow-50" },
+              { label: STATUS_LABEL.confirmed, value: confirmed, color: "bg-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: STATUS_LABEL.completed, value: completed, color: "bg-slate-400",   text: "text-slate-600",   bg: "bg-slate-50" },
+              { label: STATUS_LABEL.cancelled, value: cancelled, color: "bg-red-400",     text: "text-red-600",     bg: "bg-red-50" },
             ].map((s) => (
               <div key={s.label}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -219,7 +223,7 @@ export default function AdminDashboard() {
                           {remaining > 0 ? `متبقي ${remaining.toLocaleString("en-US")}` : "مكتمل"}
                         </p>
                         <p className="text-xs text-slate-400">
-                          {c.status === "planned" ? "مخططة" : c.status === "active" ? "جارية" : "مكتملة"}
+                          {statusLabel(c.status)}
                         </p>
                       </div>
                     </div>

@@ -1,5 +1,6 @@
 ﻿import React from "react";
 import { cn } from "@/lib/utils";
+import { STATUS_LABEL, STATUS_VARIANT, normalizeStatus } from "@/lib/concert-status";
 
 type BadgeVariant = "blue" | "green" | "red" | "yellow" | "gray" | "indigo" | "orange";
 
@@ -33,31 +34,26 @@ export function Badge({ children, variant = "gray", className }: BadgeProps) {
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: BadgeVariant }> = {
-    // حالات الحفلة — التسلسل الكامل
-    planned:                { label: "غير مؤكدة",            variant: "yellow"  },
-    confirmed:              { label: "مؤكدة",                variant: "green"   },
-    materials_requested:    { label: "طلب المواد",            variant: "indigo"  },
-    active:                 { label: "استلام المواد",         variant: "blue"    },
-    location_set:           { label: "تحديد الموقع",          variant: "indigo"  },
-    executing:              { label: "تنفيذ الحفلة",          variant: "green"   },
-    materials_returned:     { label: "استلام مواد الحفلة",    variant: "orange"  },
-    delivered_to_warehouse: { label: "تسليم للموارد",          variant: "orange"  },
-    warehouse_confirmed:    { label: "تأكيد الموارد",          variant: "blue"    },
-    completed:              { label: "مكتملة",               variant: "gray"    },
-    cancelled:              { label: "ملغاة",                variant: "red"     },
-    // حالات أخرى
-    pending:     { label: "قيد الانتظار",   variant: "yellow" },
-    approved:    { label: "موافق عليه",     variant: "green"  },
-    rejected:    { label: "مرفوض",          variant: "red"    },
-    has_missing: { label: "به مفقودات",     variant: "red"    },
-    internal:    { label: "داخلي",          variant: "indigo" },
-    external:    { label: "خارجي",          variant: "orange" },
-    paid:        { label: "تم الدفع",       variant: "green"  },
-    unpaid:      { label: "لم يُدفع بعد",   variant: "yellow" },
-  };
+// حالات غير خاصة بالحفلة (المواد، الطلبات، الدفع). لاحظ أن "confirmed"
+// مشتركة بينها وبين حالات الحفلة، لذا تُفحص حالات الحفلة أولاً.
+const OTHER_STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
+  pending:     { label: "قيد الانتظار",   variant: "yellow" },
+  approved:    { label: "موافق عليه",     variant: "green"  },
+  rejected:    { label: "مرفوض",          variant: "red"    },
+  has_missing: { label: "به مفقودات",     variant: "red"    },
+  internal:    { label: "داخلي",          variant: "indigo" },
+  external:    { label: "خارجي",          variant: "orange" },
+  paid:        { label: "تم الدفع",       variant: "green"  },
+  unpaid:      { label: "لم يُدفع بعد",   variant: "yellow" },
+};
 
-  const c = config[status] ?? { label: status, variant: "gray" as BadgeVariant };
-  return <Badge variant={c.variant}>{c.label}</Badge>;
+/** شارة حالة الحفلة — تمرّ دائماً عبر normalizeStatus فلا تظهر شارة
+ *  فارغة لأي حالة قديمة أو غير معروفة (كما كان يحدث مع «ملغاة»). */
+export function StatusBadge({ status }: { status: string }) {
+  const other = OTHER_STATUS[status];
+  if (other && !(status in STATUS_LABEL)) {
+    return <Badge variant={other.variant}>{other.label}</Badge>;
+  }
+  const key = normalizeStatus(status);
+  return <Badge variant={STATUS_VARIANT[key]}>{STATUS_LABEL[key]}</Badge>;
 }

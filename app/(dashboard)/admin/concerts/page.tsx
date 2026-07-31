@@ -14,37 +14,13 @@ import {
   Plus, Music, CalendarDays, Search, Hash,
   Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users, UsersRound,
 } from "lucide-react";
+import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 
-type StatusFilter = "all" | "planned" | "confirmed" | "materials_requested" | "active" | "location_set" | "executing" | "materials_returned" | "delivered_to_warehouse" | "warehouse_confirmed" | "completed";
+type StatusFilter = ConcertStatus4 | "all";
 type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
 
 const PAGE_SIZE = 10;
-
-const STATUS_LABEL: Record<string, string> = {
-  planned:                "غير مؤكدة",
-  confirmed:              "مؤكدة",
-  materials_requested:    "طلب المواد",
-  active:                 "استلام المواد",
-  location_set:           "تحديد الموقع",
-  executing:              "تنفيذ الحفلة",
-  materials_returned:     "استلام مواد الحفلة",
-  delivered_to_warehouse: "تسليم للموارد",
-  warehouse_confirmed:    "تأكيد الموارد",
-  completed:              "مكتملة",
-};
-const STATUS_COLOR: Record<string, string> = {
-  planned:                "bg-yellow-100 text-yellow-700",
-  confirmed:              "bg-green-100 text-green-700",
-  materials_requested:    "bg-indigo-100 text-indigo-700",
-  active:                 "bg-[#D4DCE8] text-[#1C2D50]",
-  location_set:           "bg-indigo-100 text-indigo-700",
-  executing:              "bg-emerald-100 text-emerald-700",
-  materials_returned:     "bg-orange-100 text-orange-700",
-  delivered_to_warehouse: "bg-orange-100 text-orange-700",
-  warehouse_confirmed:    "bg-blue-100 text-blue-700",
-  completed:              "bg-slate-100 text-slate-500",
-};
 
 function localStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -157,7 +133,7 @@ export default function AdminConcertsPage() {
   }
 
   const filtered = dateFiltered
-    .filter((c) => statusFilter === "all" || c.status === statusFilter)
+    .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
     .filter(passesSearch);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -287,22 +263,10 @@ export default function AdminConcertsPage() {
 
       {/* Status Filter */}
       <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "all",                    label: "الكل" },
-          { key: "planned",                label: "غير مؤكدة" },
-          { key: "confirmed",              label: "مؤكدة" },
-          { key: "materials_requested",    label: "طلب المواد" },
-          { key: "active",                 label: "استلام المواد" },
-          { key: "location_set",           label: "تحديد الموقع" },
-          { key: "executing",              label: "تنفيذ الحفلة" },
-          { key: "materials_returned",     label: "استلام مواد الحفلة" },
-          { key: "delivered_to_warehouse", label: "تسليم للموارد" },
-          { key: "warehouse_confirmed",    label: "تأكيد الموارد" },
-          { key: "completed",              label: "مكتملة" },
-        ] as { key: StatusFilter; label: string }[]).map((f) => {
+        {STATUS_FILTERS.map((f) => {
           const count = f.key === "all"
             ? dateFiltered.length
-            : dateFiltered.filter((c) => c.status === f.key).length;
+            : dateFiltered.filter((c) => normalizeStatus(c.status) === f.key).length;
           return (
             <button
               key={f.key}
@@ -354,8 +318,8 @@ export default function AdminConcertsPage() {
                             <Hash size={9} />{String(c.concertNumber).padStart(3, "0")}
                           </span>
                         )}
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
-                          {STATUS_LABEL[c.status]}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>
+                          {statusLabel(c.status)}
                         </span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm truncate">{c.name}</p>
@@ -429,8 +393,8 @@ export default function AdminConcertsPage() {
                           <span className="line-clamp-1">{c.venueName || c.location?.address || "—"}</span>
                         </td>
                         <td className="py-3.5 px-3">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
-                            {STATUS_LABEL[c.status]}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>
+                            {statusLabel(c.status)}
                           </span>
                         </td>
                         <td className="py-3.5 px-3 text-xs text-slate-500 whitespace-nowrap">

@@ -7,6 +7,7 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -53,33 +54,8 @@ function getMonthBounds(): [string, string] {
   return [localStr(start), localStr(end)];
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  planned:                "غير مؤكدة",
-  confirmed:              "مؤكدة",
-  materials_requested:    "طلب المواد",
-  active:                 "استلام المواد",
-  location_set:           "تحديد الموقع",
-  executing:              "تنفيذ الحفلة",
-  materials_returned:     "استلام مواد الحفلة",
-  delivered_to_warehouse: "تسليم للموارد",
-  warehouse_confirmed:    "تأكيد الموارد",
-  completed:              "مكتملة",
-  cancelled:              "ملغاة",
-};
-const STATUS_COLOR: Record<string, string> = {
-  planned:                "bg-yellow-100 text-yellow-700",
-  confirmed:              "bg-green-100 text-green-700",
-  materials_requested:    "bg-indigo-100 text-indigo-700",
-  active:                 "bg-[#D4DCE8] text-[#1C2D50]",
-  location_set:           "bg-indigo-100 text-indigo-700",
-  executing:              "bg-emerald-100 text-emerald-700",
-  materials_returned:     "bg-orange-100 text-orange-700",
-  delivered_to_warehouse: "bg-orange-100 text-orange-700",
-  warehouse_confirmed:    "bg-blue-100 text-blue-700",
-  completed:              "bg-slate-100 text-slate-600",
-};
 
-type StatusFilter = "all" | "planned" | "confirmed" | "materials_requested" | "active" | "location_set" | "executing" | "materials_returned" | "delivered_to_warehouse" | "warehouse_confirmed" | "completed";
+type StatusFilter = ConcertStatus4 | "all";
 type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
 
@@ -138,9 +114,9 @@ export default function FinancesPage() {
   }
 
   /* fully filtered — exclude cancelled concerts from financial view */
-  const filtered = dateFiltered
-    .filter((c) => c.status !== "cancelled")
-    .filter((c) => statusFilter === "all" || c.status === statusFilter)
+  const financial = dateFiltered.filter((c) => normalizeStatus(c.status) !== "cancelled");
+  const filtered = financial
+    .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
     .filter(passesSearch);
 
   const totalRevenue   = filtered.reduce((s, c) => s + (c.price ?? 0), 0);
@@ -288,23 +264,12 @@ export default function FinancesPage() {
 
       {/* Status Filter — counts reflect current date filter */}
       <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "all",                    label: "الكل" },
-          { key: "planned",                label: "غير مؤكدة" },
-          { key: "confirmed",              label: "مؤكدة" },
-          { key: "materials_requested",    label: "طلب المواد" },
-          { key: "active",                 label: "استلام المواد" },
-          { key: "location_set",           label: "تحديد الموقع" },
-          { key: "executing",              label: "تنفيذ الحفلة" },
-          { key: "materials_returned",     label: "استلام مواد" },
-          { key: "delivered_to_warehouse", label: "تسليم للموارد" },
-          { key: "warehouse_confirmed",    label: "تأكيد الموارد" },
-          { key: "completed",              label: "مكتملة" },
-        ] as { key: StatusFilter; label: string }[]).map((f) => {
+        {/* الملغاة مستبعدة من القائمة المالية أصلاً، فلا شريحة لها */}
+        {STATUS_FILTERS.filter((f) => f.key !== "cancelled").map((f) => {
           const count =
             f.key === "all"
-              ? dateFiltered.length
-              : dateFiltered.filter((c) => c.status === f.key).length;
+              ? financial.length
+              : financial.filter((c) => normalizeStatus(c.status) === f.key).length;
           return (
             <button
               key={f.key}
@@ -463,8 +428,8 @@ export default function FinancesPage() {
                           <p className="font-bold text-slate-800 text-sm">{c.name}</p>
                           <p className="text-xs text-slate-400">{formatDate(dateField === "createdAt" ? c.createdAt : c.date)}</p>
                         </div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
-                          {STATUS_LABEL[c.status]}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>
+                          {statusLabel(c.status)}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
@@ -528,8 +493,8 @@ export default function FinancesPage() {
                         </td>
                         <td className="py-3.5 px-3 text-slate-500 text-xs">{formatDate(dateField === "createdAt" ? c.createdAt : c.date)}</td>
                         <td className="py-3.5 px-3">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status]}`}>
-                            {STATUS_LABEL[c.status]}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>
+                            {statusLabel(c.status)}
                           </span>
                         </td>
                         <td className="py-3.5 px-3 font-bold text-slate-800">{(c.price ?? 0).toLocaleString("en-US")}</td>

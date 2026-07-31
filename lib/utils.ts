@@ -53,16 +53,3 @@ export function getTypeLabel(type: string): string {
   return type === "internal" ? "داخلي" : "خارجي";
 }
 
-export function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    planned: "مخطط",
-    active: "جارٍ",
-    completed: "منتهي",
-    pending: "قيد الانتظار",
-    approved: "موافق عليه",
-    rejected: "مرفوض",
-    confirmed: "مؤكد",
-    has_missing: "به مفقودات",
-  };
-  return labels[status] ?? status;
-}
