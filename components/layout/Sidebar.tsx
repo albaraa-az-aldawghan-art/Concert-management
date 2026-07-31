@@ -29,6 +29,7 @@ import {
   PackagePlus,
   PackageMinus,
   Scale,
+  TrendingUp,
 } from "lucide-react";
 
 interface NavItem {
@@ -68,6 +69,7 @@ const adminNav: NavItem[] = [
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
+  { label: "ربحية الحفلات", href: "/admin/profitability", icon: <TrendingUp size={17} /> },
   {
     label: "المشرفون",
     href: "/supervisor/concerts",
@@ -351,6 +353,7 @@ const permissionIcons: Record<string, React.ReactNode> = {
   supervisor:       <UserCog size={17} />,
   employees:        <UserRound size={17} />,
   costs:            <Barcode size={17} />,
+  profitability:    <TrendingUp size={17} />,
 };
 
 export function Sidebar() {

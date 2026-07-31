@@ -17,7 +17,8 @@ export type PermissionPage =
   | "supervisor"
   | "employees"
   | "settings"
-  | "costs";
+  | "costs"
+  | "profitability";
 
 export interface CustomRole {
   id: string;

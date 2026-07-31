@@ -155,6 +155,14 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "view_balance",    label: "عرض رصيد الأصناف" },
     ],
   },
+  {
+    key: "profitability",
+    label: "ربحية الحفلات",
+    href: "/admin/profitability",
+    features: [
+      { key: "view", label: "عرض ربحية الحفلات (صلاحية حساسة)" },
+    ],
+  },
 ];
 
 // Maps a pathname under /admin (or /kitchen) to its permission key.
@@ -167,6 +175,7 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/food")) return "food";
   if (pathname.startsWith("/admin/missing-items")) return "missing_items";
   if (pathname.startsWith("/admin/costs")) return "costs";
+  if (pathname.startsWith("/admin/profitability")) return "profitability";
   if (pathname.startsWith("/admin")) return "dashboard";
   if (pathname.startsWith("/kitchen")) return "kitchen";
   if (pathname.startsWith("/warehouse-manager/orders")) return "warehouse_orders";

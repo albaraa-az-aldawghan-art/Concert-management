@@ -65,11 +65,11 @@ service cloud.firestore {
 
     // ── الحفلات ────────────────────────────────────────────────
     match /concerts/{concertId} {
-      allow get: if isAdmin() || isWarehouse() || isKitchen() || pageOn('concerts') || pageOn('kitchen') ||
+      allow get: if isAdmin() || isWarehouse() || isKitchen() || pageOn('concerts') || pageOn('kitchen') || pageOn('profitability') ||
         pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
-      allow list: if isAdmin() || isWarehouse() || pageOn('concerts') ||
+      allow list: if isAdmin() || isWarehouse() || pageOn('concerts') || pageOn('profitability') ||
         pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
@@ -191,7 +191,7 @@ service cloud.firestore {
     }
 
     match /cost_outgoing/{entryId} {
-      allow read:           if isAdmin() || pageOn('costs') || pageOn('concerts');
+      allow read:           if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
       allow create:         if isAdmin() || hasFeat('costs', 'record_outgoing');
       allow update, delete: if isAdmin();
     }
