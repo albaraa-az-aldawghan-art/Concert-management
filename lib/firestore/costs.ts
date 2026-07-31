@@ -155,6 +155,17 @@ export async function updateCostItem(
   barcode: string,
   data: Partial<Pick<CostItem, "name" | "unit">>
 ): Promise<void> {
+  // الوحدة تُقفل بعد أول وارد: تغييرها لاحقاً يجعل كل وصفة تشير لهذا
+  // الصنف خاطئة بصمت (كجم → شوال = خمسون ضعفاً) ويفسد فحص الرصيد.
+  if (data.unit !== undefined) {
+    const snap = await getDoc(doc(db, "cost_items", barcode));
+    const item = snap.data() as CostItem | undefined;
+    if (item && (item.totalIn ?? 0) > 0 && item.unit !== data.unit) {
+      throw new Error(
+        `لا يمكن تغيير وحدة "${item.name}" بعد تسجيل وارد عليه — الوصفات والأرصدة محسوبة بالوحدة الحالية (${item.unit})`
+      );
+    }
+  }
   await updateDoc(doc(db, "cost_items", barcode), data as Record<string, unknown>);
 }
 

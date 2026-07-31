@@ -166,10 +166,33 @@ export interface ConcertItem {
   createdAt: Timestamp;
 }
 
+/** سطر وصفة: كم يستهلك هذا الصنف من خام معيّن.
+ *  الكمية تُكتب «qty لكل perQty وحدة» فيمكن كتابة «5 كجم لكل 10 أطباق»
+ *  بدل حساب 0.5 يدوياً. */
+export interface RecipeLine {
+  /** باركود صنف التكاليف — هو معرّف المستند */
+  barcode: string;
+  itemName: string;   // مُنسَّخ للعرض إن حُذف الصنف
+  unit: string;       // مُنسَّخ للعرض
+  qty: number;
+  perQty: number;     // الافتراضي 1
+}
+
+/** تعريف صنف أكل بمعرّف ثابت — يسمح بتعديل الاسم دون ضياع الوصفة.
+ *  المعرّف "" محجوز للأقسام التي بلا أصناف (وصفة القسم نفسه). */
+export interface FoodOptionDef {
+  id: string;
+  name: string;
+  recipe?: RecipeLine[];
+}
+
 export interface FoodCategory {
   id: string;
   name: string;
+  /** تبقى كما هي — يقرؤها العقد والمطبخ والموظفون */
   options: string[];
+  /** المصدر الجديد: أسماء بمعرّفات ثابتة ووصفات. تُشتق من options إن غابت */
+  optionDefs?: FoodOptionDef[];
   order: number;
   createdAt: Timestamp;
   createdBy: string;

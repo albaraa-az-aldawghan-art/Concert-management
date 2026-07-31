@@ -12,7 +12,9 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { WarehouseItem, AppUser, FoodCategory, PaymentMethod } from "@/types";
+import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
+import { aggregateRequirements, totalEstimatedCost } from "@/lib/recipes";
+import { getCostItems } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound } from "lucide-react";
@@ -109,6 +111,7 @@ export default function NewConcertPage() {
   const [activeFoodCategoryId, setActiveFoodCategoryId] = useState("");
   const [foodCheck, setFoodCheck] = useState<Record<string, CheckState>>({});
   const [foodSearch, setFoodSearch] = useState("");
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
 
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [paymentForm, setPaymentForm] = useState({
@@ -123,18 +126,20 @@ export default function NewConcertPage() {
 
   useEffect(() => {
     async function load() {
-      const [items, sups, emps, foodCats, vat] = await Promise.all([
+      const [items, sups, emps, foodCats, vat, costs] = await Promise.all([
         getWarehouseItems(),
         getUsersByRole("supervisor"),
         getUsersByRole("employee"),
         getFoodCategories(),
         getVatRate(),
+        getCostItems().catch(() => [] as CostItem[]),
       ]);
       setWarehouseItems(items);
       setSupervisors(sups);
       setEmployees(emps);
       setFoodCategories(foodCats);
       setVatRate(vat);
+      setCostItems(costs);
     }
     load();
   }, []);
@@ -324,6 +329,18 @@ export default function NewConcertPage() {
   /* ── Derived counts ── */
   const checkedItemCount = Object.values(itemCheck).filter((s) => s.checked).length;
   const checkedFoodCount = Object.values(foodCheck).filter((s) => s.checked).length;
+
+  /* احتياج الخامات حسب وصفات الأصناف المختارة */
+  const foodRequirements = aggregateRequirements(
+    buildSelectedFood().map((f) => ({
+      categoryId: f.categoryId,
+      selectedOption: f.selectedOption,
+      quantity: parseInt(f.quantity) || 0,
+    })),
+    foodCategories,
+    costItems
+  );
+  const foodEstimatedCost = totalEstimatedCost(foodRequirements);
 
   /* ── Items split by type ── */
   const internalItems = warehouseItems.filter((i) => i.type === "internal");
@@ -825,6 +842,37 @@ export default function NewConcertPage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* احتياج الخامات حسب الوصفات — يُجمَّع عبر كل الأصناف قبل التقريب */}
+            {foodRequirements.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-slate-600">الخامات المطلوبة حسب الوصفات</p>
+                  <span className="text-xs font-bold text-[#1C2D50] tabular-nums-auto">
+                    تكلفة تقديرية: {foodEstimatedCost.toLocaleString("en-US")} ريال
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {foodRequirements.map((r) => (
+                    <div key={r.barcode}
+                      className={`flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg ${
+                        r.short ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-700"
+                      }`}>
+                      <span className="truncate flex-1">{r.itemName}</span>
+                      <span className="tabular-nums-auto shrink-0">
+                        {r.required.toLocaleString("en-US")} {r.unit}
+                      </span>
+                      <span className="tabular-nums-auto shrink-0 text-[10px] opacity-75">
+                        {r.short ? `المتوفر ${r.available.toLocaleString("en-US")} فقط` : `متوفر ${r.available.toLocaleString("en-US")}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  التكلفة تقديرية بمتوسط سعر الشراء — التكلفة الفعلية تُسجَّل عند صرف الخامات من الوارد
+                </p>
               </div>
             )}
           </Card>
