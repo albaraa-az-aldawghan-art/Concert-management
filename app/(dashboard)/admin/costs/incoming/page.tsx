@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCostIncoming, addCostIncoming, deleteCostIncoming, getCostItemByBarcode } from "@/lib/firestore/costs";
+import { getCostIncoming, addCostIncoming, deleteCostIncoming, getCostItems } from "@/lib/firestore/costs";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { BarcodeScanInput } from "@/components/ui/barcode-scan-input";
+import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { CostIncoming, CostItem } from "@/types";
 import { Plus, PackagePlus, Trash2, CheckCircle2 } from "lucide-react";
@@ -23,6 +23,7 @@ export default function CostsIncomingPage() {
   const canRecord = isAdmin || feat("costs", "record_incoming");
 
   const [entries, setEntries] = useState<CostIncoming[]>([]);
+  const [items, setItems] = useState<CostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
@@ -39,7 +40,9 @@ export default function CostsIncomingPage() {
 
   async function load() {
     setLoading(true);
-    setEntries(await getCostIncoming());
+    const [e, i] = await Promise.all([getCostIncoming(), getCostItems().catch(() => [] as CostItem[])]);
+    setEntries(e);
+    setItems(i);
     setLoading(false);
   }
 
@@ -49,13 +52,8 @@ export default function CostsIncomingPage() {
     setShowAdd(true);
   }
 
-  async function handleScan(barcode: string) {
-    const item = await getCostItemByBarcode(barcode);
-    if (!item) {
-      showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
-      return;
-    }
-    setScannedItem(item);
+  function handleScanMiss() {
+    showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -184,7 +182,7 @@ export default function CostsIncomingPage() {
       {/* Add */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="تسجيل وارد جديد">
         <div className="space-y-4">
-          <BarcodeScanInput onScan={handleScan} />
+          <CostItemPicker items={items} onPick={setScannedItem} onScanMiss={handleScanMiss} />
           {scannedItem ? (
             <>
               <div className="flex items-center justify-between border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
@@ -223,7 +221,7 @@ export default function CostsIncomingPage() {
               </form>
             </>
           ) : (
-            <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أعلاه للمتابعة</p>
+            <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أو اختره من القائمة للمتابعة</p>
           )}
         </div>
       </Modal>

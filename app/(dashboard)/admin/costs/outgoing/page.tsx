@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, getCostItemByBarcode, getCostSettings } from "@/lib/firestore/costs";
+import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { BarcodeScanInput } from "@/components/ui/barcode-scan-input";
+import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
@@ -27,6 +27,7 @@ export default function CostsOutgoingPage() {
 
   const [entries, setEntries] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
+  const [items, setItems] = useState<CostItem[]>([]);
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -49,10 +50,13 @@ export default function CostsOutgoingPage() {
 
   async function load() {
     setLoading(true);
-    const [e, s, c] = await Promise.all([getCostOutgoing(), getCostSettings(), getConcerts()]);
+    const [e, s, c, i] = await Promise.all([
+      getCostOutgoing(), getCostSettings(), getConcerts(), getCostItems().catch(() => [] as CostItem[]),
+    ]);
     setEntries(e);
     setSettings(s);
     setConcerts(c);
+    setItems(i);
     setLoading(false);
   }
 
@@ -68,16 +72,15 @@ export default function CostsOutgoingPage() {
     setShowAdd(true);
   }
 
-  async function handleScan(barcode: string) {
-    const item = await getCostItemByBarcode(barcode);
-    if (!item) {
-      showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
-      return;
-    }
+  function pickItem(item: CostItem) {
     setScannedItem(item);
-    // متوسط سعر التكلفة = إجمالي قيمة الوارد ÷ إجمالي كمية الوارد لهذا الصنف
-    const avgPrice = item.totalIn > 0 ? (item.totalInValue ?? 0) / item.totalIn : 0;
-    setForm((prev) => ({ ...prev, unitPrice: avgPrice > 0 ? avgPrice.toFixed(2) : "" }));
+    // متوسط سعر التكلفة يُعبَّأ تلقائياً ويبقى قابلاً للتعديل
+    const avg = item.totalIn > 0 ? (item.totalInValue ?? 0) / item.totalIn : 0;
+    setForm((prev) => ({ ...prev, unitPrice: avg > 0 ? avg.toFixed(2) : "" }));
+  }
+
+  function handleScanMiss() {
+    showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -270,7 +273,7 @@ export default function CostsOutgoingPage() {
       {/* Add */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="تسجيل منصرف جديد">
         <div className="space-y-4">
-          <BarcodeScanInput onScan={handleScan} />
+          <CostItemPicker items={items} onPick={pickItem} onScanMiss={handleScanMiss} showBalance />
           {scannedItem ? (
             <>
               <div className="flex items-center justify-between border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
@@ -383,7 +386,7 @@ export default function CostsOutgoingPage() {
               </form>
             </>
           ) : (
-            <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أعلاه للمتابعة</p>
+            <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أو اختره من القائمة للمتابعة</p>
           )}
         </div>
       </Modal>
