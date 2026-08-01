@@ -63,14 +63,17 @@ export function PaymentInvoiceFields({
   method,
   value,
   onChange,
+  allowEdit = false,
 }: {
   method: PaymentMethod;
   value: InvoiceState;
   onChange: (v: InvoiceState) => void;
+  /** إظهار زر تعديل حالة الشبكة — في تفاصيل الحفلة فقط، لا عند الإنشاء */
+  allowEdit?: boolean;
 }) {
   // الشبكة تُعرض كملاحظة تلقائية، وتُفتح للتعديل عند الحاجة فقط
   const [editingCard, setEditingCard] = useState(false);
-  const isAutoCard = method === "card" && !editingCard;
+  const isAutoCard = method === "card" && !(allowEdit && editingCard);
 
   return (
     <div>
@@ -88,10 +91,12 @@ export function PaymentInvoiceFields({
                 ? "فاتورة غير مسجّلة"
                 : "شبكة — فاتورة مسجّلة تلقائياً"}
           </span>
-          <button type="button" onClick={() => setEditingCard(true)}
-            className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 shrink-0">
-            <Pencil size={11} /> تعديل
-          </button>
+          {allowEdit && (
+            <button type="button" onClick={() => setEditingCard(true)}
+              className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 shrink-0">
+              <Pencil size={11} /> تعديل
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -103,10 +108,6 @@ export function PaymentInvoiceFields({
             <Choice active={value.hasInvoice === false}
               onClick={() => onChange({ hasInvoice: false, invoiceRegistered: null })}>
               <FileX size={13} /> بدون فاتورة
-            </Choice>
-            <Choice active={value.hasInvoice === null || value.hasInvoice === undefined}
-              onClick={() => onChange({ hasInvoice: null, invoiceRegistered: null })}>
-              غير محدَّد
             </Choice>
           </div>
 

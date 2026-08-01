@@ -1791,6 +1791,7 @@ export default function AdminConcertDetailPage() {
               method={invoiceTarget.method}
               value={invoiceDraft}
               onChange={setInvoiceDraft}
+              allowEdit
             />
 
             <div className="flex gap-3 justify-end pt-1">
