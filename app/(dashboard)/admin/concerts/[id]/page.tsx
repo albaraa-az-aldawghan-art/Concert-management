@@ -124,7 +124,7 @@ export default function AdminConcertDetailPage() {
     bankName: "",
     senderName: "",
     hasInvoice: true as boolean | null,
-    invoiceRegistered: true as boolean | null,
+    invoiceRegistered: null as boolean | null,
   });
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
@@ -333,13 +333,13 @@ export default function AdminConcertDetailPage() {
         receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
         bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
         senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-        hasInvoice: paymentForm.hasInvoice,
-        invoiceRegistered: paymentForm.hasInvoice ? paymentForm.invoiceRegistered : null,
+        hasInvoice: paymentForm.method === "card" ? true : paymentForm.hasInvoice,
+        invoiceRegistered: (paymentForm.method === "card" || paymentForm.hasInvoice) ? paymentForm.invoiceRegistered : null,
         createdBy: appUser.uid,
       });
       showToast("تمت إضافة الدفعة");
       setShowPaymentForm(false);
-      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: true });
+      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: null });
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -360,8 +360,8 @@ export default function AdminConcertDetailPage() {
     setSaving(true);
     try {
       await updateConcertPayment(invoiceTarget.id, {
-        hasInvoice: invoiceDraft.hasInvoice,
-        invoiceRegistered: invoiceDraft.hasInvoice ? invoiceDraft.invoiceRegistered : null,
+        hasInvoice: invoiceTarget.method === "card" ? true : invoiceDraft.hasInvoice,
+        invoiceRegistered: (invoiceTarget.method === "card" || invoiceDraft.hasInvoice) ? invoiceDraft.invoiceRegistered : null,
       });
       showToast("تم تحديث حالة الفاتورة");
       setInvoiceTarget(null);
@@ -1791,7 +1791,6 @@ export default function AdminConcertDetailPage() {
               method={invoiceTarget.method}
               value={invoiceDraft}
               onChange={setInvoiceDraft}
-              allowEdit
             />
 
             <div className="flex gap-3 justify-end pt-1">

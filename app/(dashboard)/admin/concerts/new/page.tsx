@@ -126,7 +126,7 @@ export default function NewConcertPage() {
     bankName: "",
     senderName: "",
     hasInvoice: true as boolean | null,
-    invoiceRegistered: true as boolean | null,
+    invoiceRegistered: null as boolean | null,
   });
 
   useEffect(() => {
@@ -212,11 +212,11 @@ export default function NewConcertPage() {
       receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
       bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
       senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-      hasInvoice: paymentForm.hasInvoice,
-      invoiceRegistered: paymentForm.hasInvoice ? paymentForm.invoiceRegistered : null,
+      hasInvoice: paymentForm.method === "card" ? true : paymentForm.hasInvoice,
+      invoiceRegistered: (paymentForm.method === "card" || paymentForm.hasInvoice) ? paymentForm.invoiceRegistered : null,
     };
     setPaymentEntries((prev) => [...prev, entry]);
-    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: true });
+    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: null });
   }
 
   function toggleSupervisor(uid: string) {
