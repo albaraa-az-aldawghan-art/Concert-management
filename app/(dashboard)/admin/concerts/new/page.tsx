@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel } from "@/components/ui/payment-invoice-fields";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
 import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode } from "@/lib/recipes";
 import { getCostItems } from "@/lib/firestore/costs";
@@ -33,6 +34,8 @@ interface PaymentEntry {
   receiverName: string | null;
   bankName: string | null;
   senderName: string | null;
+  hasInvoice: boolean | null;
+  invoiceRegistered: boolean | null;
 }
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -122,6 +125,8 @@ export default function NewConcertPage() {
     receiverName: "",
     bankName: "",
     senderName: "",
+    hasInvoice: true as boolean | null,
+    invoiceRegistered: true as boolean | null,
   });
 
   useEffect(() => {
@@ -207,9 +212,11 @@ export default function NewConcertPage() {
       receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
       bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
       senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
+      hasInvoice: paymentForm.hasInvoice,
+      invoiceRegistered: paymentForm.hasInvoice ? paymentForm.invoiceRegistered : null,
     };
     setPaymentEntries((prev) => [...prev, entry]);
-    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
+    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: true });
   }
 
   function toggleSupervisor(uid: string) {
@@ -312,6 +319,8 @@ export default function NewConcertPage() {
             receiverName: p.receiverName,
             bankName: p.bankName,
             senderName: p.senderName,
+            hasInvoice: p.hasInvoice,
+            invoiceRegistered: p.invoiceRegistered,
             createdBy: appUser.uid,
           })
         ),
@@ -521,7 +530,7 @@ export default function NewConcertPage() {
           </h3>
           <div className="flex gap-2 mb-4">
             {(["card", "cash", "bank_transfer"] as PaymentMethod[]).map((m) => (
-              <button key={m} type="button" onClick={() => setPaymentForm({ ...paymentForm, method: m })}
+              <button key={m} type="button" onClick={() => setPaymentForm({ ...paymentForm, method: m, ...defaultInvoiceFor(m) })}
                 className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${paymentForm.method === m ? "border-[#1C2D50] bg-[#EEF1F7] text-[#1C2D50]" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
                 {m === "card" && <CreditCard size={14} />}
                 {m === "cash" && <Banknote size={14} />}
@@ -557,6 +566,11 @@ export default function NewConcertPage() {
               <Input label="التاريخ" type="date" value={paymentForm.date}
                 onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} />
             </div>
+            <PaymentInvoiceFields
+              method={paymentForm.method}
+              value={{ hasInvoice: paymentForm.hasInvoice, invoiceRegistered: paymentForm.invoiceRegistered }}
+              onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
+            />
           </div>
           <Button type="button" variant="outline" onClick={addPaymentEntry}
             disabled={!paymentForm.amount || !paymentForm.date} className="w-full mb-3">
@@ -570,6 +584,10 @@ export default function NewConcertPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{METHOD_LABELS[p.method]}</span>
                       <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
+                      {(() => {
+                        const inv = invoiceLabel(p);
+                        return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
+                      })()}
                     </div>
                     <p className="text-xs text-slate-400">{p.date}{getPaymentDetail(p) ? ` — ${getPaymentDetail(p)}` : ""}</p>
                   </div>

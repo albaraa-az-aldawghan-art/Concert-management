@@ -269,6 +269,15 @@ export async function addConcertPaymentRecord(
   await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
 }
 
+/** تعديل بيانات دفعة قائمة — حالة الفاتورة تُراجَع لاحقاً عادةً.
+ *  المبلغ ليس ضمنها لأن تغييره يستوجب إعادة حساب deposit. */
+export async function updateConcertPayment(
+  paymentId: string,
+  data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered">>
+): Promise<void> {
+  await updateDoc(doc(db, "concert_payments", paymentId), data as Record<string, unknown>);
+}
+
 export async function deleteConcertPayment(paymentId: string, concertId: string): Promise<void> {
   await deleteDoc(doc(db, "concert_payments", paymentId));
   const payments = await getConcertPayments(concertId);

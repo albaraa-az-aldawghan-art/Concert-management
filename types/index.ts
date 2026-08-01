@@ -226,6 +226,10 @@ export interface ConcertPayment {
   receiverName: string | null;
   bankName: string | null;
   senderName: string | null;
+  /** حالة الفاتورة — اختيارية. null = لم تُحدَّد بعد، وهي ليست
+   *  «بدون فاتورة». الشبكة تُملأ تلقائياً بفاتورة مسجّلة. */
+  hasInvoice?: boolean | null;
+  invoiceRegistered?: boolean | null;
   createdAt: Timestamp;
   createdBy: string;
 }

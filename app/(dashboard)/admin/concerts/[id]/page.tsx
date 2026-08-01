@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
+import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
+import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostItems } from "@/lib/firestore/costs";
@@ -112,6 +113,8 @@ export default function AdminConcertDetailPage() {
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<ConcertPayment | null>(null);
+  const [invoiceTarget, setInvoiceTarget] = useState<ConcertPayment | null>(null);
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceState>({ hasInvoice: null, invoiceRegistered: null });
   const [paymentForm, setPaymentForm] = useState({
     method: "card" as PaymentMethod,
     amount: "",
@@ -120,6 +123,8 @@ export default function AdminConcertDetailPage() {
     receiverName: "",
     bankName: "",
     senderName: "",
+    hasInvoice: true as boolean | null,
+    invoiceRegistered: true as boolean | null,
   });
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
@@ -328,11 +333,38 @@ export default function AdminConcertDetailPage() {
         receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
         bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
         senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
+        hasInvoice: paymentForm.hasInvoice,
+        invoiceRegistered: paymentForm.hasInvoice ? paymentForm.invoiceRegistered : null,
         createdBy: appUser.uid,
       });
       showToast("تمت إضافة الدفعة");
       setShowPaymentForm(false);
-      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
+      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: true });
+      loadData();
+    } catch {
+      showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* حالة الفاتورة تُراجَع بعد أيام عادةً — فتُعدَّل وحدها دون المساس
+     بالمبلغ، لأن تغيير المبلغ يستوجب إعادة حساب المدفوع. */
+  function openInvoiceEdit(p: ConcertPayment) {
+    setInvoiceTarget(p);
+    setInvoiceDraft({ hasInvoice: p.hasInvoice ?? null, invoiceRegistered: p.invoiceRegistered ?? null });
+  }
+
+  async function handleSaveInvoice() {
+    if (!invoiceTarget) return;
+    setSaving(true);
+    try {
+      await updateConcertPayment(invoiceTarget.id, {
+        hasInvoice: invoiceDraft.hasInvoice,
+        invoiceRegistered: invoiceDraft.hasInvoice ? invoiceDraft.invoiceRegistered : null,
+      });
+      showToast("تم تحديث حالة الفاتورة");
+      setInvoiceTarget(null);
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -1200,6 +1232,10 @@ export default function AdminConcertDetailPage() {
                     {p.method === "bank_transfer" && <Landmark size={13} className="text-purple-500" />}
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${METHOD_COLORS[p.method]}`}>{METHOD_LABELS[p.method]}</span>
                     <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
+                    {(() => {
+                      const inv = invoiceLabel(p);
+                      return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
+                    })()}
                   </div>
                   <p className="text-xs text-slate-400 pr-5">
                     {p.date}
@@ -1207,12 +1243,18 @@ export default function AdminConcertDetailPage() {
                   </p>
                 </div>
                 {fx.payments && (
-                  <button
-                    onClick={() => setDeletePaymentTarget(p)}
-                    className="text-slate-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => openInvoiceEdit(p)} title="تعديل حالة الفاتورة"
+                      className="text-slate-300 hover:text-[#1C2D50] transition-colors">
+                      <FileText size={14} />
+                    </button>
+                    <button
+                      onClick={() => setDeletePaymentTarget(p)}
+                      className="text-slate-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -1658,7 +1700,7 @@ export default function AdminConcertDetailPage() {
               <button
                 key={m}
                 type="button"
-                onClick={() => setPaymentForm({ ...paymentForm, method: m })}
+                onClick={() => setPaymentForm({ ...paymentForm, method: m, ...defaultInvoiceFor(m) })}
                 className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${
                   paymentForm.method === m
                     ? "border-[#1C2D50] bg-[#EEF1F7] text-[#1C2D50]"
@@ -1709,6 +1751,12 @@ export default function AdminConcertDetailPage() {
             </div>
           </div>
 
+          <PaymentInvoiceFields
+            method={paymentForm.method}
+            value={{ hasInvoice: paymentForm.hasInvoice, invoiceRegistered: paymentForm.invoiceRegistered }}
+            onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
+          />
+
           {paymentForm.amount && concert && (
             <div className="bg-[#EEF1F7] border border-[#EEF1F7] rounded-xl px-4 py-3 text-sm">
               <div className="flex justify-between">
@@ -1725,6 +1773,32 @@ export default function AdminConcertDetailPage() {
             <Button onClick={handleAddPayment} loading={saving} disabled={!paymentForm.amount || !paymentForm.date}>تأكيد الدفعة</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* تعديل حالة الفاتورة لدفعة قائمة */}
+      <Modal open={!!invoiceTarget} onClose={() => setInvoiceTarget(null)} title="حالة الفاتورة" size="sm">
+        {invoiceTarget && (
+          <div className="space-y-4">
+            <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+              <p className="font-bold text-slate-800 text-sm">
+                {invoiceTarget.amount.toLocaleString("en-US")} ريال
+                <span className="text-xs font-normal text-slate-500 mr-2">{METHOD_LABELS[invoiceTarget.method]}</span>
+              </p>
+              <p className="text-[11px] text-slate-500 tabular-nums-auto mt-0.5">{invoiceTarget.date}</p>
+            </div>
+
+            <PaymentInvoiceFields
+              method={invoiceTarget.method}
+              value={invoiceDraft}
+              onChange={setInvoiceDraft}
+            />
+
+            <div className="flex gap-3 justify-end pt-1">
+              <Button variant="secondary" type="button" onClick={() => setInvoiceTarget(null)}>إلغاء</Button>
+              <Button onClick={handleSaveInvoice} loading={saving}>حفظ</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete Payment */}
