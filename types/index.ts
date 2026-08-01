@@ -229,7 +229,9 @@ export interface ConcertPayment {
   /** حالة الفاتورة — اختيارية. null = لم تُحدَّد بعد، وهي ليست
    *  «بدون فاتورة». الشبكة تُملأ تلقائياً بفاتورة مسجّلة. */
   hasInvoice?: boolean | null;
+  /** مشتقّ من رقم الفاتورة: رقمٌ مكتوب = مسجّلة، وفراغ = لم تُسجَّل بعد */
   invoiceRegistered?: boolean | null;
+  invoiceNumber?: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }

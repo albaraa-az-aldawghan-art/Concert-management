@@ -1,41 +1,53 @@
 "use client";
 
 import { PaymentMethod } from "@/types";
-import { FileText, FileX, Check, X, Lock } from "lucide-react";
+import { toLatinDigits } from "@/lib/utils";
+import { FileText, FileX, Lock, Check, X } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════
-   حالة فاتورة الدفعة — اختيارية دائماً.
+   حالة فاتورة الدفعة.
 
-   الشبكة لها فاتورة بطبيعتها، فلا يُسأل عن وجودها بل عن تسجيلها
-   فقط. أما الكاش والتحويل فقد يكونان بفاتورة أو بدونها، وإن كانت
-   بفاتورة فقد تُسجَّل لاحقاً.
+   الشبكة لها فاتورة بطبيعتها فلا يُسأل عن وجودها. أما الكاش والتحويل
+   فقد يكونان بفاتورة أو بدونها.
 
-   قيمة null تعني «لم تُحدَّد بعد» وهي مختلفة عن false («بدون
-   فاتورة» أو «غير مسجّلة») — خلطهما يجعل ما لم يُراجَع بعد يبدو
-   محسوماً، فتظهر الدفعات القديمة وكأن أحداً بتّ فيها.
+   والتسجيل ليس زراً يُضغط بل يُشتقّ من رقم الفاتورة: رقمٌ مكتوب يعني
+   أنها سُجّلت، وفراغٌ يعني أنها لم تُسجَّل بعد. هكذا لا يمكن أن تُعلَّم
+   دفعة «مسجّلة» بلا رقم يُرجَع إليه.
    ═══════════════════════════════════════════════════════════════ */
 
 export interface InvoiceState {
   hasInvoice: boolean | null;
-  invoiceRegistered: boolean | null;
+  invoiceNumber: string;
 }
 
-/** القيم التلقائية عند اختيار وسيلة الدفع */
 export function defaultInvoiceFor(method: PaymentMethod): InvoiceState {
-  // الشبكة: الفاتورة مؤكَّدة، والتسجيل يختاره المستخدم
+  // الشبكة: الفاتورة مؤكَّدة، ورقمها يُكتب إن سُجّلت
   return method === "card"
-    ? { hasInvoice: true, invoiceRegistered: null }
-    : { hasInvoice: null, invoiceRegistered: null };
+    ? { hasInvoice: true, invoiceNumber: "" }
+    : { hasInvoice: null, invoiceNumber: "" };
+}
+
+/** ما يُحفظ في قاعدة البيانات من حالة النموذج */
+export function invoiceToSave(method: PaymentMethod, v: InvoiceState) {
+  const hasInvoice = method === "card" ? true : v.hasInvoice;
+  const number = hasInvoice ? v.invoiceNumber.trim() : "";
+  return {
+    hasInvoice,
+    invoiceNumber: number || null,
+    invoiceRegistered: hasInvoice ? number.length > 0 : null,
+  };
 }
 
 export function invoiceLabel(
-  v: { hasInvoice?: boolean | null; invoiceRegistered?: boolean | null }
+  v: { hasInvoice?: boolean | null; invoiceRegistered?: boolean | null; invoiceNumber?: string | null }
 ): { text: string; cls: string } | null {
   if (v.hasInvoice === null || v.hasInvoice === undefined) return null;
   if (!v.hasInvoice) return { text: "بدون فاتورة", cls: "bg-slate-100 text-slate-600" };
+  const num = v.invoiceNumber?.trim();
+  if (num) return { text: `فاتورة مسجّلة · ${num}`, cls: "bg-emerald-50 text-emerald-700" };
+  // دفعات قديمة عُلِّمت مسجّلة قبل وجود حقل الرقم
   if (v.invoiceRegistered === true) return { text: "فاتورة مسجّلة", cls: "bg-emerald-50 text-emerald-700" };
-  if (v.invoiceRegistered === false) return { text: "فاتورة غير مسجّلة", cls: "bg-amber-50 text-amber-700" };
-  return { text: "بفاتورة", cls: "bg-[#EEF1F7] text-[#1C2D50]" };
+  return { text: "فاتورة لم تُسجَّل", cls: "bg-amber-50 text-amber-700" };
 }
 
 function Choice({
@@ -70,8 +82,8 @@ export function PaymentInvoiceFields({
   onChange: (v: InvoiceState) => void;
 }) {
   const isCard = method === "card";
-  // الشبكة بفاتورة دائماً — تُثبَّت هنا فلا يعتمد الحفظ على ضغطة زر
   const hasInvoice = isCard ? true : value.hasInvoice;
+  const registered = value.invoiceNumber.trim().length > 0;
 
   return (
     <div>
@@ -88,26 +100,31 @@ export function PaymentInvoiceFields({
         ) : (
           <div className="flex gap-2">
             <Choice active={value.hasInvoice === true}
-              onClick={() => onChange({ hasInvoice: true, invoiceRegistered: value.invoiceRegistered ?? null })}>
+              onClick={() => onChange({ hasInvoice: true, invoiceNumber: value.invoiceNumber })}>
               <FileText size={13} /> بفاتورة
             </Choice>
             <Choice active={value.hasInvoice === false}
-              onClick={() => onChange({ hasInvoice: false, invoiceRegistered: null })}>
+              onClick={() => onChange({ hasInvoice: false, invoiceNumber: "" })}>
               <FileX size={13} /> بدون فاتورة
             </Choice>
           </div>
         )}
 
         {hasInvoice === true && (
-          <div className="flex gap-2">
-            <Choice active={value.invoiceRegistered === true}
-              onClick={() => onChange({ hasInvoice: true, invoiceRegistered: true })}>
-              <Check size={13} /> سُجّلت الفاتورة
-            </Choice>
-            <Choice active={value.invoiceRegistered === false}
-              onClick={() => onChange({ hasInvoice: true, invoiceRegistered: false })}>
-              <X size={13} /> لم تُسجَّل بعد
-            </Choice>
+          <div>
+            <input
+              type="text"
+              inputMode="numeric"
+              dir="ltr"
+              value={value.invoiceNumber}
+              onChange={(e) => onChange({ hasInvoice: true, invoiceNumber: toLatinDigits(e.target.value) })}
+              placeholder="رقم الفاتورة"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center tabular-nums-auto focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
+            />
+            <p className={`text-[11px] mt-1 flex items-center gap-1 ${registered ? "text-emerald-600" : "text-amber-600"}`}>
+              {registered ? <Check size={11} /> : <X size={11} />}
+              {registered ? "ستُحفظ: فاتورة مسجّلة" : "اتركه فارغاً إن لم تُسجَّل — ستُحفظ: فاتورة لم تُسجَّل"}
+            </p>
           </div>
         )}
       </div>

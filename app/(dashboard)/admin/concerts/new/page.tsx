@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel } from "@/components/ui/payment-invoice-fields";
+import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave } from "@/components/ui/payment-invoice-fields";
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
 import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode } from "@/lib/recipes";
 import { getCostItems } from "@/lib/firestore/costs";
@@ -36,6 +36,7 @@ interface PaymentEntry {
   senderName: string | null;
   hasInvoice: boolean | null;
   invoiceRegistered: boolean | null;
+  invoiceNumber: string | null;
 }
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -126,7 +127,7 @@ export default function NewConcertPage() {
     bankName: "",
     senderName: "",
     hasInvoice: true as boolean | null,
-    invoiceRegistered: null as boolean | null,
+    invoiceNumber: "",
   });
 
   useEffect(() => {
@@ -212,11 +213,10 @@ export default function NewConcertPage() {
       receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
       bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
       senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-      hasInvoice: paymentForm.method === "card" ? true : paymentForm.hasInvoice,
-      invoiceRegistered: (paymentForm.method === "card" || paymentForm.hasInvoice) ? paymentForm.invoiceRegistered : null,
+      ...invoiceToSave(paymentForm.method, { hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }),
     };
     setPaymentEntries((prev) => [...prev, entry]);
-    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: null });
+    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceNumber: "" });
   }
 
   function toggleSupervisor(uid: string) {
@@ -321,6 +321,7 @@ export default function NewConcertPage() {
             senderName: p.senderName,
             hasInvoice: p.hasInvoice,
             invoiceRegistered: p.invoiceRegistered,
+            invoiceNumber: p.invoiceNumber,
             createdBy: appUser.uid,
           })
         ),
@@ -568,7 +569,7 @@ export default function NewConcertPage() {
             </div>
             <PaymentInvoiceFields
               method={paymentForm.method}
-              value={{ hasInvoice: paymentForm.hasInvoice, invoiceRegistered: paymentForm.invoiceRegistered }}
+              value={{ hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }}
               onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
             />
           </div>

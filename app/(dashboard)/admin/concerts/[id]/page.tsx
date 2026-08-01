@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
-import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
+import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostItems } from "@/lib/firestore/costs";
@@ -114,7 +114,7 @@ export default function AdminConcertDetailPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<ConcertPayment | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<ConcertPayment | null>(null);
-  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceState>({ hasInvoice: null, invoiceRegistered: null });
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceState>({ hasInvoice: null, invoiceNumber: "" });
   const [paymentForm, setPaymentForm] = useState({
     method: "card" as PaymentMethod,
     amount: "",
@@ -124,7 +124,7 @@ export default function AdminConcertDetailPage() {
     bankName: "",
     senderName: "",
     hasInvoice: true as boolean | null,
-    invoiceRegistered: null as boolean | null,
+    invoiceNumber: "",
   });
 
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
@@ -333,13 +333,12 @@ export default function AdminConcertDetailPage() {
         receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
         bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
         senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-        hasInvoice: paymentForm.method === "card" ? true : paymentForm.hasInvoice,
-        invoiceRegistered: (paymentForm.method === "card" || paymentForm.hasInvoice) ? paymentForm.invoiceRegistered : null,
+        ...invoiceToSave(paymentForm.method, { hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }),
         createdBy: appUser.uid,
       });
       showToast("تمت إضافة الدفعة");
       setShowPaymentForm(false);
-      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceRegistered: null });
+      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceNumber: "" });
       loadData();
     } catch {
       showToast("حدث خطأ", "error");
@@ -352,17 +351,14 @@ export default function AdminConcertDetailPage() {
      بالمبلغ، لأن تغيير المبلغ يستوجب إعادة حساب المدفوع. */
   function openInvoiceEdit(p: ConcertPayment) {
     setInvoiceTarget(p);
-    setInvoiceDraft({ hasInvoice: p.hasInvoice ?? null, invoiceRegistered: p.invoiceRegistered ?? null });
+    setInvoiceDraft({ hasInvoice: p.hasInvoice ?? null, invoiceNumber: p.invoiceNumber ?? "" });
   }
 
   async function handleSaveInvoice() {
     if (!invoiceTarget) return;
     setSaving(true);
     try {
-      await updateConcertPayment(invoiceTarget.id, {
-        hasInvoice: invoiceTarget.method === "card" ? true : invoiceDraft.hasInvoice,
-        invoiceRegistered: (invoiceTarget.method === "card" || invoiceDraft.hasInvoice) ? invoiceDraft.invoiceRegistered : null,
-      });
+      await updateConcertPayment(invoiceTarget.id, invoiceToSave(invoiceTarget.method, invoiceDraft));
       showToast("تم تحديث حالة الفاتورة");
       setInvoiceTarget(null);
       loadData();
@@ -1753,7 +1749,7 @@ export default function AdminConcertDetailPage() {
 
           <PaymentInvoiceFields
             method={paymentForm.method}
-            value={{ hasInvoice: paymentForm.hasInvoice, invoiceRegistered: paymentForm.invoiceRegistered }}
+            value={{ hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }}
             onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
           />
 

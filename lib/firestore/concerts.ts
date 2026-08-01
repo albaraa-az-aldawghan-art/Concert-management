@@ -273,7 +273,7 @@ export async function addConcertPaymentRecord(
  *  المبلغ ليس ضمنها لأن تغييره يستوجب إعادة حساب deposit. */
 export async function updateConcertPayment(
   paymentId: string,
-  data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered">>
+  data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered" | "invoiceNumber">>
 ): Promise<void> {
   await updateDoc(doc(db, "concert_payments", paymentId), data as Record<string, unknown>);
 }
