@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createConcert, addConcertItem, addConcertPaymentRecord, getConcerts } from "@/lib/firestore/concerts";
+import { createConcert, addConcertItem, addConcertPaymentRecord, getUpcomingConcerts } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUsersByRole } from "@/lib/firestore/users";
 import { getVatRate } from "@/lib/firestore/settings";
-import { getFoodCategories, addConcertFood, getAllConcertFood } from "@/lib/firestore/food";
+import { getFoodCategories, addConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave } 
 import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing } from "@/types";
 import { normalizeStatus } from "@/lib/concert-status";
 import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode, committedByItem, dispensedMap } from "@/lib/recipes";
-import { getCostItems, getCostOutgoing } from "@/lib/firestore/costs";
+import { getCostItems, getCostOutgoingForConcerts } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound } from "lucide-react";
@@ -137,16 +137,22 @@ export default function NewConcertPage() {
 
   useEffect(() => {
     async function load() {
-      const [items, sups, emps, foodCats, vat, costs, cons, cFood, out] = await Promise.all([
+      const [items, sups, emps, foodCats, vat, costs, cons] = await Promise.all([
         getWarehouseItems(),
         getUsersByRole("supervisor"),
         getUsersByRole("employee"),
         getFoodCategories(),
         getVatRate(),
         getCostItems().catch(() => [] as CostItem[]),
-        getConcerts().catch(() => [] as Concert[]),
-        getAllConcertFood().catch(() => [] as ConcertFood[]),
-        getCostOutgoing().catch(() => [] as CostOutgoing[]),
+        getUpcomingConcerts().catch(() => [] as Concert[]),
+      ]);
+      // أصناف الأكل والمنصرف تُقرأ للحفلات القادمة وحدها لا للأرشيف كله
+      const upIds = cons
+        .filter((c) => normalizeStatus(c.status) !== "cancelled" && normalizeStatus(c.status) !== "completed")
+        .map((c) => c.id);
+      const [cFood, out] = await Promise.all([
+        getConcertFoodForConcerts(upIds).catch(() => [] as ConcertFood[]),
+        getCostOutgoingForConcerts(upIds).catch(() => [] as CostOutgoing[]),
       ]);
       setWarehouseItems(items);
       setSupervisors(sups);

@@ -76,6 +76,18 @@ export async function getAllConcertFood(): Promise<ConcertFood[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConcertFood));
 }
 
+/** أصناف أكل مجموعة حفلات بعينها — Firestore يقبل 30 قيمة في in،
+ *  فتُقسَّم المعرّفات إلى حزم. */
+export async function getConcertFoodForConcerts(ids: string[]): Promise<ConcertFood[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+  const snaps = await Promise.all(
+    chunks.map((ch) => getDocs(query(collection(db, "concert_food"), where("concertId", "in", ch))))
+  );
+  return snaps.flatMap((s) => s.docs.map((d) => ({ id: d.id, ...d.data() } as ConcertFood)));
+}
+
 export async function addConcertFood(
   data: Omit<ConcertFood, "id" | "createdAt">
 ): Promise<ConcertFood> {

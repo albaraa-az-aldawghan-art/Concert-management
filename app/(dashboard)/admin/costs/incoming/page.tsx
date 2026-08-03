@@ -90,8 +90,8 @@ export default function CostsIncomingPage() {
       showToast("تم حذف العملية");
       setDeleteTarget(null);
       load();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }

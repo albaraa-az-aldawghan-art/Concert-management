@@ -238,8 +238,8 @@ export default function AdminCostsPage() {
       showToast("تم حذف الصنف");
       setDeleteTarget(null);
       load();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }

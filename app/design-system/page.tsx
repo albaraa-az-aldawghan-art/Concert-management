@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
@@ -82,6 +84,7 @@ function Swatch({ name, value, token, dark }: { name: string; value: string; tok
 /* ── الصفحة ── */
 
 export default function DesignSystemPage() {
+  const { appUser, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [openModal, setOpenModal] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
@@ -89,6 +92,17 @@ export default function DesignSystemPage() {
   const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
   const [page, setPage] = useState(2);
   const [statusFilter, setStatusFilter] = useState<ConcertStatus4 | "all">("all");
+
+  // مرجع داخلي: لا يعرض بيانات عملاء لكنه يكشف بنية البرنامج، فيبقى
+  // خلف تسجيل الدخول كبقية الصفحات
+  if (!authLoading && !appUser) {
+    return (
+      <div className="min-h-screen bg-[#F4F6FA] flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="font-bold text-slate-700">نظام التصميم متاح بعد تسجيل الدخول</p>
+        <Link href="/login" className="text-sm font-semibold text-[#1C2D50] hover:underline">الذهاب لتسجيل الدخول ←</Link>
+      </div>
+    );
+  }
 
   const nav = [
     { id: "principles", label: "المبادئ" },

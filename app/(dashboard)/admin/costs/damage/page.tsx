@@ -90,8 +90,8 @@ function CostsDamagePageInner() {
       showToast("تم حذف القيد");
       setDeleteTarget(null);
       load();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }

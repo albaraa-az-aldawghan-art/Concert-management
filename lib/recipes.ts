@@ -42,11 +42,14 @@ export function lineRequirement(line: RecipeLine, quantity: number): number {
   return (line.qty / per) * quantity;
 }
 
-/** متوسط سعر الشراء — تقديري فقط، لا يُخزَّن.
- *  ملاحظة: totalInValue لا ينقص عند الصرف، فهو متوسط عمر الصنف كله. */
+/** متوسط سعر التكلفة = قيمة ما في اليد ÷ الرصيد (متوسط متحرك).
+ *  القسمة على مجموع الوارد كانت تُبقي متوسط عمر الصنف كله، فيظل سعر
+ *  شراء قديم مؤثراً بعد استهلاكه بالكامل. */
 export function averageCost(item: CostItem | undefined): number {
-  if (!item || !item.totalIn || item.totalIn <= 0) return 0;
-  return (item.totalInValue ?? 0) / item.totalIn;
+  if (!item) return 0;
+  const balance = itemBalance(item);
+  if (balance <= 0) return 0;
+  return (item.totalInValue ?? 0) / balance;
 }
 
 export function itemBalance(item: CostItem | undefined): number {

@@ -82,6 +82,14 @@ export async function getConcerts(): Promise<Concert[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Concert));
 }
 
+/** الحفلات القادمة فقط (من الأمس فصاعداً) — تُستعمل لحساب المرتبط
+ *  بالخامات. قراءة محدودة بدل المجموعة كاملة كي لا تنمو مع الأرشيف. */
+export async function getUpcomingConcerts(): Promise<Concert[]> {
+  const from = Timestamp.fromMillis(Date.now() - 86400000);
+  const snap = await getDocs(query(collection(db, "concerts"), where("date", ">=", from)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Concert));
+}
+
 export async function getConcertById(id: string): Promise<Concert | null> {
   const snap = await getDoc(doc(db, "concerts", id));
   if (!snap.exists()) return null;
@@ -249,9 +257,35 @@ export async function getConcertPayments(concertId: string): Promise<ConcertPaym
     .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
+/** رقم الفاتورة يجب ألا يتكرّر في دفعتين — فاتورة مكرّرة في الدفاتر
+ *  لا يكشفها شيء لاحقاً. يُرجع الدفعة المتعارضة إن وُجدت. */
+export async function findPaymentByInvoiceNumber(
+  invoiceNumber: string,
+  excludePaymentId?: string
+): Promise<ConcertPayment | null> {
+  const num = invoiceNumber.trim();
+  if (!num) return null;
+  const snap = await getDocs(
+    query(collection(db, "concert_payments"), where("invoiceNumber", "==", num))
+  );
+  const hit = snap.docs.find((d) => d.id !== excludePaymentId);
+  return hit ? ({ id: hit.id, ...hit.data() } as ConcertPayment) : null;
+}
+
+async function assertInvoiceNumberFree(num: string | null | undefined, excludeId?: string) {
+  if (!num) return;
+  const clash = await findPaymentByInvoiceNumber(num, excludeId);
+  if (clash) {
+    throw new Error(
+      `رقم الفاتورة ${num} مستخدم في دفعة أخرى (${clash.amount.toLocaleString("en-US")} ريال${clash.date ? ` بتاريخ ${clash.date}` : ""})`
+    );
+  }
+}
+
 export async function addConcertPayment(
   data: Omit<ConcertPayment, "id" | "createdAt">
 ): Promise<void> {
+  await assertInvoiceNumberFree(data.invoiceNumber);
   await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
   const [payments, concertSnap] = await Promise.all([
     getConcertPayments(data.concertId),
@@ -266,6 +300,7 @@ export async function addConcertPayment(
 export async function addConcertPaymentRecord(
   data: Omit<ConcertPayment, "id" | "createdAt">
 ): Promise<void> {
+  await assertInvoiceNumberFree(data.invoiceNumber);
   await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
 }
 
@@ -275,6 +310,7 @@ export async function updateConcertPayment(
   paymentId: string,
   data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered" | "invoiceNumber">>
 ): Promise<void> {
+  await assertInvoiceNumberFree(data.invoiceNumber, paymentId);
   await updateDoc(doc(db, "concert_payments", paymentId), data as Record<string, unknown>);
 }
 

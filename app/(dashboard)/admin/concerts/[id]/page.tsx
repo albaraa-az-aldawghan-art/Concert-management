@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
+import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
-import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getAllConcertFood } from "@/lib/firestore/food";
+import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -18,7 +18,7 @@ import { Input, Select } from "@/components/ui/input";
 import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
-import { getCostOutgoingByConcert, getCostOutgoing, getCostItems } from "@/lib/firestore/costs";
+import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems } from "@/lib/firestore/costs";
 import { aggregateRequirements, totalEstimatedCost, optionStock, optionCostBarcode, committedByItem, dispensedMap } from "@/lib/recipes";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
@@ -156,7 +156,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, allFoodData, allOutgoingData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -172,9 +172,15 @@ export default function AdminConcertDetailPage() {
       getExpensesByConcert(id).catch(() => []),
       getExpenseSettings().catch(() => ({ types: [] })),
       getCostItems().catch(() => [] as CostItem[]),
-      getConcerts().catch(() => [] as Concert[]),
-      getAllConcertFood().catch(() => [] as ConcertFood[]),
-      getCostOutgoing().catch(() => [] as CostOutgoing[]),
+      getUpcomingConcerts().catch(() => [] as Concert[]),
+    ]);
+    // المرتبط يُحسب من الحفلات القادمة وحدها — لا يُقرأ الأرشيف
+    const upIds = allConcertsData
+      .filter((c) => c.id !== id && normalizeStatus(c.status) !== "cancelled" && normalizeStatus(c.status) !== "completed")
+      .map((c) => c.id);
+    const [allFoodData, allOutgoingData] = await Promise.all([
+      getConcertFoodForConcerts(upIds).catch(() => [] as ConcertFood[]),
+      getCostOutgoingForConcerts(upIds).catch(() => [] as CostOutgoing[]),
     ]);
     setConcert(concertData);
     setItems(itemsData);

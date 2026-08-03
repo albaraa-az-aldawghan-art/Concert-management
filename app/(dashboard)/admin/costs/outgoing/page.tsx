@@ -12,6 +12,7 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { formatDate } from "@/lib/utils";
+import { averageCost } from "@/lib/recipes";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
 import { CostOutgoing, CostItem, CostSettings, Concert } from "@/types";
 import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
@@ -77,7 +78,7 @@ export default function CostsOutgoingPage() {
   function pickItem(item: CostItem) {
     setScannedItem(item);
     // متوسط سعر التكلفة يُعبَّأ تلقائياً ويبقى قابلاً للتعديل
-    const avg = item.totalIn > 0 ? (item.totalInValue ?? 0) / item.totalIn : 0;
+    const avg = averageCost(item);
     setForm((prev) => ({ ...prev, unitPrice: avg > 0 ? avg.toFixed(2) : "" }));
   }
 
@@ -155,8 +156,8 @@ export default function CostsOutgoingPage() {
       showToast("تم حذف العملية");
       setDeleteTarget(null);
       load();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }
@@ -329,6 +330,22 @@ export default function CostsOutgoingPage() {
           <CostItemPicker items={items} onPick={pickItem} onScanMiss={handleScanMiss} showBalance />
           {scannedItem ? (
             <>
+              {/* مادة منتهية الصلاحية: التحذير هنا لا في تقرير يُفتح لاحقاً،
+                  لأن لحظة الصرف هي آخر فرصة لإيقافها قبل أن تصل للعميل */}
+              {scannedItem.expiryDate && scannedItem.expiryDate < new Date().toISOString().slice(0, 10) && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                  <AlertTriangle size={15} className="text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-red-800">
+                      انتهت صلاحية هذا الصنف في {scannedItem.expiryDate}
+                    </p>
+                    <p className="text-xs text-red-600 leading-relaxed mt-0.5">
+                      لا تصرفه لحفلة. إن كان فاسداً فسجّله من صفحة <strong>التالف</strong> ليخرج من الرصيد كخسارة،
+                      وإن كان التاريخ خاطئاً فصحّحه من صفحة أصناف التكاليف.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
                 <span className="font-bold text-slate-800 text-sm">{scannedItem.name}</span>
                 <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold">

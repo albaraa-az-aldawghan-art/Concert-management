@@ -97,7 +97,14 @@ export function CostItemPicker({
                     className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-800 truncate">{i.name}</p>
+                      <p className="text-sm text-slate-800 truncate">
+                        {i.name}
+                        {i.expiryDate && i.expiryDate < new Date().toISOString().slice(0, 10) && (
+                          <span className="text-[9px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold mr-1.5">
+                            منتهٍ
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[10px] text-slate-400 font-mono">{i.id}</p>
                     </div>
                     {showBalance && (

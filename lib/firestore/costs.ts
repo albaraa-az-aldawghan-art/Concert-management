@@ -177,7 +177,63 @@ export async function updateCostItem(
   await updateDoc(doc(db, "cost_items", barcode), data as Record<string, unknown>);
 }
 
+/** المراجع التي تمنع حذف صنف — تُعدّ قبل الحذف لا بعده */
+export interface CostItemRefs {
+  incoming: number;
+  outgoing: number;
+  production: number;
+  damage: number;
+  recipes: string[]; // «القسم / الصنف»
+  total: number;
+}
+
+export async function getCostItemRefs(barcode: string): Promise<CostItemRefs> {
+  const [inc, out, dmg, prod, food] = await Promise.all([
+    getDocs(query(collection(db, "cost_incoming"), where("itemBarcode", "==", barcode))),
+    getDocs(query(collection(db, "cost_outgoing"), where("itemBarcode", "==", barcode))),
+    getDocs(query(collection(db, "cost_damage"), where("itemBarcode", "==", barcode))).catch(() => null),
+    getDocs(collection(db, "cost_production")).catch(() => null),
+    getDocs(collection(db, "food_categories")).catch(() => null),
+  ]);
+
+  // الإنتاج: الصنف قد يكون مُخرَجاً أو أحد المدخلات، والمدخلات مصفوفة
+  // كائنات لا يمكن الاستعلام داخلها — فتُفحص في الذاكرة
+  let production = 0;
+  for (const d of prod?.docs ?? []) {
+    const p = d.data() as Omit<CostProduction, "id">;
+    if (p.outputBarcode === barcode || (p.inputs ?? []).some((i) => i.barcode === barcode)) production++;
+  }
+
+  const recipes: string[] = [];
+  for (const d of food?.docs ?? []) {
+    const c = d.data() as { name: string; optionDefs?: { name: string; recipe?: RecipeLine[]; costItemBarcode?: string | null }[] };
+    for (const def of c.optionDefs ?? []) {
+      const inRecipe = (def.recipe ?? []).some((l) => l.barcode === barcode);
+      if (inRecipe || def.costItemBarcode === barcode) recipes.push(`${c.name} / ${def.name}`);
+    }
+  }
+
+  const incoming = inc.size, outgoing = out.size, damage = dmg?.size ?? 0;
+  return {
+    incoming, outgoing, production, damage, recipes,
+    total: incoming + outgoing + production + damage + recipes.length,
+  };
+}
+
+/** حذف صنف له مراجع يترك وصفاتٍ تشير إلى باركود غير موجود، فتُحسب
+ *  تكلفة الطبق صفراً ويظهر «متاح 0» بلا أي رسالة. لذلك يُمنع الحذف
+ *  ما دام له أثر، ويُذكر سببه بالتفصيل. */
 export async function deleteCostItem(barcode: string): Promise<void> {
+  const refs = await getCostItemRefs(barcode);
+  if (refs.total > 0) {
+    const parts: string[] = [];
+    if (refs.incoming) parts.push(`${refs.incoming} عملية وارد`);
+    if (refs.outgoing) parts.push(`${refs.outgoing} عملية منصرف`);
+    if (refs.production) parts.push(`${refs.production} عملية إنتاج`);
+    if (refs.damage) parts.push(`${refs.damage} قيد تالف`);
+    if (refs.recipes.length) parts.push(`وصفات: ${refs.recipes.slice(0, 3).join("، ")}${refs.recipes.length > 3 ? " وغيرها" : ""}`);
+    throw new Error(`لا يمكن حذف هذا الصنف — مرتبط بـ ${parts.join(" · ")}. احذف ما يشير إليه أولاً أو أبقِه كما هو.`);
+  }
   await deleteDoc(doc(db, "cost_items", barcode));
 }
 
@@ -231,8 +287,16 @@ export async function deleteCostIncoming(entry: CostIncoming): Promise<void> {
     const itemSnap = await tx.get(itemRef);
     if (itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
+      // حذف وارد استُهلك أصلاً كان يقصّ الرصيد عند الصفر بصمت ويشوّه
+      // المتوسط — فيُرفض ويُشرح السبب بدل أن يمرّ
+      const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
+      if (entry.quantity > balance) {
+        throw new Error(
+          `لا يمكن حذف هذا الوارد — المتبقي من "${item.name}" ${balance} ${item.unit} فقط والحذف يسحب ${entry.quantity}. احذف عمليات الصرف أو التالف المرتبطة أولاً.`
+        );
+      }
       tx.update(itemRef, {
-        totalIn: Math.max(0, (item.totalIn ?? 0) - entry.quantity),
+        totalIn: (item.totalIn ?? 0) - entry.quantity,
         totalInValue: Math.max(0, (item.totalInValue ?? 0) - entry.totalBeforeVat),
       });
     }
@@ -291,7 +355,7 @@ export async function addCostProduction(data: {
         throw new Error(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
       }
       // متوسط سعر الشراء وقت الإنتاج هو تكلفة المدخل
-      const unitCost = (item.totalIn ?? 0) > 0 ? (item.totalInValue ?? 0) / (item.totalIn as number) : 0;
+      const unitCost = balance > 0 ? (item.totalInValue ?? 0) / balance : 0;
       const lineCost = Math.round(unitCost * req.qty * 100) / 100;
       totalCost += lineCost;
       lines.push({
@@ -325,7 +389,10 @@ export async function addCostProduction(data: {
     // المدخلات تُستهلك، والمُنتَج يدخل المخزون بتكلفته المحسوبة
     for (let i = 0; i < inputRefs.length; i++) {
       const item = inputSnaps[i].data() as Omit<CostItem, "id">;
-      tx.update(inputRefs[i], { totalOut: (item.totalOut ?? 0) + data.inputs[i].qty });
+      tx.update(inputRefs[i], {
+        totalOut: (item.totalOut ?? 0) + data.inputs[i].qty,
+        totalInValue: Math.max(0, (item.totalInValue ?? 0) - lines[i].totalCost),
+      });
     }
     // تاريخا الدفعة يُنسخان على الصنف نفسه، فتُطبع إعادة الملصق من صفحة
     // الأصناف بتاريخ آخر دفعة أُنتجت لا بتاريخ التسجيل القديم
@@ -355,7 +422,10 @@ export async function deleteCostProduction(entry: CostProduction): Promise<void>
     for (let i = 0; i < inputRefs.length; i++) {
       if (!inputSnaps[i].exists()) continue;
       const item = inputSnaps[i].data() as Omit<CostItem, "id">;
-      tx.update(inputRefs[i], { totalOut: Math.max(0, (item.totalOut ?? 0) - entry.inputs[i].qty) });
+      tx.update(inputRefs[i], {
+        totalOut: Math.max(0, (item.totalOut ?? 0) - entry.inputs[i].qty),
+        totalInValue: Math.round(((item.totalInValue ?? 0) + entry.inputs[i].totalCost) * 100) / 100,
+      });
     }
     tx.delete(doc(db, "cost_production", entry.id));
   });
@@ -386,6 +456,17 @@ export async function getCostOutgoingByConcert(concertId: string): Promise<CostO
     .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
+/** منصرف مجموعة حفلات بعينها — بنفس تقسيم الحزم */
+export async function getCostOutgoingForConcerts(ids: string[]): Promise<CostOutgoing[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+  const snaps = await Promise.all(
+    chunks.map((ch) => getDocs(query(collection(db, "cost_outgoing"), where("concertId", "in", ch))))
+  );
+  return snaps.flatMap((s) => s.docs.map((d) => ({ id: d.id, ...d.data() } as CostOutgoing)));
+}
+
 export async function addCostOutgoing(data: {
   itemBarcode: string;
   quantity: number;
@@ -409,7 +490,12 @@ export async function addCostOutgoing(data: {
       throw new Error(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
     }
     const totalCost = data.quantity * data.unitPrice;
+    // قيمة المخزون الخارجة تُحسب بمتوسط ما في اليد، وتُحفظ على العملية
+    // كي يُعكس الحذف والإرجاع بنفس القيمة لا بتقدير لاحق
+    const avg = balance > 0 ? (item.totalInValue ?? 0) / balance : 0;
+    const stockValue = Math.round(avg * data.quantity * 100) / 100;
     tx.set(outgoingRef, {
+      stockValue,
       itemBarcode: data.itemBarcode,
       itemName: item.name,
       unit: item.unit,
@@ -427,7 +513,10 @@ export async function addCostOutgoing(data: {
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
-    tx.update(itemRef, { totalOut: (item.totalOut ?? 0) + data.quantity });
+    tx.update(itemRef, {
+      totalOut: (item.totalOut ?? 0) + data.quantity,
+      totalInValue: Math.max(0, (item.totalInValue ?? 0) - stockValue),
+    });
   });
 }
 
@@ -437,11 +526,15 @@ export async function deleteCostOutgoing(entry: CostOutgoing): Promise<void> {
   // ما رجع للمخزون سبق أن خُصم من totalOut، فإرجاعه هنا مرة أخرى يضخّم
   // الرصيد. ما تلف بقي خارج المخزون فحذف العملية لا يعيده.
   const stillOut = entry.quantity - (entry.returnedQty ?? 0);
+  const valuePerUnit = entry.quantity > 0 ? (entry.stockValue ?? 0) / entry.quantity : 0;
   await runTransaction(db, async (tx) => {
     const itemSnap = await tx.get(itemRef);
     if (itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
-      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - stillOut) });
+      tx.update(itemRef, {
+        totalOut: Math.max(0, (item.totalOut ?? 0) - stillOut),
+        totalInValue: Math.round(((item.totalInValue ?? 0) + valuePerUnit * stillOut) * 100) / 100,
+      });
     }
     tx.delete(entryRef);
   });
@@ -489,7 +582,11 @@ export async function settleCostOutgoing(
     // المرتجع فقط يعود للرصيد — التالف خرج ولن يعود
     if (returned > 0 && itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
-      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - returned) });
+      const valuePerUnit = entry.quantity > 0 ? (entry.stockValue ?? 0) / entry.quantity : 0;
+      tx.update(itemRef, {
+        totalOut: Math.max(0, (item.totalOut ?? 0) - returned),
+        totalInValue: Math.round(((item.totalInValue ?? 0) + valuePerUnit * returned) * 100) / 100,
+      });
     }
 
     if (damaged > 0) {
@@ -540,7 +637,7 @@ export async function addStoreDamage(data: {
     if (data.quantity > balance) {
       throw new Error(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
     }
-    const unitCost = (item.totalIn ?? 0) > 0 ? (item.totalInValue ?? 0) / (item.totalIn as number) : 0;
+    const unitCost = balance > 0 ? (item.totalInValue ?? 0) / balance : 0;
     tx.set(damageRef, {
       itemBarcode: data.itemBarcode,
       itemName: item.name,
@@ -558,7 +655,10 @@ export async function addStoreDamage(data: {
       createdAt: Timestamp.now(),
       createdBy: data.createdBy,
     });
-    tx.update(itemRef, { totalOut: (item.totalOut ?? 0) + data.quantity });
+    tx.update(itemRef, {
+      totalOut: (item.totalOut ?? 0) + data.quantity,
+      totalInValue: Math.max(0, (item.totalInValue ?? 0) - Math.round(unitCost * data.quantity * 100) / 100),
+    });
   });
 }
 
@@ -576,7 +676,10 @@ export async function deleteCostDamage(entry: CostDamage): Promise<void> {
 
     if (entry.source === "store" && itemSnap.exists()) {
       const item = itemSnap.data() as Omit<CostItem, "id">;
-      tx.update(itemRef, { totalOut: Math.max(0, (item.totalOut ?? 0) - entry.quantity) });
+      tx.update(itemRef, {
+        totalOut: Math.max(0, (item.totalOut ?? 0) - entry.quantity),
+        totalInValue: Math.round(((item.totalInValue ?? 0) + entry.totalCost) * 100) / 100,
+      });
     }
 
     if (outRef && outSnap?.exists()) {
