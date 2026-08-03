@@ -18,12 +18,12 @@ import { getExpenseSettings, updateExpenseSettings } from "@/lib/firestore/expen
 import { getConcerts } from "@/lib/firestore/concerts";
 import { getCostOutgoing } from "@/lib/firestore/costs";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
-import { getFoodCategories } from "@/lib/firestore/food";
+import { getFoodCategories, getAllConcertFood } from "@/lib/firestore/food";
 import { normalizeStatus } from "@/lib/concert-status";
 import { itemBalance } from "@/lib/recipes";
 import {
   CostSettings, CostDepartment, ExpenseSettings, Concert, CostItem, CostOutgoing,
-  WarehouseItem, FoodCategory,
+  WarehouseItem, FoodCategory, ConcertFood,
 } from "@/types";
 import {
   SlidersHorizontal, ToggleLeft, Activity, Tag, Plus, X, Save, ChevronLeft,
@@ -149,12 +149,13 @@ export default function ControlCenterPage() {
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [whItems, setWhItems] = useState<WarehouseItem[]>([]);
   const [foodCats, setFoodCats] = useState<FoodCategory[]>([]);
+  const [allFood, setAllFood] = useState<ConcertFood[]>([]);
 
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
 
   async function load() {
     setLoading(true);
-    const [sys, vatRate, cs, es, cons, items, out, wh, food] = await Promise.all([
+    const [sys, vatRate, cs, es, cons, items, out, wh, food, cFood] = await Promise.all([
       getSystemSettings(),
       getVatRate().catch(() => 15),
       getCostSettings().catch(() => ({ units: [], departments: [] } as CostSettings)),
@@ -164,6 +165,7 @@ export default function ControlCenterPage() {
       getCostOutgoing().catch(() => [] as CostOutgoing[]),
       getWarehouseItems().catch(() => [] as WarehouseItem[]),
       getFoodCategories().catch(() => [] as FoodCategory[]),
+      getAllConcertFood().catch(() => [] as ConcertFood[]),
     ]);
     setFeatures(sys.features);
     setLabels(sys.labels);
@@ -175,6 +177,7 @@ export default function ControlCenterPage() {
     setOutgoing(out);
     setWhItems(wh);
     setFoodCats(food);
+    setAllFood(cFood);
     setLoading(false);
   }
 
@@ -217,9 +220,19 @@ export default function ControlCenterPage() {
     (n, c) => n + (c.optionDefs ?? []).filter((d) => !d.recipe?.length).length, 0
   );
 
+  /* حفلات مضى موعدها ولها أصناف أكل ولم يُسجَّل لها أي صرف خامات.
+     إنشاء الحفلة لا يخصم شيئاً، فالنسيان هنا يُخفي التكلفة ويضخّم
+     المخزون معاً بلا أي رسالة خطأ. */
+  const dispensedConcertIds = new Set(outgoing.filter((o) => o.concertId).map((o) => o.concertId as string));
+  const foodConcertIds = new Set(allFood.map((f) => f.concertId));
+  const undispensed = activeConcerts.filter((c) => {
+    const past = (c.date?.seconds ?? 0) * 1000 < Date.now() - 86400000;
+    return past && foodConcertIds.has(c.id) && !dispensedConcertIds.has(c.id);
+  });
+
   const issues =
     noPriceCost.length + negativeBalance.length + expired.length + noPriceExternal.length +
-    orphanOutgoing.length + noSupervisor.length + noPrice.length;
+    orphanOutgoing.length + noSupervisor.length + noPrice.length + undispensed.length;
 
   return (
     <div className="space-y-5">
@@ -442,6 +455,9 @@ export default function ControlCenterPage() {
               كل بند هنا يجعل رقماً في النظام ناقصاً أو مضلِّلاً — اضغطه للذهاب إلى موضعه.
             </p>
             <div className="space-y-1.5">
+              <Check count={undispensed.length} unit="حفلة" href="/admin/costs/outgoing"
+                title="حفلات انتهت ولم يُسجَّل لها صرف خامات"
+                why="تظهر بتكلفة خامات صفر في الربحية، ويظهر المخزون أوفر مما هو — خطأ صامت بلا رسالة" />
               <Check count={noPriceCost.length} unit="صنف" href="/admin/costs/incoming"
                 title="أصناف تكاليف بلا سعر"
                 why="دخلت المخزون بلا قيمة، فتكلفتها في الإنتاج والحفلات تُحسب صفراً" />

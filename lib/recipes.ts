@@ -115,6 +115,78 @@ export function totalEstimatedCost(rows: RequirementRow[]): number {
   return Math.round(rows.reduce((s, r) => s + r.estimatedCost, 0) * 100) / 100;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   المرتبط بالحفلات القادمة.
+
+   اختيار أصناف الأكل في الحفلة لا يحجز شيئاً من المخزون — الخصم لا
+   يقع إلا بتسجيل منصرف فعلي. فحفلتان تريان الرصيد نفسه وكلتاهما
+   صادقة لحظتها، ولا يظهر النقص إلا يوم التنفيذ.
+
+   الحل هنا حسابي لا تخزيني: نجمع ما تحتاجه الحفلات المؤكدة القادمة
+   من وصفاتها، ونطرح ما صُرف لها فعلاً، فيبقى «المرتبط». لا يُكتب شيء
+   في قاعدة البيانات، فلا يمكن أن تعلق كمية محجوزة بالخطأ.
+   ═══════════════════════════════════════════════════════════════ */
+
+export interface CommitmentInput {
+  concertId: string;
+  categoryId: string;
+  selectedOption: string;
+  quantity: number | null;
+}
+
+/** باركود ← الكمية المرتبطة بحفلات قادمة ولم تُصرف بعد */
+export function committedByItem(
+  lines: CommitmentInput[],
+  categories: FoodCategory[],
+  dispensedByConcertItem: Map<string, number>
+): Map<string, number> {
+  // ما تحتاجه كل حفلة من كل خام
+  const need = new Map<string, number>(); // `${concertId}|${barcode}` ← الكمية
+  for (const l of lines) {
+    if (!l.quantity || l.quantity <= 0) continue;
+    const cat = categories.find((c) => c.id === l.categoryId);
+    if (!cat) continue;
+    const def = findOptionDef(cat, l.selectedOption);
+    if (!def?.recipe?.length) continue;
+    for (const line of def.recipe) {
+      const k = `${l.concertId}|${line.barcode}`;
+      need.set(k, (need.get(k) ?? 0) + lineRequirement(line, l.quantity));
+    }
+  }
+
+  // المتبقي = المطلوب − المصروف، ولا ينزل تحت الصفر (الصرف الزائد
+  // مسألة أخرى ولا يصح أن يُنقص التزام حفلة أخرى)
+  const out = new Map<string, number>();
+  for (const [k, required] of need) {
+    const [, barcode] = k.split("|");
+    const remaining = Math.max(0, required - (dispensedByConcertItem.get(k) ?? 0));
+    if (remaining > 0) out.set(barcode, (out.get(barcode) ?? 0) + remaining);
+  }
+  return out;
+}
+
+/** ما صُرف فعلاً لكل (حفلة، صنف) — مفتاحه نفس مفتاح الاحتياج */
+export function dispensedMap(
+  outgoing: { concertId: string | null; itemBarcode: string; quantity: number; returnedQty?: number; damagedQty?: number }[]
+): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const o of outgoing) {
+    if (!o.concertId) continue;
+    // المرتجع عاد للمخزون فلا يُحتسب مصروفاً؛ والتالف خرج ولا يعود
+    const net = o.quantity - (o.returnedQty ?? 0);
+    if (net <= 0) continue;
+    const k = `${o.concertId}|${o.itemBarcode}`;
+    m.set(k, (m.get(k) ?? 0) + net);
+  }
+  return m;
+}
+
+/** المتاح فعلياً = الرصيد − المرتبط بحفلات قادمة */
+export function availableNow(item: CostItem | undefined, committed: Map<string, number>): number {
+  if (!item) return 0;
+  return Math.round((itemBalance(item) - (committed.get(item.id) ?? 0)) * 1000) / 1000;
+}
+
 /** سطر مختصر يظهر بجانب صنف الأكل مباشرة: المتوفر من خاماته.
  *  يُرجع null إن لم تكن للصنف وصفة أصلاً. عند إدخال كمية يُقارن
  *  المطلوب بالمتوفر ويُعلَّم النقص. */
@@ -122,7 +194,11 @@ export function optionStock(
   cat: FoodCategory,
   optionName: string,
   quantity: number,
-  costItems: CostItem[]
+  costItems: CostItem[],
+  /** المرتبط بحفلات قادمة أخرى — إن مُرّر قُورن المطلوب بالمتاح فعلياً
+   *  لا بالرصيد الخام، فلا ترى حفلتان نفس الكمية متاحةً لكلٍّ منهما.
+   *  استثناء الحفلة الحالية يتم عند بناء الخريطة لا هنا. */
+  committed?: Map<string, number>
 ): { text: string; short: boolean } | null {
   const def = findOptionDef(cat, optionName);
   if (!def?.recipe?.length) return null;
@@ -132,17 +208,20 @@ export function optionStock(
 
   for (const line of def.recipe) {
     const item = costItems.find((i) => i.id === line.barcode);
-    const available = itemBalance(item);
+    const balance = itemBalance(item);
+    const held = committed?.get(line.barcode) ?? 0;
+    const available = Math.round((balance - held) * 1000) / 1000;
     const unit = item?.unit ?? line.unit;
+    const heldNote = held > 0 ? ` (مرتبط ${held.toLocaleString("en-US")})` : "";
     if (quantity > 0) {
       const required = Math.round(lineRequirement(line, quantity) * 1000) / 1000;
       const isShort = required > available;
       if (isShort) short = true;
       parts.push(
-        `${item?.name ?? line.itemName}: ${required.toLocaleString("en-US")}/${available.toLocaleString("en-US")} ${unit}`
+        `${item?.name ?? line.itemName}: ${required.toLocaleString("en-US")}/${available.toLocaleString("en-US")} ${unit}${heldNote}`
       );
     } else {
-      parts.push(`${item?.name ?? line.itemName}: متوفر ${available.toLocaleString("en-US")} ${unit}`);
+      parts.push(`${item?.name ?? line.itemName}: متاح ${available.toLocaleString("en-US")} ${unit}${heldNote}`);
     }
   }
   return { text: parts.join(" · "), short };

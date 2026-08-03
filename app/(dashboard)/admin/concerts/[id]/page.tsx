@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
+import { getConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
-import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood } from "@/lib/firestore/food";
+import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getAllConcertFood } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -18,8 +18,8 @@ import { Input, Select } from "@/components/ui/input";
 import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
-import { getCostOutgoingByConcert, getCostItems } from "@/lib/firestore/costs";
-import { aggregateRequirements, totalEstimatedCost, optionStock, optionCostBarcode } from "@/lib/recipes";
+import { getCostOutgoingByConcert, getCostOutgoing, getCostItems } from "@/lib/firestore/costs";
+import { aggregateRequirements, totalEstimatedCost, optionStock, optionCostBarcode, committedByItem, dispensedMap } from "@/lib/recipes";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
@@ -82,6 +82,10 @@ export default function AdminConcertDetailPage() {
   const [editNotes, setEditNotes] = useState("");
   /* ── فواتير مصروفات الحفلة ── */
   const [costItems, setCostItems] = useState<CostItem[]>([]);
+  /* المرتبط بحفلات أخرى قادمة — قراءة فقط بلا حجز */
+  const [allConcerts, setAllConcerts] = useState<Concert[]>([]);
+  const [allFood, setAllFood] = useState<ConcertFood[]>([]);
+  const [allOutgoing, setAllOutgoing] = useState<CostOutgoing[]>([]);
   const [expenses, setExpenses] = useState<ConcertExpense[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -152,7 +156,7 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, allFoodData, allOutgoingData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -168,6 +172,9 @@ export default function AdminConcertDetailPage() {
       getExpensesByConcert(id).catch(() => []),
       getExpenseSettings().catch(() => ({ types: [] })),
       getCostItems().catch(() => [] as CostItem[]),
+      getConcerts().catch(() => [] as Concert[]),
+      getAllConcertFood().catch(() => [] as ConcertFood[]),
+      getCostOutgoing().catch(() => [] as CostOutgoing[]),
     ]);
     setConcert(concertData);
     setItems(itemsData);
@@ -184,6 +191,9 @@ export default function AdminConcertDetailPage() {
     setExpenses(expensesData);
     setExpenseTypes(expenseSettings.types);
     setCostItems(costItemsData);
+    setAllConcerts(allConcertsData);
+    setAllFood(allFoodData);
+    setAllOutgoing(allOutgoingData);
 
     if (concertData) {
       const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
@@ -751,6 +761,43 @@ export default function AdminConcertDetailPage() {
     : expenseStatus === "cancelled" ? "الحفلة ملغاة"
     : "لا صلاحية للإضافة";
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0);
+
+  /* المرتبط بحفلات قادمة أخرى — حفلة هذه الصفحة مستثناة كي لا تنافس نفسها */
+  const upcomingOtherIds = new Set(
+    allConcerts
+      .filter((c) => {
+        if (c.id === id) return false;
+        const st = normalizeStatus(c.status);
+        if (st === "cancelled" || st === "completed") return false;
+        return (c.date?.seconds ?? 0) * 1000 >= Date.now() - 86400000;
+      })
+      .map((c) => c.id)
+  );
+  const committed = committedByItem(
+    allFood
+      .filter((f) => upcomingOtherIds.has(f.concertId))
+      .map((f) => ({ concertId: f.concertId, categoryId: f.categoryId, selectedOption: f.selectedOption, quantity: f.quantity })),
+    foodCategories,
+    dispensedMap(allOutgoing)
+  );
+
+  /* تنبيه الصرف المنسي: أصناف أكل لها وصفات ولم يُسجَّل لها أي صرف.
+     إنشاء الحفلة لا يخصم شيئاً، فبلا صرف تظهر الحفلة بلا تكلفة خامات
+     ويظهر المخزون أوفر مما هو — وكلاهما خطأ صامت. */
+  const foodNeedsDispense = concertFood.some((f) => {
+    const cat = foodCategories.find((c) => c.id === f.categoryId);
+    if (!cat) return false;
+    const req = aggregateRequirements(
+      [{ categoryId: f.categoryId, selectedOption: f.selectedOption, quantity: f.quantity ?? 0 }],
+      foodCategories, costItems
+    );
+    return req.length > 0;
+  });
+  const concertStatusNow = normalizeStatus(concert.status);
+  const missingDispense =
+    foodNeedsDispense &&
+    costOutgoing.length === 0 &&
+    (concertStatusNow === "confirmed" || concertStatusNow === "completed");
 
   const addFoodRequirements = aggregateRequirements(
     Object.entries(addFoodCheck)
@@ -1469,6 +1516,24 @@ export default function AdminConcertDetailPage() {
 
       {/* Food Items */}
       <Card>
+        {/* الصرف المنسي: أخطر خطأ صامت في النظام — الحفلة تبدو بلا تكلفة
+            خامات والمخزون يبدو أوفر مما هو، بلا أي رسالة خطأ */}
+        {missingDispense && (
+          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3 mb-4">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-amber-900">لم يُسجَّل صرف خامات لهذه الحفلة</p>
+              <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                اختيار الأصناف لا يخصم من المخزون. ما لم يُسجَّل المنصرف تظهر الحفلة بتكلفة خامات صفر
+                في الربحية، ويظهر رصيد المستودع أوفر مما هو فعلاً.
+              </p>
+              <Link href="/admin/costs/outgoing"
+                className="inline-block text-xs font-bold text-amber-900 hover:underline mt-1.5">
+                تسجيل المنصرف الآن ←
+              </Link>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <UtensilsCrossed size={16} className="text-orange-500" />
@@ -1994,7 +2059,7 @@ export default function AdminConcertDetailPage() {
                             <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold mr-1.5 align-middle">إنتاج</span>
                           )}
                           {(() => {
-                            const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0, costItems);
+                            const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0, costItems, committed);
                             if (!st) return null;
                             return (
                               <span className={`block text-[10px] mt-0.5 tabular-nums-auto ${st.short ? "text-red-600 font-semibold" : "text-slate-400"}`}>

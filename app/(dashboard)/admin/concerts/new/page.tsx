@@ -3,19 +3,20 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createConcert, addConcertItem, addConcertPaymentRecord } from "@/lib/firestore/concerts";
+import { createConcert, addConcertItem, addConcertPaymentRecord, getConcerts } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUsersByRole } from "@/lib/firestore/users";
 import { getVatRate } from "@/lib/firestore/settings";
-import { getFoodCategories, addConcertFood } from "@/lib/firestore/food";
+import { getFoodCategories, addConcertFood, getAllConcertFood } from "@/lib/firestore/food";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave } from "@/components/ui/payment-invoice-fields";
-import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem } from "@/types";
-import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode } from "@/lib/recipes";
-import { getCostItems } from "@/lib/firestore/costs";
+import { WarehouseItem, AppUser, FoodCategory, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing } from "@/types";
+import { normalizeStatus } from "@/lib/concert-status";
+import { aggregateRequirements, totalEstimatedCost, optionStock as optionStockOf, optionCostBarcode, committedByItem, dispensedMap } from "@/lib/recipes";
+import { getCostItems, getCostOutgoing } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound } from "lucide-react";
@@ -116,6 +117,10 @@ export default function NewConcertPage() {
   const [foodCheck, setFoodCheck] = useState<Record<string, CheckState>>({});
   const [foodSearch, setFoodSearch] = useState("");
   const [costItems, setCostItems] = useState<CostItem[]>([]);
+  /* لحساب المرتبط بحفلات قادمة — قراءة فقط، لا حجز في قاعدة البيانات */
+  const [otherConcerts, setOtherConcerts] = useState<Concert[]>([]);
+  const [allFood, setAllFood] = useState<ConcertFood[]>([]);
+  const [allOutgoing, setAllOutgoing] = useState<CostOutgoing[]>([]);
 
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [paymentForm, setPaymentForm] = useState({
@@ -132,13 +137,16 @@ export default function NewConcertPage() {
 
   useEffect(() => {
     async function load() {
-      const [items, sups, emps, foodCats, vat, costs] = await Promise.all([
+      const [items, sups, emps, foodCats, vat, costs, cons, cFood, out] = await Promise.all([
         getWarehouseItems(),
         getUsersByRole("supervisor"),
         getUsersByRole("employee"),
         getFoodCategories(),
         getVatRate(),
         getCostItems().catch(() => [] as CostItem[]),
+        getConcerts().catch(() => [] as Concert[]),
+        getAllConcertFood().catch(() => [] as ConcertFood[]),
+        getCostOutgoing().catch(() => [] as CostOutgoing[]),
       ]);
       setWarehouseItems(items);
       setSupervisors(sups);
@@ -146,6 +154,9 @@ export default function NewConcertPage() {
       setFoodCategories(foodCats);
       setVatRate(vat);
       setCostItems(costs);
+      setOtherConcerts(cons);
+      setAllFood(cFood);
+      setAllOutgoing(out);
     }
     load();
   }, []);
@@ -340,6 +351,25 @@ export default function NewConcertPage() {
   const checkedItemCount = Object.values(itemCheck).filter((s) => s.checked).length;
   const checkedFoodCount = Object.values(foodCheck).filter((s) => s.checked).length;
 
+  /* المرتبط بحفلات مؤكدة قادمة لم تُصرف خاماتها بعد */
+  const upcomingIds = new Set(
+    otherConcerts
+      .filter((c) => {
+        const st = normalizeStatus(c.status);
+        if (st === "cancelled" || st === "completed") return false;
+        const secs = c.date?.seconds ?? 0;
+        return secs * 1000 >= Date.now() - 86400000; // اليوم وما بعده
+      })
+      .map((c) => c.id)
+  );
+  const committed = committedByItem(
+    allFood
+      .filter((f) => upcomingIds.has(f.concertId))
+      .map((f) => ({ concertId: f.concertId, categoryId: f.categoryId, selectedOption: f.selectedOption, quantity: f.quantity })),
+    foodCategories,
+    dispensedMap(allOutgoing)
+  );
+
   /* احتياج الخامات حسب وصفات الأصناف المختارة */
   const foodRequirements = aggregateRequirements(
     buildSelectedFood().map((f) => ({
@@ -351,7 +381,8 @@ export default function NewConcertPage() {
     costItems
   );
   const foodEstimatedCost = totalEstimatedCost(foodRequirements);
-  const optionStock = (cat: FoodCategory, opt: string, qty: number) => optionStockOf(cat, opt, qty, costItems);
+  const optionStock = (cat: FoodCategory, opt: string, qty: number) =>
+    optionStockOf(cat, opt, qty, costItems, committed);
 
   /* ── Items split by type ── */
   const internalItems = warehouseItems.filter((i) => i.type === "internal");

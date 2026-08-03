@@ -69,6 +69,13 @@ export async function getConcertFood(concertId: string): Promise<ConcertFood[]> 
     .sort((a, b) => a.createdAt.seconds - b.createdAt.seconds);
 }
 
+/** كل أصناف الأكل لكل الحفلات — لحساب المرتبط بالحفلات القادمة.
+ *  قراءة واحدة تُجمَّع في الذاكرة بدل استعلام لكل حفلة. */
+export async function getAllConcertFood(): Promise<ConcertFood[]> {
+  const snap = await getDocs(collection(db, "concert_food"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConcertFood));
+}
+
 export async function addConcertFood(
   data: Omit<ConcertFood, "id" | "createdAt">
 ): Promise<ConcertFood> {
