@@ -172,7 +172,12 @@ service cloud.firestore {
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
     match /settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('settings', 'vat') || hasFeat('finances', 'vat');
+      // المدير يضبط كل شيء؛ ومن مُنح صلاحية الضريبة يعدّل نسبتها وحدها —
+      // إيقاف الميزات وتغيير المسمّيات قرار يخصّ النظام كله لا صفحةً منه
+      allow write: if isAdmin() ||
+        ((hasFeat('settings', 'vat') || hasFeat('finances', 'vat')) &&
+         (resource == null ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vatRate'])));
     }
 
     // ── التكاليف (خامات الإنتاج بالباركود) ────────────────────

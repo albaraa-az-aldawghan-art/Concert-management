@@ -7,12 +7,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { signOut } from "@/lib/firestore/users";
 import { cn } from "@/lib/utils";
 import { PERMISSION_PAGES } from "@/lib/permissions";
+import { useSystem } from "@/contexts/SystemContext";
+import { applySystemNav } from "@/lib/nav";
 import {
   LayoutDashboard,
   Users,
   Package,
   Music,
   AlertTriangle,
+  SlidersHorizontal,
   ClipboardList,
   LogOut,
   Menu,
@@ -87,6 +90,7 @@ const adminNav: NavItem[] = [
     href: "/settings",
     icon: <Settings size={17} />,
     children: [
+      { label: "مركز التحكم", href: "/admin/control", icon: <SlidersHorizontal size={15} /> },
       { label: "المستخدمون", href: "/admin/users", icon: <Users size={15} /> },
     ],
   },
@@ -361,6 +365,7 @@ const permissionIcons: Record<string, React.ReactNode> = {
 
 export function Sidebar() {
   const { appUser, customRole, can } = useAuth();
+  const { settings } = useSystem();
   const pathname    = usePathname();
   const router      = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -378,6 +383,9 @@ export function Sidebar() {
           { label: "الإعدادات", href: "/settings", icon: <Settings size={17} /> },
         ]
       : navByRole[appUser?.role ?? "employee"] ?? [];
+
+  // الميزات الموقوفة تُحذف من التنقّل، والمسمّيات تُطبَّق على الأقسام
+  const visibleNav = applySystemNav(navItems, settings.features, settings.labels);
 
   async function handleSignOut() {
     await signOut();
@@ -397,7 +405,7 @@ export function Sidebar() {
           appUser={appUser}
           roleLabel={appUser?.role === "custom" ? customRole?.name ?? "دور مخصص" : undefined}
           pathname={pathname}
-          navItems={navItems}
+          navItems={visibleNav}
           onClose={noOp}
           onSignOut={handleSignOut}
         />
@@ -438,7 +446,7 @@ export function Sidebar() {
               appUser={appUser}
               roleLabel={appUser?.role === "custom" ? customRole?.name ?? "دور مخصص" : undefined}
               pathname={pathname}
-              navItems={navItems}
+              navItems={visibleNav}
               onClose={() => setMobileOpen(false)}
               onSignOut={handleSignOut}
             />

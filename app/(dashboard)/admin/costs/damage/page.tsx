@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostDamages, addStoreDamage, deleteCostDamage, getCostItems } from "@/lib/firestore/costs";
 import { useToast } from "@/components/ui/toast";
@@ -16,7 +17,7 @@ import { Plus, Trash2, AlertTriangle, PackageMinus, Store } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
-export default function CostsDamagePage() {
+function CostsDamagePageInner() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
@@ -263,5 +264,13 @@ export default function CostsDamagePage() {
         loading={saving}
       />
     </div>
+  );
+}
+
+export default function CostsDamagePage() {
+  return (
+    <FeatureGate feature="damage" name="التالف">
+      <CostsDamagePageInner />
+    </FeatureGate>
   );
 }

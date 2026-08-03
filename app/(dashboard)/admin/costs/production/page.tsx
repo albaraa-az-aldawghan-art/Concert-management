@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getCostItems, getCostProductions, addCostProduction, deleteCostProduction, updateProductionRecipe,
@@ -44,7 +45,7 @@ function fmtDate(d?: string | null): string {
   return y && m && day ? `${day}/${m}/${y}` : d;
 }
 
-export default function CostsProductionPage() {
+function CostsProductionPageInner() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
@@ -523,5 +524,13 @@ export default function CostsProductionPage() {
         loading={saving}
       />
     </div>
+  );
+}
+
+export default function CostsProductionPage() {
+  return (
+    <FeatureGate feature="production" name="الإنتاج">
+      <CostsProductionPageInner />
+    </FeatureGate>
   );
 }

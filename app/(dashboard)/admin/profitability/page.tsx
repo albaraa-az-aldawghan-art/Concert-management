@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts } from "@/lib/firestore/concerts";
@@ -44,7 +45,7 @@ interface Row {
   refund: number;
 }
 
-export default function ProfitabilityPage() {
+function ProfitabilityPageInner() {
   const { appUser, can } = useAuth();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("profitability"));
@@ -398,5 +399,13 @@ export default function ProfitabilityPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+export default function ProfitabilityPage() {
+  return (
+    <FeatureGate feature="profitability" name="ربحية الحفلات">
+      <ProfitabilityPageInner />
+    </FeatureGate>
   );
 }
