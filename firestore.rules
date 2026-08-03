@@ -101,9 +101,12 @@ service cloud.firestore {
     }
 
     // ── دفعات الحفلات (بيانات مالية) ───────────────────────────
+    /* الدفعات تُكتب من الخادم (app/api/payments) وحده: المدفوع يُشتقّ من
+       مجموعها، ورقم الفاتورة يُفحص تكراره قبل الكتابة — وكلاهما لا
+       تستطيع القاعدة فرضه. */
     match /concert_payments/{paymentId} {
       allow read:  if isAdmin() || pageOn('concerts') || pageOn('finances');
-      allow write: if isAdmin() || hasFeat('concerts', 'payments');
+      allow write: if false;
     }
 
     // ── سجلات الحفلات (Audit Log — لا يُحذف ولا يُعدَّل) ────────
@@ -180,42 +183,37 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vatRate'])));
     }
 
-    // ── التكاليف (خامات الإنتاج بالباركود) ────────────────────
+    /* ── التكاليف — قراءة فقط من المتصفح ────────────────────────
+       كل كتابة تمرّ من الخادم (app/api/costs/*) الذي يتحقّق من الهوية
+       والصلاحية ثم يحسب الأرصدة والقيم بنفسه. القاعدة تحرس المستند ولا
+       تعرف أن totalIn يجب أن يزيد بمقدار الوارد بالضبط — فمن يملك بيانات
+       الدخول كان يستطيع كتابة أي رقم. المنع هنا يغلق ذلك نهائياً، و
+       Admin SDK يتجاوز القواعد فلا يتأثر الخادم.                     */
+
     match /cost_items/{barcode} {
-      allow read:   if signedIn();
-      allow create: if isAdmin() || hasFeat('costs', 'manage_items') || hasFeat('costs', 'record_incoming');
-      allow update: if isAdmin() || hasFeat('costs', 'manage_items') ||
-        hasFeat('costs', 'record_incoming') || hasFeat('costs', 'record_outgoing');
-      allow delete: if isAdmin() || hasFeat('costs', 'manage_items');
+      allow read:  if signedIn();
+      allow write: if false;
     }
 
     match /cost_incoming/{entryId} {
-      allow read:           if isAdmin() || pageOn('costs');
-      allow create:         if isAdmin() || hasFeat('costs', 'record_incoming');
-      allow update, delete: if isAdmin();
+      allow read:  if isAdmin() || pageOn('costs');
+      allow write: if false;
     }
 
     // الإنتاج (الخلطات) — يستهلك خاماً ويُنتج صنفاً جاهزاً بتكلفة مدخلاته
     match /cost_production/{entryId} {
-      allow read:           if isAdmin() || pageOn('costs') || pageOn('profitability');
-      allow create:         if isAdmin() || hasFeat('costs', 'record_incoming');
-      allow update:         if isAdmin();
-      allow delete:         if isAdmin();
+      allow read:  if isAdmin() || pageOn('costs') || pageOn('profitability');
+      allow write: if false;
     }
 
     match /cost_outgoing/{entryId} {
-      allow read:   if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
-      allow create: if isAdmin() || hasFeat('costs', 'record_outgoing');
-      // التحديث = تسوية مرتجع/تالف، وهي من عمل من يصرف لا من المدير وحده
-      allow update: if isAdmin() || hasFeat('costs', 'record_outgoing');
-      allow delete: if isAdmin();
+      allow read:  if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
+      allow write: if false;
     }
 
     match /cost_damage/{entryId} {
-      allow read:   if isAdmin() || pageOn('costs') || pageOn('profitability');
-      allow create: if isAdmin() || hasFeat('costs', 'record_outgoing');
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read:  if isAdmin() || pageOn('costs') || pageOn('profitability');
+      allow write: if false;
     }
 
     match /cost_settings/{docId} {

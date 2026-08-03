@@ -13,6 +13,7 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { Concert, ConcertItem, ConcertPayment, ConcertLog } from "@/types";
 
 export async function createConcert(
@@ -285,23 +286,13 @@ async function assertInvoiceNumberFree(num: string | null | undefined, excludeId
 export async function addConcertPayment(
   data: Omit<ConcertPayment, "id" | "createdAt">
 ): Promise<void> {
-  await assertInvoiceNumberFree(data.invoiceNumber);
-  await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
-  const [payments, concertSnap] = await Promise.all([
-    getConcertPayments(data.concertId),
-    getDoc(doc(db, "concerts", data.concertId)),
-  ]);
-  const total = payments.reduce((sum, p) => sum + p.amount, 0);
-  const update: Record<string, unknown> = { deposit: total };
-  if (concertSnap.data()?.status === "planned") update.status = "confirmed";
-  await updateDoc(doc(db, "concerts", data.concertId), update);
+  await api.post("/api/payments", { ...data, confirmConcert: true });
 }
 
 export async function addConcertPaymentRecord(
   data: Omit<ConcertPayment, "id" | "createdAt">
 ): Promise<void> {
-  await assertInvoiceNumberFree(data.invoiceNumber);
-  await addDoc(collection(db, "concert_payments"), { ...data, createdAt: Timestamp.now() });
+  await api.post("/api/payments", { ...data, confirmConcert: false });
 }
 
 /** تعديل بيانات دفعة قائمة — حالة الفاتورة تُراجَع لاحقاً عادةً.
@@ -310,15 +301,11 @@ export async function updateConcertPayment(
   paymentId: string,
   data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered" | "invoiceNumber">>
 ): Promise<void> {
-  await assertInvoiceNumberFree(data.invoiceNumber, paymentId);
-  await updateDoc(doc(db, "concert_payments", paymentId), data as Record<string, unknown>);
+  await api.patch(`/api/payments/${paymentId}`, data);
 }
 
 export async function deleteConcertPayment(paymentId: string, concertId: string): Promise<void> {
-  await deleteDoc(doc(db, "concert_payments", paymentId));
-  const payments = await getConcertPayments(concertId);
-  const total = payments.reduce((sum, p) => sum + p.amount, 0);
-  await updateDoc(doc(db, "concerts", concertId), { deposit: total });
+  await api.del(`/api/payments/${paymentId}`);
 }
 
 // Concert Items
