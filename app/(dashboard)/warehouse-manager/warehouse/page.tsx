@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* مخزون الموارد كما يراه مسؤولها. */
 import { useEffect, useState } from "react";
 import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem } from "@/lib/firestore/warehouse";
 import { useToast } from "@/components/ui/toast";

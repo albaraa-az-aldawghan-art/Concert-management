@@ -1,5 +1,6 @@
 "use client";
 
+/* مركز التحكم: الإعدادات الموحّدة وتشغيل الميزات وصحة النظام والمسمّيات — للمدير. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

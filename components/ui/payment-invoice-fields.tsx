@@ -1,5 +1,6 @@
 "use client";
 
+/* حالة فاتورة الدفعة: الشبكة بفاتورة دائماً، والتسجيل يُشتقّ من رقمها. */
 import { PaymentMethod } from "@/types";
 import { toLatinDigits } from "@/lib/utils";
 import { FileText, FileX, Lock, Check, X } from "lucide-react";

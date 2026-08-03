@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* المفقودات كما يراها مسؤول الموارد. */
 import { useEffect, useState } from "react";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { Card } from "@/components/ui/card";

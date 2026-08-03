@@ -1,5 +1,6 @@
 "use client";
 
+/* إعدادات النظام المشتركة: الميزات المفعّلة والمسمّيات ونسبة الضريبة. */
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   getSystemSettings, SystemSettings, DEFAULT_FEATURES, DEFAULT_LABELS, SystemFeatures,

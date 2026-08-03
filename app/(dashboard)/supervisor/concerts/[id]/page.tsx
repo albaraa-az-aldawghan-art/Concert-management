@@ -1,5 +1,6 @@
 "use client";
 
+/* تنفيذ الحفلة: استلام المواد وتحديد الموقع وبدء التنفيذ والإرجاع والإبلاغ عن المفقودات. */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";

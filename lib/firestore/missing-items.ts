@@ -1,3 +1,5 @@
+/* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
+
 import {
   collection,
   doc,
@@ -10,17 +12,15 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { MissingItem } from "@/types";
 
 export async function reportMissingItem(
   data: Omit<MissingItem, "id" | "reportedAt">
 ): Promise<MissingItem> {
-  const ref = await addDoc(collection(db, "missing_items"), {
-    ...data,
-    reportedAt: Timestamp.now(),
-  });
-  const snap = await getDoc(ref);
-  return { id: ref.id, ...snap.data() } as MissingItem;
+  const { id } = await api.post<{ id: string }>("/api/missing-items", data);
+  const snap = await getDoc(doc(db, "missing_items", id));
+  return { id, ...snap.data() } as MissingItem;
 }
 
 export async function getAllMissingItems(): Promise<MissingItem[]> {

@@ -1,5 +1,6 @@
 "use client";
 
+/* نظام التصميم: مرجع حيّ يستورد مكوّنات البرنامج نفسها. */
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

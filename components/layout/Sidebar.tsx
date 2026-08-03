@@ -1,5 +1,6 @@
 "use client";
 
+/* الشريط الجانبي: قائمة تنقّل تُبنى من دور المستخدم وصلاحياته وإعدادات النظام. */
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";

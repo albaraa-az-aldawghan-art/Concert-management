@@ -1,5 +1,6 @@
 "use client";
 
+/* حالة المصادقة: المستخدم الحالي ودوره وصلاحياته ووجهته بعد الدخول. */
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";

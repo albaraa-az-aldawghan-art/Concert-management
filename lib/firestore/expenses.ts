@@ -1,3 +1,5 @@
+/* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
+
 import {
   collection,
   doc,
@@ -12,6 +14,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { ConcertExpense, ExpenseSettings, ExpenseType, ExpenseKind } from "@/types";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -85,16 +88,12 @@ export async function recalcConcertExpenses(concertId: string): Promise<void> {
 export async function addConcertExpense(
   data: Omit<ConcertExpense, "id" | "createdAt">
 ): Promise<void> {
-  await addDoc(collection(db, "concert_expenses"), {
-    ...data,
-    createdAt: Timestamp.now(),
-  });
-  await recalcConcertExpenses(data.concertId);
+  // الخادم يتحقّق من حالة الحفلة ويعيد حساب تكاليفها بعد الحفظ
+  await api.post("/api/expenses", data);
 }
 
-export async function deleteConcertExpense(expense: ConcertExpense): Promise<void> {
-  await deleteDoc(doc(db, "concert_expenses", expense.id));
-  await recalcConcertExpenses(expense.concertId);
+export async function deleteConcertExpense(entry: ConcertExpense): Promise<void> {
+  await api.del(`/api/expenses/${entry.id}`);
 }
 
 /** المبلغ الصافي قبل الضريبة — الفواتير الشاملة تُطبَّع حتى تُقارن

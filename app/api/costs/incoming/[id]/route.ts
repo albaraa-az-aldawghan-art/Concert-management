@@ -1,3 +1,5 @@
+/* مسار خادم (API): يتحقّق من الهوية والصلاحية ثم ينفّذ العملية على قاعدة البيانات. */
+
 import { NextRequest } from "next/server";
 import { requireCaller, requireAdmin, handle } from "@/lib/server/guard";
 import { svcDeleteIncoming } from "@/lib/server/costs-core";

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* لوحة مسؤول الموارد: ما يحتاج تسليماً أو استلاماً. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";

@@ -1,5 +1,7 @@
 ﻿"use client";
 
+
+/* خريطة تحديد موقع الحفلة. */
 import { useEffect, useRef } from "react";
 import { MapPin, Navigation } from "lucide-react";
 

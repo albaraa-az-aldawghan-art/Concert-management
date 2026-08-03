@@ -1,5 +1,6 @@
 "use client";
 
+/* ترويسة الصفحة: اسم المستخدم والتاريخ والخروج. */
 import React from "react";
 import { usePathname } from "next/navigation";
 

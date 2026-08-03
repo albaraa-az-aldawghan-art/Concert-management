@@ -1,5 +1,6 @@
 "use client";
 
+/* حقل قارئ الباركود (USB أو بلوتوث) — يقرأ المسح السريع كإدخال واحد. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Barcode, Camera } from "lucide-react";
 import { CameraScanModal } from "@/components/ui/camera-scan-modal";

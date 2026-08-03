@@ -1,3 +1,5 @@
+/* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
+
 import {
   collection,
   doc,
@@ -12,20 +14,15 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { WarehouseItem } from "@/types";
 
 export async function addWarehouseItem(
   data: Omit<WarehouseItem, "id" | "createdAt">
 ): Promise<WarehouseItem> {
-  // New items go to the end of the custom order
-  const countSnap = await getDocs(collection(db, "warehouse_items"));
-  const ref = await addDoc(collection(db, "warehouse_items"), {
-    ...data,
-    order: countSnap.size,
-    createdAt: Timestamp.now(),
-  });
-  const snap = await getDoc(ref);
-  return { id: ref.id, ...(snap.data() as Omit<WarehouseItem, "id">) };
+  const { id } = await api.post<{ id: string }>("/api/warehouse", data);
+  const snap = await getDoc(doc(db, "warehouse_items", id));
+  return { id, ...snap.data() } as WarehouseItem;
 }
 
 export async function getWarehouseItems(): Promise<WarehouseItem[]> {
@@ -40,11 +37,7 @@ export async function getWarehouseItems(): Promise<WarehouseItem[]> {
 
 // Persist the new order for all items in one batch write
 export async function updateWarehouseItemsOrder(orderedIds: string[]): Promise<void> {
-  const batch = writeBatch(db);
-  orderedIds.forEach((id, index) => {
-    batch.update(doc(db, "warehouse_items", id), { order: index });
-  });
-  await batch.commit();
+  await api.patch("/api/warehouse", { orderedIds });
 }
 
 export async function getWarehouseItemById(id: string): Promise<WarehouseItem | null> {
@@ -54,11 +47,11 @@ export async function getWarehouseItemById(id: string): Promise<WarehouseItem | 
 }
 
 export async function updateWarehouseItem(id: string, data: Partial<WarehouseItem>) {
-  await updateDoc(doc(db, "warehouse_items", id), data as Record<string, unknown>);
+  await api.patch(`/api/warehouse/${id}`, data);
 }
 
 export async function deleteWarehouseItem(id: string) {
-  await deleteDoc(doc(db, "warehouse_items", id));
+  await api.del(`/api/warehouse/${id}`);
 }
 
 export async function decreaseAvailableCount(id: string, amount: number) {

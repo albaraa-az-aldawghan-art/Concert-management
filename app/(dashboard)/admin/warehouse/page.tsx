@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* الموارد: المواد الداخلية والخارجية بأعدادها وأسعارها وصورها وترتيبها. */
 import { useEffect, useState } from "react";
 import {
   DndContext,

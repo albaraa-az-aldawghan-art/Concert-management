@@ -1,3 +1,5 @@
+/* البطاقة: الحاوية الوحيدة للمحتوى في كل الصفحات. */
+
 import React from "react";
 import { cn } from "@/lib/utils";
 

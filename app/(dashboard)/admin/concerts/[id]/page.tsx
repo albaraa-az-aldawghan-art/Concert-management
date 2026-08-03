@@ -1,5 +1,6 @@
 "use client";
 
+/* تفاصيل الحفلة: التعديل والمواد والأكل والدفعات والمصروفات وخطوات التنفيذ وسجل التغييرات. */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";

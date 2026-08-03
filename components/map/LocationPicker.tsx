@@ -1,5 +1,6 @@
 "use client";
 
+/* خريطة اختيار موقع الحفلة وعنوانه. */
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Pencil, Search, Loader2, LocateFixed, ExternalLink } from "lucide-react";

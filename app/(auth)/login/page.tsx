@@ -1,5 +1,6 @@
 "use client";
 
+/* تسجيل الدخول. */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/firestore/users";

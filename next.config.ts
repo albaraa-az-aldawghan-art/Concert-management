@@ -1,3 +1,5 @@
+/* ملف في المشروع. */
+
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

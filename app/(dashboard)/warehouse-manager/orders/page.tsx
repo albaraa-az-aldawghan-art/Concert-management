@@ -1,5 +1,6 @@
 "use client";
 
+/* طلبات الموارد: حفلات تنتظر تسليم موادها أو استلامها. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

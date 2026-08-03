@@ -1,3 +1,5 @@
+/* تهيئة Firebase Admin على الخادم — يتجاوز قواعد الأمان، فلا يُستورد في كود المتصفح أبداً. */
+
 import { initializeApp, getApps, getApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";

@@ -1,5 +1,6 @@
 "use client";
 
+/* بوابة الميزة: تغلق الصفحة إن أُوقفت من مركز التحكم. */
 import Link from "next/link";
 import { useSystem } from "@/contexts/SystemContext";
 import { SystemFeatures } from "@/lib/firestore/system";

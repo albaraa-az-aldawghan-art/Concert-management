@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* لوحة المشرف: حفلاته وخطوات تنفيذها. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

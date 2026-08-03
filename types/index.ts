@@ -1,3 +1,5 @@
+/* أنواع البيانات: شكل كل مستند في قاعدة البيانات — المرجع الأول لفهم النظام. */
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee" | "kitchen" | "custom";

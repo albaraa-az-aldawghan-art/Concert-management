@@ -1,5 +1,6 @@
 "use client";
 
+/* رصيد الأصناف: المتوفر من كل خام وقيمته ومتوسط سعره. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostItems } from "@/lib/firestore/costs";

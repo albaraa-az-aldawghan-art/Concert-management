@@ -1,4 +1,6 @@
-﻿import React from "react";
+﻿/* الشارات وشارة حالة الحفلة — تمرّ عبر مصدر الحالات الوحيد. */
+
+import React from "react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_VARIANT, normalizeStatus } from "@/lib/concert-status";
 

@@ -1,5 +1,6 @@
 "use client";
 
+/* الزر: ستة أنماط وثلاثة مقاسات وحالة تحميل. */
 import React from "react";
 import { cn } from "@/lib/utils";
 

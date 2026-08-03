@@ -1,5 +1,6 @@
 "use client";
 
+/* مسح الباركود بكاميرا الجوّال. */
 import { useEffect, useRef, useState } from "react";
 import type { IScannerControls } from "@zxing/browser";
 import { Modal } from "@/components/ui/modal";

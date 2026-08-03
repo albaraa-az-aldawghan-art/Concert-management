@@ -1,5 +1,7 @@
 ﻿"use client";
 
+
+/* العقد المطبوع: بيانات الحفلة والأصناف والمبالغ والضريبة — مصدر معادلة الضريبة في النظام. */
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getConcertById, getConcertPayments, getConcertLogs } from "@/lib/firestore/concerts";

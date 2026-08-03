@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* النافذة: لوح سفلي على الجوّال وحوار في المنتصف على الشاشات، ونافذة تأكيد الحذف. */
 import React, { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* المفقودات: ما لم يرجع من مواد الحفلات وقيمته. */
 import { useEffect, useState } from "react";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";

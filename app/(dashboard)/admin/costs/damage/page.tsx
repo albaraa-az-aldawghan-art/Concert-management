@@ -1,5 +1,6 @@
 "use client";
 
+/* التالف: خسائر المستودع وما تلف بعد الصرف — لا تُحمَّل على أي حفلة. */
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";

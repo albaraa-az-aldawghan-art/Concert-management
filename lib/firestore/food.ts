@@ -1,3 +1,5 @@
+/* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
+
 import {
   collection,
   doc,
@@ -13,6 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { FoodCategory, ConcertFood } from "@/types";
 
 export async function getFoodCategories(): Promise<FoodCategory[]> {
@@ -91,18 +94,15 @@ export async function getConcertFoodForConcerts(ids: string[]): Promise<ConcertF
 export async function addConcertFood(
   data: Omit<ConcertFood, "id" | "createdAt">
 ): Promise<ConcertFood> {
-  const ref = await addDoc(collection(db, "concert_food"), {
-    ...data,
-    createdAt: Timestamp.now(),
-  });
-  const snap = await getDoc(ref);
-  return { id: ref.id, ...snap.data() } as ConcertFood;
+  const { id } = await api.post<{ id: string }>(`/api/concerts/${data.concertId}/food`, data);
+  const snap = await getDoc(doc(db, "concert_food", id));
+  return { id, ...snap.data() } as ConcertFood;
 }
 
 export async function updateConcertFood(id: string, data: Partial<ConcertFood>) {
-  await updateDoc(doc(db, "concert_food", id), data as Record<string, unknown>);
+  await api.patch(`/api/concerts/_/food/${id}`, data);
 }
 
 export async function deleteConcertFood(id: string) {
-  await deleteDoc(doc(db, "concert_food", id));
+  await api.del(`/api/concerts/_/food/${id}`);
 }

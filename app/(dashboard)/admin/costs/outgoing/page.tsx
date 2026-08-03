@@ -1,5 +1,6 @@
 "use client";
 
+/* المنصرف: صرف الخامات على الأقسام والحفلات، وتسوية المرتجع والتالف. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";

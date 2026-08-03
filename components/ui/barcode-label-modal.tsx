@@ -1,5 +1,6 @@
 "use client";
 
+/* ملصق الباركود القابل للطباعة: الفريج ثم التاريخ ثم الاسم ثم الباركود. */
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";

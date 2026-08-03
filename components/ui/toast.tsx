@@ -1,5 +1,6 @@
 "use client";
 
+/* التنبيهات المؤقتة: نجاح وخطأ وتحذير. */
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { CheckCircle, XCircle, AlertCircle, X } from "lucide-react";

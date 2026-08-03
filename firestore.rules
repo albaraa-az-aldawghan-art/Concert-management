@@ -69,22 +69,9 @@ service cloud.firestore {
         pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
-      allow list: if isAdmin() || isWarehouse() || pageOn('concerts') || pageOn('profitability') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
-        (isSupervisor() && uid() in resource.data.supervisorIds) ||
-        (isEmployee()   && uid() in resource.data.employeeIds);
-      allow create: if isAdmin() || hasFeat('concerts', 'create');
-      // isWarehouse() كان ناقصاً: مدير موارد حقيقي لم يكن يستطيع تأكيد
-      // استلام المواد المرتجعة رغم ظهور الزر له
-      allow update: if isAdmin() || isWarehouse() ||
-        hasFeat('concerts', 'edit') || hasFeat('concerts', 'assign') ||
-        hasFeat('concerts', 'payments') || hasFeat('concerts', 'cancel') ||
-        hasFeat('supervisor', 'receive_materials') || hasFeat('supervisor', 'set_location') ||
-        hasFeat('supervisor', 'start_executing') || hasFeat('supervisor', 'return_materials') ||
-        hasFeat('supervisor', 'deliver_warehouse') || hasFeat('supervisor', 'assign_employees') ||
-        hasFeat('warehouse_orders', 'confirm_return') ||
-        (isSupervisor() && uid() in resource.data.supervisorIds);
-      allow delete: if isAdmin() || hasFeat('concerts', 'delete');
+      // الكتابة من الخادم وحده (Admin SDK يتجاوز القواعد) — القواعد
+      // تحرس المستند ولا تعرف قواعد الحجز والاشتقاق
+      allow write: if false;
     }
 
     // ── مواد الحفلات ───────────────────────────────────────────
@@ -92,12 +79,9 @@ service cloud.firestore {
     match /concert_items/{itemId} {
       allow read:   if isAdmin() || isWarehouse() || isSupervisor() || isEmployee() || isKitchen() ||
         pageOn('concerts') || pageOn('kitchen') || pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders');
-      allow create: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials');
-      // مدير الموارد يحتاج التعديل ليُفرج عن الحجز (stockHeld) عند تأكيد الاستلام
-      allow update: if isAdmin() || isSupervisor() || isWarehouse() || hasFeat('concerts', 'materials') ||
-        hasFeat('supervisor', 'report_missing') || hasFeat('warehouse_orders', 'confirm_return');
-      allow delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'materials') ||
-        hasFeat('concerts', 'delete');
+      // الكتابة من الخادم وحده (Admin SDK يتجاوز القواعد) — القواعد
+      // تحرس المستند ولا تعرف قواعد الحجز والاشتقاق
+      allow write: if false;
     }
 
     // ── دفعات الحفلات (بيانات مالية) ───────────────────────────
@@ -112,7 +96,8 @@ service cloud.firestore {
     // ── سجلات الحفلات (Audit Log — لا يُحذف ولا يُعدَّل) ────────
     match /concert_logs/{logId} {
       allow read:           if isAdmin() || isSupervisor() || pageOn('concerts');
-      allow create:         if signedIn();
+      // يُكتب من الخادم بهوية المستخدم الحقيقية لا بما يرسله
+      allow create:         if false;
       allow update, delete: if false;
     }
 
@@ -120,7 +105,9 @@ service cloud.firestore {
     match /concert_food/{foodId} {
       allow read:                   if isAdmin() || isSupervisor() || isEmployee() || isKitchen() ||
         pageOn('concerts') || pageOn('kitchen') || pageOn('supervisor') || pageOn('employees');
-      allow create, update, delete: if isAdmin() || isSupervisor() || hasFeat('concerts', 'food_items');
+      // الكتابة من الخادم وحده (Admin SDK يتجاوز القواعد) — القواعد
+      // تحرس المستند ولا تعرف قواعد الحجز والاشتقاق
+      allow write: if false;
     }
 
     // ── أقسام الأكل ────────────────────────────────────────────
@@ -136,17 +123,17 @@ service cloud.firestore {
     // «إدارة مواد الحفلة» تسمح أيضاً بتحديث المخزون
     match /warehouse_items/{itemId} {
       allow read:  if signedIn();
-      allow write: if isAdminOrWarehouse() ||
-        hasFeat('warehouse', 'add') || hasFeat('warehouse', 'edit') || hasFeat('warehouse', 'delete') ||
-        hasFeat('concerts', 'materials') ||
-        hasFeat('warehouse_orders', 'confirm_return');
+      // المتاح والمحجوز يتحرّكان مع مواد الحفلات في معاملة واحدة على
+      // الخادم — كتابة مباشرة من المتصفح تكسر الحجز
+      allow write: if false;
     }
 
     // ── المفقودات ──────────────────────────────────────────────
     // التعديل والحذف للمدير فقط (أو دور مخصص منحه المدير هذه الصلاحية)
     match /missing_items/{itemId} {
       allow read:           if isAdmin() || isWarehouse() || isSupervisor() || pageOn('missing_items') || pageOn('concerts');
-      allow create:         if signedIn();
+      // الإنشاء من الخادم (يتحقّق أن المفقود لا يتجاوز ما أُخذ للحفلة)
+      allow create:         if false;
       allow update, delete: if isAdmin() || hasFeat('missing_items', 'resolve');
     }
 
@@ -225,9 +212,8 @@ service cloud.firestore {
     // تُقرأ من صفحة الحفلة والقائمة المالية وصفحة الربحية
     match /concert_expenses/{expenseId} {
       allow read:   if isAdmin() || pageOn('concerts') || pageOn('finances') || pageOn('profitability');
-      allow create: if isAdmin() || hasFeat('concerts', 'payments') || hasFeat('concerts', 'edit');
-      allow update: if isAdmin();
-      allow delete: if isAdmin() || hasFeat('concerts', 'payments') || hasFeat('concerts', 'edit');
+      // الكتابة من الخادم: يتحقّق من حالة الحفلة ويعيد حساب تكاليفها
+      allow write: if false;
     }
 
     match /expense_settings/{docId} {

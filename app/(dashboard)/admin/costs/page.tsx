@@ -1,5 +1,6 @@
 "use client";
 
+/* أصناف التكاليف: التسجيل وتوليد الباركود وطباعة الملصقات والوحدات والأقسام. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {

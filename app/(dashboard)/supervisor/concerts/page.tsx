@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* حفلات المشرف المسندة إليه. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

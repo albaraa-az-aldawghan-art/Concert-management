@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* لوحة تحكم المدير: مؤشرات الحفلات والمال والموارد في نظرة واحدة. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

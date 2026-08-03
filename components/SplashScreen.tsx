@@ -1,5 +1,6 @@
 "use client";
 
+/* شاشة البداية عند فتح التطبيق. */
 import { useEffect, useState } from "react";
 
 export default function SplashScreen() {

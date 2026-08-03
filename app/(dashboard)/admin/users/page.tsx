@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* المستخدمون: إنشاء الحسابات وتغيير الأدوار وكلمات المرور. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers } from "@/lib/firestore/users";

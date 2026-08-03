@@ -1,5 +1,6 @@
 "use client";
 
+/* الوارد: تسجيل المشتريات بأسعارها قبل الضريبة — منه يُبنى متوسط سعر التكلفة. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostIncoming, addCostIncoming, deleteCostIncoming, getCostItems } from "@/lib/firestore/costs";

@@ -1,5 +1,6 @@
 "use client";
 
+/* اختيار صنف التكاليف: بالمسح أو من قائمة كاملة بأرصدتها. */
 import { useState } from "react";
 import { BarcodeScanInput } from "@/components/ui/barcode-scan-input";
 import { CostItem } from "@/types";

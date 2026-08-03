@@ -1,5 +1,6 @@
 "use client";
 
+/* الإنتاج: دمج الخامات في خلطة جاهزة لها باركود وتكلفة وحدة محسوبة. */
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";

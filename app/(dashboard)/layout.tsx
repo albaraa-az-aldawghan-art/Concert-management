@@ -1,5 +1,6 @@
 "use client";
 
+/* غلاف لوحة التحكم: الشريط الجانبي والترويسة وحماية الصفحات بالصلاحيات. */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";

@@ -1,5 +1,6 @@
 "use client";
 
+/* ربحية الحفلات: الصافي قبل الضريبة ناقص كل التكاليف — للمدير ومن يُمنح الصلاحية. */
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import Link from "next/link";

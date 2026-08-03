@@ -1,5 +1,7 @@
 ﻿"use client";
 
+
+/* الصفحة الجذرية — تحوّل المستخدم إلى وجهته حسب دوره. */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";

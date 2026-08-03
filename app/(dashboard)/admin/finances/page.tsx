@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* القائمة المالية: المحصَّل والمتبقي وتكاليف الحفلات، وضبط نسبة الضريبة. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

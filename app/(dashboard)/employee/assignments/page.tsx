@@ -1,5 +1,6 @@
 "use client";
 
+/* مهام الموظف في الحفلات. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";

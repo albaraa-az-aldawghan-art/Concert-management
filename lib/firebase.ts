@@ -1,3 +1,5 @@
+/* تهيئة Firebase في المتصفح (المصادقة وقاعدة البيانات) — نسخة واحدة تُعاد استعمالها. */
+
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";

@@ -1,5 +1,6 @@
 "use client";
 
+/* تفاصيل طلب المطبخ: أصناف الأكل وكمياتها وبيانات الحفلة، وطباعته. */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";

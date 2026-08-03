@@ -1,5 +1,6 @@
 "use client";
 
+/* أدوات القوائم المشتركة: بحث وفلتر تاريخ وترقيم صفحات. */
 import { Search, CalendarDays, ChevronRight, ChevronLeft } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════

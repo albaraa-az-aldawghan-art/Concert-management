@@ -1,5 +1,6 @@
 ﻿"use client";
 
+/* إنشاء حفلة: البيانات والموقع والمواد وأصناف الأكل والدفعات في صفحة واحدة، مع عرض المتوفر من الخامات وتكلفتها التقديرية. */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";

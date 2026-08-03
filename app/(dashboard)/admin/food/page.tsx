@@ -1,5 +1,6 @@
 "use client";
 
+/* أقسام الأكل وأصنافها ووصفاتها — والربط بأصناف التكاليف بالباركود. */
 import { useEffect, useState } from "react";
 import {
   DndContext,

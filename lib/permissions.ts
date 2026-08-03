@@ -1,3 +1,5 @@
+/* كتالوج الصلاحيات: الصفحات وميزاتها، وربط المسار بالصفحة، وفحص ما يملكه المستخدم. */
+
 import { AppUser, CustomRole, PermissionPage } from "@/types";
 
 export interface PermissionFeature {

@@ -1,3 +1,5 @@
+/* الغلاف الجذري للتطبيق: اللغة والاتجاه والخط ومزوّدات الحالة (المصادقة وإعدادات النظام والتنبيهات). */
+
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";

@@ -1,5 +1,6 @@
 "use client";
 
+/* تفاصيل طلب الموارد: مواد الحفلة وتأكيد التسليم والاستلام. */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
