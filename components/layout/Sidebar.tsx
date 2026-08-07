@@ -16,6 +16,7 @@ import {
   Package,
   Music,
   AlertTriangle,
+  Boxes,
   SlidersHorizontal,
   ClipboardList,
   LogOut,
@@ -55,6 +56,11 @@ const adminNav: NavItem[] = [
     children: [
       { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
     ],
+  },
+  {
+    label: "البكجات",
+    href: "/admin/packages",
+    icon: <Boxes size={17} />,
   },
   {
     label: "منتجات البيع",

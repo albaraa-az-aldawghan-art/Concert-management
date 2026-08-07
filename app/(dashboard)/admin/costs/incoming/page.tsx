@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostIncoming, addCostIncoming, deleteCostIncoming, getCostItems } from "@/lib/firestore/costs";
 import { useToast } from "@/components/ui/toast";
+import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,7 +163,10 @@ export default function CostsIncomingPage() {
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
                   <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
                   <td className="px-4 py-3 tabular-nums-auto text-slate-600">{e.priceBeforeVat.toLocaleString("en-US")} ريال</td>
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.invoiceDate}</td>
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
+                    {e.invoiceDate}
+                    <Actor uid={e.createdBy} className="block mt-0.5" showIcon={false} />
+                  </td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalBeforeVat.toLocaleString("en-US")} ريال</td>
                   {isAdmin && (
                     <td className="px-4 py-3">

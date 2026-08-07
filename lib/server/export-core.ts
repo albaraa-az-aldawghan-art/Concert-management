@@ -146,12 +146,47 @@ export async function buildSalesWorkbook(
   ]);
 
   /* الدفعات وخامات التكاليف وأصناف الأكل تُجمَّع مرة واحدة حسب الحفلة */
-  const paysBy = new Map<string, { amount: number; date: string }[]>();
+  interface PayRow {
+    amount: number; date: string; method: string; cardType: string | null;
+    bankName: string | null; senderName: string | null; receiverName: string | null;
+    invoiceNumber: string | null; hasInvoice: boolean | null;
+  }
+  const paysBy = new Map<string, PayRow[]>();
   for (const d of paymentsSnap.docs) {
-    const p = d.data() as { concertId: string; amount: number; date: string };
-    const arr = paysBy.get(p.concertId) ?? [];
-    arr.push({ amount: p.amount ?? 0, date: p.date ?? "" });
-    paysBy.set(p.concertId, arr);
+    const p = d.data() as Record<string, unknown>;
+    const cid = p.concertId as string;
+    const arr = paysBy.get(cid) ?? [];
+    arr.push({
+      amount: (p.amount as number) ?? 0,
+      date: (p.date as string) ?? "",
+      method: (p.method as string) ?? "",
+      cardType: (p.cardType as string) ?? null,
+      bankName: (p.bankName as string) ?? null,
+      senderName: (p.senderName as string) ?? null,
+      receiverName: (p.receiverName as string) ?? null,
+      invoiceNumber: (p.invoiceNumber as string) ?? null,
+      hasInvoice: (p.hasInvoice as boolean) ?? null,
+    });
+    paysBy.set(cid, arr);
+  }
+
+  const METHOD_AR: Record<string, string> = {
+    card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي",
+  };
+  const CARD_AR: Record<string, string> = { visa: "فيزا", mada: "مدى" };
+
+  /** وصف دفعة واحدة كاملاً: المبلغ والوسيلة والتاريخ وطرفها وفاتورتها */
+  function payLine(p: PayRow): string {
+    const bits = [
+      `${p.amount.toLocaleString("en-US")} ريال`,
+      METHOD_AR[p.method] ?? p.method,
+      p.method === "card" ? (CARD_AR[p.cardType ?? ""] ?? "") : "",
+      p.method === "bank_transfer" ? [p.bankName, p.senderName].filter(Boolean).join(" — ") : "",
+      p.method === "cash" ? (p.receiverName ? `المستلم: ${p.receiverName}` : "") : "",
+      p.date,
+      p.invoiceNumber ? `فاتورة ${p.invoiceNumber}` : p.hasInvoice === false ? "بدون فاتورة" : "",
+    ].filter(Boolean);
+    return bits.join(" · ");
   }
   const rawBy = new Map<string, number>();
   for (const d of outgoingSnap.docs) {
@@ -213,6 +248,18 @@ export async function buildSalesWorkbook(
       due: r2(price - paid),
       payCount: pays.length,
       lastPay: pays.length ? toDate(pays.map((p) => p.date).sort().at(-1)!) : null,
+      // كل دفعة سطر داخل الخلية، فيبقى صف الحفلة واحداً لا يتكرّر
+      payMethods: pays.map((p) => METHOD_AR[p.method] ?? p.method).join(String.fromCharCode(10)),
+      payDates: pays.map((p) => p.date).join(String.fromCharCode(10)),
+      payAmounts: pays.map((p) => p.amount.toLocaleString("en-US")).join(String.fromCharCode(10)),
+      payBanks: pays
+        .map((p) => (p.method === "bank_transfer" ? p.bankName ?? "" : p.method === "card" ? CARD_AR[p.cardType ?? ""] ?? "" : ""))
+        .join(String.fromCharCode(10)),
+      paySenders: pays.map((p) => p.senderName ?? p.receiverName ?? "").join(String.fromCharCode(10)),
+      payInvoices: pays
+        .map((p) => p.invoiceNumber ?? (p.hasInvoice === false ? "بدون فاتورة" : ""))
+        .join(String.fromCharCode(10)),
+      payDetails: pays.map(payLine).join(String.fromCharCode(10)),
       hall: r2(hall),
       raw: r2(raw),
       external: r2(external),
@@ -282,7 +329,15 @@ export async function buildSalesWorkbook(
     writeHeader(ws, `المبيعات — ${MONTHS[m]} ${year}`, `${byMonth[m].length} حفلة`, cols.length);
     const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
 
-    for (const r of byMonth[m]) ws.addRow(r);
+    for (const r of byMonth[m]) {
+      const row = ws.addRow(r);
+      // أعمدة تفاصيل الدفعات متعددة الأسطر — بلا التفاف تظهر سطراً واحداً
+      cols.forEach((c, ci) => {
+        if (c.key.startsWith("pay") && c.key !== "payCount" && c.key !== "lastPay") {
+          row.getCell(ci + 1).alignment = { wrapText: true, vertical: "top", horizontal: "right" };
+        }
+      });
+    }
     const lastRow = headerRow + byMonth[m].length;
     applyFormats(ws, headerRow + 1, lastRow, cols);
     if (byMonth[m].length > 0) {

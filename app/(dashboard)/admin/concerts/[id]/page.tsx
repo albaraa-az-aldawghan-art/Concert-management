@@ -17,10 +17,13 @@ import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
 import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave, InvoiceState } from "@/components/ui/payment-invoice-fields";
-import { Concert, ConcertItem, MissingItem, AppUser, FoodCategory, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
+import { Concert, ConcertItem, MissingItem, AppUser, SalesSection, ConcertPackage, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems } from "@/lib/firestore/costs";
-import { aggregateRequirements, totalEstimatedCost, optionStock, optionCostBarcode, committedByItem, dispensedMap } from "@/lib/recipes";
+import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
+import { getSectionsOfChannel, getPackages } from "@/lib/firestore/sales";
+import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
+import { Actor } from "@/components/ui/actor";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
@@ -132,7 +135,10 @@ export default function AdminConcertDetailPage() {
     invoiceNumber: "",
   });
 
-  const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([]);
+  const [sections, setSections] = useState<SalesSection[]>([]);
+  const [packages, setPackages] = useState<ConcertPackage[]>([]);
+  /* بيانات كل سطر مختار في نافذة الإضافة */
+  const [addFoodMeta, setAddFoodMeta] = useState<Record<string, { sectionId: string; sectionName: string; item: CostItem }>>({});
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
   const [showFoodForm, setShowFoodForm] = useState(false);
   const [deleteFoodTarget, setDeleteFoodTarget] = useState<ConcertFood | null>(null);
@@ -157,11 +163,11 @@ export default function AdminConcertDetailPage() {
     setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
-      getFoodCategories().catch(() => []),
+      getSectionsOfChannel("concerts").catch(() => [] as SalesSection[]),
       getConcertFood(id).catch(() => []),
       getConcertPayments(id).catch(() => []),
       getWarehouseItems().catch(() => []),
@@ -174,6 +180,7 @@ export default function AdminConcertDetailPage() {
       getExpenseSettings().catch(() => ({ types: [] })),
       getCostItems().catch(() => [] as CostItem[]),
       getUpcomingConcerts().catch(() => [] as Concert[]),
+      getPackages().catch(() => [] as ConcertPackage[]),
     ]);
     // المرتبط يُحسب من الحفلات القادمة وحدها — لا يُقرأ الأرشيف
     const upIds = allConcertsData
@@ -186,7 +193,7 @@ export default function AdminConcertDetailPage() {
     setConcert(concertData);
     setItems(itemsData);
     setMissing(missingData);
-    setFoodCategories(foodCats);
+    setSections(foodCats);
     setConcertFood(foodItems);
     setPayments(paymentsData);
     setWarehouseItems(warehouseData);
@@ -199,6 +206,7 @@ export default function AdminConcertDetailPage() {
     setExpenseTypes(expenseSettings.types);
     setCostItems(costItemsData);
     setAllConcerts(allConcertsData);
+    setPackages(packagesData);
     setAllFood(allFoodData);
     setAllOutgoing(allOutgoingData);
 
@@ -217,42 +225,78 @@ export default function AdminConcertDetailPage() {
     if (entries.length === 0) return;
     setSaving(true);
     try {
+      // كل سطر يحمل باركود صنفه، فتُقرأ تكلفته ورصيده مباشرةً بعد الحفظ
       await Promise.all(entries.map(([k, s]) => {
-        const [catId, opt] = k.split(":::");
-        const cat = foodCategories.find((c) => c.id === catId)!;
+        const meta = addFoodMeta[k];
+        if (!meta) return Promise.resolve();
         return addConcertFood({
           concertId: id,
-          categoryId: cat.id,
-          categoryName: cat.name,
-          selectedOption: opt || cat.name,
+          categoryId: meta.sectionId,
+          categoryName: meta.sectionName,
+          selectedOption: meta.item.name,
+          costItemBarcode: meta.item.id,
           quantity: s.quantity ? parseInt(s.quantity) : null,
           notes: null,
           createdBy: appUser.uid,
         });
       }));
-      // Log each item separately with structured data for contract change tracking
       await Promise.all(entries.map(([k, s]) => {
-        const [catId, opt] = k.split(":::");
-        const cat = foodCategories.find((c) => c.id === catId)!;
-        const optName = opt || cat.name;
+        const meta = addFoodMeta[k];
+        if (!meta) return Promise.resolve();
         return addConcertLog({
           concertId: id,
-          description: `تمت إضافة صنف: ${cat.name}${opt ? " — " + opt : ""}`,
+          description: `تمت إضافة صنف: ${meta.sectionName} — ${meta.item.name}`,
           createdBy: appUser.uid,
           field: "foodAdded",
-          newValue: `${cat.name}:::${optName}:::${s.quantity || "0"}`,
+          newValue: `${meta.sectionName}:::${meta.item.name}:::${s.quantity || "0"}`,
         });
       }));
       showToast("تم إضافة الأصناف");
       setShowFoodForm(false);
-      setAddFoodCategoryId("");
       setAddFoodCheck({});
+      setAddFoodMeta({});
       loadData();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }
+  }
+
+  /* ── منتقي الأصناف: اختيار وكمية وبكج ── */
+  function toggleAddFood(sectionId: string, sectionName: string, item: CostItem) {
+    const k = foodPickKey(sectionId, item.id);
+    setAddFoodCheck((prev) => ({
+      ...prev,
+      [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" },
+    }));
+    setAddFoodMeta((prev) => ({ ...prev, [k]: { sectionId, sectionName, item } }));
+  }
+
+  function setAddFoodQty(sectionId: string, barcode: string, qty: string) {
+    const k = foodPickKey(sectionId, barcode);
+    setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: prev[k]?.checked ?? true, quantity: qty } }));
+  }
+
+  /** البكج يملأ الاختيار بأصنافه، ومواده تُضاف للحفلة مباشرةً */
+  async function applyPackageHere(p: ConcertPackage) {
+    const nextCheck = { ...addFoodCheck };
+    const nextMeta = { ...addFoodMeta };
+    let added = 0;
+    for (const line of p.items) {
+      const item = costItems.find((c) => c.id === line.barcode);
+      if (!item) continue;
+      const sectionId = line.sectionId ?? sections[0]?.id;
+      if (!sectionId) continue;
+      const sectionName = line.sectionName ?? sections.find((x) => x.id === sectionId)?.name ?? "";
+      const k = foodPickKey(sectionId, line.barcode);
+      nextCheck[k] = { checked: true, quantity: String(line.quantity) };
+      nextMeta[k] = { sectionId, sectionName, item };
+      added++;
+    }
+    setAddFoodCheck(nextCheck);
+    setAddFoodMeta(nextMeta);
+    showToast(`عُبّئ بكج «${p.name}»: ${added} صنف — راجعه ثم احفظ`);
   }
 
   async function handleSaveFoodQty() {
@@ -780,44 +824,47 @@ export default function AdminConcertDetailPage() {
       })
       .map((c) => c.id)
   );
-  const committed = committedByItem(
+  const committed = committedByBarcode(
     allFood
       .filter((f) => upcomingOtherIds.has(f.concertId))
-      .map((f) => ({ concertId: f.concertId, categoryId: f.categoryId, selectedOption: f.selectedOption, quantity: f.quantity })),
-    foodCategories,
+      .map((f) => ({ concertId: f.concertId, costItemBarcode: f.costItemBarcode, quantity: f.quantity })),
     dispensedMap(allOutgoing)
   );
 
   /* تنبيه الصرف المنسي: أصناف أكل لها وصفات ولم يُسجَّل لها أي صرف.
      إنشاء الحفلة لا يخصم شيئاً، فبلا صرف تظهر الحفلة بلا تكلفة خامات
      ويظهر المخزون أوفر مما هو — وكلاهما خطأ صامت. */
-  const foodNeedsDispense = concertFood.some((f) => {
-    const cat = foodCategories.find((c) => c.id === f.categoryId);
-    if (!cat) return false;
-    const req = aggregateRequirements(
-      [{ categoryId: f.categoryId, selectedOption: f.selectedOption, quantity: f.quantity ?? 0 }],
-      foodCategories, costItems
-    );
-    return req.length > 0;
-  });
+  const foodNeedsDispense = concertFood.some((f) => !!f.costItemBarcode);
   const concertStatusNow = normalizeStatus(concert.status);
   const missingDispense =
     foodNeedsDispense &&
     costOutgoing.length === 0 &&
     (concertStatusNow === "confirmed" || concertStatusNow === "completed");
 
-  const addFoodRequirements = aggregateRequirements(
-    Object.entries(addFoodCheck)
-      .filter(([, st]) => st.checked)
-      .map(([k, st]) => {
-        const [catId, opt] = k.split(":::");
-        const cat = foodCategories.find((c) => c.id === catId);
-        return { categoryId: catId, selectedOption: opt || cat?.name || "", quantity: parseInt(st.quantity) || 0 };
-      }),
-    foodCategories,
-    costItems
-  );
-  const addFoodEstimatedCost = totalEstimatedCost(addFoodRequirements);
+  const addFoodRequirements = Object.entries(addFoodCheck)
+    .filter(([, st]) => st.checked)
+    .map(([k, st]) => {
+      const meta = addFoodMeta[k];
+      const required = parseInt(st.quantity) || 0;
+      if (!meta || required <= 0) return null;
+      const item = costItems.find((c) => c.id === meta.item.id) ?? meta.item;
+      const available = itemBalance(item) - (committed.get(item.id) ?? 0);
+      return {
+        barcode: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        required,
+        available: Math.round(available * 1000) / 1000,
+        short: required > available,
+        estimatedCost: Math.round(required * averageCost(item) * 100) / 100,
+      };
+    })
+    .filter(Boolean) as {
+      barcode: string; itemName: string; unit: string; required: number;
+      available: number; short: boolean; estimatedCost: number;
+    }[];
+  const addFoodEstimatedCost =
+    Math.round(addFoodRequirements.reduce((s, r) => s + r.estimatedCost, 0) * 100) / 100;
 
   // Safety net for pure-view roles: block any button that slipped past the
   // per-feature rendering below.
@@ -1287,9 +1334,12 @@ export default function AdminConcertDetailPage() {
                       return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
                     })()}
                   </div>
-                  <p className="text-xs text-slate-400 pr-5">
-                    {p.date}
-                    {getPaymentDetail(p) && ` — ${getPaymentDetail(p)}`}
+                  <p className="text-xs text-slate-400 pr-5 flex flex-wrap items-center gap-x-2">
+                    <span>
+                      {p.date}
+                      {getPaymentDetail(p) && ` — ${getPaymentDetail(p)}`}
+                    </span>
+                    <Actor uid={p.createdBy} prefix="سجّلها" showIcon={false} />
                   </p>
                 </div>
                 {fx.payments && (
@@ -1546,7 +1596,7 @@ export default function AdminConcertDetailPage() {
             <UtensilsCrossed size={16} className="text-orange-500" />
             أصناف الأكل ({concertFood.length})
           </h3>
-          {foodCategories.length > 0 && fx.food && (
+          {sections.length > 0 && fx.food && (
             <Button size="sm" onClick={() => { setAddFoodCategoryId(""); setAddFoodCheck({}); setAddFoodSearch(""); setShowFoodForm(true); }}>
               <Plus size={14} /> إضافة
             </Button>
@@ -1732,7 +1782,10 @@ export default function AdminConcertDetailPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-800">تم إنشاء الحفلة</p>
-                <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(concert.createdAt)}</p>
+                <p className="text-xs text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2">
+                  {formatDateTime(concert.createdAt)}
+                  <Actor uid={concert.createdBy} />
+                </p>
               </div>
             </div>
 
@@ -1744,7 +1797,10 @@ export default function AdminConcertDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-700">{log.description}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(log.createdAt)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2">
+                    {formatDateTime(log.createdAt)}
+                    <Actor uid={log.createdBy} />
+                  </p>
                 </div>
               </div>
             ))}
@@ -2007,98 +2063,24 @@ export default function AdminConcertDetailPage() {
       {/* Add Food Modal — dropdown → checklist */}
       <Modal open={showFoodForm} onClose={() => setShowFoodForm(false)} title="إضافة أصناف أكل للحفلة">
         <div className="space-y-4">
-          {/* Category dropdown */}
-          <select
-            value={addFoodCategoryId}
-            onChange={(e) => { setAddFoodCategoryId(e.target.value); setAddFoodSearch(""); }}
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-          >
-            <option value="">— اختر قسم الأكل —</option>
-            {foodCategories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
-
-          {/* Search */}
-          {addFoodCategoryId && (
-            <div className="relative">
-              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={addFoodSearch}
-                onChange={(e) => setAddFoodSearch(e.target.value)}
-                placeholder="ابحث باسم الصنف..."
-                className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
-              />
-            </div>
-          )}
-
-          {/* Checklist for selected category */}
-          {addFoodCategoryId && (() => {
-            const cat = foodCategories.find((c) => c.id === addFoodCategoryId);
-            if (!cat) return null;
-            const existingOptions = new Set(concertFood.filter((f) => f.categoryId === cat.id).map((f) => f.selectedOption));
-            const q = addFoodSearch.trim();
-            let options = cat.options.length > 0 ? cat.options.filter((o) => !existingOptions.has(o)) : (existingOptions.has(cat.name) ? [] : [""]);
-            if (q) options = options.filter((o) => (o || cat.name).includes(q));
-            if (options.length === 0) return <p className="text-sm text-slate-400 text-center py-4">{q ? "لا توجد نتائج مطابقة للبحث" : "تمت إضافة جميع أصناف هذا القسم"}</p>;
-            return (
-              <div className="border border-orange-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-                <div className="divide-y divide-slate-50">
-                  {options.map((opt) => {
-                    const k = `${cat.id}:::${opt}`;
-                    const state = addFoodCheck[k];
-                    const isChecked = state?.checked ?? false;
-                    const label = opt || cat.name;
-                    return (
-                      <div key={k} className={`flex items-center gap-3 px-4 py-3 transition-colors ${isChecked ? "bg-orange-50" : "hover:bg-slate-50"}`}>
-                        <button
-                          type="button"
-                          onClick={() => setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" } }))}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isChecked ? "bg-orange-500 border-orange-500" : "border-slate-300 hover:border-orange-400"}`}
-                        >
-                          {isChecked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                        </button>
-                        <span className={`flex-1 min-w-0 text-sm cursor-pointer select-none ${isChecked ? "font-semibold text-slate-800" : "text-slate-600"}`}
-                          onClick={() => setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" } }))}>
-                          {label}
-                          {optionCostBarcode(cat, opt) && (
-                            <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold mr-1.5 align-middle">إنتاج</span>
-                          )}
-                          {(() => {
-                            const st = optionStock(cat, opt, parseInt(state?.quantity ?? "") || 0, costItems, committed);
-                            if (!st) return null;
-                            return (
-                              <span className={`block text-[10px] mt-0.5 tabular-nums-auto ${st.short ? "text-red-600 font-semibold" : "text-slate-400"}`}>
-                                {st.text}
-                              </span>
-                            );
-                          })()}
-                        </span>
-                        {isChecked && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <label className="text-xs text-slate-400 whitespace-nowrap">الكمية:</label>
-                            <input type="number" min={1} value={state?.quantity ?? ""}
-                              onChange={(e) => setAddFoodCheck((prev) => ({ ...prev, [k]: { checked: true, quantity: e.target.value } }))}
-                              placeholder="0"
-                              className="w-16 border border-orange-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white" />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+          <SalesFoodPicker
+            sections={sections}
+            items={costItems}
+            picks={addFoodCheck}
+            onToggle={toggleAddFood}
+            onQuantity={setAddFoodQty}
+            packages={packages}
+            onApplyPackage={applyPackageHere}
+            committed={committed}
+          />
 
           {/* Summary */}
           {Object.values(addFoodCheck).some((s) => s.checked) && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {Object.entries(addFoodCheck).filter(([, s]) => s.checked).map(([k, s]) => {
-                const [catId, opt] = k.split(":::");
-                const cat = foodCategories.find((c) => c.id === catId)!;
-                return <span key={k} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{opt || cat?.name}{s.quantity ? ` × ${s.quantity}` : ""}</span>;
+                const meta = addFoodMeta[k];
+                if (!meta) return null;
+                return <span key={k} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{meta.item.name}{s.quantity ? ` × ${s.quantity}` : ""}</span>;
               })}
             </div>
           )}

@@ -174,6 +174,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
 // Order matters: more specific prefixes first, bare /admin last.
 export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/finances")) return "finances";
+  if (pathname.startsWith("/admin/packages")) return "concerts";
   if (pathname.startsWith("/admin/concerts")) return "concerts";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/warehouse")) return "warehouse";

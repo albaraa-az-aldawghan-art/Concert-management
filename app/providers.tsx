@@ -5,12 +5,15 @@
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SystemProvider } from "@/contexts/SystemContext";
 import { ToastProvider } from "@/components/ui/toast";
+import { ActorsProvider } from "@/components/ui/actor";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <SystemProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ActorsProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ActorsProvider>
       </SystemProvider>
     </AuthProvider>
   );

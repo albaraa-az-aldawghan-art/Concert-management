@@ -6,6 +6,7 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostDamages, addStoreDamage, deleteCostDamage, getCostItems } from "@/lib/firestore/costs";
 import { useToast } from "@/components/ui/toast";
+import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,7 +192,10 @@ function CostsDamagePageInner() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{e.reason || "—"}</td>
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.damageDate}</td>
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
+                    {e.damageDate}
+                    <Actor uid={e.createdBy} className="block mt-0.5" showIcon={false} />
+                  </td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-red-600">{e.totalCost.toLocaleString("en-US")} ريال</td>
                   {isAdmin && (
                     <td className="px-4 py-3">

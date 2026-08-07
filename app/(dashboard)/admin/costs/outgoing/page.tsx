@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
+import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -299,7 +300,10 @@ export default function CostsOutgoingPage() {
                       e.departmentName
                     )}
                   </td>
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">{e.dispenseDate ?? "—"}</td>
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
+                    {e.dispenseDate ?? "—"}
+                    <Actor uid={e.createdBy} className="block mt-0.5" showIcon={false} />
+                  </td>
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

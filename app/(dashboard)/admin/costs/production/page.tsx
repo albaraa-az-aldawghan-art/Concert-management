@@ -10,6 +10,7 @@ import {
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
+import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -304,6 +305,7 @@ function CostsProductionPageInner() {
                     {fmtDate(p.productionDate)}
                     {p.expiryDate && <span className="text-amber-600"> ← {fmtDate(p.expiryDate)}</span>}
                     {" · "}تكلفة الوحدة {money(p.unitCost)} ريال
+                    <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
