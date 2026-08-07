@@ -3,6 +3,7 @@
 /* الموظفون: كل موظف مصنَّف تحت دوره، ودور كل مجموعة تُعدَّل صلاحياته من هنا —
    فمكان معرفة «من هو» ومكان تحديد «ما الذي يفتحه» صارا واحداً. */
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers } from "@/lib/firestore/users";
 import { auth } from "@/lib/firebase";
@@ -455,12 +456,19 @@ export default function StaffPage() {
                   {g.members.map((user) => (
                     <div
                       key={user.uid}
-                      className="relative flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5"
+                      className="relative flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5 hover:bg-slate-100 transition-colors"
                     >
-                      <div className="w-9 h-9 rounded-full bg-[#D4DCE8] flex items-center justify-center text-[#1C2D50] font-bold text-sm shrink-0">
+                      {/* الطبقة تغطي البطاقة فيُفتح الملف بالضغط عليها،
+                          وأزرار التعديل والحذف فوقها بـ relative فلا تُبتلع */}
+                      <Link
+                        href={`/admin/users/${user.uid}`}
+                        className="absolute inset-0 rounded-xl"
+                        aria-label={`ملف ${user.name}`}
+                      />
+                      <div className="relative w-9 h-9 rounded-full bg-[#D4DCE8] flex items-center justify-center text-[#1C2D50] font-bold text-sm shrink-0">
                         {user.name.charAt(0)}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 pointer-events-none">
                         <p className="font-semibold text-slate-800 text-sm truncate">{user.name}</p>
                         <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
                         <p className="text-[10px] text-slate-300 mt-0.5">
@@ -468,7 +476,7 @@ export default function StaffPage() {
                         </p>
                       </div>
                       {(canEdit || canDelete) && (
-                        <div className="flex flex-col gap-0.5 shrink-0">
+                        <div className="relative flex flex-col gap-0.5 shrink-0">
                           {canEdit && (
                             <button
                               onClick={() => openEdit(user)}

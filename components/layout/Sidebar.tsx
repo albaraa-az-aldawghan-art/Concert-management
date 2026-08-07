@@ -19,7 +19,6 @@ import {
   Boxes,
   FileSignature,
   SlidersHorizontal,
-  ClipboardList,
   LogOut,
   Menu,
   X,
@@ -85,15 +84,8 @@ const adminNav: NavItem[] = [
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
-  /* الموظفون: من هم، وما دور كلٍّ منهم، وما الذي يفتحه ذلك الدور */
-  {
-    label: "الموظفون",
-    href: "/admin/users",
-    icon: <UserRound size={17} />,
-    children: [
-      { label: "مهام الموظفين", href: "/employee/assignments", icon: <ClipboardList size={15} /> },
-    ],
-  },
+  /* الموظفون: من هم، وما دور كلٍّ منهم — ولكل موظف مسار خاص به */
+  { label: "الموظفون", href: "/admin/users", icon: <UserRound size={17} /> },
   {
     label: "الإعدادات",
     href: "/settings",
