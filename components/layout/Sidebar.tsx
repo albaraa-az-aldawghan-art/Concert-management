@@ -62,6 +62,7 @@ const adminNav: NavItem[] = [
       { label: "المطبخ",         href: "/kitchen",                  icon: <ChefHat size={15} /> },
       { label: "ربحية الحفلات",  href: "/admin/profitability",      icon: <TrendingUp size={15} /> },
       { label: "المشرفون",       href: "/supervisor/concerts",      icon: <UserCog size={15} /> },
+      { label: "المفقودات",      href: "/admin/missing-items",      icon: <AlertTriangle size={15} /> },
     ],
   },
   /* المطعم والتعاقدات: قناتا بيع مستقلتان لكل منهما تكاليفها */
@@ -84,13 +85,13 @@ const adminNav: NavItem[] = [
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
-  /* الموظفون والمفقودات يخدمان كل الأقسام لا الحفلات وحدها */
+  /* الموظفون: من هم، وما دور كلٍّ منهم، وما الذي يفتحه ذلك الدور */
   {
-    label: "الفريق",
-    href: "/employee/assignments",
+    label: "الموظفون",
+    href: "/admin/users",
     icon: <UserRound size={17} />,
     children: [
-      { label: "المفقودات", href: "/admin/missing-items", icon: <AlertTriangle size={15} /> },
+      { label: "مهام الموظفين", href: "/employee/assignments", icon: <ClipboardList size={15} /> },
     ],
   },
   {
@@ -99,7 +100,6 @@ const adminNav: NavItem[] = [
     icon: <Settings size={17} />,
     children: [
       { label: "مركز التحكم", href: "/admin/control", icon: <SlidersHorizontal size={15} /> },
-      { label: "المستخدمون", href: "/admin/users", icon: <Users size={15} /> },
     ],
   },
 ];
@@ -144,7 +144,7 @@ const navByRole: Record<string, NavItem[]> = {
 };
 
 const roleLabels: Record<string, string> = {
-  admin:             "مدير النظام",
+  admin:             "أدمن",
   warehouse_manager: "مدير الموارد",
   supervisor:        "مشرف",
   employee:          "موظف",

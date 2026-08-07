@@ -65,12 +65,13 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
   },
   {
     key: "users",
-    label: "المستخدمون",
+    label: "الموظفون",
     href: "/admin/users",
     features: [
-      { key: "create", label: "إنشاء مستخدم" },
-      { key: "edit",   label: "تعديل مستخدم (الاسم وكلمة المرور)" },
-      { key: "delete", label: "حذف مستخدم" },
+      { key: "create", label: "إضافة موظف" },
+      { key: "edit",   label: "تعديل موظف (الاسم وكلمة المرور والدور)" },
+      { key: "delete", label: "حذف موظف" },
+      { key: "roles",  label: "إنشاء الأدوار وتعديل صلاحياتها (صلاحية حساسة)" },
     ],
   },
   {
@@ -144,8 +145,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     label: "الإعدادات",
     href: "/settings",
     features: [
-      { key: "vat",   label: "تعديل نسبة الضريبة" },
-      { key: "roles", label: "إدارة الأدوار والصلاحيات (صلاحية حساسة)" },
+      { key: "vat", label: "تعديل نسبة الضريبة" },
     ],
   },
   {

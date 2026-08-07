@@ -15,7 +15,7 @@ import { UserRound } from "lucide-react";
    ═══════════════════════════════════════════════════════════════ */
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "المدير",
+  admin: "أدمن",
   warehouse_manager: "مسؤول الموارد",
   supervisor: "مشرف",
   employee: "موظف",
