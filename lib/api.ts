@@ -44,6 +44,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const api = {
+  get: <T = unknown>(path: string) => call<T>("GET", path),
   post: <T = { ok: true }>(path: string, body?: unknown) => call<T>("POST", path, body ?? {}),
   patch: <T = { ok: true }>(path: string, body?: unknown) => call<T>("PATCH", path, body ?? {}),
   del: <T = { ok: true }>(path: string) => call<T>("DELETE", path),

@@ -19,11 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
+import { ExportDialog } from "@/components/ui/export-dialog";
+import { COSTS_COLUMNS } from "@/lib/server/export-columns";
 import { CameraScanModal } from "@/components/ui/camera-scan-modal";
 import { SearchBox } from "@/components/ui/list-filters";
 import { CostItem, CostSettings, CostDepartment } from "@/types";
 import {
-  Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera,
+  Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera, FileSpreadsheet,
 } from "lucide-react";
 
 /** yyyy-mm-dd ← dd/mm/yyyy بأرقام لاتينية بلا انزياح منطقة زمنية */
@@ -133,6 +135,7 @@ export default function AdminCostsPage() {
   const [saving, setSaving] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editTarget, setEditTarget] = useState<CostItem | null>(null);
@@ -292,6 +295,11 @@ export default function AdminCostsPage() {
         <div>
           <h2 className="text-xl font-bold text-slate-800">أصناف التكاليف</h2>
           <p className="text-sm text-slate-500">{items.length} صنف مسجّل</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setShowExport(true)}>
+            <FileSpreadsheet size={14} /> تصدير إكسل
+          </Button>
         </div>
         {canManage && (
           <div className="flex gap-2 flex-wrap">
@@ -468,6 +476,14 @@ export default function AdminCostsPage() {
           </div>
         </div>
       </Modal>
+
+      <ExportDialog
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        kind="costs"
+        columns={COSTS_COLUMNS}
+        title="تصدير التكاليف إلى إكسل"
+      />
 
       <BarcodeLabelModal open={!!labelTarget} onClose={() => setLabelTarget(null)} item={labelTarget} />
 

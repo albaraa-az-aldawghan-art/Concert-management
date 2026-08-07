@@ -160,6 +160,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /* مفاتيح روابط التصدير: يُنشئها ويقرؤها الخادم وحده. المفتاح مخزَّن
+       مُجزّأً، وقراءته من المتصفح لا تفيد أحداً — فتُمنع كلياً. */
+    match /export_keys/{keyId} {
+      allow read, write: if false;
+    }
+
     // ── العدادات (ترقيم الحفلات تسلسلياً، وباركود التكاليف) ────
     match /counters/{counterId} {
       allow read, write: if isAdmin() || hasFeat('concerts', 'create') || hasFeat('costs', 'manage_items');

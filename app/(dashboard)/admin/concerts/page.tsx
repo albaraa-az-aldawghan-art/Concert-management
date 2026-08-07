@@ -8,12 +8,15 @@ import { getConcerts, deleteConcert } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExportDialog } from "@/components/ui/export-dialog";
+import { SALES_COLUMNS } from "@/lib/server/export-columns";
 import { ConfirmModal } from "@/components/ui/modal";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import {
   Plus, Music, CalendarDays, Search, Hash,
   Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users, UsersRound,
+  FileSpreadsheet,
 } from "lucide-react";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 
@@ -63,6 +66,7 @@ export default function AdminConcertsPage() {
   const canDelete = feat("concerts", "delete");
   const [concerts, setConcerts]     = useState<Concert[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [showExport, setShowExport] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Concert | null>(null);
   const [saving, setSaving]         = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -163,15 +167,29 @@ export default function AdminConcertsPage() {
             {filtered.length} من {concerts.length} حفلة
           </p>
         </div>
-        {canCreate && (
-          <Link href="/admin/concerts/new">
-            <Button>
-              <Plus size={16} />
-              حفلة جديدة
-            </Button>
-          </Link>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setShowExport(true)}>
+            <FileSpreadsheet size={16} />
+            تصدير إكسل
+          </Button>
+          {canCreate && (
+            <Link href="/admin/concerts/new">
+              <Button>
+                <Plus size={16} />
+                حفلة جديدة
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
+
+      <ExportDialog
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        kind="sales"
+        columns={SALES_COLUMNS}
+        title="تصدير المبيعات إلى إكسل"
+      />
 
       {/* Search */}
       <div className="relative">
