@@ -149,6 +149,28 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
     ],
   },
   {
+    key: "contracts",
+    label: "التعاقدات",
+    href: "/admin/contracts",
+    features: [
+      { key: "create",   label: "إنشاء عقد" },
+      { key: "edit",     label: "تعديل العقد وبنوده" },
+      { key: "payments", label: "إدارة دفعات العقود" },
+      { key: "cancel",   label: "إلغاء العقد" },
+      { key: "delete",   label: "حذف العقد" },
+      { key: "export",   label: "تصدير التعاقدات إلى إكسل" },
+    ],
+  },
+  {
+    key: "restaurant",
+    label: "المطعم",
+    href: "/admin/restaurant",
+    features: [
+      { key: "view_costs", label: "عرض تكاليف المطعم الشهرية" },
+      { key: "export",     label: "تصدير تكاليف المطعم" },
+    ],
+  },
+  {
     key: "costs",
     label: "التكاليف",
     href: "/admin/costs",
@@ -180,6 +202,8 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/warehouse")) return "warehouse";
   if (pathname.startsWith("/admin/food")) return "food";
   if (pathname.startsWith("/admin/missing-items")) return "missing_items";
+  if (pathname.startsWith("/admin/contracts")) return "contracts";
+  if (pathname.startsWith("/admin/restaurant")) return "restaurant";
   if (pathname.startsWith("/admin/costs")) return "costs";
   if (pathname.startsWith("/admin/profitability")) return "profitability";
   if (pathname.startsWith("/admin")) return "dashboard";

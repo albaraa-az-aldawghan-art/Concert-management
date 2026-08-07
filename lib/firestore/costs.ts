@@ -291,6 +291,8 @@ export async function addCostOutgoing(data: {
   concertName: string | null;
   clientName: string | null;
   manualConcertName: string | null;
+  contractId?: string | null;
+  contractName?: string | null;
   dispenseDate: string;
   createdBy: string;
 }): Promise<void> {
@@ -303,6 +305,8 @@ export async function addCostOutgoing(data: {
     concertName: data.concertName,
     clientName: data.clientName,
     manualConcertName: data.manualConcertName,
+    contractId: data.contractId ?? null,
+    contractName: data.contractName ?? null,
     dispenseDate: data.dispenseDate,
   });
 }

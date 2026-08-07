@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
       concertName: optStr(body.concertName),
       clientName: optStr(body.clientName),
       manualConcertName: optStr(body.manualConcertName),
+      contractId: optStr(body.contractId),
+      contractName: optStr(body.contractName),
       dispenseDate: dateStr(body.dispenseDate, "تاريخ الصرف"),
       createdBy: caller.uid,
     });

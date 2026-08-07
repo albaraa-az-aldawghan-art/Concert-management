@@ -20,6 +20,8 @@ export type PermissionPage =
   | "employees"
   | "settings"
   | "costs"
+  | "contracts"
+  | "restaurant"
   | "profitability";
 
 export interface CustomRole {
@@ -212,6 +214,63 @@ export interface SalesSection {
   channel: SalesChannel;
   name: string;
   order: number;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+/* ═══ التعاقدات ═══
+   عقد مع جهة (معهد · مدرسة · شركة) له مدة وبنود، وتُحمَّل عليه الخامات
+   المصروفة له كما تُحمَّل على الحفلة — فتُعرف ربحيته بنفس الطريقة. */
+
+export type ContractStatus = "active" | "completed" | "cancelled";
+
+export interface ContractTerm {
+  /** باركود صنف التكاليف — البند منتج بيع لا نص حر */
+  barcode: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Contract {
+  id: string;
+  contractNumber: number | null;
+  /** اسم الجهة المتعاقدة */
+  name: string;
+  clientName: string | null;
+  clientPhone: string | null;
+  startDate: string; // yyyy-mm-dd
+  endDate: string;   // yyyy-mm-dd
+  status: ContractStatus;
+  /** قيمة العقد شاملة الضريبة */
+  totalValue: number;
+  vatRate: number | null;
+  terms: ContractTerm[];
+  notes: string | null;
+  /** مشتقّ من الدفعات — لا يُكتب يدوياً */
+  paid?: number | null;
+  cancelledAt?: Timestamp | null;
+  cancellationReason?: string | null;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+/** دفعة على عقد — بنفس حقول دفعة الحفلة كي يوحَّد العرض والتصدير */
+export interface ContractPayment {
+  id: string;
+  contractId: string;
+  method: PaymentMethod;
+  amount: number;
+  date: string;
+  cardType: "visa" | "mada" | null;
+  receiverName: string | null;
+  bankName: string | null;
+  senderName: string | null;
+  hasInvoice?: boolean | null;
+  invoiceRegistered?: boolean | null;
+  invoiceNumber?: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }
@@ -457,6 +516,9 @@ export interface CostOutgoing {
   /** لقطة من اسم العميل وقت الصرف — اسم الحفلة قابل للتعديل لاحقاً فينحرف */
   clientName?: string | null;
   manualConcertName: string | null;
+  /** العقد الذي حُمِّل عليه هذا الصرف — كالحفلة تماماً */
+  contractId?: string | null;
+  contractName?: string | null;
   dispenseDate: string; // yyyy-mm-dd — تاريخ الصرف الفعلي
   /** قيمة المخزون التي خرجت بمتوسط اللحظة — تُعكس بها العملية عند
    *  الحذف أو الإرجاع، فلا تُقدَّر بمتوسط لاحق مختلف */
@@ -471,7 +533,12 @@ export interface CostOutgoing {
 
 export interface CostDepartment {
   name: string;
+  /** يطالب باختيار حفلة عند الصرف فتُحمَّل التكلفة عليها */
   concertLinked: boolean;
+  /** يطالب باختيار عقد — أقسام التعاقدات والمدارس */
+  contractLinked?: boolean;
+  /** قسم مطعم: تكاليفه تُجمَّع شهرياً في قسم المطعم */
+  restaurant?: boolean;
 }
 
 export interface CostSettings {

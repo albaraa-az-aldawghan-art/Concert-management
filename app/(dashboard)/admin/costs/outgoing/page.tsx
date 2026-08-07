@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
+import { getContracts } from "@/lib/firestore/contracts";
 import { useToast } from "@/components/ui/toast";
 import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { formatDate } from "@/lib/utils";
 import { averageCost } from "@/lib/recipes";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
-import { CostOutgoing, CostItem, CostSettings, Concert } from "@/types";
+import { CostOutgoing, CostItem, CostSettings, Concert, Contract } from "@/types";
 import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -49,15 +50,21 @@ export default function CostsOutgoingPage() {
   const [concertSearch, setConcertSearch] = useState("");
   const [pickedConcert, setPickedConcert] = useState<Concert | null>(null);
   const [manualConcertName, setManualConcertName] = useState("");
+  /* أقسام التعاقدات تطالب باختيار عقد كما تطالب أقسام الحفلات بحفلة */
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [pickedContract, setPickedContract] = useState<Contract | null>(null);
+  const [contractSearch, setContractSearch] = useState("");
 
   useEffect(() => { setPage(1); }, [search, dateF, deptFilter]);
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    const [e, s, c, i] = await Promise.all([
+    const [e, s, c, i, ct] = await Promise.all([
       getCostOutgoing(), getCostSettings(), getConcerts(), getCostItems().catch(() => [] as CostItem[]),
+      getContracts().catch(() => [] as Contract[]),
     ]);
+    setContracts(ct);
     setEntries(e);
     setSettings(s);
     setConcerts(c);
@@ -74,6 +81,8 @@ export default function CostsOutgoingPage() {
     setConcertSearch("");
     setPickedConcert(null);
     setManualConcertName("");
+    setPickedContract(null);
+    setContractSearch("");
     setShowAdd(true);
   }
 
@@ -96,6 +105,10 @@ export default function CostsOutgoingPage() {
     if (!quantity || quantity <= 0) { showToast("أدخل كمية صحيحة", "error"); return; }
     if (!form.departmentName) { showToast("اختر القسم", "error"); return; }
     if (!form.dispenseDate) { showToast("أدخل تاريخ الصرف", "error"); return; }
+    if (selectedDept?.contractLinked && !pickedContract) {
+      showToast("اختر العقد الذي تُحمَّل عليه التكلفة", "error");
+      return;
+    }
     setSaving(true);
     try {
       await addCostOutgoing({
@@ -107,6 +120,8 @@ export default function CostsOutgoingPage() {
         concertName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.name ?? null : null,
         clientName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.clientName ?? null : null,
         manualConcertName: selectedDept?.concertLinked && concertMode === "manual" ? manualConcertName.trim() || null : null,
+        contractId: selectedDept?.contractLinked ? pickedContract?.id ?? null : null,
+        contractName: selectedDept?.contractLinked ? pickedContract?.name ?? null : null,
         dispenseDate: form.dispenseDate,
         createdBy: appUser.uid,
       });
@@ -178,6 +193,13 @@ export default function CostsOutgoingPage() {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const total = parseFloat(form.quantity || "0") * parseFloat(form.unitPrice || "0");
+
+  // العقود السارية وحدها تقبل تحميل تكلفة — الملغى والمنتهي لا
+  const cqs = contractSearch.trim();
+  const activeContracts = contracts
+    .filter((c) => c.status === "active")
+    .filter((c) => !cqs || c.name.includes(cqs) || (c.clientName ?? "").includes(cqs))
+    .slice(0, 30);
 
   // عمليات صرف باسم مكتوب يدوياً — لا تظهر في تكلفة أي حفلة، فنُظهر حجمها
   // كي لا يكون النقص في حساب الربحية خفياً
@@ -287,7 +309,12 @@ export default function CostsOutgoingPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
-                    {e.concertId ? (
+                    {e.contractId ? (
+                      <>
+                        <span className="text-slate-800">{e.contractName}</span>
+                        <span className="block text-[10px] text-slate-400">عقد · {e.departmentName}</span>
+                      </>
+                    ) : e.concertId ? (
                       <>
                         <span className="text-slate-800">{e.clientName || e.concertName}</span>
                         <span className="block text-[10px] text-slate-400">{e.departmentName}</span>
@@ -375,6 +402,44 @@ export default function CostsOutgoingPage() {
                 <Select label="القسم" required value={form.departmentName} onChange={(e) => setForm({ ...form, departmentName: e.target.value })}>
                   {settings.departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
                 </Select>
+
+                {selectedDept?.contractLinked && (
+                  <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50 space-y-2.5">
+                    <p className="text-xs font-semibold text-slate-600">العقد الذي تُحمَّل عليه التكلفة</p>
+                    {pickedContract ? (
+                      <div className="flex items-center justify-between gap-2 bg-white border border-[#D4DCE8] rounded-xl px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{pickedContract.name}</p>
+                          <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                            {pickedContract.startDate} ← {pickedContract.endDate}
+                            {pickedContract.clientName ? ` · ${pickedContract.clientName}` : ""}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => setPickedContract(null)}
+                          className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
+                      </div>
+                    ) : (
+                      <>
+                        <input type="text" value={contractSearch} onChange={(e) => setContractSearch(e.target.value)}
+                          placeholder="ابحث باسم الجهة أو العميل..."
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+                        <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-50">
+                          {activeContracts.length === 0 ? (
+                            <p className="text-xs text-slate-400 p-3 text-center">لا توجد عقود سارية</p>
+                          ) : activeContracts.map((c) => (
+                            <button key={c.id} type="button" onClick={() => setPickedContract(c)}
+                              className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50">
+                              <span className="font-semibold text-slate-800">{c.name}</span>
+                              <span className="block text-[11px] text-slate-500 tabular-nums-auto">
+                                {c.startDate} ← {c.endDate}{c.clientName ? ` · ${c.clientName}` : ""}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {selectedDept?.concertLinked && (
                   <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50 space-y-2.5">

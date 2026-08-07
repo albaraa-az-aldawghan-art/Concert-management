@@ -160,6 +160,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /* التعاقدات ودفعاتها: تُقرأ بصلاحية الصفحة، وتُكتب من الخادم الذي
+       يبني بنودها من التكاليف ويشتقّ المدفوع من دفعاتها. */
+    match /contracts/{contractId} {
+      allow read:  if isAdmin() || pageOn('contracts') || pageOn('profitability');
+      allow write: if false;
+    }
+
+    match /contract_payments/{paymentId} {
+      allow read:  if isAdmin() || pageOn('contracts') || pageOn('finances');
+      allow write: if false;
+    }
+
     /* هيكل منتجات البيع والبكجات: يقرؤه الجميع لبناء القوائم،
        والكتابة من الخادم وحده (يتحقّق أن الصنف مسجّل والقسم موجود). */
     match /sales_sections/{sectionId} {

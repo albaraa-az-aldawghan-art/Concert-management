@@ -17,6 +17,7 @@ import {
   Music,
   AlertTriangle,
   Boxes,
+  FileSignature,
   SlidersHorizontal,
   ClipboardList,
   LogOut,
@@ -63,6 +64,9 @@ const adminNav: NavItem[] = [
       { label: "المشرفون",       href: "/supervisor/concerts",      icon: <UserCog size={15} /> },
     ],
   },
+  /* المطعم والتعاقدات: قناتا بيع مستقلتان لكل منهما تكاليفها */
+  { label: "المطعم",     href: "/admin/restaurant", icon: <UtensilsCrossed size={17} /> },
+  { label: "التعاقدات",  href: "/admin/contracts",  icon: <FileSignature size={17} /> },
   {
     label: "منتجات البيع",
     href: "/admin/food",

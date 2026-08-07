@@ -98,7 +98,9 @@ export async function svcAddOutgoing(
   d: {
     itemBarcode: string; quantity: number; unitPrice: number; departmentName: string;
     concertId: string | null; concertName: string | null; clientName: string | null;
-    manualConcertName: string | null; dispenseDate: string; createdBy: string;
+    manualConcertName: string | null;
+    contractId: string | null; contractName: string | null;
+    dispenseDate: string; createdBy: string;
   }
 ) {
   const itemRef = db.collection("cost_items").doc(d.itemBarcode);
@@ -128,6 +130,8 @@ export async function svcAddOutgoing(
       concertName: d.concertName,
       clientName: d.clientName,
       manualConcertName: d.manualConcertName,
+      contractId: d.contractId,
+      contractName: d.contractName,
       dispenseDate: d.dispenseDate,
       returnedQty: 0,
       damagedQty: 0,
