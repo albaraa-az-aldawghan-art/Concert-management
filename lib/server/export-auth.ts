@@ -20,8 +20,9 @@ export async function authorizeExport(
     return db;
   }
   const caller = await requireCaller(req);
-  // التصدير قراءة موسّعة: من يملك الصفحة يملك تصديرها
-  if (!caller.isAdmin && !caller.feat(page, "export") && !caller.feat(page, "edit")) {
+  // التصدير يُخرج البيانات من النظام كملف يُنسخ ويُرسل، فلا يكفي أن
+  // يملك المستخدم الصفحة — لا بد من صلاحية «تصدير» صريحة يمنحها المدير
+  if (!caller.isAdmin && !caller.feat(page, "export")) {
     throw new ApiError(`لا تملك صلاحية تصدير ${label}`, 403);
   }
   return caller.db;

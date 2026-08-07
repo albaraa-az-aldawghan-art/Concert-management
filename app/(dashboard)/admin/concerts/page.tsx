@@ -64,6 +64,7 @@ export default function AdminConcertsPage() {
   const { feat } = useAuth();
   const canCreate = feat("concerts", "create");
   const canDelete = feat("concerts", "delete");
+  const canExport = feat("concerts", "export"); // المدير يملكها دائماً عبر feat
   const [concerts, setConcerts]     = useState<Concert[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showExport, setShowExport] = useState(false);
@@ -168,10 +169,14 @@ export default function AdminConcertsPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => setShowExport(true)}>
-            <FileSpreadsheet size={16} />
-            تصدير إكسل
-          </Button>
+          {/* التصدير يُخرج البيانات كملف يُنسخ ويُرسل — صلاحية مستقلة
+              لا تُعطى بالتبعية لمن يرى الصفحة */}
+          {canExport && (
+            <Button variant="outline" onClick={() => setShowExport(true)}>
+              <FileSpreadsheet size={16} />
+              تصدير إكسل
+            </Button>
+          )}
           {canCreate && (
             <Link href="/admin/concerts/new">
               <Button>
@@ -184,7 +189,7 @@ export default function AdminConcertsPage() {
       </div>
 
       <ExportDialog
-        open={showExport}
+        open={showExport && canExport}
         onClose={() => setShowExport(false)}
         kind="sales"
         columns={SALES_COLUMNS}

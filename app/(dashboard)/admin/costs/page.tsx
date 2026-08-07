@@ -127,6 +127,7 @@ export default function AdminCostsPage() {
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
   const canManage = isAdmin || feat("costs", "manage_items");
+  const canExport = isAdmin || feat("costs", "export");
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
@@ -296,11 +297,14 @@ export default function AdminCostsPage() {
           <h2 className="text-xl font-bold text-slate-800">أصناف التكاليف</h2>
           <p className="text-sm text-slate-500">{items.length} صنف مسجّل</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => setShowExport(true)}>
-            <FileSpreadsheet size={14} /> تصدير إكسل
-          </Button>
-        </div>
+        {/* صلاحية مستقلة: رؤية الأصناف لا تعني حقّ إخراجها ملفاً */}
+        {canExport && (
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setShowExport(true)}>
+              <FileSpreadsheet size={14} /> تصدير إكسل
+            </Button>
+          </div>
+        )}
         {canManage && (
           <div className="flex gap-2 flex-wrap">
             <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
@@ -478,7 +482,7 @@ export default function AdminCostsPage() {
       </Modal>
 
       <ExportDialog
-        open={showExport}
+        open={showExport && canExport}
         onClose={() => setShowExport(false)}
         kind="costs"
         columns={COSTS_COLUMNS}

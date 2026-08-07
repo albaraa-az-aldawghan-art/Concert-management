@@ -59,6 +59,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "contract",     label: "عرض العقد وطباعته" },
       { key: "cancel",       label: "إلغاء الحفلة" },
       { key: "delete",       label: "حذف الحفلة" },
+      { key: "export",       label: "تصدير المبيعات إلى إكسل" },
     ],
   },
   {
@@ -155,6 +156,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "record_incoming", label: "تسجيل الوارد من الموردين" },
       { key: "record_outgoing", label: "تسجيل المنصرف للأقسام والحفلات" },
       { key: "view_balance",    label: "عرض رصيد الأصناف" },
+      { key: "export",          label: "تصدير التكاليف إلى إكسل" },
     ],
   },
   {
