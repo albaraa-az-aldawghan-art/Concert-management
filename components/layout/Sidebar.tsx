@@ -48,27 +48,25 @@ interface NavItem {
 const adminNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/admin",                       icon: <LayoutDashboard size={17} /> },
   { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
-  { label: "الحفلات",        href: "/admin/concerts",               icon: <Music size={17} /> },
+  /* الحفلات قسم كامل: كل ما يخدم تنفيذ الحفلة تحته، فلا يتنقّل المستخدم
+     بين رؤوس متفرّقة ليُنهي حفلة واحدة */
   {
-    label: "الموارد",
-    href: "/admin/warehouse",
-    icon: <Package size={17} />,
+    label: "الحفلات",
+    href: "/admin/concerts",
+    icon: <Music size={17} />,
     children: [
-      { label: "طلبات الموارد", href: "/warehouse-manager/orders",   icon: <Truck size={15} /> },
+      { label: "الموارد",        href: "/admin/warehouse",          icon: <Package size={15} /> },
+      { label: "طلبات الموارد",  href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
+      { label: "البكجات",        href: "/admin/packages",           icon: <Boxes size={15} /> },
+      { label: "المطبخ",         href: "/kitchen",                  icon: <ChefHat size={15} /> },
+      { label: "ربحية الحفلات",  href: "/admin/profitability",      icon: <TrendingUp size={15} /> },
+      { label: "المشرفون",       href: "/supervisor/concerts",      icon: <UserCog size={15} /> },
     ],
-  },
-  {
-    label: "البكجات",
-    href: "/admin/packages",
-    icon: <Boxes size={17} />,
   },
   {
     label: "منتجات البيع",
     href: "/admin/food",
     icon: <UtensilsCrossed size={17} />,
-    children: [
-      { label: "طلبات المطبخ", href: "/kitchen", icon: <ChefHat size={15} /> },
-    ],
   },
   {
     label: "التكاليف",
@@ -82,14 +80,13 @@ const adminNav: NavItem[] = [
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
     ],
   },
-  { label: "ربحية الحفلات", href: "/admin/profitability", icon: <TrendingUp size={17} /> },
+  /* الموظفون والمفقودات يخدمان كل الأقسام لا الحفلات وحدها */
   {
-    label: "المشرفون",
-    href: "/supervisor/concerts",
-    icon: <UserCog size={17} />,
+    label: "الفريق",
+    href: "/employee/assignments",
+    icon: <UserRound size={17} />,
     children: [
-      { label: "الموظفون",  href: "/employee/assignments", icon: <UserRound size={15} /> },
-      { label: "المفقودات", href: "/admin/missing-items",  icon: <AlertTriangle size={15} /> },
+      { label: "المفقودات", href: "/admin/missing-items", icon: <AlertTriangle size={15} /> },
     ],
   },
   {
