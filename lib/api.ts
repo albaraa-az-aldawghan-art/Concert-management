@@ -47,5 +47,6 @@ export const api = {
   get: <T = unknown>(path: string) => call<T>("GET", path),
   post: <T = { ok: true }>(path: string, body?: unknown) => call<T>("POST", path, body ?? {}),
   patch: <T = { ok: true }>(path: string, body?: unknown) => call<T>("PATCH", path, body ?? {}),
+  put: <T = { ok: true }>(path: string, body?: unknown) => call<T>("PUT", path, body ?? {}),
   del: <T = { ok: true }>(path: string) => call<T>("DELETE", path),
 };

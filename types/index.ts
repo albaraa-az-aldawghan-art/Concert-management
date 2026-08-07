@@ -192,6 +192,55 @@ export interface FoodOptionDef {
   costItemBarcode?: string | null;
 }
 
+/* ═══ هيكل منتجات البيع ═══
+   المستوى الأول: المواد الأولية المشتراة (cost_items بلا إنتاج)
+   الثاني: التصنيع (cost_production) — يُنتج صنفاً له باركود وتكلفة
+   الثالث: منتجات البيع — قنوات بيع، تحت كل قناة أقسام، وتحت كل قسم
+           أصناف مصدرها التكاليف (خام أو مُنتَج).
+   القسم الفرعي مملوك لقناته: «معجنات المطعم» غير «معجنات أرامكو». */
+
+export type SalesChannel = "restaurant" | "concerts" | "contracts";
+
+export const SALES_CHANNELS: { key: SalesChannel; label: string; order: number }[] = [
+  { key: "restaurant", label: "مبيعات المطعم", order: 1 },
+  { key: "concerts",   label: "مبيعات الحفلات", order: 2 },
+  { key: "contracts",  label: "التعاقدات والمدارس", order: 3 },
+];
+
+export interface SalesSection {
+  id: string;
+  channel: SalesChannel;
+  name: string;
+  order: number;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+/** بكج جاهز: مجموعة أصناف ومواد تُضاف للحفلة بضغطة ثم تُعدَّل */
+export interface ConcertPackage {
+  id: string;
+  name: string;
+  notes: string | null;
+  items: {
+    barcode: string;
+    itemName: string;
+    unit: string;
+    quantity: number;
+    sectionId: string | null;
+    sectionName: string | null;
+  }[];
+  materials: {
+    itemId: string;
+    itemName: string;
+    type: "internal" | "external";
+    count: number;
+  }[];
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+/** @deprecated بُني هيكل منتجات البيع بديلاً عنه — يبقى النوع لقراءة
+ *  الحفلات القديمة التي سجّلت أصنافها نصاً قبل التحويل */
 export interface FoodCategory {
   id: string;
   name: string;
@@ -207,9 +256,14 @@ export interface FoodCategory {
 export interface ConcertFood {
   id: string;
   concertId: string;
+  /** معرّف قسم البيع (كان معرّف قسم الأكل قبل التحويل) */
   categoryId: string;
   categoryName: string;
   selectedOption: string;
+  /** باركود صنف التكاليف — به تُقرأ التكلفة والرصيد مباشرةً */
+  costItemBarcode?: string | null;
+  /** البكج الذي أُضيف منه هذا الصنف، إن وُجد */
+  packageId?: string | null;
   quantity: number | null;
   notes: string | null;
   createdAt: Timestamp;
@@ -313,6 +367,9 @@ export interface CostItem {
   /** الخلطة القياسية لإنتاج هذا الصنف من مواد خام أخرى — تُعبّئ نموذج الإنتاج
    *  تلقائياً. وجودها يعني أن هذا صنف «مُنتَج» لا مُشترى مباشرةً. */
   productionRecipe?: RecipeLine[];
+  /** أقسام البيع التي يظهر تحتها هذا الصنف — معرّفات SalesSection.
+   *  الصنف الواحد قد يُباع في أكثر من قسم وقناة بنفس الباركود والتكلفة. */
+  salesSections?: string[];
   /** تاريخ الإنتاج وتاريخ الانتهاء — اختياريان (مواد كثيرة بلا صلاحية).
    *  يُطبعان على ملصق الباركود. yyyy-mm-dd */
   productionDate?: string | null;

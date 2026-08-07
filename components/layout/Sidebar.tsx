@@ -57,7 +57,7 @@ const adminNav: NavItem[] = [
     ],
   },
   {
-    label: "أصناف الأكل",
+    label: "منتجات البيع",
     href: "/admin/food",
     icon: <UtensilsCrossed size={17} />,
     children: [

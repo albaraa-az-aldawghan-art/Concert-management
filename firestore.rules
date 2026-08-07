@@ -160,6 +160,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /* هيكل منتجات البيع والبكجات: يقرؤه الجميع لبناء القوائم،
+       والكتابة من الخادم وحده (يتحقّق أن الصنف مسجّل والقسم موجود). */
+    match /sales_sections/{sectionId} {
+      allow read:  if signedIn();
+      allow write: if false;
+    }
+
+    match /packages/{packageId} {
+      allow read:  if signedIn();
+      allow write: if false;
+    }
+
     /* مفاتيح روابط التصدير: يُنشئها ويقرؤها الخادم وحده. المفتاح مخزَّن
        مُجزّأً، وقراءته من المتصفح لا تفيد أحداً — فتُمنع كلياً. */
     match /export_keys/{keyId} {

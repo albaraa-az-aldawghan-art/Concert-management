@@ -168,6 +168,27 @@ export function committedByItem(
   return out;
 }
 
+/** المرتبط بحفلات قادمة بعد هيكل منتجات البيع: صنف الأكل صار هو صنف
+ *  التكاليف نفسه بباركوده، فالاحتياج = الكمية المطلوبة مباشرةً. */
+export function committedByBarcode(
+  lines: { concertId: string; costItemBarcode?: string | null; quantity: number | null }[],
+  dispensedByConcertItem: Map<string, number>
+): Map<string, number> {
+  const need = new Map<string, number>();
+  for (const l of lines) {
+    if (!l.costItemBarcode || !l.quantity || l.quantity <= 0) continue;
+    const k = `${l.concertId}|${l.costItemBarcode}`;
+    need.set(k, (need.get(k) ?? 0) + l.quantity);
+  }
+  const out = new Map<string, number>();
+  for (const [k, required] of need) {
+    const [, barcode] = k.split("|");
+    const remaining = Math.max(0, required - (dispensedByConcertItem.get(k) ?? 0));
+    if (remaining > 0) out.set(barcode, (out.get(barcode) ?? 0) + remaining);
+  }
+  return out;
+}
+
 /** ما صُرف فعلاً لكل (حفلة، صنف) — مفتاحه نفس مفتاح الاحتياج */
 export function dispensedMap(
   outgoing: { concertId: string | null; itemBarcode: string; quantity: number; returnedQty?: number; damagedQty?: number }[]

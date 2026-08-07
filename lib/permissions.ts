@@ -60,6 +60,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
       { key: "cancel",       label: "إلغاء الحفلة" },
       { key: "delete",       label: "حذف الحفلة" },
       { key: "export",       label: "تصدير المبيعات إلى إكسل" },
+      { key: "packages",     label: "إدارة البكجات الجاهزة" },
     ],
   },
   {
@@ -93,7 +94,7 @@ export const PERMISSION_PAGES: PermissionPageDef[] = [
   },
   {
     key: "food",
-    label: "أصناف الأكل",
+    label: "منتجات البيع",
     href: "/admin/food",
     features: [
       { key: "add",     label: "إضافة قسم" },
