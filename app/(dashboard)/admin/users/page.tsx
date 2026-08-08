@@ -20,6 +20,8 @@ import {
   deleteCustomRole,
 } from "@/lib/firestore/roles";
 import { PERMISSION_PAGES, normalizedFeatures } from "@/lib/permissions";
+import { getLastSignIn, daysSince, sinceLabel, isIdle } from "@/lib/firestore/staff";
+import { useSystem } from "@/contexts/SystemContext";
 import { getRoleLabel, formatDate } from "@/lib/utils";
 import {
   Plus, Trash2, Users, Pencil, Shield, Eye, Settings2, ShieldCheck, Lock,
@@ -51,6 +53,7 @@ interface RoleGroup {
 
 export default function StaffPage() {
   const { appUser, feat } = useAuth();
+  const { settings } = useSystem();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const canCreate = feat("users", "create");
@@ -64,6 +67,7 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
+  const [signIns, setSignIns] = useState<Record<string, string | null>>({});
 
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<AppUser | null>(null);
@@ -88,6 +92,8 @@ export default function StaffPage() {
     setUsers(data);
     setCustomRoles(roles);
     setLoading(false);
+    /* نداء مجمّع واحد لكل الحسابات بعد العرض */
+    getLastSignIn(data.map((x) => x.uid)).then(setSignIns);
   }
 
   /* قيمة الدور في النموذج: إما دور جاهز أو "custom::<id>" */
@@ -471,9 +477,21 @@ export default function StaffPage() {
                       <div className="min-w-0 flex-1 pointer-events-none">
                         <p className="font-semibold text-slate-800 text-sm truncate">{user.name}</p>
                         <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
-                        <p className="text-[10px] text-slate-300 mt-0.5">
-                          مُسجَّل {formatDate(user.createdAt)}
-                        </p>
+                        {user.uid in signIns ? (
+                          <p
+                            className={`text-[10px] mt-0.5 font-medium ${
+                              isIdle(daysSince(signIns[user.uid]), settings.idleMonths)
+                                ? "text-red-500"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            آخر دخول {sinceLabel(daysSince(signIns[user.uid]))}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-slate-300 mt-0.5">
+                            مُسجَّل {formatDate(user.createdAt)}
+                          </p>
+                        )}
                       </div>
                       {(canEdit || canDelete) && (
                         <div className="relative flex flex-col gap-0.5 shrink-0">

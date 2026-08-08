@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystem } from "@/contexts/SystemContext";
+import { updateIdleMonths } from "@/lib/firestore/system";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ import {
 } from "@/types";
 import {
   SlidersHorizontal, ToggleLeft, Activity, Tag, Plus, X, Save, ChevronLeft,
-  AlertTriangle, CheckCircle2, Percent, Users, UtensilsCrossed,
+  AlertTriangle, CheckCircle2, Percent, Users, UtensilsCrossed, LogIn,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -137,6 +138,7 @@ export default function ControlCenterPage() {
   const [saving, setSaving] = useState<string | null>(null);
 
   const [vat, setVat] = useState("15");
+  const [idle, setIdle] = useState("6");
   const [costSettings, setCostSettings] = useState<CostSettings>({ units: [], departments: [] });
   const [deptInput, setDeptInput] = useState("");
   const [deptLinked, setDeptLinked] = useState(false);
@@ -172,6 +174,7 @@ export default function ControlCenterPage() {
     setFeatures(sys.features);
     setLabels(sys.labels);
     setVat(String(vatRate));
+    setIdle(String(sys.idleMonths));
     setCostSettings(cs);
     setExpenseTypes(es.types ?? []);
     setConcerts(cons);
@@ -284,6 +287,30 @@ export default function ControlCenterPage() {
                   if (isNaN(r) || r < 0 || r > 100) throw new Error("أدخل نسبة بين 0 و100");
                   await updateVatRate(r);
                 }, "حُفظت نسبة الضريبة")}>
+                <Save size={14} /> حفظ
+              </Button>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-center gap-2 mb-3">
+              <LogIn size={15} className="text-[#1C2D50]" />
+              <p className="font-bold text-slate-800">حدّ الحساب الخامل</p>
+            </div>
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              الحساب الذي لم يُسجَّل دخوله خلال هذه المدة يظهر بتحذير أحمر في صفحة الموظفين.
+              المقياس آخر <span className="font-semibold">تسجيل دخول</span> لا عدد العمليات — فالمشرف
+              والموظف والمطبخ يقرؤون ولا يكتبون، وعدد عملياتهم صفر مهما دخلوا يومياً.
+            </p>
+            <div className="flex gap-2 items-end max-w-xs">
+              <Input label="المدة (شهور)" type="number" min={1} max={60} step="1" value={idle}
+                onChange={(e) => setIdle(e.target.value)} className="flex-1" />
+              <Button loading={saving === "idle"}
+                onClick={() => run("idle", async () => {
+                  const m = parseInt(idle, 10);
+                  if (isNaN(m) || m < 1 || m > 60) throw new Error("أدخل عدد شهور بين 1 و60");
+                  await updateIdleMonths(m);
+                }, "حُفظ حدّ الخمول")}>
                 <Save size={14} /> حفظ
               </Button>
             </div>

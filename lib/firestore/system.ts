@@ -33,7 +33,12 @@ export interface SystemSettings {
   vatRate: number;
   features: SystemFeatures;
   labels: SystemLabels;
+  /** بعد كم شهر بلا تسجيل دخول يُعدّ الحساب خاملاً؟ */
+  idleMonths: number;
 }
+
+/** الحساب الذي لم يُسجَّل دخوله منذ هذه المدة يُعرض كخامل */
+export const DEFAULT_IDLE_MONTHS = 6;
 
 export const DEFAULT_FEATURES: SystemFeatures = {
   production: true,
@@ -67,6 +72,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
     vatRate: d.vatRate ?? 15,
     features: { ...DEFAULT_FEATURES, ...(d.features ?? {}) },
     labels: { ...DEFAULT_LABELS, ...(d.labels ?? {}) },
+    idleMonths: typeof d.idleMonths === "number" && d.idleMonths > 0 ? d.idleMonths : DEFAULT_IDLE_MONTHS,
   };
 }
 
@@ -76,4 +82,8 @@ export async function updateSystemFeatures(features: SystemFeatures): Promise<vo
 
 export async function updateSystemLabels(labels: SystemLabels): Promise<void> {
   await setDoc(doc(db, "settings", "global"), { labels }, { merge: true });
+}
+
+export async function updateIdleMonths(idleMonths: number): Promise<void> {
+  await setDoc(doc(db, "settings", "global"), { idleMonths }, { merge: true });
 }

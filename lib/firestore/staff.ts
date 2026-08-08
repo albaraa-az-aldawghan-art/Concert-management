@@ -4,6 +4,7 @@
 
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { Concert, ConcertItem, MissingItem } from "@/types";
 import { Timestamp } from "firebase/firestore";
 
@@ -207,4 +208,48 @@ export async function getStaffProfile(uid: string): Promise<StaffProfile> {
     activity,
     blocked: [...new Set(blocked)],
   };
+}
+
+/* ── آخر تسجيل دخول ───────────────────────────────────────────
+   يُقرأ من Firebase Auth عبر الخادم — المتصفح لا يصل إليه.
+   هو المقياس الصحيح للخمول لا عدد العمليات: المشرف والموظف والمطبخ
+   يقرؤون ولا يكتبون، فعدد عملياتهم صفر مهما دخلوا يومياً. */
+
+export async function getLastSignIn(uids: string[]): Promise<Record<string, string | null>> {
+  if (uids.length === 0) return {};
+  try {
+    const { lastSignIn } = await api.post<{ lastSignIn: Record<string, string | null> }>(
+      "/api/admin/last-signin",
+      { uids }
+    );
+    return lastSignIn;
+  } catch {
+    /* تعذّرت القراءة (صلاحية أو انقطاع) — تُخفى الشارة ولا تُعرض أرقام مخترعة */
+    return {};
+  }
+}
+
+/** كم يوماً مضى على التاريخ؟ null إن لم يوجد تاريخ */
+export function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+/** صياغة المدة بالعربية بأرقام لاتينية */
+export function sinceLabel(days: number | null): string {
+  if (days === null) return "لم يسجّل دخولاً";
+  if (days === 0) return "اليوم";
+  if (days === 1) return "أمس";
+  if (days < 30) return `قبل ${days} يوماً`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `قبل ${months} ${months === 1 ? "شهر" : "أشهر"}`;
+  const years = Math.floor(days / 365);
+  return `قبل ${years} ${years === 1 ? "سنة" : "سنوات"}`;
+}
+
+/** هل تجاوز الحساب حدّ الخمول؟ الحساب الذي لم يدخل قط يُعدّ خاملاً */
+export function isIdle(days: number | null, idleMonths: number): boolean {
+  return days === null || days >= idleMonths * 30;
 }

@@ -10,7 +10,10 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers } from "@/lib/firestore/users";
 import { getCustomRoles } from "@/lib/firestore/roles";
-import { getStaffProfile, StaffProfile } from "@/lib/firestore/staff";
+import {
+  getStaffProfile, StaffProfile, getLastSignIn, daysSince, sinceLabel, isIdle,
+} from "@/lib/firestore/staff";
+import { useSystem } from "@/contexts/SystemContext";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -23,7 +26,7 @@ import { PERMISSION_PAGES, normalizedFeatures, BUILT_IN_ACCESS } from "@/lib/per
 import { getRoleLabel, formatDate } from "@/lib/utils";
 import {
   ChevronRight, ChevronLeft, Pencil, Trash2, Mail, CalendarDays, Shield, ShieldCheck,
-  Lock, Music, Package, AlertTriangle, Activity, ExternalLink, Eye, Settings2,
+  Lock, Music, Package, AlertTriangle, Activity, ExternalLink, Eye, Settings2, LogIn, UserPlus,
 } from "lucide-react";
 
 /* الأدوار التي يجوز إسنادها — «أدمن» ليس منها عمداً */
@@ -41,6 +44,7 @@ export default function StaffProfilePage() {
   const { uid } = useParams<{ uid: string }>();
   const router = useRouter();
   const { appUser, feat } = useAuth();
+  const { settings } = useSystem();
   const { showToast } = useToast();
   const canEdit = feat("users", "edit");
   const canDelete = feat("users", "delete");
@@ -53,6 +57,7 @@ export default function StaffProfilePage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [form, setForm] = useState({ name: "", newPassword: "", role: "" });
+  const [signIn, setSignIn] = useState<string | null | undefined>(undefined);
   const [kindFilter, setKindFilter] = useState("");
   const [limit, setLimit] = useState(25);
 
@@ -68,8 +73,17 @@ export default function StaffProfilePage() {
     setUser(users.find((u) => u.uid === uid) ?? null);
     setCustomRoles(roles);
     setProfile(prof);
+    const target = users.find((u) => u.uid === uid);
+    const by = target?.createdBy;
+    const found = by ? users.find((u) => u.uid === by) : undefined;
+    setCreator(found ? { name: found.name, uid: found.uid } : by ? { name: "النظام", uid: "" } : null);
     setLoading(false);
+    /* آخر دخول يُطلب بعد العرض: تأخّره لا يؤخّر الصفحة */
+    getLastSignIn([uid]).then((m) => setSignIn(m[uid] ?? null));
   }
+
+  /* من أضاف هذا الحساب. الحسابات الأولى أنشأها تهيئة النظام لا شخص */
+  const [creator, setCreator] = useState<{ name: string; uid: string } | null>(null);
 
   const roleValueOf = (u: AppUser) =>
     u.role === "custom" && u.customRoleId ? `custom::${u.customRoleId}` : u.role;
@@ -254,6 +268,30 @@ export default function StaffProfilePage() {
                   <CalendarDays size={13} className="text-slate-300" />
                   مُسجَّل {formatDate(user.createdAt)}
                 </span>
+                {creator && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <UserPlus size={13} className="text-slate-300" />
+                    أضافه{" "}
+                    {creator.uid ? (
+                      <Link href={`/admin/users/${creator.uid}`} className="font-medium text-[#1C2D50] hover:underline">
+                        {creator.name}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-slate-600">{creator.name}</span>
+                    )}
+                  </span>
+                )}
+                {/* آخر دخول لا آخر عملية: الأدوار القارئة لا تكتب شيئاً */}
+                {signIn !== undefined && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 font-medium ${
+                      isIdle(daysSince(signIn), settings.idleMonths) ? "text-red-600" : "text-slate-500"
+                    }`}
+                  >
+                    <LogIn size={13} className={isIdle(daysSince(signIn), settings.idleMonths) ? "text-red-400" : "text-slate-300"} />
+                    آخر دخول {sinceLabel(daysSince(signIn))}
+                  </span>
+                )}
               </div>
               <div className="mt-2.5 inline-flex items-center gap-1.5 bg-[#EEF1F7] text-[#1C2D50] rounded-full px-3 py-1 text-xs font-bold">
                 {user.role === "admin" ? <ShieldCheck size={13} />
@@ -299,6 +337,18 @@ export default function StaffProfilePage() {
           </div>
         )}
       </Card>
+
+      {signIn !== undefined && isIdle(daysSince(signIn), settings.idleMonths) && user.uid !== appUser?.uid && (
+        <Card className="bg-red-50 border-red-100">
+          <p className="text-sm text-red-800">
+            <span className="font-bold">حساب خامل.</span>{" "}
+            {signIn === null
+              ? "لم يُسجَّل دخول هذا الحساب قط"
+              : `آخر دخول ${sinceLabel(daysSince(signIn))}`}{" "}
+            — والحساب ما زال يعمل بصلاحياته. راجع الحاجة إليه.
+          </p>
+        </Card>
+      )}
 
       {profile!.blocked.length > 0 && (
         <Card className="bg-amber-50 border-amber-100">

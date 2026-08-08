@@ -3,7 +3,8 @@
 /* إعدادات النظام المشتركة: الميزات المفعّلة والمسمّيات ونسبة الضريبة. */
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
-  getSystemSettings, SystemSettings, DEFAULT_FEATURES, DEFAULT_LABELS, SystemFeatures,
+  getSystemSettings, SystemSettings, DEFAULT_FEATURES, DEFAULT_LABELS,
+  DEFAULT_IDLE_MONTHS, SystemFeatures,
 } from "@/lib/firestore/system";
 
 /* إعدادات النظام تُقرأ مرة واحدة عند الدخول وتُشارَك على كل الصفحات.
@@ -17,7 +18,9 @@ interface SystemCtx {
   reload: () => Promise<void>;
 }
 
-const fallback: SystemSettings = { vatRate: 15, features: DEFAULT_FEATURES, labels: DEFAULT_LABELS };
+const fallback: SystemSettings = {
+  vatRate: 15, features: DEFAULT_FEATURES, labels: DEFAULT_LABELS, idleMonths: DEFAULT_IDLE_MONTHS,
+};
 
 const Ctx = createContext<SystemCtx>({
   settings: fallback,

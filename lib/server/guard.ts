@@ -27,6 +27,8 @@ export interface Caller {
   db: Firestore;
   /** هل يملك هذه الميزة داخل الصفحة؟ المدير يملك كل شيء دائماً */
   feat: (page: PermissionPage, feature: string) => boolean;
+  /** هل يفتح هذه الصفحة أصلاً؟ العرض وحده يكفي — لا تلزم ميزة */
+  can: (page: PermissionPage) => boolean;
   isAdmin: boolean;
 }
 
@@ -74,7 +76,13 @@ export async function requireCaller(
     return raw === "manage"; // الصيغة القديمة
   }
 
-  return { uid, role: user.role, db, feat, isAdmin };
+  function can(page: PermissionPage): boolean {
+    if (isAdmin) return true;
+    if (user.role !== "custom") return false;
+    return perms[page] !== undefined && perms[page] !== null;
+  }
+
+  return { uid, role: user.role, db, feat, can, isAdmin };
 }
 
 /** يرمي إن لم يملك المستخدم الميزة — الرسالة تذكر ما ينقصه */
@@ -82,6 +90,11 @@ export function require_(caller: Caller, page: PermissionPage, feature: string, 
   if (!caller.feat(page, feature)) {
     throw new ApiError(`لا تملك صلاحية ${label}`, 403);
   }
+}
+
+/** يرمي إن لم يكن للمستخدم وصول إلى الصفحة أصلاً */
+export function requirePage(caller: Caller, page: PermissionPage, label: string) {
+  if (!caller.can(page)) throw new ApiError(`لا تملك صلاحية ${label}`, 403);
 }
 
 export function requireAdmin(caller: Caller, label: string) {
