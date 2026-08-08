@@ -128,11 +128,24 @@ function Check({ count, title, why, href, unit = "سجل" }: {
 }
 
 export default function ControlCenterPage() {
-  const { appUser } = useAuth();
+  const { appUser, feat } = useAuth();
   const { reload: reloadSystem } = useSystem();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
 
+  /* كل تبويب صلاحيته: من يضبط الأسماء قد لا يوقف الميزات */
+  const canFeatures = isAdmin || feat("settings", "features");
+  const canLabels = isAdmin || feat("settings", "labels");
+  const canHealth = isAdmin || feat("settings", "health");
+  const canIdle = isAdmin || feat("settings", "idle");
+  const canVat = isAdmin || feat("settings", "vat");
+  const canOpen = isAdmin || feat("settings", "control");
+  const allowedTabs = TABS.filter((t) =>
+    t.key === "features" ? canFeatures
+    : t.key === "labels" ? canLabels
+    : t.key === "health" ? canHealth
+    : canVat || canIdle
+  );
   const [tab, setTab] = useState<Tab>("settings");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -251,7 +264,7 @@ export default function ControlCenterPage() {
 
       {/* تبويبات */}
       <div className="flex gap-2 flex-wrap">
-        {TABS.map((t) => (
+        {allowedTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors ${
               tab === t.key ? "bg-[#1C2D50] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"

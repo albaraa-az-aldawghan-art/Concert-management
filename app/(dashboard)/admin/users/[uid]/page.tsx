@@ -47,7 +47,14 @@ export default function StaffProfilePage() {
   const { settings } = useSystem();
   const { showToast } = useToast();
   const canEdit = feat("users", "edit");
+  const canChangeRole = feat("users", "change_role");
   const canDelete = feat("users", "delete");
+  /* بيانات الحساب: آخر دخوله ومن أضافه وتفاصيل نشاطه — كلٌّ بصلاحيته */
+  const fs_ = {
+    signin:  feat("users", "sf_signin"),
+    creator: feat("users", "sf_creator"),
+    profile: feat("users", "sf_profile"),
+  };
 
   const [user, setUser] = useState<AppUser | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
@@ -255,7 +262,7 @@ export default function StaffProfilePage() {
                   <CalendarDays size={13} className="text-slate-300" />
                   مُسجَّل {formatDate(user.createdAt)}
                 </span>
-                {creator && (
+                {fs_.creator && creator && (
                   <span className="inline-flex items-center gap-1.5">
                     <UserPlus size={13} className="text-slate-300" />
                     أضافه{" "}
@@ -269,7 +276,7 @@ export default function StaffProfilePage() {
                   </span>
                 )}
                 {/* آخر دخول لا آخر عملية: الأدوار القارئة لا تكتب شيئاً */}
-                {signIn !== undefined && (
+                {fs_.signin && signIn !== undefined && (
                   <span
                     className={`inline-flex items-center gap-1.5 font-medium ${
                       isIdle(daysSince(signIn), settings.idleMonths) ? "text-red-600" : "text-slate-500"
@@ -325,7 +332,7 @@ export default function StaffProfilePage() {
         )}
       </Card>
 
-      {signIn !== undefined && isIdle(daysSince(signIn), settings.idleMonths) && user.uid !== appUser?.uid && (
+      {fs_.signin && signIn !== undefined && isIdle(daysSince(signIn), settings.idleMonths) && user.uid !== appUser?.uid && (
         <Card className="bg-red-50 border-red-100">
           <p className="text-sm text-red-800">
             <span className="font-bold">حساب خامل.</span>{" "}
@@ -591,7 +598,7 @@ export default function StaffProfilePage() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700">
               هذا الحساب أدمن — دوره لا يُغيَّر من هذه الصفحة
             </div>
-          ) : (
+          ) : !canChangeRole ? null : (
             <Select
               label="الدور"
               value={form.role}

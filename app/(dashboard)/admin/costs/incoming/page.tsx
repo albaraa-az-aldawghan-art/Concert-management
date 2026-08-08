@@ -23,6 +23,15 @@ export default function CostsIncomingPage() {
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
   const canRecord = isAdmin || feat("costs", "in_add");
+  const canView = isAdmin || feat("costs", "in_view");
+  const canDelete = isAdmin || feat("costs", "in_delete");
+  /* الحقول: دور قد يتابع الوارد ولا يرى أسعاره */
+  const fi = {
+    supplier: isAdmin || feat("costs", "inf_supplier"),
+    price:    isAdmin || feat("costs", "inf_price"),
+    date:     isAdmin || feat("costs", "inf_date"),
+    actor:    isAdmin || feat("costs", "inf_actor"),
+  };
 
   const [entries, setEntries] = useState<CostIncoming[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -146,29 +155,31 @@ export default function CostsIncomingPage() {
             <thead>
               <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                 <th className="px-4 py-3 font-semibold">الصنف</th>
-                <th className="px-4 py-3 font-semibold">المورد</th>
+                {fi.supplier && <th className="px-4 py-3 font-semibold">المورد</th>}
                 <th className="px-4 py-3 font-semibold">الوحدة</th>
                 <th className="px-4 py-3 font-semibold">الكمية</th>
-                <th className="px-4 py-3 font-semibold">السعر قبل الضريبة</th>
-                <th className="px-4 py-3 font-semibold">التاريخ</th>
-                <th className="px-4 py-3 font-semibold">الإجمالي</th>
-                {isAdmin && <th className="px-4 py-3"></th>}
+                {fi.price && <th className="px-4 py-3 font-semibold">السعر قبل الضريبة</th>}
+                {(fi.date || fi.actor) && <th className="px-4 py-3 font-semibold">التاريخ</th>}
+                {fi.price && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
+                {canDelete && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody>
               {paginated.map((e) => (
                 <tr key={e.id} className="border-b border-slate-50 last:border-none">
                   <td className="px-4 py-3 font-semibold text-slate-800">{e.itemName}</td>
-                  <td className="px-4 py-3 text-slate-600">{e.supplierName || "—"}</td>
+                  {fi.supplier && <td className="px-4 py-3 text-slate-600">{e.supplierName || "—"}</td>}
                   <td className="px-4 py-3 text-slate-600">{e.unit}</td>
                   <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-600">{e.priceBeforeVat.toLocaleString("en-US")} ريال</td>
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
-                    {e.invoiceDate}
-                    <Actor uid={e.createdBy} className="block mt-0.5" showIcon={false} />
-                  </td>
-                  <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalBeforeVat.toLocaleString("en-US")} ريال</td>
-                  {isAdmin && (
+                  {fi.price && <td className="px-4 py-3 tabular-nums-auto text-slate-600">{e.priceBeforeVat.toLocaleString("en-US")} ريال</td>}
+                  {(fi.date || fi.actor) && (
+                    <td className="px-4 py-3 tabular-nums-auto text-slate-500">
+                      {fi.date && e.invoiceDate}
+                      {fi.actor && <Actor uid={e.createdBy} className="block mt-0.5" showIcon={false} />}
+                    </td>
+                  )}
+                  {fi.price && <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalBeforeVat.toLocaleString("en-US")} ريال</td>}
+                  {canDelete && (
                     <td className="px-4 py-3">
                       <button onClick={() => setDeleteTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 size={14} />

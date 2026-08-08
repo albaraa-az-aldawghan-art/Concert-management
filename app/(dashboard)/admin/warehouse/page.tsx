@@ -162,10 +162,17 @@ function SortableItemCard({
 
 export default function AdminWarehousePage() {
   const { showToast } = useToast();
-  const { feat } = useAuth();
+  const { can, feat } = useAuth();
+  const canView = can("warehouse");
   const canAdd = feat("warehouse", "add");
   const canEdit = feat("warehouse", "edit");
   const canDelete = feat("warehouse", "delete");
+  const canReorderPerm = feat("warehouse", "reorder");
+  /* السعر يقيّم المفقودات — ليس كل من يرى المواد يرى قيمتها */
+  const fw = {
+    price:     feat("warehouse", "wf_price"),
+    available: feat("warehouse", "wf_available"),
+  };
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -320,7 +327,7 @@ export default function AdminWarehousePage() {
   const internalCount = items.filter((i) => i.type === "internal").length;
   const externalCount = items.filter((i) => i.type === "external").length;
   // Dragging is only meaningful on the unfiltered global list
-  const canReorder = canEdit && filterType === "" && q === "";
+  const canReorder = canReorderPerm && filterType === "" && q === "";
 
   function renderForm(isEdit: boolean) {
     const shownImage = imagePreview ?? imageUrl;

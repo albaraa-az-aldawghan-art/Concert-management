@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { PermissionPage } from "@/types";
+import { roleDocIdFor } from "@/lib/permissions";
 import type { Firestore } from "firebase-admin/firestore";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -61,15 +62,18 @@ export async function requireCaller(
   const user = userSnap.data() as { role: string; customRoleId?: string | null };
   const isAdmin = user.role === "admin";
 
+  /* الدور مستند واحد سواء كان مخصصاً أو جاهزاً (مشرف، موظف…):
+     roleDocIdFor يترجم دور الحساب إلى معرّف مستنده، فيقرأ الخادم
+     الصلاحيات نفسها التي يقرأها المتصفح — مصدر واحد لا اثنان. */
   let perms: Record<string, string[] | string> = {};
-  if (user.role === "custom" && user.customRoleId) {
-    const roleSnap = await db.collection("custom_roles").doc(user.customRoleId).get();
+  const roleDocId = roleDocIdFor(user);
+  if (roleDocId) {
+    const roleSnap = await db.collection("custom_roles").doc(roleDocId).get();
     perms = (roleSnap.data()?.permissions ?? {}) as Record<string, string[] | string>;
   }
 
   function feat(page: PermissionPage, feature: string): boolean {
     if (isAdmin) return true;
-    if (user.role !== "custom") return false;
     const raw = perms[page];
     if (raw === undefined || raw === null) return false;
     if (Array.isArray(raw)) return raw.includes(feature);
@@ -78,7 +82,6 @@ export async function requireCaller(
 
   function can(page: PermissionPage): boolean {
     if (isAdmin) return true;
-    if (user.role !== "custom") return false;
     return perms[page] !== undefined && perms[page] !== null;
   }
 

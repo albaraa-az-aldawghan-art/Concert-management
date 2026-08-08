@@ -12,9 +12,11 @@ import { Scale } from "lucide-react";
 const PAGE_SIZE = 10;
 
 export default function CostsBalancePage() {
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const isAdmin = appUser?.role === "admin";
-  const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
+  const pageAllowed = (isAdmin || can("costs")) && (isAdmin || feat("costs", "bal_view"));
+  /* قيمة المخزون رقم مالي — تُفصل عن مجرّد رؤية الأرصدة */
+  const showValue = isAdmin || feat("costs", "bf_value");
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [loading, setLoading] = useState(true);

@@ -229,12 +229,14 @@ export async function getLastSignIn(uids: string[]): Promise<Record<string, stri
   }
 }
 
-/** كم يوماً مضى على التاريخ؟ null إن لم يوجد تاريخ */
+/** كم يوماً مضى على التاريخ؟ null إن لم يوجد تاريخ.
+ *  يُقصَر عند صفر: ساعة الخادم قد تسبق ساعة الجهاز بثوانٍ، فيخرج
+ *  Math.floor برقم سالب ويُعرض «قبل -1 يوماً» لمن سجّل دخوله للتوّ. */
 export function daysSince(iso: string | null | undefined): number | null {
   if (!iso) return null;
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
-  return Math.floor((Date.now() - t) / 86400000);
+  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
 /** صياغة المدة بالعربية بأرقام لاتينية */

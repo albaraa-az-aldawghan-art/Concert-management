@@ -27,11 +27,15 @@ interface DraftLine { barcode: string; quantity: string }
 interface DraftMaterial { itemId: string; count: string }
 
 export default function PackagesPage() {
-  const { appUser, feat } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   // البكج يضبطه المدير أو مشرف الحفلات المخوَّل
-  const canManage = isAdmin || feat("packages", "view");
+  const canView = isAdmin || can("packages");
+  const canCreate = isAdmin || feat("packages", "create");
+  const canEdit = isAdmin || feat("packages", "edit");
+  const canDelete = isAdmin || feat("packages", "delete");
+  const canManage = canCreate || canEdit;
 
   const [packages, setPackages] = useState<ConcertPackage[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);

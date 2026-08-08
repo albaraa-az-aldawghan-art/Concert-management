@@ -24,11 +24,17 @@ import {
 } from "lucide-react";
 
 export default function SalesProductsPage() {
-  const { appUser, feat } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   // الهيكل مملوك للتكاليف — من يدير أصنافها يدير أقسام بيعها
-  const canManage = isAdmin || feat("costs", "item_add") || feat("food", "rename");
+  const canView = isAdmin || can("food");
+  const canAddSection = isAdmin || feat("food", "add");
+  const canRename = isAdmin || feat("food", "rename");
+  const canDeleteSection = isAdmin || feat("food", "delete");
+  const canReorder = isAdmin || feat("food", "reorder");
+  const canAssign = isAdmin || feat("food", "assign");
+  const canManage = canRename || canAssign;
 
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -123,7 +129,7 @@ export default function SalesProductsPage() {
     }
   }
 
-  if (appUser && !isAdmin && !feat("food", "add") && !feat("food", "rename") && !feat("costs", "item_add")) {
+  if (appUser && !isAdmin && !canView && !canAddSection && !canRename) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 

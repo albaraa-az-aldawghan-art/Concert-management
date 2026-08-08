@@ -24,7 +24,13 @@ function CostsDamagePageInner() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canRecord = isAdmin || feat("costs", "out_add");
+  const canRecord = isAdmin || feat("costs", "dmg_add");
+  const canView = isAdmin || feat("costs", "dmg_view");
+  const canDelete = isAdmin || feat("costs", "dmg_delete");
+  const fd = {
+    cost:  isAdmin || feat("costs", "df_cost"),
+    actor: isAdmin || feat("costs", "df_actor"),
+  };
 
   const [entries, setEntries] = useState<CostDamage[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -170,8 +176,8 @@ function CostsDamagePageInner() {
                 <th className="px-4 py-3 font-semibold">المصدر</th>
                 <th className="px-4 py-3 font-semibold">السبب</th>
                 <th className="px-4 py-3 font-semibold">التاريخ</th>
-                <th className="px-4 py-3 font-semibold">القيمة</th>
-                {isAdmin && <th className="px-4 py-3"></th>}
+                {fd.cost && <th className="px-4 py-3 font-semibold">القيمة</th>}
+                {canDelete && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody>

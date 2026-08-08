@@ -24,7 +24,7 @@ interface ConcertSummary {
 // Employees are pure VIEWERS: a grid of concert cards; clicking one opens an
 // organized read-only detail page.
 export default function EmployeeAssignmentsPage() {
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const [summaries, setSummaries] = useState<ConcertSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,8 +36,10 @@ export default function EmployeeAssignmentsPage() {
   useEffect(() => { setPage(1); }, [search, dateF, timeFilter]);
 
   // Admin and custom roles granted "employees" oversee all concerts
-  const isAdmin = appUser?.role === "admin" || (appUser?.role === "custom" && can("employees"));
-  const pageAllowed = isAdmin || appUser?.role === "employee";
+  /* «عرض مهام كل الموظفين» صلاحية مستقلة: من يفتح الصفحة يرى مهامه،
+     ومن مُنح view_all يرى الجميع */
+  const isAdmin = appUser?.role === "admin" || feat("employees", "view_all");
+  const pageAllowed = isAdmin || can("employees");
 
   useEffect(() => {
     async function load() {

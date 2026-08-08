@@ -47,9 +47,16 @@ interface Row {
 }
 
 function ProfitabilityPageInner() {
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const isAdmin = appUser?.role === "admin";
-  const pageAllowed = isAdmin || (appUser?.role === "custom" && can("profitability"));
+  const pageAllowed = isAdmin || can("profitability");
+  /* الربح رقم حسّاس: قد يُمنح دور التكاليف دون الربح */
+  const fp = {
+    revenue:  isAdmin || feat("profitability", "pf_revenue"),
+    costs:    isAdmin || feat("profitability", "pf_costs"),
+    profit:   isAdmin || feat("profitability", "pf_profit"),
+    internal: isAdmin || feat("profitability", "pf_internal"),
+  };
 
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);

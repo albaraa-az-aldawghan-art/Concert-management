@@ -214,8 +214,9 @@ export default function SupervisorConcertDetailPage() {
   if (appUser && !pageAllowed) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
-  const fxs = (k: string) =>
-    role === "admin" || role === "supervisor" || feat("supervisor", k);
+  /* دور المشرف صار مستنداً تُعدَّل صلاحياته، فلا يُستثنى بالاسم:
+     نزعُ خطوة منه يجب أن يُخفي زرّها كما يمنعها الخادم. */
+  const fxs = (k: string) => role === "admin" || feat("supervisor", k);
 
   /* خطوات التشغيل الخمس — تعتمد كلها على العلامات المحفوظة مع الحفلة
      لا على مرحلتها، فكل خطوة تُفتح فور اكتمال ما قبلها ولا تنفتح مرتين. */

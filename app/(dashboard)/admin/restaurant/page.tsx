@@ -41,6 +41,12 @@ export default function RestaurantPage() {
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("restaurant"));
   const canDispense = isAdmin || feat("costs", "out_add");
+  /* تفاصيل الشهر: قد يُمنح دور المجموع دون تفصيل من صرف ماذا */
+  const fr = {
+    byDept: isAdmin || feat("restaurant", "rf_by_dept"),
+    byItem: isAdmin || feat("restaurant", "rf_by_item"),
+    ops:    isAdmin || feat("restaurant", "rf_ops"),
+  };
 
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });

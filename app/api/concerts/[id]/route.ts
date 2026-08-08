@@ -37,6 +37,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (key === "callerIdToken") continue;
       const feature = FEATURE_BY_FIELD[key];
       if (!feature) continue; // حقل غير قابل للتعديل — يسقطه svcUpdateConcert
+
+      /* إسناد الموظفين يفعله طرفان: من يدير الحفلات من لوحة الأدمن،
+         والمشرف من صفحة حفلته. لكلٍّ مفتاحه في صفحته، وأيّهما يكفي. */
+      if (key === "employeeIds" && caller.feat("supervisor", "assign_employees")) continue;
+
       require_(caller, "concerts", feature, `تعديل هذا الحقل (${key})`);
     }
 

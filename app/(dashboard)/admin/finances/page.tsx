@@ -61,7 +61,18 @@ type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
-  const { feat } = useAuth();
+  const { can, feat } = useAuth();
+  /* كل رقم بحقله: دور قد يتابع الحفلات ولا يرى أسعارها */
+  const ff = {
+    total:     feat("finances", "f_total"),
+    collected: feat("finances", "f_collected"),
+    remaining: feat("finances", "f_remaining"),
+    vat:       feat("finances", "f_vat"),
+    client:    feat("finances", "f_client"),
+    price:     feat("finances", "f_price"),
+    paid:      feat("finances", "f_paid"),
+    costs:     feat("finances", "f_costs"),
+  };
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -290,7 +301,7 @@ export default function FinancesPage() {
       </div>
 
       {/* Summary Cards */}
-      {feat("finances", "view") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {can("finances") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-[#EEF1F7] rounded-xl flex items-center justify-center">
@@ -384,7 +395,7 @@ export default function FinancesPage() {
       </div>}
 
       {/* Collection Progress */}
-      {feat("finances", "view") && <Card>
+      {can("finances") && <Card>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">نسبة التحصيل</h3>
           <span className={`text-xl font-bold ${rate >= 75 ? "text-emerald-600" : rate >= 40 ? "text-orange-500" : "text-red-500"}`}>

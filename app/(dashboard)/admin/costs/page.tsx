@@ -39,6 +39,8 @@ function ItemCard({
   item,
   canEdit,
   canDelete,
+  canLabel,
+  showDates,
   onEdit,
   onDelete,
   onLabel,
@@ -46,6 +48,10 @@ function ItemCard({
   item: CostItem;
   canEdit: boolean;
   canDelete: boolean;
+  /** طباعة الملصق صلاحية مستقلة — الملصق يخرج من المستودع ويُلصق على بضاعة */
+  canLabel: boolean;
+  /** تاريخا الإنتاج والانتهاء: بيانات جودة قد لا تخصّ كل دور */
+  showDates: boolean;
   onEdit: (i: CostItem) => void;
   onDelete: (i: CostItem) => void;
   onLabel: (i: CostItem) => void;
@@ -80,12 +86,12 @@ function ItemCard({
         >
           الرصيد {balance} {item.unit}
         </span>
-        {item.productionDate && (
+        {showDates && item.productionDate && (
           <span className="bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
             الإنتاج {fmtDate(item.productionDate)}
           </span>
         )}
-        {item.expiryDate && (
+        {showDates && item.expiryDate && (
           <span
             className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
               expired ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"
@@ -96,7 +102,7 @@ function ItemCard({
         )}
       </div>
       <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100">
-        {item.barcodeSource === "generated" && (
+        {canLabel && item.barcodeSource === "generated" && (
           <button
             onClick={() => onLabel(item)}
             className="flex items-center gap-1.5 text-xs font-semibold text-[#1C2D50] hover:bg-[#EEF1F7] px-2.5 py-1.5 rounded-lg transition-colors"
@@ -126,8 +132,16 @@ export default function AdminCostsPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canManage = isAdmin || feat("costs", "item_add");
+  /* كل إجراء مفتاحه: من يسجّل صنفاً قد لا يُسمح له بحذفه ولا بتغيير الوحدات */
+  const canAdd = isAdmin || feat("costs", "item_add");
+  const canEditItem = isAdmin || feat("costs", "item_edit");
+  const canDeleteItem = isAdmin || feat("costs", "item_delete");
+  const canImport = isAdmin || feat("costs", "item_import");
+  const canLabel = isAdmin || feat("costs", "item_barcode");
+  const canConfig = isAdmin || feat("costs", "item_config");
   const canExport = isAdmin || feat("costs", "export");
+  const showDates = isAdmin || feat("costs", "if_dates");
+  const showAvgCost = isAdmin || feat("costs", "if_avg_cost");
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
@@ -305,17 +319,23 @@ export default function AdminCostsPage() {
             </Button>
           </div>
         )}
-        {canManage && (
+        {(canConfig || canImport || canAdd) && (
           <div className="flex gap-2 flex-wrap">
-            <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
-              <SlidersHorizontal size={14} /> الوحدات والأقسام
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulk(true)}>
-              <Upload size={14} /> استيراد دفعة
-            </Button>
-            <Button size="sm" onClick={openAdd}>
-              <Plus size={16} /> تسجيل صنف جديد
-            </Button>
+            {canConfig && (
+              <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
+                <SlidersHorizontal size={14} /> الوحدات والأقسام
+              </Button>
+            )}
+            {canImport && (
+              <Button variant="outline" size="sm" onClick={() => setShowBulk(true)}>
+                <Upload size={14} /> استيراد دفعة
+              </Button>
+            )}
+            {canAdd && (
+              <Button size="sm" onClick={openAdd}>
+                <Plus size={16} /> تسجيل صنف جديد
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -339,8 +359,10 @@ export default function AdminCostsPage() {
             <ItemCard
               key={item.id}
               item={item}
-              canEdit={canManage}
-              canDelete={canManage}
+              canEdit={canEditItem}
+              canDelete={canDeleteItem}
+              canLabel={canLabel}
+              showDates={showDates}
               onEdit={openEdit}
               onDelete={setDeleteTarget}
               onLabel={setLabelTarget}
@@ -407,7 +429,7 @@ export default function AdminCostsPage() {
       </Modal>
 
       {/* Bulk Import */}
-      <Modal open={showBulk} onClose={() => setShowBulk(false)} title="استيراد عدة أصناف دفعة واحدة">
+      <Modal open={showBulk && canImport} onClose={() => setShowBulk(false)} title="استيراد عدة أصناف دفعة واحدة">
         <div className="space-y-4">
           <Textarea
             label="أسماء الأصناف (سطر لكل صنف)"
@@ -429,7 +451,7 @@ export default function AdminCostsPage() {
       </Modal>
 
       {/* Units & Departments Settings */}
-      <Modal open={showSettings} onClose={() => setShowSettings(false)} title="الوحدات والأقسام" size="lg">
+      <Modal open={showSettings && canConfig} onClose={() => setShowSettings(false)} title="الوحدات والأقسام" size="lg">
         <div className="space-y-6">
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-2">الوحدات</label>

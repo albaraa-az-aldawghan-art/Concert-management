@@ -2,6 +2,7 @@
 
 /* المفقودات: ما لم يرجع من مواد الحفلات وقيمته. */
 import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,14 @@ import { AlertTriangle } from "lucide-react";
 const PAGE_SIZE = 10;
 
 export default function AdminMissingItemsPage() {
+  const { appUser, can, feat } = useAuth();
+  const isAdmin = appUser?.role === "admin";
+  const pageAllowed = isAdmin || can("missing_items");
+  /* قيمة الخسارة رقم مالي، واسم المُبلِّغ بيان شخصي — كلٌّ بصلاحيته */
+  const fm = {
+    value: isAdmin || feat("missing_items", "mf_value"),
+    actor: isAdmin || feat("missing_items", "mf_actor"),
+  };
   const [items, setItems] = useState<MissingItem[]>([]);
   const [prices, setPrices] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -56,6 +65,10 @@ export default function AdminMissingItemsPage() {
     0
   );
   const unpricedCount = filtered.filter((i) => !prices.has(i.itemId)).length;
+
+  if (appUser && !pageAllowed) {
+    return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
+  }
 
   return (
     <div className="space-y-5">
@@ -133,8 +146,8 @@ export default function AdminMissingItemsPage() {
                     <th className="text-right py-2 px-3 font-semibold text-slate-500">الغرض</th>
                     <th className="text-right py-2 px-3 font-semibold text-slate-500">النوع</th>
                     <th className="text-right py-2 px-3 font-semibold text-slate-500">العدد</th>
-                    <th className="text-right py-2 px-3 font-semibold text-slate-500">قيمة الخسارة</th>
-                    <th className="text-right py-2 px-3 font-semibold text-slate-500">المبلّغ</th>
+                    {fm.value && <th className="text-right py-2 px-3 font-semibold text-slate-500">قيمة الخسارة</th>}
+                    {fm.actor && <th className="text-right py-2 px-3 font-semibold text-slate-500">المبلّغ</th>}
                     <th className="text-right py-2 px-3 font-semibold text-slate-500">التوقيت</th>
                   </tr>
                 </thead>
@@ -147,12 +160,14 @@ export default function AdminMissingItemsPage() {
                         <StatusBadge status={item.type} />
                       </td>
                       <td className="py-2 px-3 text-red-600 font-bold">{item.missingCount}</td>
-                      <td className="py-2 px-3 tabular-nums-auto">
-                        {prices.has(item.itemId)
-                          ? <span className="text-red-600 font-semibold">{((prices.get(item.itemId) as number) * item.missingCount).toLocaleString("en-US")} ريال</span>
-                          : <span className="text-slate-300" title="لم يُحدَّد سعر لهذه المادة في الموارد">—</span>}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600 text-xs">{item.reportedByName}</td>
+                      {fm.value && (
+                        <td className="py-2 px-3 tabular-nums-auto">
+                          {prices.has(item.itemId)
+                            ? <span className="text-red-600 font-semibold">{((prices.get(item.itemId) as number) * item.missingCount).toLocaleString("en-US")} ريال</span>
+                            : <span className="text-slate-300" title="لم يُحدَّد سعر لهذه المادة في الموارد">—</span>}
+                        </td>
+                      )}
+                      {fm.actor && <td className="py-2 px-3 text-slate-600 text-xs">{item.reportedByName}</td>}
                       <td className="py-2 px-3 text-slate-400 text-xs">{formatDateTime(item.reportedAt)}</td>
                     </tr>
                   ))}

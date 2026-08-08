@@ -28,6 +28,15 @@ export default function CostsOutgoingPage() {
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
   const canRecord = isAdmin || feat("costs", "out_add");
+  const canView = isAdmin || feat("costs", "out_view");
+  const canSettle = isAdmin || feat("costs", "out_settle");
+  const canDelete = isAdmin || feat("costs", "out_delete");
+  const fo = {
+    cost:  isAdmin || feat("costs", "of_cost"),
+    dest:  isAdmin || feat("costs", "of_dest"),
+    date:  isAdmin || feat("costs", "of_date"),
+    actor: isAdmin || feat("costs", "of_actor"),
+  };
 
   const [entries, setEntries] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
@@ -283,9 +292,9 @@ export default function CostsOutgoingPage() {
                 <th className="px-4 py-3 font-semibold">الصنف</th>
                 <th className="px-4 py-3 font-semibold">الوحدة</th>
                 <th className="px-4 py-3 font-semibold">الكمية</th>
-                <th className="px-4 py-3 font-semibold">القسم / الحفلة</th>
-                <th className="px-4 py-3 font-semibold">تاريخ الصرف</th>
-                <th className="px-4 py-3 font-semibold">الإجمالي</th>
+                {fo.dest && <th className="px-4 py-3 font-semibold">القسم / الحفلة</th>}
+                {(fo.date || fo.actor) && <th className="px-4 py-3 font-semibold">تاريخ الصرف</th>}
+                {fo.cost && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -334,7 +343,7 @@ export default function CostsOutgoingPage() {
                   <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalCost.toLocaleString("en-US")} ريال</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      {canRecord && e.quantity - (e.returnedQty ?? 0) - (e.damagedQty ?? 0) > 0 && (
+                      {canSettle && e.quantity - (e.returnedQty ?? 0) - (e.damagedQty ?? 0) > 0 && (
                         <button onClick={() => openSettle(e)} title="إرجاع للمخزون أو تسجيل تالف"
                           className="text-slate-400 hover:text-emerald-600 transition-colors">
                           <Undo2 size={14} />

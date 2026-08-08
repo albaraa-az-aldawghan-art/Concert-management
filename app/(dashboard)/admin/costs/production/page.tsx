@@ -52,7 +52,15 @@ function CostsProductionPageInner() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canRecord = isAdmin || feat("costs", "in_add");
+  const canRecord = isAdmin || feat("costs", "prod_add");
+  const canView = isAdmin || feat("costs", "prod_view");
+  const canRecipe = isAdmin || feat("costs", "prod_recipe");
+  const canLabel = isAdmin || feat("costs", "prod_label");
+  const canDelete = isAdmin || feat("costs", "prod_delete");
+  const fp = {
+    inputs: isAdmin || feat("costs", "prf_inputs"),
+    actor:  isAdmin || feat("costs", "prf_actor"),
+  };
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [productions, setProductions] = useState<CostProduction[]>([]);
@@ -305,7 +313,7 @@ function CostsProductionPageInner() {
                     {fmtDate(p.productionDate)}
                     {p.expiryDate && <span className="text-amber-600"> ← {fmtDate(p.expiryDate)}</span>}
                     {" · "}تكلفة الوحدة {money(p.unitCost)} ريال
-                    <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />
+                    {fp.actor && <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -321,7 +329,7 @@ function CostsProductionPageInner() {
                   >
                     <Printer size={14} />
                   </button>
-                  {isAdmin && (
+                  {canDelete && (
                     <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors">
                       <Trash2 size={14} />
                     </button>
