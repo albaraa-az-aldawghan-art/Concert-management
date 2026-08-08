@@ -270,3 +270,30 @@ export function firstAllowedPath(user: AppUser | null, customRole: CustomRole | 
   const first = PERMISSION_PAGES.find((p) => canAccess(user, customRole, p.key));
   return first?.href ?? "/settings";
 }
+
+/* الأدوار الجاهزة لا تُشتق من كتالوج الصلاحيات — قائمة كل دور مثبَّتة في
+   الشريط الجانبي. تُكرَّر هنا كنص مجرّد ليعرضها ملف الموظف، ويحرس اختبارٌ
+   تطابقها مع الشريط حتى لا تنحرف إحداهما عن الأخرى. */
+export const BUILT_IN_ACCESS: Record<string, { label: string; href: string }[]> = {
+  warehouse_manager: [
+    { label: "لوحة التحكم",   href: "/warehouse-manager" },
+    { label: "الموارد",       href: "/warehouse-manager/warehouse" },
+    { label: "طلبات الموارد", href: "/warehouse-manager/orders" },
+    { label: "المفقودات",     href: "/warehouse-manager/missing-items" },
+    { label: "الإعدادات",     href: "/settings" },
+  ],
+  supervisor: [
+    { label: "لوحة التحكم", href: "/supervisor" },
+    { label: "حفلاتي",      href: "/supervisor/concerts" },
+    { label: "الإعدادات",   href: "/settings" },
+  ],
+  employee: [
+    { label: "لوحة التحكم", href: "/employee" },
+    { label: "حفلاتي",      href: "/employee/assignments" },
+    { label: "الإعدادات",   href: "/settings" },
+  ],
+  kitchen: [
+    { label: "طلبات المطبخ", href: "/kitchen" },
+    { label: "الإعدادات",    href: "/settings" },
+  ],
+};
