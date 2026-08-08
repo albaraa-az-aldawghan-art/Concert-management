@@ -21,11 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       location: "set_location",
     };
     const key = body.location ? "location" : String(body.flag ?? "");
-    const allowed =
-      caller.isAdmin ||
-      caller.role === "supervisor" ||
-      caller.feat("concerts", "edit") ||
-      caller.feat("supervisor", FEATURE_BY_FLAG[key] ?? "");
+    /* دور المشرف صار مستنداً تُعدَّل صلاحياته، فلا يُستثنى بالاسم:
+       نزعُ خطوة من الدور يجب أن يمنعها فعلاً، وإلا كان الكتالوج زينة. */
+    const allowed = caller.isAdmin || caller.feat("supervisor", FEATURE_BY_FLAG[key] ?? "");
     if (!allowed) throw new ApiError("لا تملك صلاحية تحديث خطوات الحفلة", 403);
 
     if (body.location) {

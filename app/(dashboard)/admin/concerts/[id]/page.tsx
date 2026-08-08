@@ -787,18 +787,70 @@ export default function AdminConcertDetailPage() {
   const internalMissing = missing.filter((m) => m.type === "internal");
   const externalMissing = missing.filter((m) => m.type === "external");
 
-  // Feature-level permissions for this page: each capability is granted
-  // individually from the role's checklist (admin gets everything).
+  /* صلاحيات هذه الصفحة: كل زر مفتاحه المستقل، يُمنح وحده من قائمة الدور.
+     الأدمن يملكها كلها دائماً. */
   const fx = {
-    edit: feat("concerts", "edit"),
-    assign: feat("concerts", "assign"),
-    payments: feat("concerts", "payments"),
-    materials: feat("concerts", "materials"),
-    food: feat("concerts", "food_items"),
-    kitchen: feat("concerts", "send_kitchen"),
-    stages: feat("concerts", "stages"),
-    contract: feat("concerts", "contract"),
-    cancel: feat("concerts", "cancel"),
+    /* بيانات الحفلة — كل حقل على حدة */
+    editDate:     feat("concerts", "edit_date"),
+    editVenue:    feat("concerts", "edit_venue"),
+    editLocation: feat("concerts", "edit_location"),
+    editPeople:   feat("concerts", "edit_people"),
+    editNotes:    feat("concerts", "edit_notes"),
+    editPrice:    feat("concerts", "edit_price"),
+    editHall:     feat("concerts", "edit_hall"),
+    markPaid:     feat("concerts", "mark_paid"),
+
+    /* الدفعات */
+    payView:    feat("concerts", "pay_view"),
+    payAdd:     feat("concerts", "pay_add"),
+    payInvoice: feat("concerts", "pay_invoice"),
+    payDelete:  feat("concerts", "pay_delete"),
+
+    /* المصروفات */
+    expView:   feat("concerts", "exp_view"),
+    expAdd:    feat("concerts", "exp_add"),
+    expDelete: feat("concerts", "exp_delete"),
+
+    /* المواد */
+    matView:    feat("concerts", "mat_view"),
+    matAdd:     feat("concerts", "mat_add"),
+    matEditQty: feat("concerts", "mat_edit_qty"),
+    matDelete:  feat("concerts", "mat_delete"),
+
+    /* الأكل */
+    foodView:    feat("concerts", "food_view"),
+    foodAdd:     feat("concerts", "food_add"),
+    foodEditQty: feat("concerts", "food_edit_qty"),
+    foodDelete:  feat("concerts", "food_delete"),
+    kitchen:     feat("concerts", "send_kitchen"),
+
+    /* الفريق والوثائق */
+    assignSup: feat("concerts", "assign_supervisors"),
+    assignEmp: feat("concerts", "assign_employees"),
+    stages:    feat("concerts", "stages_view"),
+    log:       feat("concerts", "log_view"),
+    contract:  feat("concerts", "contract_view"),
+    cancel:    feat("concerts", "cancel"),
+  };
+
+  /* الحقول الظاهرة داخل كل مجموعة */
+  const ff = {
+    payMethod:  feat("concerts", "pf_method"),
+    payDate:    feat("concerts", "pf_date"),
+    payAmount:  feat("concerts", "pf_amount"),
+    payBank:    feat("concerts", "pf_bank"),
+    payInvoice: feat("concerts", "pf_invoice"),
+    payActor:   feat("concerts", "pf_actor"),
+    expType:     feat("concerts", "ef_type"),
+    expSupplier: feat("concerts", "ef_supplier"),
+    expAmount:   feat("concerts", "ef_amount"),
+    expDate:     feat("concerts", "ef_date"),
+    expActor:    feat("concerts", "ef_actor"),
+    matCost:     feat("concerts", "mf_cost"),
+    matAssignee: feat("concerts", "mf_assignee"),
+    matStatus:   feat("concerts", "mf_status"),
+    foodCost:      feat("concerts", "ff_cost"),
+    foodAvailable: feat("concerts", "ff_available"),
   };
   const hasAnyPower = Object.values(fx).some(Boolean);
 
@@ -806,7 +858,7 @@ export default function AdminConcertDetailPage() {
      السيارة كثيراً ما تصل بعد انتهاء الحفلة، فحصرها في «مؤكدة» يعطّل العمل. */
   const expenseStatus = normalizeStatus(concert.status);
   const expenseStageOk = expenseStatus === "confirmed" || expenseStatus === "completed";
-  const canAddExpense = (fx.payments || fx.edit) && expenseStageOk;
+  const canAddExpense = fx.expAdd && expenseStageOk;
   const expenseGateReason =
     expenseStatus === "planned" ? "تُضاف بعد تأكيد الحفلة"
     : expenseStatus === "cancelled" ? "الحفلة ملغاة"
@@ -1028,7 +1080,7 @@ export default function AdminConcertDetailPage() {
                 {!concert.warehouseReturnConfirmed && stage.done > 0 && (
                   <p className="text-xs text-orange-600 mb-2">⚠ لم يُؤكَّد استلام مواد الحفلة من المشرف بعد</p>
                 )}
-                <Button onClick={handleMarkAsPaid} loading={paidSaving} disabled={!fx.payments} className="w-full gap-2">
+                <Button onClick={handleMarkAsPaid} loading={paidSaving} disabled={!fx.markPaid} className="w-full gap-2">
                   <CheckCircle2 size={16} />
                   تأكيد التسوية المالية وإغلاق الحفلة
                 </Button>
@@ -1059,7 +1111,7 @@ export default function AdminConcertDetailPage() {
               <CalendarDays size={15} />
               <span className="text-xs font-medium">تاريخ الحفلة</span>
             </div>
-            {fx.edit && <button
+            {fx.editDate && <button
               onClick={() => {
                 const d = concert.date?.toDate();
                 const str = d
@@ -1082,7 +1134,7 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">سعر الحفلة</span>
             </div>
-            {fx.edit && <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+            {fx.editPrice && <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
               <Pencil size={13} />
             </button>}
           </div>
@@ -1094,7 +1146,7 @@ export default function AdminConcertDetailPage() {
               <MapPin size={15} />
               <span className="text-xs font-medium">الموقع</span>
             </div>
-            {fx.edit && <button onClick={() => { setEditLocation(concert.location ?? null); setShowEditLocation(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+            {fx.editLocation && <button onClick={() => { setEditLocation(concert.location ?? null); setShowEditLocation(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
               <Pencil size={13} />
             </button>}
           </div>
@@ -1117,7 +1169,7 @@ export default function AdminConcertDetailPage() {
               <Building2 size={15} />
               <span className="text-xs font-medium">اسم المكان</span>
             </div>
-            {fx.edit && <button
+            {fx.editVenue && <button
               onClick={() => { setEditVenueName(concert.venueName ?? ""); setShowEditVenueName(true); }}
               className="text-slate-300 hover:text-blue-500 transition-colors"
             >
@@ -1132,7 +1184,7 @@ export default function AdminConcertDetailPage() {
               <UsersRound size={15} />
               <span className="text-xs font-medium">عدد الأشخاص</span>
             </div>
-            {fx.edit && <button
+            {fx.editPeople && <button
               onClick={() => { setEditPeopleCount(concert.peopleCount ?? ""); setShowEditPeopleCount(true); }}
               className="text-slate-300 hover:text-blue-500 transition-colors"
             >
@@ -1159,7 +1211,7 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">مبلغ القاعة</span>
             </div>
-            {fx.edit && <button
+            {fx.editHall && <button
               onClick={() => {
                 setEditHallCostType(concert.hallCostType ?? "none");
                 setEditHallCostValue(String(concert.hallCostValue ?? ""));
@@ -1272,7 +1324,7 @@ export default function AdminConcertDetailPage() {
           <button
             onClick={() => { setEditNotes(concert.notes ?? ""); setShowEditNotes(true); }}
             className="flex items-center gap-1 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] bg-[#EEF1F7] hover:bg-[#D4DCE8] px-2 py-0.5 rounded-lg transition-colors"
-            style={fx.edit ? undefined : { display: "none" }}
+            style={fx.editNotes ? undefined : { display: "none" }}
           >
             <Pencil size={11} />
             تعديل
@@ -1310,50 +1362,63 @@ export default function AdminConcertDetailPage() {
           </div>
         </div>
 
-        {fx.payments && (
+        {fx.payAdd && (
           <Button onClick={() => setShowPaymentForm(true)} variant="outline" className="mb-4">
             <Plus size={16} /> إضافة دفعة
           </Button>
         )}
 
         {/* Payment Records */}
-        {payments.length > 0 && (
+        {fx.payView && payments.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-slate-500 mb-2">سجل الدفعات</p>
             {payments.map((p) => (
               <div key={p.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                {/* كل حقل يظهر بصلاحيته: دور قد يرى المبلغ ولا يرى البنك */}
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
-                    {p.method === "card" && <CreditCard size={13} className="text-blue-500" />}
-                    {p.method === "cash" && <Banknote size={13} className="text-green-500" />}
-                    {p.method === "bank_transfer" && <Landmark size={13} className="text-purple-500" />}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${METHOD_COLORS[p.method]}`}>{METHOD_LABELS[p.method]}</span>
-                    <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
-                    {(() => {
+                    {ff.payMethod && (
+                      <>
+                        {p.method === "card" && <CreditCard size={13} className="text-blue-500" />}
+                        {p.method === "cash" && <Banknote size={13} className="text-green-500" />}
+                        {p.method === "bank_transfer" && <Landmark size={13} className="text-purple-500" />}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${METHOD_COLORS[p.method]}`}>{METHOD_LABELS[p.method]}</span>
+                      </>
+                    )}
+                    {ff.payAmount && (
+                      <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
+                    )}
+                    {ff.payInvoice && (() => {
                       const inv = invoiceLabel(p);
                       return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
                     })()}
                   </div>
                   <p className="text-xs text-slate-400 pr-5 flex flex-wrap items-center gap-x-2">
-                    <span>
-                      {p.date}
-                      {getPaymentDetail(p) && ` — ${getPaymentDetail(p)}`}
-                    </span>
-                    <Actor uid={p.createdBy} prefix="سجّلها" showIcon={false} />
+                    {(ff.payDate || ff.payBank) && (
+                      <span>
+                        {ff.payDate && p.date}
+                        {ff.payBank && getPaymentDetail(p) && `${ff.payDate ? " — " : ""}${getPaymentDetail(p)}`}
+                      </span>
+                    )}
+                    {ff.payActor && <Actor uid={p.createdBy} prefix="سجّلها" showIcon={false} />}
                   </p>
                 </div>
-                {fx.payments && (
+                {(fx.payInvoice || fx.payDelete) && (
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => openInvoiceEdit(p)} title="تعديل حالة الفاتورة"
-                      className="text-slate-300 hover:text-[#1C2D50] transition-colors">
-                      <FileText size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeletePaymentTarget(p)}
-                      className="text-slate-300 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {fx.payInvoice && (
+                      <button onClick={() => openInvoiceEdit(p)} title="تعديل حالة الفاتورة"
+                        className="text-slate-300 hover:text-[#1C2D50] transition-colors">
+                        <FileText size={14} />
+                      </button>
+                    )}
+                    {fx.payDelete && (
+                      <button
+                        onClick={() => setDeletePaymentTarget(p)}
+                        className="text-slate-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1368,7 +1433,7 @@ export default function AdminConcertDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">المشرفون ({supervisors.length})</h3>
-            {fx.assign && (
+            {fx.assignSup && (
               <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds); setShowEditSupervisors(true); }}>
                 <Pencil size={13} /> تعديل
               </Button>
@@ -1392,7 +1457,7 @@ export default function AdminConcertDetailPage() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
-            {fx.assign && (
+            {fx.assignEmp && (
               <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds); setShowEditEmployees(true); }}>
                 <Pencil size={13} /> تعديل
               </Button>
@@ -1422,7 +1487,7 @@ export default function AdminConcertDetailPage() {
             <Package size={16} className="text-indigo-600" />
             المواد ({items.length})
           </h3>
-          {fx.materials && (
+          {fx.matAdd && (
             <Button size="sm" onClick={() => { setAddItemType(""); setAddItemCheck({}); setAddItemSearch(""); setShowItemForm(true); }}>
               <Plus size={14} /> إضافة مادة
             </Button>
@@ -1459,7 +1524,7 @@ export default function AdminConcertDetailPage() {
                             )}
                           </div>
                         </div>
-                        {fx.materials && <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                        {fx.matDelete && <button onClick={() => setDeleteItemTarget(item)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
                           <Trash2 size={13} />
                         </button>}
                       </div>
@@ -1480,7 +1545,7 @@ export default function AdminConcertDetailPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            {fx.materials && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
+                            {fx.matEditQty && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
                             </button>}
                           </div>
@@ -1521,7 +1586,7 @@ export default function AdminConcertDetailPage() {
                             )}
                           </div>
                         </div>
-                        {fx.materials && <button
+                        {fx.matDelete && <button
                           onClick={() => setDeleteItemTarget(item)}
                           className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1"
                         >
@@ -1545,7 +1610,7 @@ export default function AdminConcertDetailPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-slate-500">الكمية:</span>
                             <span className="text-sm font-bold text-[#1C2D50]">{item.count}</span>
-                            {fx.materials && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
+                            {fx.matEditQty && <button onClick={() => { setEditItemQtyTarget(item); setEditItemQtyValue(String(item.count)); }} className="text-slate-300 hover:text-blue-500 transition-colors p-1 -m-1">
                               <Pencil size={11} />
                             </button>}
                           </div>
@@ -1596,7 +1661,7 @@ export default function AdminConcertDetailPage() {
             <UtensilsCrossed size={16} className="text-orange-500" />
             أصناف الأكل ({concertFood.length})
           </h3>
-          {sections.length > 0 && fx.food && (
+          {sections.length > 0 && fx.foodAdd && (
             <Button size="sm" onClick={() => { setAddFoodCategoryId(""); setAddFoodCheck({}); setAddFoodSearch(""); setShowFoodForm(true); }}>
               <Plus size={14} /> إضافة
             </Button>
@@ -1614,7 +1679,7 @@ export default function AdminConcertDetailPage() {
                     <p className="text-sm font-bold text-slate-800 mt-0.5">{f.selectedOption}</p>
                     {f.notes && <p className="text-xs text-slate-400 mt-0.5">— {f.notes}</p>}
                   </div>
-                  {fx.food && <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
+                  {fx.foodDelete && <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
                     <Trash2 size={14} />
                   </button>}
                 </div>
@@ -1635,7 +1700,7 @@ export default function AdminConcertDetailPage() {
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-slate-500 font-medium">الكمية: <span className="font-bold text-[#1C2D50]">{f.quantity ?? 0}</span></span>
-                      {fx.food && <button
+                      {fx.foodEditQty && <button
                         onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
                         className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
                         title="تعديل الكمية"
@@ -1652,41 +1717,53 @@ export default function AdminConcertDetailPage() {
       </Card>
 
       {/* فواتير مصاريف الحفلة */}
-      {expenses.length > 0 && (
+      {fx.expView && expenses.length > 0 && (
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Receipt size={16} className="text-[#1C2D50]" />
               مصاريف الحفلة ({expenses.length})
             </h3>
-            <span className="font-bold text-[#1C2D50] tabular-nums-auto">
-              {expensesTotal.toLocaleString("en-US")} ريال
-            </span>
+            {ff.expAmount && (
+              <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+                {expensesTotal.toLocaleString("en-US")} ريال
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
-                  <th className="py-2 px-2 font-semibold">النوع</th>
-                  <th className="py-2 px-2 font-semibold">المورّد / الوصف</th>
-                  <th className="py-2 px-2 font-semibold">التاريخ</th>
-                  <th className="py-2 px-2 font-semibold">المبلغ</th>
-                  {canAddExpense && <th className="py-2 px-2"></th>}
+                  {ff.expType && <th className="py-2 px-2 font-semibold">النوع</th>}
+                  {ff.expSupplier && <th className="py-2 px-2 font-semibold">المورّد / الوصف</th>}
+                  {ff.expDate && <th className="py-2 px-2 font-semibold">التاريخ</th>}
+                  {ff.expAmount && <th className="py-2 px-2 font-semibold">المبلغ</th>}
+                  {ff.expActor && <th className="py-2 px-2 font-semibold">من سجّلها</th>}
+                  {fx.expDelete && <th className="py-2 px-2"></th>}
                 </tr>
               </thead>
               <tbody>
                 {expenses.map((e) => (
                   <tr key={e.id} className="border-b border-slate-50 last:border-none">
-                    <td className="py-2 px-2 font-medium text-slate-800">{e.type}</td>
-                    <td className="py-2 px-2 text-slate-500 text-xs">
-                      {[e.supplierName, e.description].filter(Boolean).join(" — ") || "—"}
-                    </td>
-                    <td className="py-2 px-2 tabular-nums-auto text-slate-500">{e.invoiceDate}</td>
-                    <td className="py-2 px-2 tabular-nums-auto font-semibold text-[#1C2D50]">
-                      {e.amount.toLocaleString("en-US")} ريال
-                      {e.vatIncluded && <span className="block text-[10px] font-normal text-slate-400">شامل الضريبة</span>}
-                    </td>
-                    {canAddExpense && (
+                    {ff.expType && <td className="py-2 px-2 font-medium text-slate-800">{e.type}</td>}
+                    {ff.expSupplier && (
+                      <td className="py-2 px-2 text-slate-500 text-xs">
+                        {[e.supplierName, e.description].filter(Boolean).join(" — ") || "—"}
+                      </td>
+                    )}
+                    {ff.expDate && <td className="py-2 px-2 tabular-nums-auto text-slate-500">{e.invoiceDate}</td>}
+                    {ff.expAmount && (
+                      <td className="py-2 px-2 tabular-nums-auto font-semibold text-[#1C2D50]">
+                        {e.amount.toLocaleString("en-US")} ريال
+                        {e.vatIncluded && <span className="block text-[10px] font-normal text-slate-400">شامل الضريبة</span>}
+                      </td>
+                    )}
+                    {ff.expActor && (
+                      <td className="py-2 px-2 text-xs text-slate-400">
+                        <Actor uid={e.createdBy} showIcon={false} />
+                      </td>
+                    )}
+                    {fx.expDelete && (
                       <td className="py-2 px-2">
                         <button onClick={() => setDeleteExpenseTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
                           <Trash2 size={13} />

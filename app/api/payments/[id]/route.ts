@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "payments", "تعديل الدفعات");
+    require_(caller, "concerts", "pay_invoice", "تسجيل رقم الفاتورة");
     const { id } = await params;
     const invoiceNumber = optStr(body.invoiceNumber, 60);
     const hasInvoice = body.hasInvoice ?? null;
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const caller = await requireCaller(req);
-    require_(caller, "concerts", "payments", "حذف الدفعات");
+    require_(caller, "concerts", "pay_delete", "حذف الدفعات");
     const { id } = await params;
     await svcDeletePayment(caller.db, id);
   });

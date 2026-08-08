@@ -28,7 +28,7 @@ export default function SalesProductsPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   // الهيكل مملوك للتكاليف — من يدير أصنافها يدير أقسام بيعها
-  const canManage = isAdmin || feat("costs", "manage_items") || feat("food", "edit");
+  const canManage = isAdmin || feat("costs", "item_add") || feat("food", "rename");
 
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -123,7 +123,7 @@ export default function SalesProductsPage() {
     }
   }
 
-  if (appUser && !isAdmin && !feat("food", "add") && !feat("food", "edit") && !feat("costs", "manage_items")) {
+  if (appUser && !isAdmin && !feat("food", "add") && !feat("food", "rename") && !feat("costs", "item_add")) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 

@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "costs", "manage_items", "إدارة أصناف التكاليف");
+    require_(caller, "costs", "item_add", "إدارة أصناف التكاليف");
     return svcCreateItem(caller.db, {
       name: str(body.name, "اسم الصنف"),
       unit: str(body.unit, "الوحدة"),

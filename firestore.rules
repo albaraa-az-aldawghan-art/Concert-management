@@ -60,7 +60,9 @@ service cloud.firestore {
     // الكتابة للمدير أو دور مُنح صراحةً «إدارة الأدوار والصلاحيات»
     match /custom_roles/{roleId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('users', 'roles') || hasFeat('settings', 'roles');
+      allow write: if isAdmin() || hasFeat('users', 'roles_create')
+                             || hasFeat('users', 'roles_edit')
+                             || hasFeat('users', 'roles_delete');
     }
 
     // ── الحفلات ────────────────────────────────────────────────

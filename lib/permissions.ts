@@ -1,202 +1,42 @@
-/* كتالوج الصلاحيات: الصفحات وميزاتها، وربط المسار بالصفحة، وفحص ما يملكه المستخدم. */
+/* منطق الصلاحيات: ربط المسار بالصفحة، وفحص ما يملكه المستخدم.
+   قائمة الصلاحيات نفسها في lib/permissions-catalog.ts. */
 
 import { AppUser, CustomRole, PermissionPage } from "@/types";
+import {
+  PERMISSION_CATALOG,
+  KEYS_BY_PAGE,
+  PermissionPageDef,
+  PermGroup,
+  PermItem,
+} from "@/lib/permissions-catalog";
 
-export interface PermissionFeature {
-  key: string;
-  label: string;
-}
+export type { PermissionPageDef, PermGroup, PermItem };
+export { PERMISSION_CATALOG, KEYS_BY_PAGE };
+export { TOTAL_PERMISSIONS, PENDING_PERMISSIONS, findPerm } from "@/lib/permissions-catalog";
 
-export interface PermissionPageDef {
+/** الصيغة المسطّحة: صفحة ولها قائمة صلاحيات — يستعملها العرض المختصر */
+export interface FlatPageDef {
   key: PermissionPage;
   label: string;
   href: string;
-  features: PermissionFeature[];
+  features: { key: string; label: string }[];
 }
 
-// The full catalog: every page a custom role can open, and inside it every
-// capability that can be switched on/off individually (checklist style).
-// Enabling a page with ZERO features = pure view of the page shell.
-export const PERMISSION_PAGES: PermissionPageDef[] = [
-  {
-    key: "dashboard",
-    label: "لوحة التحكم",
-    href: "/admin",
-    features: [
-      { key: "rev",             label: "إجمالي الإيرادات" },
-      { key: "collected",       label: "إجمالي المحصَّل" },
-      { key: "remaining",       label: "إجمالي المتبقي" },
-      { key: "costs",           label: "مصاريف القاعات والنقل" },
-      { key: "collection_rate", label: "نسبة التحصيل" },
-      { key: "counters",        label: "عدادات النظام (مستخدمون، موارد، مفقودات)" },
-      { key: "status_chart",    label: "مخطط حالة الحفلات" },
-      { key: "recent",          label: "آخر الحفلات" },
-      { key: "quick_links",     label: "الروابط السريعة" },
-    ],
-  },
-  {
-    key: "finances",
-    label: "القائمة المالية",
-    href: "/admin/finances",
-    features: [
-      { key: "totals", label: "بطاقات الإجماليات المالية" },
-      { key: "table",  label: "جدول الحفلات المالي التفصيلي" },
-    ],
-  },
-  {
-    key: "concerts",
-    label: "الحفلات",
-    href: "/admin/concerts",
-    features: [
-      { key: "create",       label: "إنشاء حفلة جديدة" },
-      { key: "edit",         label: "تعديل بيانات الحفلة والتكاليف" },
-      { key: "assign",       label: "إسناد المشرفين والموظفين" },
-      { key: "payments",     label: "إدارة الدفعات" },
-      { key: "materials",    label: "إدارة مواد الحفلة" },
-      { key: "food_items",   label: "إدارة أصناف الأكل" },
-      { key: "send_kitchen", label: "الإرسال للمطبخ" },
-      { key: "stages",       label: "عرض مراحل الحفلة وسجلها" },
-      { key: "contract",     label: "عرض العقد وطباعته" },
-      { key: "cancel",       label: "إلغاء الحفلة" },
-      { key: "delete",       label: "حذف الحفلة" },
-      { key: "export",       label: "تصدير المبيعات إلى إكسل" },
-      { key: "packages",     label: "إدارة البكجات الجاهزة" },
-    ],
-  },
-  {
-    key: "users",
-    label: "الموظفون",
-    href: "/admin/users",
-    features: [
-      { key: "create", label: "إضافة موظف" },
-      { key: "edit",   label: "تعديل موظف (الاسم وكلمة المرور والدور)" },
-      { key: "delete", label: "حذف موظف" },
-      { key: "roles",  label: "إنشاء الأدوار وتعديل صلاحياتها (صلاحية حساسة)" },
-    ],
-  },
-  {
-    key: "warehouse",
-    label: "الموارد",
-    href: "/admin/warehouse",
-    features: [
-      { key: "add",    label: "إضافة مادة" },
-      { key: "edit",   label: "تعديل مادة وصورتها وترتيبها" },
-      { key: "delete", label: "حذف مادة" },
-    ],
-  },
-  {
-    key: "warehouse_orders",
-    label: "طلبات الموارد",
-    href: "/warehouse-manager/orders",
-    features: [
-      { key: "confirm", label: "تأكيد استلام الحفلات" },
-      { key: "confirm_return", label: "تأكيد استلام المواد المرتجعة من الحفلات" },
-    ],
-  },
-  {
-    key: "food",
-    label: "منتجات البيع",
-    href: "/admin/food",
-    features: [
-      { key: "add",     label: "إضافة قسم" },
-      { key: "edit",    label: "تعديل قسم وأصنافه" },
-      { key: "delete",  label: "حذف قسم" },
-      { key: "reorder", label: "إعادة ترتيب الأقسام بالسحب" },
-    ],
-  },
-  {
-    key: "missing_items",
-    label: "المفقودات",
-    href: "/admin/missing-items",
-    features: [
-      { key: "resolve", label: "معالجة وتحديث المفقودات" },
-    ],
-  },
-  {
-    key: "kitchen",
-    label: "طلبات المطبخ",
-    href: "/kitchen",
-    features: [
-      { key: "confirm", label: "تأكيد استلام الحفلات" },
-    ],
-  },
-  {
-    key: "supervisor",
-    label: "المشرفون (تشغيل الحفلات)",
-    href: "/supervisor/concerts",
-    features: [
-      { key: "receive_materials", label: "استلام المواد من الموارد" },
-      { key: "set_location",      label: "تحديد موقع الحفلة" },
-      { key: "start_executing",   label: "بدء تنفيذ الحفلة" },
-      { key: "return_materials",  label: "استلام المواد من الحفلة" },
-      { key: "deliver_warehouse", label: "تسليم المواد للموارد" },
-      { key: "assign_employees",  label: "إسناد الموظفين للحفلة" },
-      { key: "report_missing",    label: "الإبلاغ عن مفقودات" },
-    ],
-  },
-  {
-    key: "employees",
-    label: "الموظفون (عرض الحفلات)",
-    href: "/employee/assignments",
-    features: [],
-  },
-  {
-    key: "settings",
-    label: "الإعدادات",
-    href: "/settings",
-    features: [
-      { key: "vat", label: "تعديل نسبة الضريبة" },
-    ],
-  },
-  {
-    key: "contracts",
-    label: "التعاقدات",
-    href: "/admin/contracts",
-    features: [
-      { key: "create",   label: "إنشاء عقد" },
-      { key: "edit",     label: "تعديل العقد وبنوده" },
-      { key: "payments", label: "إدارة دفعات العقود" },
-      { key: "cancel",   label: "إلغاء العقد" },
-      { key: "delete",   label: "حذف العقد" },
-      { key: "export",   label: "تصدير التعاقدات إلى إكسل" },
-    ],
-  },
-  {
-    key: "restaurant",
-    label: "المطعم",
-    href: "/admin/restaurant",
-    features: [
-      { key: "view_costs", label: "عرض تكاليف المطعم الشهرية" },
-      { key: "export",     label: "تصدير تكاليف المطعم" },
-    ],
-  },
-  {
-    key: "costs",
-    label: "التكاليف",
-    href: "/admin/costs",
-    features: [
-      { key: "manage_items",    label: "إدارة الأصناف والوحدات والأقسام وتوليد الباركود" },
-      { key: "record_incoming", label: "تسجيل الوارد من الموردين" },
-      { key: "record_outgoing", label: "تسجيل المنصرف للأقسام والحفلات" },
-      { key: "view_balance",    label: "عرض رصيد الأصناف" },
-      { key: "export",          label: "تصدير التكاليف إلى إكسل" },
-    ],
-  },
-  {
-    key: "profitability",
-    label: "ربحية الحفلات",
-    href: "/admin/profitability",
-    features: [
-      { key: "view", label: "عرض ربحية الحفلات (صلاحية حساسة)" },
-    ],
-  },
-];
+export const PERMISSION_PAGES: FlatPageDef[] = PERMISSION_CATALOG.map((p) => ({
+  key: p.key,
+  label: p.label,
+  href: p.href,
+  features: p.groups.flatMap((g) => [
+    ...g.actions.map((a) => ({ key: a.key, label: a.label })),
+    ...(g.fields ?? []).map((f) => ({ key: f.key, label: `إظهار: ${f.label}` })),
+  ]),
+}));
 
-// Maps a pathname under /admin (or /kitchen) to its permission key.
-// Order matters: more specific prefixes first, bare /admin last.
+/* ── ربط المسار بالصفحة ──────────────────────────────────────
+   الترتيب مهم: الأخصّ أولاً، و/admin المجرّد أخيراً. */
 export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/finances")) return "finances";
-  if (pathname.startsWith("/admin/packages")) return "concerts";
+  if (pathname.startsWith("/admin/packages")) return "packages";
   if (pathname.startsWith("/admin/concerts")) return "concerts";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/warehouse")) return "warehouse";
@@ -206,40 +46,42 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/restaurant")) return "restaurant";
   if (pathname.startsWith("/admin/costs")) return "costs";
   if (pathname.startsWith("/admin/profitability")) return "profitability";
+  if (pathname.startsWith("/admin/control")) return "settings";
   if (pathname.startsWith("/admin")) return "dashboard";
   if (pathname.startsWith("/kitchen")) return "kitchen";
   if (pathname.startsWith("/warehouse-manager/orders")) return "warehouse_orders";
+  if (pathname.startsWith("/warehouse-manager")) return "warehouse";
   if (pathname.startsWith("/supervisor")) return "supervisor";
   if (pathname.startsWith("/employee")) return "employees";
+  if (pathname.startsWith("/settings")) return "settings";
   return null;
 }
 
-// Older roles stored "view" / "manage" strings — normalize both formats to a
-// feature array: "view" → no features, "manage" → every feature of the page.
-export function normalizedFeatures(role: CustomRole | null, page: PermissionPage): string[] | null {
+/* ── قراءة صلاحيات دور ────────────────────────────────────────
+   الصيغة القديمة كانت نصاً ("view" | "manage") — تُوحَّد إلى مصفوفة. */
+export function normalizedFeatures(
+  role: CustomRole | null,
+  page: PermissionPage
+): string[] | null {
   const raw = role?.permissions?.[page];
-  if (raw === undefined || raw === null) return null; // page not granted
+  if (raw === undefined || raw === null) return null; // الصفحة غير ممنوحة
   if (Array.isArray(raw)) return raw;
-  if (raw === "manage") {
-    return PERMISSION_PAGES.find((p) => p.key === page)?.features.map((f) => f.key) ?? [];
-  }
+  if (raw === "manage") return KEYS_BY_PAGE[page] ?? [];
   return []; // "view"
 }
 
-// Can this user OPEN the page at all?
+/** هل يفتح هذه الصفحة أصلاً؟ */
 export function canAccess(
   user: AppUser | null,
   customRole: CustomRole | null,
   page: PermissionPage
 ): boolean {
   if (!user) return false;
-  if (user.role === "admin") return true; // المدير يملك كل شيء دائماً
-  if (user.role === "kitchen") return page === "kitchen";
-  if (user.role === "custom") return normalizedFeatures(customRole, page) !== null;
-  return false;
+  if (user.role === "admin") return true; // الأدمن يملك كل شيء دائماً
+  return normalizedFeatures(customRole, page) !== null;
 }
 
-// Can this user USE a specific capability inside the page?
+/** هل يملك هذه الصلاحية المفردة داخل الصفحة؟ */
 export function canFeature(
   user: AppUser | null,
   customRole: CustomRole | null,
@@ -248,52 +90,59 @@ export function canFeature(
 ): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
-  if (user.role === "kitchen") return page === "kitchen";
-  if (user.role === "custom") {
-    const feats = normalizedFeatures(customRole, page);
-    return feats !== null && feats.includes(feature);
-  }
-  return false;
+  const feats = normalizedFeatures(customRole, page);
+  return feats !== null && feats.includes(feature);
 }
 
-// Where to land after login, based on what the user can actually open.
+/** أين يهبط بعد الدخول؟ أول صفحة يفتحها فعلاً. */
 export function firstAllowedPath(user: AppUser | null, customRole: CustomRole | null): string {
   if (!user) return "/login";
-  const fixed: Record<string, string> = {
-    admin: "/admin",
+  if (user.role === "admin") return "/admin";
+  /* الأدوار الجاهزة لها مهابط معروفة، لكن الصلاحيات هي الحكم:
+     دور عُدِّلت صلاحياته حتى فقد مهبطه يهبط على أول ما يفتحه */
+  const preferred: Record<string, string> = {
     warehouse_manager: "/warehouse-manager",
     supervisor: "/supervisor",
     employee: "/employee",
     kitchen: "/kitchen",
   };
-  if (user.role !== "custom") return fixed[user.role] ?? "/login";
-  const first = PERMISSION_PAGES.find((p) => canAccess(user, customRole, p.key));
+  const home = preferred[user.role];
+  if (home) {
+    const page = pageKeyFromPath(home);
+    if (page && canAccess(user, customRole, page)) return home;
+  }
+  const first = PERMISSION_CATALOG.find((p) => canAccess(user, customRole, p.key));
   return first?.href ?? "/settings";
 }
 
-/* الأدوار الجاهزة لا تُشتق من كتالوج الصلاحيات — قائمة كل دور مثبَّتة في
-   الشريط الجانبي. تُكرَّر هنا كنص مجرّد ليعرضها ملف الموظف، ويحرس اختبارٌ
-   تطابقها مع الشريط حتى لا تنحرف إحداهما عن الأخرى. */
-export const BUILT_IN_ACCESS: Record<string, { label: string; href: string }[]> = {
-  warehouse_manager: [
-    { label: "لوحة التحكم",   href: "/warehouse-manager" },
-    { label: "الموارد",       href: "/warehouse-manager/warehouse" },
-    { label: "طلبات الموارد", href: "/warehouse-manager/orders" },
-    { label: "المفقودات",     href: "/warehouse-manager/missing-items" },
-    { label: "الإعدادات",     href: "/settings" },
-  ],
-  supervisor: [
-    { label: "لوحة التحكم", href: "/supervisor" },
-    { label: "حفلاتي",      href: "/supervisor/concerts" },
-    { label: "الإعدادات",   href: "/settings" },
-  ],
-  employee: [
-    { label: "لوحة التحكم", href: "/employee" },
-    { label: "حفلاتي",      href: "/employee/assignments" },
-    { label: "الإعدادات",   href: "/settings" },
-  ],
-  kitchen: [
-    { label: "طلبات المطبخ", href: "/kitchen" },
-    { label: "الإعدادات",    href: "/settings" },
-  ],
+/* ── الأدوار الجاهزة ──────────────────────────────────────────
+   صارت مستندات في custom_roles بمعرّفات ثابتة، فيُعدَّل صلاحياتها
+   كأي دور. الحساب يبقى على role الأصلي، ويُترجم إلى معرّف دوره هنا. */
+
+export const BUILT_IN_ROLE_IDS: Record<string, string> = {
+  warehouse_manager: "role_warehouse_manager",
+  supervisor:        "role_supervisor",
+  employee:          "role_employee",
+  kitchen:           "role_kitchen",
 };
+
+/** معرّف مستند الدور الذي يحكم هذا الحساب، أو null للأدمن */
+export function roleDocIdFor(user: { role: string; customRoleId?: string | null }): string | null {
+  if (user.role === "admin") return null;
+  if (user.role === "custom") return user.customRoleId ?? null;
+  return BUILT_IN_ROLE_IDS[user.role] ?? null;
+}
+
+/** الصفحات التي يفتحها دور — تُعرض في ملف الموظف */
+export function pagesOfRole(role: CustomRole | null): { label: string; href: string; feats: string[] }[] {
+  if (!role) return [];
+  return PERMISSION_CATALOG.map((p) => {
+    const feats = normalizedFeatures(role, p.key);
+    if (feats === null) return null;
+    const labels = p.groups
+      .flatMap((g) => [...g.actions, ...(g.fields ?? [])])
+      .filter((i) => feats.includes(i.key))
+      .map((i) => i.label);
+    return { label: p.label, href: p.href, feats: labels };
+  }).filter(Boolean) as { label: string; href: string; feats: string[] }[];
+}

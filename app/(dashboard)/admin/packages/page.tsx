@@ -31,7 +31,7 @@ export default function PackagesPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   // البكج يضبطه المدير أو مشرف الحفلات المخوَّل
-  const canManage = isAdmin || feat("concerts", "packages");
+  const canManage = isAdmin || feat("packages", "view");
 
   const [packages, setPackages] = useState<ConcertPackage[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "payments", "تسجيل الدفعات");
+    require_(caller, "concerts", "pay_add", "إضافة الدفعات");
     if (!METHODS.includes(body.method)) throw new ApiError("وسيلة دفع غير معروفة");
 
     // الشبكة بفاتورة دائماً، والتسجيل يُشتقّ من وجود رقم الفاتورة

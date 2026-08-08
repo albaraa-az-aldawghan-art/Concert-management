@@ -22,7 +22,7 @@ export default function CostsIncomingPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canRecord = isAdmin || feat("costs", "record_incoming");
+  const canRecord = isAdmin || feat("costs", "in_add");
 
   const [entries, setEntries] = useState<CostIncoming[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);

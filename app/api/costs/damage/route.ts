@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "costs", "record_outgoing", "تسجيل التالف");
+    require_(caller, "costs", "out_add", "تسجيل التالف");
     return svcAddStoreDamage(caller.db, {
       itemBarcode: str(body.itemBarcode, "الصنف"),
       quantity: num(body.quantity, "الكمية", { positive: true }),

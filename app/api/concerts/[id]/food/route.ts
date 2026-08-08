@@ -9,7 +9,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "food_items", "إضافة أصناف الأكل");
+    require_(caller, "concerts", "food_add", "إضافة أصناف الأكل");
     const { id } = await params;
     return svcAddConcertFood(caller.db, {
       concertId: id,

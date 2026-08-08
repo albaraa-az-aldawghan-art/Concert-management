@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "materials", "تعديل مواد الحفلة");
+    require_(caller, "concerts", "mat_edit_qty", "تعديل كميات المواد");
     const { id, itemId } = await params;
     const concertId = await concertIdOf(caller.db, itemId, id);
 
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string; itemId: string }> }) {
   return handle(async () => {
     const caller = await requireCaller(req);
-    require_(caller, "concerts", "materials", "حذف مواد الحفلة");
+    require_(caller, "concerts", "mat_delete", "حذف مواد الحفلة");
     const { id, itemId } = await params;
     const concertId = await concertIdOf(caller.db, itemId, id);
     await svcDeleteConcertItem(caller.db, itemId);

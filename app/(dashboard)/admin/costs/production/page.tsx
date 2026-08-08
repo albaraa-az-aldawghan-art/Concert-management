@@ -52,7 +52,7 @@ function CostsProductionPageInner() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canRecord = isAdmin || feat("costs", "record_incoming");
+  const canRecord = isAdmin || feat("costs", "in_add");
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [productions, setProductions] = useState<CostProduction[]>([]);

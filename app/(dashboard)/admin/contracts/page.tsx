@@ -42,8 +42,16 @@ export default function ContractsPage() {
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("contracts"));
   const canCreate = isAdmin || feat("contracts", "create");
   const canEdit = isAdmin || feat("contracts", "edit");
+  const canTerms = isAdmin || feat("contracts", "terms");
   const canCancel = isAdmin || feat("contracts", "cancel");
+  const canComplete = isAdmin || feat("contracts", "complete");
   const canDelete = isAdmin || feat("contracts", "delete");
+  /* الحقول: دور قد يتابع العقود ولا يرى أرقامها */
+  const fc = {
+    value:  isAdmin || feat("contracts", "cf_value"),
+    client: isAdmin || feat("contracts", "cf_client"),
+    actor:  isAdmin || feat("contracts", "cf_actor"),
+  };
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -278,9 +286,9 @@ export default function ContractsPage() {
                     <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 tabular-nums-auto">
                       <CalendarDays size={11} />
                       {c.startDate} ← {c.endDate}
-                      {c.clientName && ` · ${c.clientName}`}
+                      {fc.client && c.clientName && ` · ${c.clientName}`}
                     </p>
-                    <Actor uid={c.createdBy} className="mt-0.5" />
+                    {fc.actor && <Actor uid={c.createdBy} className="mt-0.5" />}
                   </div>
                   <div className="flex gap-1 shrink-0">
                     {canEdit && c.status === "active" && (
@@ -288,7 +296,7 @@ export default function ContractsPage() {
                         <Pencil size={14} />
                       </button>
                     )}
-                    {canEdit && c.status === "active" && (
+                    {canComplete && c.status === "active" && (
                       <button onClick={() => run(() => completeContract(c.id), "أُنهي العقد")}
                         className="p-1.5 text-slate-400 hover:text-emerald-600" title="إنهاء العقد">
                         <CheckCircle2 size={14} />
@@ -308,7 +316,7 @@ export default function ContractsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                {fc.value && <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                   {[
                     { l: "قيمة العقد", v: money(c.totalValue ?? 0), cls: "text-slate-800" },
                     { l: "الصافي قبل الضريبة", v: money(net), cls: "text-slate-800" },
@@ -321,7 +329,7 @@ export default function ContractsPage() {
                       <p className={`font-bold tabular-nums-auto ${x.cls}`}>{x.v}</p>
                     </div>
                   ))}
-                </div>
+                </div>}
 
                 {c.terms.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100">
@@ -359,8 +367,8 @@ export default function ContractsPage() {
               onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
           </div>
 
-          {/* البنود */}
-          <div>
+          {/* البنود — صلاحية مستقلة: من يعدّل بيانات العقد قد لا يُسمح له بأسعاره */}
+          {canTerms && <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-sm font-semibold text-slate-700">بنود العقد</label>
               <span className="text-xs text-slate-500 tabular-nums-auto">
@@ -428,7 +436,7 @@ export default function ContractsPage() {
                 );
               })}
             </div>
-          </div>
+          </div>}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="قيمة العقد شاملة الضريبة" type="number" min={0} step="0.01"

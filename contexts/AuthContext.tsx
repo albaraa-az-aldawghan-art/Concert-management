@@ -6,7 +6,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserById } from "@/lib/firestore/users";
 import { getCustomRoleById } from "@/lib/firestore/roles";
-import { canAccess, canFeature, firstAllowedPath } from "@/lib/permissions";
+import { canAccess, canFeature, firstAllowedPath, roleDocIdFor } from "@/lib/permissions";
 import { AppUser, CustomRole, PermissionPage } from "@/types";
 
 interface AuthContextValue {
@@ -42,13 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFirebaseUser(user);
       if (user) {
         const userData = await getUserById(user.uid);
-        // Load the custom role BEFORE clearing loading so permission checks
-        // never run against a half-loaded session.
-        if (userData?.role === "custom" && userData.customRoleId) {
-          setCustomRole(await getCustomRoleById(userData.customRoleId).catch(() => null));
-        } else {
-          setCustomRole(null);
-        }
+        /* يُحمَّل الدور قبل رفع loading حتى لا يُفحص شيء على جلسة نصف محمَّلة.
+           والدور الجاهز (مشرف، موظف…) صار مستنداً بمعرّف ثابت مثل المخصص،
+           فمصدر الصلاحيات واحد لا اثنان. */
+        const roleId = userData ? roleDocIdFor(userData) : null;
+        setCustomRole(roleId ? await getCustomRoleById(roleId).catch(() => null) : null);
         setAppUser(userData);
       } else {
         setAppUser(null);

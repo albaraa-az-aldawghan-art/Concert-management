@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "contracts", "payments", "تسجيل دفعات العقود");
+    require_(caller, "contracts", "pay_add", "تسجيل دفعات العقود");
     if (!METHODS.includes(body.method)) throw new ApiError("وسيلة دفع غير معروفة");
 
     const invoiceNumber = optStr(body.invoiceNumber, 60);

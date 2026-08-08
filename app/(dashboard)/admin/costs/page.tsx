@@ -126,7 +126,7 @@ export default function AdminCostsPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canManage = isAdmin || feat("costs", "manage_items");
+  const canManage = isAdmin || feat("costs", "item_add");
   const canExport = isAdmin || feat("costs", "export");
 
   const [items, setItems] = useState<CostItem[]>([]);

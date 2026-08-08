@@ -27,7 +27,7 @@ export default function CostsOutgoingPage() {
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
-  const canRecord = isAdmin || feat("costs", "record_outgoing");
+  const canRecord = isAdmin || feat("costs", "out_add");
 
   const [entries, setEntries] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });

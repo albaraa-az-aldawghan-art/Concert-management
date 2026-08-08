@@ -290,7 +290,7 @@ export default function FinancesPage() {
       </div>
 
       {/* Summary Cards */}
-      {feat("finances", "totals") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {feat("finances", "view") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 bg-[#EEF1F7] rounded-xl flex items-center justify-center">
@@ -384,7 +384,7 @@ export default function FinancesPage() {
       </div>}
 
       {/* Collection Progress */}
-      {feat("finances", "totals") && <Card>
+      {feat("finances", "view") && <Card>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800">نسبة التحصيل</h3>
           <span className={`text-xl font-bold ${rate >= 75 ? "text-emerald-600" : rate >= 40 ? "text-orange-500" : "text-red-500"}`}>
@@ -404,7 +404,7 @@ export default function FinancesPage() {
       </Card>}
 
       {/* Concerts Table */}
-      {feat("finances", "table") && <Card>
+      {feat("finances", "table_view") && <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-800">تفاصيل الحفلات ({filtered.length})</h3>
           {totalPages > 1 && (

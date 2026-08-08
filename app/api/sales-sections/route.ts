@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const caller = await requireCaller(req, body);
     // الهيكل مملوك للتكاليف: من يدير الأصناف يدير أقسام بيعها
-    require_(caller, "costs", "manage_items", "إدارة أقسام البيع");
+    require_(caller, "costs", "item_add", "إدارة أقسام البيع");
     return svcCreateSection(caller.db, {
       channel: str(body.channel, "قناة البيع"),
       name: str(body.name, "اسم القسم", { max: 60 }),

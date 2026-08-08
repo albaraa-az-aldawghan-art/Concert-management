@@ -22,7 +22,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { AppUser, CustomRole } from "@/types";
-import { PERMISSION_PAGES, normalizedFeatures, BUILT_IN_ACCESS } from "@/lib/permissions";
+import { pagesOfRole, roleDocIdFor } from "@/lib/permissions";
 import { getRoleLabel, formatDate } from "@/lib/utils";
 import {
   ChevronRight, ChevronLeft, Pencil, Trash2, Mail, CalendarDays, Shield, ShieldCheck,
@@ -88,33 +88,20 @@ export default function StaffProfilePage() {
   const roleValueOf = (u: AppUser) =>
     u.role === "custom" && u.customRoleId ? `custom::${u.customRoleId}` : u.role;
 
-  const currentRole =
-    user?.role === "custom" ? customRoles.find((r) => r.id === user.customRoleId) ?? null : null;
+  /* دور الموظف: مستند واحد سواء كان جاهزاً أو مخصصاً */
+  const currentRole = user
+    ? customRoles.find((r) => r.id === roleDocIdFor(user)) ?? null
+    : null;
   const roleName = user
-    ? user.role === "custom" ? currentRole?.name ?? "دور محذوف" : getRoleLabel(user.role)
+    ? user.role === "admin" ? getRoleLabel("admin") : currentRole?.name ?? "دور محذوف"
     : "";
 
   /* ما يفتحه هذا الموظف: الأدمن كل شيء، والمخصص من صلاحياته،
      والأدوار الجاهزة من قائمتها المثبَّتة */
   const access = useMemo(() => {
-    if (!user) return { pages: [] as { label: string; href: string; feats: string[] | null }[], all: false };
+    if (!user) return { pages: [] as { label: string; href: string; feats: string[] }[], all: false };
     if (user.role === "admin") return { pages: [], all: true };
-    if (user.role === "custom") {
-      const pages = PERMISSION_PAGES.map((p) => {
-        const f = normalizedFeatures(currentRole, p.key);
-        if (f === null) return null;
-        return {
-          label: p.label,
-          href: p.href,
-          feats: p.features.filter((x) => f.includes(x.key)).map((x) => x.label),
-        };
-      }).filter(Boolean) as { label: string; href: string; feats: string[] }[];
-      return { pages, all: false };
-    }
-    return {
-      pages: (BUILT_IN_ACCESS[user.role] ?? []).map((p) => ({ ...p, feats: null })),
-      all: false,
-    };
+    return { pages: pagesOfRole(currentRole), all: false };
   }, [user, currentRole]);
 
   /* أرقام مختصرة تُقرأ قبل التفصيل */
@@ -383,9 +370,7 @@ export default function StaffProfilePage() {
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-800 text-sm">{p.label}</p>
-                  {p.feats === null ? (
-                    <p className="text-[11px] text-slate-400 mt-0.5">دور جاهز — صلاحياته مثبَّتة في النظام</p>
-                  ) : p.feats.length === 0 ? (
+                  {p.feats.length === 0 ? (
                     <p className="text-[11px] text-slate-400 mt-0.5 inline-flex items-center gap-1">
                       <Eye size={11} /> عرض فقط، بلا إضافة أو تعديل
                     </p>

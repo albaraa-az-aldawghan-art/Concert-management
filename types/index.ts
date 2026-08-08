@@ -22,11 +22,17 @@ export type PermissionPage =
   | "costs"
   | "contracts"
   | "restaurant"
-  | "profitability";
+  | "profitability"
+  | "packages";
 
 export interface CustomRole {
   id: string;
   name: string;
+  /** دور جاهز يأتي مع النظام (مشرف، موظف…) — يُعدَّل ولا يُحذف */
+  builtIn?: boolean;
+  /** الدور الأساسي الذي يمثّله الدور الجاهز، ليُربط بحسابات users.role */
+  baseRole?: string;
+  hint?: string;
   // New format: array of enabled feature keys per page (empty = view only).
   // Legacy format ("view" | "manage") still readable — normalized in lib/permissions.
   permissions: Partial<Record<PermissionPage, string[] | PermissionLevel>>;

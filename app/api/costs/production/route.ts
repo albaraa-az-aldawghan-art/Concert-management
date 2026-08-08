@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "costs", "record_incoming", "تسجيل الإنتاج");
+    require_(caller, "costs", "in_add", "تسجيل الإنتاج");
     if (!Array.isArray(body.inputs)) throw new ApiError("المدخلات مطلوبة");
     return svcAddProduction(caller.db, {
       outputBarcode: str(body.outputBarcode, "الصنف المُنتَج"),

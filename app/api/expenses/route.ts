@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "payments", "تسجيل المصروفات");
+    require_(caller, "concerts", "exp_add", "إضافة فواتير المصروفات");
     return svcAddExpense(caller.db, {
       concertId: str(body.concertId, "الحفلة"),
       type: str(body.type, "نوع المصروف"),

@@ -20,7 +20,7 @@ import { getVatRate, updateVatRate } from "@/lib/firestore/settings";
 export default function SettingsPage() {
   const { appUser, feat } = useAuth();
   const { showToast } = useToast();
-  const canEditVat = appUser?.role === "admin" || feat("settings", "vat") || feat("finances", "vat");
+  const canEditVat = appUser?.role === "admin" || feat("settings", "vat") || feat("settings", "vat");
 
   const [form, setForm] = useState({ current: "", newPass: "", confirm: "" });
   const [saving, setSaving] = useState(false);

@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
   return handle(async () => {
     const body = await req.json();
     const caller = await requireCaller(req, body);
-    require_(caller, "costs", "manage_items", "تعديل أصناف التكاليف");
+    require_(caller, "costs", "item_add", "تعديل أصناف التكاليف");
     const { barcode } = await params;
     await svcUpdateItem(caller.db, barcode, {
       name: body.name !== undefined ? str(body.name, "اسم الصنف") : undefined,
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ barcode: string }> }) {
   return handle(async () => {
     const caller = await requireCaller(req);
-    require_(caller, "costs", "manage_items", "حذف أصناف التكاليف");
+    require_(caller, "costs", "item_add", "حذف أصناف التكاليف");
     const { barcode } = await params;
     await svcDeleteItem(caller.db, barcode);
   });

@@ -40,7 +40,7 @@ export default function RestaurantPage() {
   const { appUser, can, feat } = useAuth();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("restaurant"));
-  const canDispense = isAdmin || feat("costs", "record_outgoing");
+  const canDispense = isAdmin || feat("costs", "out_add");
 
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });

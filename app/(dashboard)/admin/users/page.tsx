@@ -12,13 +12,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { AppUser, UserRole, CustomRole, PermissionPage } from "@/types";
-import {
-  getCustomRoles,
-  addCustomRole,
-  updateCustomRole,
-  deleteCustomRole,
-} from "@/lib/firestore/roles";
+import { AppUser, UserRole, CustomRole } from "@/types";
+import { getCustomRoles } from "@/lib/firestore/roles";
 import { PERMISSION_PAGES, normalizedFeatures } from "@/lib/permissions";
 import { getLastSignIn, daysSince, sinceLabel, isIdle } from "@/lib/firestore/staff";
 import { useSystem } from "@/contexts/SystemContext";
@@ -39,9 +34,6 @@ const BUILT_IN: { value: string; label: string; note: string }[] = [
 /* الأدوار التي يجوز إسنادها عند الإضافة — «أدمن» ليس منها عمداً */
 const assignable = BUILT_IN.filter((r) => r.value !== "admin");
 
-/* الصفحة → مفاتيح الصلاحيات المفعّلة. صفحة موجودة بمصفوفة فارغة = عرض فقط. */
-type PermMap = Partial<Record<PermissionPage, string[]>>;
-
 /* مجموعة معروضة: دور واحد ومن يحمله */
 interface RoleGroup {
   key: string;
@@ -60,7 +52,7 @@ export default function StaffPage() {
   const canEdit = feat("users", "edit");
   const canDelete = feat("users", "delete");
   /* «settings.roles» صلاحية قديمة من يوم كانت الأدوار في الإعدادات — تظل مقبولة */
-  const canManageRoles = isAdmin || feat("users", "roles") || feat("settings", "roles");
+  const canManageRoles = isAdmin || feat("users", "roles_view") || feat("users", "roles_edit");
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
@@ -76,13 +68,6 @@ export default function StaffPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "employee" });
   const [editForm, setEditForm] = useState({ name: "", newPassword: "", role: "" });
 
-  /* ── حالة الأدوار وصلاحياتها ── */
-  const [showRoleForm, setShowRoleForm] = useState(false);
-  const [editRoleTarget, setEditRoleTarget] = useState<CustomRole | null>(null);
-  const [deleteRoleTarget, setDeleteRoleTarget] = useState<CustomRole | null>(null);
-  const [roleName, setRoleName] = useState("");
-  const [rolePerms, setRolePerms] = useState<PermMap>({});
-  const [roleSaving, setRoleSaving] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -137,90 +122,7 @@ export default function StaffPage() {
 
   const shown = groups.reduce((s, g) => s + g.members.length, 0);
 
-  /* ── الأدوار ── */
-  function openAddRole() {
-    setEditRoleTarget(null);
-    setRoleName("");
-    setRolePerms({});
-    setShowRoleForm(true);
-  }
 
-  function openEditRole(role: CustomRole) {
-    setEditRoleTarget(role);
-    setRoleName(role.name);
-    /* توحيد القيم القديمة "view"/"manage" إلى مصفوفات صلاحيات */
-    const normalized: PermMap = {};
-    for (const p of PERMISSION_PAGES) {
-      const feats = normalizedFeatures(role, p.key);
-      if (feats !== null) normalized[p.key] = [...feats];
-    }
-    setRolePerms(normalized);
-    setShowRoleForm(true);
-  }
-
-  function togglePage(page: PermissionPage) {
-    setRolePerms((prev) => {
-      const next = { ...prev };
-      if (page in next) delete next[page];
-      /* تفعيل الصفحة يبدأ بكل صلاحياتها مُحدَّدة */
-      else next[page] = PERMISSION_PAGES.find((p) => p.key === page)!.features.map((f) => f.key);
-      return next;
-    });
-  }
-
-  function toggleFeature(page: PermissionPage, featureKey: string) {
-    setRolePerms((prev) => {
-      const current = prev[page];
-      if (current === undefined) return prev;
-      return {
-        ...prev,
-        [page]: current.includes(featureKey)
-          ? current.filter((f) => f !== featureKey)
-          : [...current, featureKey],
-      };
-    });
-  }
-
-  async function handleSaveRole() {
-    if (!appUser || !roleName.trim()) return;
-    if (Object.keys(rolePerms).length === 0) {
-      showToast("اختر صلاحية واحدة على الأقل", "error");
-      return;
-    }
-    setRoleSaving(true);
-    try {
-      if (editRoleTarget) {
-        await updateCustomRole(editRoleTarget.id, { name: roleName.trim(), permissions: rolePerms });
-        showToast("تم تحديث الدور");
-      } else {
-        await addCustomRole({ name: roleName.trim(), permissions: rolePerms, createdBy: appUser.uid });
-        showToast("تم إنشاء الدور");
-      }
-      setShowRoleForm(false);
-      load();
-    } catch {
-      showToast("حدث خطأ", "error");
-    } finally {
-      setRoleSaving(false);
-    }
-  }
-
-  async function handleDeleteRole() {
-    if (!deleteRoleTarget) return;
-    setRoleSaving(true);
-    try {
-      await deleteCustomRole(deleteRoleTarget.id);
-      showToast("تم حذف الدور");
-      setDeleteRoleTarget(null);
-      load();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
-    } finally {
-      setRoleSaving(false);
-    }
-  }
-
-  /* ── الموظفون ── */
   function openEdit(user: AppUser) {
     setEditTarget(user);
     setEditForm({ name: user.name, newPassword: "", role: roleValueOf(user) });
@@ -374,9 +276,11 @@ export default function StaffPage() {
         </div>
         <div className="flex gap-2">
           {canManageRoles && (
-            <Button variant="secondary" onClick={openAddRole} className="gap-2">
-              <Shield size={16} /> دور جديد
-            </Button>
+            <Link href="/admin/users/roles">
+              <Button variant="secondary" className="gap-2">
+                <Shield size={16} /> الأدوار والصلاحيات
+              </Button>
+            </Link>
           )}
           {canCreate && (
             <Button onClick={() => setShowAdd(true)} className="gap-2">
@@ -430,20 +334,14 @@ export default function StaffPage() {
                 </div>
                 {g.custom && canManageRoles && (
                   <div className="flex gap-1 shrink-0">
-                    <button
-                      onClick={() => openEditRole(g.custom!)}
+                    <Link
+                      href={`/admin/users/roles/${g.custom!.id}`}
                       className="p-1.5 text-slate-400 hover:text-[#1C2D50] hover:bg-[#EEF1F7] rounded-lg transition-colors"
                       title="تعديل صلاحيات الدور"
                     >
                       <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteRoleTarget(g.custom!)}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="حذف الدور"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    </Link>
+                    {/* حذف الأدوار وإنشاؤها في صفحة الأدوار — مكان واحد لا مكانان */}
                   </div>
                 )}
               </div>
@@ -645,137 +543,6 @@ export default function StaffPage() {
         loading={saving}
       />
 
-      {/* ── إنشاء/تعديل دور وصلاحياته ── */}
-      <Modal
-        open={showRoleForm}
-        onClose={() => setShowRoleForm(false)}
-        title={editRoleTarget ? `تعديل الدور: ${editRoleTarget.name}` : "إنشاء دور جديد"}
-        size="lg"
-      >
-        <div className="space-y-4">
-          <Input
-            label="اسم الدور"
-            value={roleName}
-            onChange={(e) => setRoleName(e.target.value)}
-            placeholder="مثال: محاسب، مدير حفلات، مشرف موارد..."
-            required
-          />
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-slate-700">
-                الصفحات والصلاحيات المرتبطة بهذا الدور
-              </label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRolePerms(
-                      Object.fromEntries(
-                        PERMISSION_PAGES.map((p) => [p.key, p.features.map((f) => f.key)])
-                      ) as PermMap
-                    )
-                  }
-                  className="text-xs text-[#1C2D50] font-semibold hover:underline"
-                >
-                  تحديد الكل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRolePerms({})}
-                  className="text-xs text-slate-400 font-semibold hover:underline"
-                >
-                  مسح الكل
-                </button>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-[46vh] overflow-y-auto">
-              {PERMISSION_PAGES.map((p) => {
-                const enabled = p.key in rolePerms;
-                const feats = rolePerms[p.key] ?? [];
-                const allChecked = enabled && p.features.every((f) => feats.includes(f.key));
-                return (
-                  <div key={p.key} className="bg-white">
-                    <label className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors">
-                      <span className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={enabled}
-                          onChange={() => togglePage(p.key)}
-                          className="accent-[#1C2D50] cursor-pointer"
-                          style={{ width: 17, height: 17 }}
-                        />
-                        <span className="text-sm font-bold text-slate-800">{p.label}</span>
-                      </span>
-                      {enabled && (
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          {feats.length === 0 ? "عرض فقط" : `${feats.length} من ${p.features.length} صلاحية`}
-                        </span>
-                      )}
-                    </label>
-
-                    {/* الصفحات بلا صلاحيات فرعية عرضٌ بطبيعتها */}
-                    {enabled && p.features.length > 0 && (
-                      <div className="bg-slate-50 border-t border-slate-100 px-4 py-2.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRolePerms((prev) => ({
-                              ...prev,
-                              [p.key]: allChecked ? [] : p.features.map((f) => f.key),
-                            }))
-                          }
-                          className="text-[11px] text-[#1C2D50] font-semibold hover:underline mb-1.5"
-                        >
-                          {allChecked ? "إلغاء تحديد الكل" : "تحديد الكل"}
-                        </button>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                          {p.features.map((f) => (
-                            <label
-                              key={f.key}
-                              className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 hover:text-slate-800 transition-colors py-0.5"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={feats.includes(f.key)}
-                                onChange={() => toggleFeature(p.key, f.key)}
-                                className="accent-[#1C2D50] cursor-pointer shrink-0"
-                                style={{ width: 15, height: 15 }}
-                              />
-                              <span className="text-[13px]">{f.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-2">
-              تفعيل الصفحة بدون تحديد أي صلاحية = عرض فقط بدون إضافة أو تعديل
-            </p>
-          </div>
-
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" type="button" onClick={() => setShowRoleForm(false)}>إلغاء</Button>
-            <Button onClick={handleSaveRole} loading={roleSaving} disabled={!roleName.trim()}>
-              {editRoleTarget ? "حفظ التغييرات" : "إنشاء الدور"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <ConfirmModal
-        open={!!deleteRoleTarget}
-        onClose={() => setDeleteRoleTarget(null)}
-        onConfirm={handleDeleteRole}
-        title="حذف الدور"
-        message={`هل أنت متأكد من حذف الدور "${deleteRoleTarget?.name}"؟ لن يُحذف إذا كان مرتبطاً بموظفين.`}
-        confirmLabel="حذف"
-        loading={roleSaving}
-      />
     </div>
   );
 }
