@@ -51,6 +51,10 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       concertNumber,
       // كل حفلة تبدأ من الصفر التشغيلي مهما أرسل العميل
       status: d.status === "confirmed" ? "confirmed" : "planned",
+      /* الفريق مصفوفتان دائماً — الصفحات تقرأ length وmap عليهما،
+         وحفلة بلا هذين الحقلين تُسقط صفحة الحفلات كلها */
+      supervisorIds: Array.isArray(d.supervisorIds) ? d.supervisorIds : [],
+      employeeIds: Array.isArray(d.employeeIds) ? d.employeeIds : [],
       deliveryApproved: false,
       deliveryApprovedBy: null,
       deliveryApprovedAt: null,

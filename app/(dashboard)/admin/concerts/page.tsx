@@ -377,7 +377,7 @@ export default function AdminConcertsPage() {
                       </span>
                     )}
                     <span className="flex items-center gap-1">
-                      <Users size={11} />{c.supervisorIds.length} مشرف · {c.employeeIds.length} موظف
+                      <Users size={11} />{(c.supervisorIds ?? []).length} مشرف · {(c.employeeIds ?? []).length} موظف
                     </span>
                   </div>
                 </div>
@@ -422,7 +422,7 @@ export default function AdminConcertsPage() {
                           </span>
                         </td>
                         <td className="py-3.5 px-3 text-xs text-slate-500 whitespace-nowrap">
-                          {c.supervisorIds.length} مشرف · {c.employeeIds.length} موظف
+                          {(c.supervisorIds ?? []).length} مشرف · {(c.employeeIds ?? []).length} موظف
                         </td>
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-1 justify-end">

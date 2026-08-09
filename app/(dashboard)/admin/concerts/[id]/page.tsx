@@ -213,8 +213,8 @@ export default function AdminConcertDetailPage() {
     setAllOutgoing(allOutgoingData);
 
     if (concertData) {
-      const supData = await Promise.all(concertData.supervisorIds.map((uid) => getUserById(uid).catch(() => null)));
-      const empData = await Promise.all(concertData.employeeIds.map((uid) => getUserById(uid).catch(() => null)));
+      const supData = await Promise.all((concertData.supervisorIds ?? []).map((uid) => getUserById(uid).catch(() => null)));
+      const empData = await Promise.all((concertData.employeeIds ?? []).map((uid) => getUserById(uid).catch(() => null)));
       setSupervisors(supData.filter(Boolean) as AppUser[]);
       setEmployees(empData.filter(Boolean) as AppUser[]);
     }
@@ -1451,7 +1451,7 @@ export default function AdminConcertDetailPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">المشرفون ({supervisors.length})</h3>
             {fx.assignSup && (
-              <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds); setShowEditSupervisors(true); }}>
+              <Button size="sm" variant="outline" onClick={() => { setEditSupervisorIds(concert.supervisorIds ?? []); setShowEditSupervisors(true); }}>
                 <Pencil size={13} /> تعديل
               </Button>
             )}
@@ -1475,7 +1475,7 @@ export default function AdminConcertDetailPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-slate-800">الموظفون ({employees.length})</h3>
             {fx.assignEmp && (
-              <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds); setShowEditEmployees(true); }}>
+              <Button size="sm" variant="outline" onClick={() => { setEditEmployeeIds(concert.employeeIds ?? []); setShowEditEmployees(true); }}>
                 <Pencil size={13} /> تعديل
               </Button>
             )}

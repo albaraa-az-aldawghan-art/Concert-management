@@ -67,7 +67,7 @@ export default function SupervisorConcertsPage() {
   const filtered = concerts.filter(
     (c) =>
       (!filterStatus || normalizeStatus(c.status) === filterStatus) &&
-      (!supFilter || c.supervisorIds.includes(supFilter)) &&
+      (!supFilter || (c.supervisorIds ?? []).includes(supFilter)) &&
       matchesDate(c.date, dateF) &&
       (!q ||
         c.name.toLowerCase().includes(q) ||

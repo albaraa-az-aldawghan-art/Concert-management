@@ -69,7 +69,7 @@ export default function EmployeeConcertViewPage() {
   if (appUser && !overseer && appUser.role !== "employee") {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
-  if (appUser && appUser.role === "employee" && !concert.employeeIds.includes(appUser.uid)) {
+  if (appUser && appUser.role === "employee" && !(concert.employeeIds ?? []).includes(appUser.uid)) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بعرض هذه الحفلة</p>;
   }
 
