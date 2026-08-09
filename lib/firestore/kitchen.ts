@@ -1,31 +1,12 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  Timestamp,
-} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { Concert, KitchenOrder } from "@/types";
 
 // One kitchen order per concert — the doc id IS the concert id, so resending
 // simply refreshes the same order (and resets it to "sent" for re-confirmation).
-export async function sendConcertToKitchen(concert: Concert, sentBy: string): Promise<void> {
-  await setDoc(doc(db, "kitchen_orders", concert.id), {
-    concertId: concert.id,
-    concertNumber: concert.concertNumber ?? 0,
-    clientName: concert.clientName ?? "",
-    concertDate: concert.date ?? null,
-    venueName: concert.venueName ?? null,
-    peopleCount: concert.peopleCount ?? null,
-    status: "sent",
-    sentAt: Timestamp.now(),
-    sentBy,
-    receivedAt: null,
-    receivedBy: null,
-  });
+export async function sendConcertToKitchen(concert: Concert): Promise<void> {
+  await api.post("/api/orders/kitchen", { action: "send", concertId: concert.id });
 }
 
 export async function getKitchenOrders(): Promise<KitchenOrder[]> {
@@ -41,30 +22,14 @@ export async function getKitchenOrderByConcert(concertId: string): Promise<Kitch
   return { id: snap.id, ...snap.data() } as KitchenOrder;
 }
 
-export async function confirmKitchenOrder(orderId: string, receivedBy: string): Promise<void> {
-  await updateDoc(doc(db, "kitchen_orders", orderId), {
-    status: "received",
-    receivedAt: Timestamp.now(),
-    receivedBy,
-  });
+export async function confirmKitchenOrder(orderId: string): Promise<void> {
+  await api.post("/api/orders/kitchen", { action: "confirm", orderId });
 }
 
 // ── Warehouse orders — same lifecycle as kitchen orders, but the sheet
 //    shows ONLY the concert's materials (no food sections) ────────────
-export async function sendConcertToWarehouse(concert: Concert, sentBy: string): Promise<void> {
-  await setDoc(doc(db, "warehouse_orders", concert.id), {
-    concertId: concert.id,
-    concertNumber: concert.concertNumber ?? 0,
-    clientName: concert.clientName ?? "",
-    concertDate: concert.date ?? null,
-    venueName: concert.venueName ?? null,
-    peopleCount: concert.peopleCount ?? null,
-    status: "sent",
-    sentAt: Timestamp.now(),
-    sentBy,
-    receivedAt: null,
-    receivedBy: null,
-  });
+export async function sendConcertToWarehouse(concert: Concert): Promise<void> {
+  await api.post("/api/orders/warehouse", { action: "send", concertId: concert.id });
 }
 
 export async function getWarehouseOrders(): Promise<KitchenOrder[]> {
@@ -80,11 +45,7 @@ export async function getWarehouseOrderByConcert(concertId: string): Promise<Kit
   return { id: snap.id, ...snap.data() } as KitchenOrder;
 }
 
-export async function confirmWarehouseOrder(orderId: string, receivedBy: string): Promise<void> {
-  await updateDoc(doc(db, "warehouse_orders", orderId), {
-    status: "received",
-    receivedAt: Timestamp.now(),
-    receivedBy,
-  });
+export async function confirmWarehouseOrder(orderId: string): Promise<void> {
+  await api.post("/api/orders/warehouse", { action: "confirm", orderId });
 }
 

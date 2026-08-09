@@ -74,7 +74,7 @@ export default function WarehouseOrdersPage() {
     if (!appUser) return;
     setConfirmingId(order.id);
     try {
-      await confirmWarehouseOrder(order.id, appUser.name);
+      await confirmWarehouseOrder(order.id);
       showToast("تم تأكيد استلام الحفلة");
       load();
     } catch {

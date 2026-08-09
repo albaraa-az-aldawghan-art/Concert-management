@@ -13,6 +13,7 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcSettleOutgoing } from "@/lib/server/costs-core";
+import { svcSendOrder } from "@/lib/server/kitchen-core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -157,6 +158,11 @@ export async function syncDispenseRequest(db: Firestore, concertId: string, uid:
       quantity: remaining,
     });
   }
+
+  /* المطبخ والموارد يُخبَران بنفس اللحظة التي يُنشأ فيها الطلب —
+     كان الإرسال زراً يدوياً قد يُنسى، والآن يتبع التأكيد */
+  await svcSendOrder(db, "kitchen", concertId, uid).catch(() => {});
+  await svcSendOrder(db, "warehouse", concertId, uid).catch(() => {});
 
   if (lines.length === 0) {
     if (pending) await pending.ref.delete();

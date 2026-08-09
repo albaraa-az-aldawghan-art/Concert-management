@@ -63,7 +63,7 @@ export default function WarehouseOrderSheetPage() {
     if (!appUser || !order) return;
     setConfirming(true);
     try {
-      await confirmWarehouseOrder(order.id, appUser.name);
+      await confirmWarehouseOrder(order.id);
       setOrder(await getWarehouseOrderByConcert(id));
       showToast("تم تأكيد استلام الحفلة");
     } catch {

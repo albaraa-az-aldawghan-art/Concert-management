@@ -119,11 +119,11 @@ service cloud.firestore {
     }
 
     // ── أقسام الأكل ────────────────────────────────────────────
+    // أقسام الأكل القديمة — حلّت محلّها منتجات البيع (sales_sections).
+    // تبقى مقروءة لأن حفلات قديمة تشير إليها، ولا تُكتب بعد اليوم.
     match /food_categories/{catId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() ||
-        hasFeat('food', 'add') || hasFeat('food', 'edit') ||
-        hasFeat('food', 'delete') || hasFeat('food', 'reorder');
+      allow write: if false;
     }
 
     // ── مواد الموارد ────────────────────────────────────────────
@@ -148,18 +148,13 @@ service cloud.firestore {
     // ── طلبات المطبخ ───────────────────────────────────────────
     match /kitchen_orders/{orderId} {
       allow read:   if isAdmin() || isKitchen() || pageOn('kitchen') || pageOn('concerts');
-      allow create: if isAdmin() || hasFeat('concerts', 'send_kitchen');
-      allow update: if isAdmin() || isKitchen() || hasFeat('kitchen', 'confirm') || hasFeat('concerts', 'send_kitchen');
-      allow delete: if isAdmin();
+allow write: if false; // الإرسال والتأكيد من الخادم وحده
     }
 
     // ── طلبات الموارد للحفلات (نسخة الموارد من طلب المطبخ) ──────
     match /warehouse_orders/{orderId} {
       allow read:   if isAdmin() || isWarehouse() || pageOn('concerts') || pageOn('warehouse_orders');
-      allow create: if isAdmin() || hasFeat('concerts', 'send_kitchen');
-      allow update: if isAdmin() || isWarehouse() || hasFeat('concerts', 'send_kitchen') ||
-        hasFeat('warehouse_orders', 'confirm');
-      allow delete: if isAdmin();
+allow write: if false; // الإرسال والتأكيد من الخادم وحده
     }
 
     /* التعاقدات ودفعاتها: تُقرأ بصلاحية الصفحة، وتُكتب من الخادم الذي
@@ -194,7 +189,8 @@ service cloud.firestore {
 
     // ── العدادات (ترقيم الحفلات تسلسلياً، وباركود التكاليف) ────
     match /counters/{counterId} {
-      allow read, write: if isAdmin() || hasFeat('concerts', 'create') || hasFeat('costs', 'manage_items');
+      allow read, write: if isAdmin() || hasFeat('concerts', 'create')
+                             || hasFeat('contracts', 'create') || hasFeat('costs', 'item_config');
     }
 
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
@@ -202,10 +198,19 @@ service cloud.firestore {
       allow read:  if signedIn();
       // المدير يضبط كل شيء؛ ومن مُنح صلاحية الضريبة يعدّل نسبتها وحدها —
       // إيقاف الميزات وتغيير المسمّيات قرار يخصّ النظام كله لا صفحةً منه
-      allow write: if isAdmin() ||
-        ((hasFeat('settings', 'vat') || hasFeat('finances', 'vat')) &&
-         (resource == null ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vatRate'])));
+      // لكل مفتاح صلاحيته: من يملك الضريبة يعدّل vatRate وحده، ومن يملك
+      // الميزات يعدّل features وحدها — فلا تُمنح صلاحية من الواجهة وتمنعها
+      // القواعد بصمت، ولا يفتح مفتاحٌ واحد كل الإعدادات
+      allow write: if isAdmin() || (
+        resource == null ? false :
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(
+            (hasFeat('settings', 'vat')      ? ['vatRate']     : [])
+              .concat(hasFeat('settings', 'features') ? ['features']    : [])
+              .concat(hasFeat('settings', 'labels')   ? ['labels']      : [])
+              .concat(hasFeat('settings', 'idle')     ? ['idleMonths']  : [])
+          )
+      );
     }
 
     /* ── التكاليف — قراءة فقط من المتصفح ────────────────────────
@@ -248,7 +253,7 @@ service cloud.firestore {
 
     match /cost_settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('costs', 'manage_items');
+      allow write: if isAdmin() || hasFeat('costs', 'item_config');
     }
 
     // ── فواتير مصروفات الحفلة ─────────────────────────────────
@@ -261,7 +266,7 @@ service cloud.firestore {
 
     match /expense_settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('settings', 'roles') || hasFeat('concerts', 'edit');
+      allow write: if isAdmin() || hasFeat('concerts', 'exp_add');
     }
 
     // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────

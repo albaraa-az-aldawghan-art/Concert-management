@@ -87,7 +87,7 @@ export default function KitchenSheetPage() {
     if (!appUser || !order) return;
     setConfirming(true);
     try {
-      await confirmKitchenOrder(order.id, appUser.name);
+      await confirmKitchenOrder(order.id);
       setOrder(await getKitchenOrderByConcert(id));
       showToast("تم تأكيد استلام الحفلة");
     } catch {

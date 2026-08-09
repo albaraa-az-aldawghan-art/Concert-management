@@ -991,8 +991,8 @@ export default function AdminConcertDetailPage() {
                 setSendingKitchen(true);
                 try {
                   await Promise.all([
-                    sendConcertToKitchen(concert, appUser.name),
-                    sendConcertToWarehouse(concert, appUser.name),
+                    sendConcertToKitchen(concert),
+                    sendConcertToWarehouse(concert),
                   ]);
                   setKitchenOrder(await getKitchenOrderByConcert(concert.id));
                   showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ والموارد" : "تم إرسال الحفلة للمطبخ والموارد");
