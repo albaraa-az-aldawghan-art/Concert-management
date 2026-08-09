@@ -3,7 +3,7 @@
 /* المنصرف: صرف الخامات على الأقسام والحفلات، وتسوية المرتجع والتالف. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings } from "@/lib/firestore/costs";
+import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings, reassignOutgoing } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { getContracts } from "@/lib/firestore/contracts";
 import { useToast } from "@/components/ui/toast";
@@ -17,10 +17,12 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { formatDate } from "@/lib/utils";
 import { averageCost } from "@/lib/recipes";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
-import { CostOutgoing, CostItem, CostSettings, Concert, Contract } from "@/types";
+import { CostOutgoing, CostItem, CostSettings, Concert, Contract, OutgoingChannel, OUTGOING_CHANNELS } from "@/types";
 import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 export default function CostsOutgoingPage() {
   const { appUser, can, feat } = useAuth();
@@ -31,6 +33,7 @@ export default function CostsOutgoingPage() {
   const canView = isAdmin || feat("costs", "out_view");
   const canSettle = isAdmin || feat("costs", "out_settle");
   const canDelete = isAdmin || feat("costs", "out_delete");
+  const canReassign = isAdmin || feat("costs", "out_reassign");
   const fo = {
     cost:  isAdmin || feat("costs", "of_cost"),
     dest:  isAdmin || feat("costs", "of_dest"),
@@ -45,6 +48,14 @@ export default function CostsOutgoingPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState<OutgoingChannel | "" | "none">("");
+  const [showBreakdown, setShowBreakdown] = useState(true);
+  /* إسناد العمليات القديمة: اختيار متعدد ثم وجهة واحدة للدفعة */
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignPicked, setAssignPicked] = useState<Set<string>>(new Set());
+  const [assignChannel, setAssignChannel] = useState<OutgoingChannel | null>(null);
+  const [assignConcert, setAssignConcert] = useState<Concert | null>(null);
+  const [assignContract, setAssignContract] = useState<Contract | null>(null);
   const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -55,6 +66,8 @@ export default function CostsOutgoingPage() {
   const [settleTarget, setSettleTarget] = useState<CostOutgoing | null>(null);
   const [settleForm, setSettleForm] = useState({ returned: "", damaged: "", reason: "", date: "" });
   const [form, setForm] = useState({ quantity: "", unitPrice: "", departmentName: "", dispenseDate: "" });
+  /* الوجهة: تُختار صراحةً ولا تُستنتج من القسم */
+  const [channel, setChannel] = useState<OutgoingChannel | null>(null);
   const [concertMode, setConcertMode] = useState<"registered" | "manual">("registered");
   const [concertSearch, setConcertSearch] = useState("");
   const [pickedConcert, setPickedConcert] = useState<Concert | null>(null);
@@ -64,7 +77,7 @@ export default function CostsOutgoingPage() {
   const [pickedContract, setPickedContract] = useState<Contract | null>(null);
   const [contractSearch, setContractSearch] = useState("");
 
-  useEffect(() => { setPage(1); }, [search, dateF, deptFilter]);
+  useEffect(() => { setPage(1); }, [search, dateF, deptFilter, channelFilter]);
   useEffect(() => { load(); }, []);
 
   async function load() {
@@ -81,11 +94,12 @@ export default function CostsOutgoingPage() {
     setLoading(false);
   }
 
-  const selectedDept = settings.departments.find((d) => d.name === form.departmentName);
+
 
   function openAdd() {
     setScannedItem(null);
     setForm({ quantity: "", unitPrice: "", departmentName: settings.departments[0]?.name ?? "", dispenseDate: new Date().toISOString().slice(0, 10) });
+    setChannel(null);
     setConcertMode("registered");
     setConcertSearch("");
     setPickedConcert(null);
@@ -114,8 +128,17 @@ export default function CostsOutgoingPage() {
     if (!quantity || quantity <= 0) { showToast("أدخل كمية صحيحة", "error"); return; }
     if (!form.departmentName) { showToast("اختر القسم", "error"); return; }
     if (!form.dispenseDate) { showToast("أدخل تاريخ الصرف", "error"); return; }
-    if (selectedDept?.contractLinked && !pickedContract) {
+    if (!channel) { showToast("حدّد وجهة الصرف أولاً", "error"); return; }
+    if (channel === "contracts" && !pickedContract) {
       showToast("اختر العقد الذي تُحمَّل عليه التكلفة", "error");
+      return;
+    }
+    if (channel === "concerts" && concertMode === "registered" && !pickedConcert) {
+      showToast("اختر الحفلة التي تُحمَّل عليها التكلفة", "error");
+      return;
+    }
+    if (channel === "concerts" && concertMode === "manual" && !manualConcertName.trim()) {
+      showToast("اكتب اسم الجهة أو اختر حفلة مسجّلة", "error");
       return;
     }
     setSaving(true);
@@ -125,17 +148,55 @@ export default function CostsOutgoingPage() {
         quantity,
         unitPrice: unitPrice || 0,
         departmentName: form.departmentName,
-        concertId: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.id ?? null : null,
-        concertName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.name ?? null : null,
-        clientName: selectedDept?.concertLinked && concertMode === "registered" ? pickedConcert?.clientName ?? null : null,
-        manualConcertName: selectedDept?.concertLinked && concertMode === "manual" ? manualConcertName.trim() || null : null,
-        contractId: selectedDept?.contractLinked ? pickedContract?.id ?? null : null,
-        contractName: selectedDept?.contractLinked ? pickedContract?.name ?? null : null,
+        channel,
+        concertId: channel === "concerts" && concertMode === "registered" ? pickedConcert?.id ?? null : null,
+        concertName: channel === "concerts" && concertMode === "registered" ? pickedConcert?.name ?? null : null,
+        clientName: channel === "concerts" && concertMode === "registered" ? pickedConcert?.clientName ?? null : null,
+        manualConcertName: channel === "concerts" && concertMode === "manual" ? manualConcertName.trim() || null : null,
+        contractId: channel === "contracts" ? pickedContract?.id ?? null : null,
+        contractName: channel === "contracts" ? pickedContract?.name ?? null : null,
         dispenseDate: form.dispenseDate,
         createdBy: appUser.uid,
       });
       showToast("تم تسجيل عملية المنصرف");
       setShowAdd(false);
+      load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openAssign() {
+    setAssignPicked(new Set(unassigned.map((e) => e.id)));
+    setAssignChannel(null);
+    setAssignConcert(null);
+    setAssignContract(null);
+    setShowAssign(true);
+  }
+
+  async function handleAssign() {
+    if (!assignChannel) { showToast("اختر الوجهة", "error"); return; }
+    if (assignPicked.size === 0) { showToast("اختر عملية واحدة على الأقل", "error"); return; }
+    if (assignChannel === "concerts" && !assignConcert) { showToast("اختر الحفلة", "error"); return; }
+    if (assignChannel === "contracts" && !assignContract) { showToast("اختر العقد", "error"); return; }
+    setSaving(true);
+    try {
+      /* واحدة تلو الأخرى: كل عملية تُتحقَّق على الخادم بمفردها،
+         فلا تمرّ دفعة كاملة بفحص واحد */
+      for (const id of assignPicked) {
+        await reassignOutgoing(id, {
+          channel: assignChannel,
+          concertId: assignChannel === "concerts" ? assignConcert?.id ?? null : null,
+          concertName: assignChannel === "concerts" ? assignConcert?.name ?? null : null,
+          clientName: assignChannel === "concerts" ? assignConcert?.clientName ?? null : null,
+          contractId: assignChannel === "contracts" ? assignContract?.id ?? null : null,
+          contractName: assignChannel === "contracts" ? assignContract?.name ?? null : null,
+        });
+      }
+      showToast(`أُسندت ${assignPicked.size} عملية`);
+      setShowAssign(false);
       load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
@@ -197,6 +258,9 @@ export default function CostsOutgoingPage() {
   const filtered = entries
     .filter((e) => matchesDate(e.dispenseDate ?? e.createdAt, dateF))
     .filter((e) => !deptFilter || e.departmentName === deptFilter)
+    .filter((e) =>
+      !channelFilter ? true : channelFilter === "none" ? !e.channel : e.channel === channelFilter
+    )
     .filter((e) => !q || e.itemName.includes(q) || e.itemBarcode.includes(q) || (e.concertName ?? "").includes(q) || (e.clientName ?? "").includes(q) || (e.manualConcertName ?? "").includes(q));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -210,10 +274,65 @@ export default function CostsOutgoingPage() {
     .filter((c) => !cqs || c.name.includes(cqs) || (c.clientName ?? "").includes(cqs))
     .slice(0, 30);
 
-  // عمليات صرف باسم مكتوب يدوياً — لا تظهر في تكلفة أي حفلة، فنُظهر حجمها
-  // كي لا يكون النقص في حساب الربحية خفياً
-  const orphanEntries = entries.filter((e) => !e.concertId && e.manualConcertName);
-  const orphanTotal = orphanEntries.reduce((s, e) => s + e.totalCost, 0);
+  /* ══ التقسيم المفصَّل ══
+     يُحسب من filtered لا من entries، فيتبع فلاتر التاريخ والبحث والقسم.
+     ومجموع القنوات الأربع + ما بلا وجهة = المجموع الكلي بالضبط. */
+  const grandTotal = r2(filtered.reduce((s, e) => s + (e.totalCost ?? 0), 0));
+
+  const byChannel = OUTGOING_CHANNELS.map((c) => {
+    const rows = filtered.filter((e) => e.channel === c.key);
+    const total = r2(rows.reduce((s, e) => s + (e.totalCost ?? 0), 0));
+    return { ...c, count: rows.length, total, pct: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0 };
+  });
+
+  /* بلا وجهة: عمليات قديمة سُجّلت قبل أن تصير الوجهة إلزامية */
+  const unassigned = entries.filter((e) => !e.channel);
+  const unassignedTotal = r2(unassigned.reduce((s, e) => s + (e.totalCost ?? 0), 0));
+  const unassignedShown = filtered.filter((e) => !e.channel);
+  const unassignedShownTotal = r2(unassignedShown.reduce((s, e) => s + (e.totalCost ?? 0), 0));
+
+  /* حسب القسم */
+  const byDept = [...filtered.reduce((m, e) => {
+    const k = e.departmentName || "بلا قسم";
+    m.set(k, r2((m.get(k) ?? 0) + (e.totalCost ?? 0)));
+    return m;
+  }, new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+
+  /* حسب الصنف */
+  const byItem = [...filtered.reduce((m, e) => {
+    const cur = m.get(e.itemBarcode) ?? { name: e.itemName, unit: e.unit, qty: 0, total: 0 };
+    cur.qty = r2(cur.qty + (e.quantity ?? 0));
+    cur.total = r2(cur.total + (e.totalCost ?? 0));
+    m.set(e.itemBarcode, cur);
+    return m;
+  }, new Map<string, { name: string; unit: string; qty: number; total: number }>())]
+    .map(([barcode, v]) => ({ barcode, ...v }))
+    .sort((a, b) => b.total - a.total);
+
+  /* حسب الجهة داخل القناة المختارة — حفلة بحفلة، عقداً بعقد، شهراً بشهر */
+  const byParty = (() => {
+    if (channelFilter === "concerts") {
+      return [...filtered.filter((e) => e.channel === "concerts").reduce((m, e) => {
+        const k = e.concertName || e.manualConcertName || "بلا حفلة";
+        m.set(k, r2((m.get(k) ?? 0) + (e.totalCost ?? 0)));
+        return m;
+      }, new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+    }
+    if (channelFilter === "contracts") {
+      return [...filtered.filter((e) => e.channel === "contracts").reduce((m, e) => {
+        m.set(e.contractName || "بلا عقد", r2((m.get(e.contractName || "بلا عقد") ?? 0) + (e.totalCost ?? 0)));
+        return m;
+      }, new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+    }
+    if (channelFilter === "restaurant") {
+      return [...filtered.filter((e) => e.channel === "restaurant").reduce((m, e) => {
+        const k = (e.dispenseDate ?? "").slice(0, 7) || "بلا تاريخ";
+        m.set(k, r2((m.get(k) ?? 0) + (e.totalCost ?? 0)));
+        return m;
+      }, new Map<string, number>())].sort((a, b) => a[0].localeCompare(b[0]));
+    }
+    return [] as [string, number][];
+  })();
 
   // الحفلات المتاحة للربط: الملغاة مستبعدة، والأحدث تاريخاً أولاً
   const cq = concertSearch.trim().toLowerCase();
@@ -246,20 +365,153 @@ export default function CostsOutgoingPage() {
         )}
       </div>
 
-      {/* عمليات باسم مكتوب يدوياً لا تُحتسب على أي حفلة — نُظهر حجم النقص */}
-      {orphanEntries.length > 0 && (
-        <div className="flex items-start gap-2.5 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
-          <AlertTriangle size={16} className="text-orange-600 shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-semibold text-orange-800">
-              {orphanEntries.length} عملية صرف باسم مكتوب يدوياً — بإجمالي{" "}
-              <span className="tabular-nums-auto">{orphanTotal.toLocaleString("en-US")}</span> ريال
-            </p>
-            <p className="text-xs text-orange-600 mt-0.5">
-              هذه المبالغ لا تظهر ضمن تكلفة أي حفلة. اختر الحفلة من القائمة بدل كتابة الاسم لتُحتسب عليها.
-            </p>
+      {/* عمليات قديمة سُجّلت قبل أن تصير الوجهة إلزامية — تكلفة حقيقية
+          خارج كل الحسابات، فتُعرض بحجمها ويُفتح إسنادها بضغطة */}
+      {unassigned.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle size={16} className="text-orange-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-orange-800">
+                {unassigned.length} عملية بلا وجهة — بإجمالي{" "}
+                <span className="tabular-nums-auto">{money(unassignedTotal)}</span> ريال
+              </p>
+              <p className="text-xs text-orange-600 mt-0.5">
+                لا تدخل في المطعم ولا في أي حفلة ولا عقد. أسندها لتُحتسب.
+              </p>
+            </div>
           </div>
+          {canReassign && (
+            <Button size="sm" variant="outline" className="shrink-0" onClick={openAssign}>
+              <Undo2 size={14} /> إسناد الآن
+            </Button>
+          )}
         </div>
+      )}
+
+      {/* ══ التقسيم المفصَّل ══ */}
+      {!loading && filtered.length > 0 && (
+        <Card className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-bold text-slate-800">التقسيم المفصَّل</p>
+              <p className="text-xs text-slate-500">
+                {filtered.length} عملية · إجمالي{" "}
+                <span className="font-bold text-[#1C2D50] tabular-nums-auto">{money(grandTotal)}</span> ريال
+                {(deptFilter || channelFilter || search.trim()) && " — حسب الفلاتر المطبَّقة"}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBreakdown((v) => !v)}
+              className="text-xs font-semibold text-[#1C2D50] hover:underline shrink-0"
+            >
+              {showBreakdown ? "إخفاء" : "إظهار"}
+            </button>
+          </div>
+
+          {showBreakdown && (
+            <>
+              {/* بطاقات القنوات — مجموعها + ما بلا وجهة = الإجمالي بالضبط */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {byChannel.map((c) => (
+                  <button
+                    key={c.key}
+                    onClick={() => setChannelFilter(channelFilter === c.key ? "" : c.key)}
+                    className={`text-right rounded-xl border px-3 py-2.5 transition-colors ${
+                      channelFilter === c.key
+                        ? "border-[#1C2D50] bg-[#EEF1F7]"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <p className="text-xs text-slate-500">{c.label}</p>
+                    <p className="font-bold text-[#1C2D50] tabular-nums-auto">{money(c.total)}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-slate-400 tabular-nums-auto">{c.count} عملية</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums-auto">{c.pct}%</span>
+                    </div>
+                    <div className="h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-[#1C2D50] rounded-full" style={{ width: `${c.pct}%` }} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {unassignedShown.length > 0 && (
+                <button
+                  onClick={() => setChannelFilter(channelFilter === "none" ? "" : "none")}
+                  className={`w-full text-right rounded-xl border px-3 py-2 transition-colors ${
+                    channelFilter === "none" ? "border-orange-400 bg-orange-50" : "border-orange-200 bg-orange-50/50 hover:bg-orange-50"
+                  }`}
+                >
+                  <span className="text-xs text-orange-700 font-semibold">
+                    بلا وجهة: {unassignedShown.length} عملية ·{" "}
+                    <span className="tabular-nums-auto">{money(unassignedShownTotal)}</span> ريال
+                  </span>
+                </button>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* حسب القسم */}
+                <div>
+                  <p className="text-xs font-bold text-slate-500 mb-2">حسب القسم</p>
+                  <div className="space-y-1.5">
+                    {byDept.map(([name, total]) => {
+                      const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
+                      return (
+                        <div key={name}>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 truncate">{name}</span>
+                            <span className="font-semibold text-slate-800 tabular-nums-auto shrink-0">{money(total)}</span>
+                          </div>
+                          <div className="h-1 bg-slate-100 rounded-full mt-0.5 overflow-hidden">
+                            <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* حسب الصنف */}
+                <div>
+                  <p className="text-xs font-bold text-slate-500 mb-2">حسب الصنف</p>
+                  <div className="space-y-1 max-h-52 overflow-y-auto">
+                    {byItem.map((i) => (
+                      <div key={i.barcode} className="flex items-center justify-between text-xs gap-2">
+                        <span className="text-slate-600 truncate">{i.name}</span>
+                        <span className="text-slate-400 tabular-nums-auto shrink-0">
+                          {money(i.qty)} {i.unit}
+                        </span>
+                        <span className="font-semibold text-slate-800 tabular-nums-auto shrink-0 w-20 text-left">
+                          {money(i.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* حسب الجهة داخل القناة المختارة */}
+              {byParty.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 mb-2">
+                    {channelFilter === "concerts" ? "حسب الحفلة"
+                      : channelFilter === "contracts" ? "حسب العقد"
+                      : "حسب الشهر"}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {byParty.map(([name, total]) => (
+                      <div key={name} className="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-2.5 py-1.5">
+                        <span className="text-slate-600 truncate">{name}</span>
+                        <span className="font-semibold text-slate-800 tabular-nums-auto shrink-0">{money(total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -368,6 +620,45 @@ export default function CostsOutgoingPage() {
       {/* Add */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="تسجيل منصرف جديد">
         <div className="space-y-4">
+          {/* الوجهة أول سؤال: تحديدها قبل الصنف يمنع تسجيل عملية بلا جهة،
+              وهو الخطأ الذي كان يُسقط التكلفة من كل الحسابات بصمت */}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+              لمن هذا الصرف؟
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {OUTGOING_CHANNELS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => {
+                    setChannel(c.key);
+                    /* تبديل الوجهة يمسح اختيار الجهة السابقة فلا تبقى معلّقة */
+                    setPickedConcert(null);
+                    setPickedContract(null);
+                    setManualConcertName("");
+                  }}
+                  className={`rounded-xl border px-3 py-2.5 text-right transition-colors ${
+                    channel === c.key
+                      ? "border-[#1C2D50] bg-[#1C2D50] text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{c.label}</span>
+                  <span className={`block text-[10px] mt-0.5 ${channel === c.key ? "text-white/70" : "text-slate-400"}`}>
+                    {c.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!channel ? (
+            <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+              حدّد الوجهة لتكمل تسجيل العملية
+            </p>
+          ) : (
+          <>
           <CostItemPicker items={items} onPick={pickItem} onScanMiss={handleScanMiss} showBalance />
           {scannedItem ? (
             <>
@@ -412,7 +703,7 @@ export default function CostsOutgoingPage() {
                   {settings.departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
                 </Select>
 
-                {selectedDept?.contractLinked && (
+                {channel === "contracts" && (
                   <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50 space-y-2.5">
                     <p className="text-xs font-semibold text-slate-600">العقد الذي تُحمَّل عليه التكلفة</p>
                     {pickedContract ? (
@@ -450,7 +741,7 @@ export default function CostsOutgoingPage() {
                   </div>
                 )}
 
-                {selectedDept?.concertLinked && (
+                {channel === "concerts" && (
                   <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50 space-y-2.5">
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setConcertMode("registered")}
@@ -537,6 +828,8 @@ export default function CostsOutgoingPage() {
           ) : (
             <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أو اختره من القائمة للمتابعة</p>
           )}
+          </>
+          )}
         </div>
       </Modal>
 
@@ -609,6 +902,105 @@ export default function CostsOutgoingPage() {
         confirmLabel="حذف"
         loading={saving}
       />
+
+      {/* ── إسناد العمليات القديمة إلى وجهاتها ── */}
+      <Modal open={showAssign} onClose={() => setShowAssign(false)} title="إسناد عمليات بلا وجهة" size="lg">
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            هذه عمليات سُجّلت قبل أن تصير الوجهة إلزامية، فتكلفتها خارج كل الحسابات.
+            اختر ما يخصّ جهة واحدة ثم حدّد وجهتها — وكرّر للباقي.
+          </p>
+
+          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-56 overflow-y-auto">
+            {unassigned.map((e) => (
+              <label key={e.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={assignPicked.has(e.id)}
+                  onChange={() => setAssignPicked((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(e.id)) next.delete(e.id); else next.add(e.id);
+                    return next;
+                  })}
+                  className="accent-[#1C2D50] shrink-0"
+                  style={{ width: 15, height: 15 }}
+                />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-800 truncate">{e.itemName}</span>
+                  <span className="block text-[11px] text-slate-400 tabular-nums-auto">
+                    {e.departmentName} · {money(e.quantity)} {e.unit} · {e.dispenseDate}
+                    {e.manualConcertName && ` · «${e.manualConcertName}»`}
+                  </span>
+                </span>
+                <span className="font-bold text-[#1C2D50] text-sm tabular-nums-auto shrink-0">
+                  {money(e.totalCost ?? 0)}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">وجهة المحدَّد</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {OUTGOING_CHANNELS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => { setAssignChannel(c.key); setAssignConcert(null); setAssignContract(null); }}
+                  className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${
+                    assignChannel === c.key
+                      ? "border-[#1C2D50] bg-[#1C2D50] text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {assignChannel === "concerts" && (
+            <Select
+              label="الحفلة"
+              value={assignConcert?.id ?? ""}
+              onChange={(ev) => setAssignConcert(concerts.find((c) => c.id === ev.target.value) ?? null)}
+            >
+              <option value="">— اختر الحفلة —</option>
+              {selectableConcerts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.clientName ? ` — ${c.clientName}` : ""}
+                </option>
+              ))}
+            </Select>
+          )}
+
+          {assignChannel === "contracts" && (
+            <Select
+              label="العقد"
+              value={assignContract?.id ?? ""}
+              onChange={(ev) => setAssignContract(contracts.find((c) => c.id === ev.target.value) ?? null)}
+            >
+              <option value="">— اختر العقد —</option>
+              {contracts.filter((c) => c.status === "active").map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          )}
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <span className="text-xs text-slate-500 tabular-nums-auto">
+              {assignPicked.size} عملية ·{" "}
+              {money(unassigned.filter((e) => assignPicked.has(e.id)).reduce((s, e) => s + (e.totalCost ?? 0), 0))} ريال
+            </span>
+            <div className="flex gap-3">
+              <Button variant="secondary" type="button" onClick={() => setShowAssign(false)}>إلغاء</Button>
+              <Button onClick={handleAssign} loading={saving} disabled={!assignChannel || assignPicked.size === 0}>
+                إسناد
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

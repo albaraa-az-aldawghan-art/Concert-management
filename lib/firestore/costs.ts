@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { api } from "@/lib/api";
-import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment, CostProduction, CostDamage, RecipeLine } from "@/types";
+import { CostItem, CostIncoming, CostOutgoing, CostSettings, CostDepartment, CostProduction, CostDamage, RecipeLine, OutgoingChannel } from "@/types";
 
 /* ── إعدادات التكاليف (الوحدات والأقسام) ────────────────────── */
 
@@ -25,10 +25,10 @@ const DEFAULT_UNITS = [
 ];
 
 const DEFAULT_DEPARTMENTS: CostDepartment[] = [
-  { name: "قسم البروستد", concertLinked: false },
-  { name: "قسم المشويات", concertLinked: false },
-  { name: "قسم المعجنات", concertLinked: false },
-  { name: "قسم الحفلات", concertLinked: true },
+  { name: "قسم البروستد" },
+  { name: "قسم المشويات" },
+  { name: "قسم المعجنات" },
+  { name: "قسم الحفلات" },
 ];
 
 export async function getCostSettings(): Promise<CostSettings> {
@@ -293,6 +293,8 @@ export async function addCostOutgoing(data: {
   manualConcertName: string | null;
   contractId?: string | null;
   contractName?: string | null;
+  /** وجهة الصرف — إلزامية، ويرفضها الخادم إن غابت */
+  channel: OutgoingChannel;
   dispenseDate: string;
   createdBy: string;
 }): Promise<void> {
@@ -307,8 +309,21 @@ export async function addCostOutgoing(data: {
     manualConcertName: data.manualConcertName,
     contractId: data.contractId ?? null,
     contractName: data.contractName ?? null,
+    channel: data.channel,
     dispenseDate: data.dispenseDate,
   });
+}
+
+/** إعادة إسناد عملية قديمة إلى وجهتها — يُعاد التحقّق على الخادم */
+export async function reassignOutgoing(
+  id: string,
+  d: {
+    channel: OutgoingChannel;
+    concertId?: string | null; concertName?: string | null; clientName?: string | null;
+    contractId?: string | null; contractName?: string | null;
+  }
+): Promise<void> {
+  await api.patch(`/api/costs/outgoing/${id}/channel`, d);
 }
 
 export async function deleteCostOutgoing(entry: CostOutgoing): Promise<void> {

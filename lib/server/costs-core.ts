@@ -1,5 +1,6 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { OutgoingChannel } from "@/types";
 
 /* ═══════════════════════════════════════════════════════════════
    منطق التكاليف على الخادم — المصدر الوحيد لكل رقم يمسّ المخزون.
@@ -93,6 +94,40 @@ export async function svcDeleteIncoming(db: Firestore, id: string) {
 
 /* ── المنصرف ───────────────────────────────────────────────── */
 
+/** يتحقّق أن الوجهة صالحة وأن ما تستلزمه موجود.
+ *  يُنادى من التسجيل ومن إعادة الإسناد معاً، فلا تنفرد إحداهما بقاعدة. */
+export async function assertChannel(
+  db: Firestore,
+  channel: string | null | undefined,
+  d: { concertId: string | null; manualConcertName: string | null; contractId: string | null }
+): Promise<OutgoingChannel> {
+  const known: OutgoingChannel[] = ["restaurant", "concerts", "contracts", "general"];
+  if (!channel) throw new ApiError("حدّد وجهة الصرف: مطعم أو حفلة أو عقد أو عام");
+  if (!known.includes(channel as OutgoingChannel)) throw new ApiError("وجهة صرف غير معروفة");
+  const ch = channel as OutgoingChannel;
+
+  if (ch === "concerts") {
+    /* الاسم اليدوي مقبول لكنه لا يُحمَّل على حفلة — تحذيره في الواجهة */
+    if (!d.concertId && !d.manualConcertName) {
+      throw new ApiError("اختر الحفلة التي تُحمَّل عليها التكلفة");
+    }
+    if (d.concertId) {
+      const snap = await db.collection("concerts").doc(d.concertId).get();
+      if (!snap.exists) throw new ApiError("الحفلة غير موجودة");
+      if (snap.data()?.status === "cancelled") throw new ApiError("الحفلة ملغاة — لا تُحمَّل عليها تكلفة");
+    }
+  }
+
+  if (ch === "contracts") {
+    if (!d.contractId) throw new ApiError("اختر العقد الذي تُحمَّل عليه التكلفة");
+    const snap = await db.collection("contracts").doc(d.contractId).get();
+    if (!snap.exists) throw new ApiError("العقد غير موجود");
+    if (snap.data()?.status !== "active") throw new ApiError("العقد غير سارٍ — لا تُحمَّل عليه تكلفة");
+  }
+
+  return ch;
+}
+
 export async function svcAddOutgoing(
   db: Firestore,
   d: {
@@ -100,9 +135,13 @@ export async function svcAddOutgoing(
     concertId: string | null; concertName: string | null; clientName: string | null;
     manualConcertName: string | null;
     contractId: string | null; contractName: string | null;
+    channel: string | null;
     dispenseDate: string; createdBy: string;
   }
 ) {
+  /* الوجهة تُتحقَّق قبل فتح المعاملة — قراءات خارجية لا تصحّ داخلها */
+  const channel = await assertChannel(db, d.channel, d);
+
   const itemRef = db.collection("cost_items").doc(d.itemBarcode);
   const entryRef = db.collection("cost_outgoing").doc();
 
@@ -126,12 +165,15 @@ export async function svcAddOutgoing(
       totalCost: r2(d.quantity * d.unitPrice),
       stockValue,
       departmentName: d.departmentName,
-      concertId: d.concertId,
-      concertName: d.concertName,
-      clientName: d.clientName,
-      manualConcertName: d.manualConcertName,
-      contractId: d.contractId,
-      contractName: d.contractName,
+      channel,
+      /* ما لا تستلزمه القناة يُفرَّغ: عملية مطعم لا تحمل بقايا حفلة
+         اختيرت ثم بُدِّلت القناة قبل الحفظ */
+      concertId:  channel === "concerts" ? d.concertId : null,
+      concertName: channel === "concerts" ? d.concertName : null,
+      clientName:  channel === "concerts" ? d.clientName : null,
+      manualConcertName: channel === "concerts" ? d.manualConcertName : null,
+      contractId:   channel === "contracts" ? d.contractId : null,
+      contractName: channel === "contracts" ? d.contractName : null,
       dispenseDate: d.dispenseDate,
       returnedQty: 0,
       damagedQty: 0,

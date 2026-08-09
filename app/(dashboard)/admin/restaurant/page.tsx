@@ -75,20 +75,10 @@ export default function RestaurantPage() {
     setLoading(false);
   }
 
-  /** أقسام المطعم: ما عُلِّم «مطعم»، وإلا فكل قسم غير مرتبط بحفلة ولا عقد.
-   *  الافتراض الثاني يجعل الصفحة مفيدة قبل ضبط الإعدادات. */
-  const restaurantDepts = useMemo(() => {
-    const flagged = settings.departments.filter((d) => d.restaurant);
-    if (flagged.length) return new Set(flagged.map((d) => d.name));
-    return new Set(
-      settings.departments.filter((d) => !d.concertLinked && !d.contractLinked).map((d) => d.name)
-    );
-  }, [settings]);
-
-  /** صرف المطعم: لا حفلة ولا عقد، وقسمه من أقسام المطعم */
-  const restaurantOut = outgoing.filter(
-    (o) => !o.concertId && !o.contractId && !o.manualConcertName && restaurantDepts.has(o.departmentName)
-  );
+  /** صرف المطعم: ما وُسم وجهته «المطعم» صراحةً عند التسجيل.
+   *  كان يُستنتج بالنفي (لا حفلة ولا عقد وقسمه معلَّم)، فكانت العملية
+   *  التي لا تنطبق عليها الحالة تسقط من كل الحسابات بلا أثر. */
+  const restaurantOut = outgoing.filter((o) => o.channel === "restaurant");
 
   /* مجاميع السنة شهراً بشهر */
   const monthly = Array.from({ length: 12 }, () => ({ total: 0, count: 0 }));

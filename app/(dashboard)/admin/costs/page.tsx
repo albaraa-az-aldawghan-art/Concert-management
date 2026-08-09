@@ -167,7 +167,6 @@ export default function AdminCostsPage() {
 
   const [unitInput, setUnitInput] = useState("");
   const [deptInput, setDeptInput] = useState("");
-  const [deptConcertLinked, setDeptConcertLinked] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -276,10 +275,9 @@ export default function AdminCostsPage() {
   function addDept() {
     const v = deptInput.trim();
     if (!v || settings.departments.some((d) => d.name === v)) return;
-    const dept: CostDepartment = { name: v, concertLinked: deptConcertLinked };
+    const dept: CostDepartment = { name: v };
     setSettings((prev) => ({ ...prev, departments: [...prev.departments, dept] }));
     setDeptInput("");
-    setDeptConcertLinked(false);
   }
   function removeDept(name: string) {
     setSettings((prev) => ({ ...prev, departments: prev.departments.filter((d) => d.name !== name) }));
@@ -479,17 +477,12 @@ export default function AdminCostsPage() {
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDept(); } }}
                 placeholder="اسم القسم..."
                 className="flex-1 min-w-[160px] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-                <input type="checkbox" checked={deptConcertLinked} onChange={(e) => setDeptConcertLinked(e.target.checked)} />
-                يرتبط بالحفلات
-              </label>
               <Button type="button" variant="outline" size="sm" onClick={addDept}><Plus size={14} /></Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {settings.departments.map((d) => (
                 <span key={d.name} className="flex items-center gap-1 bg-amber-50 text-amber-700 text-sm px-3 py-1 rounded-full font-medium">
                   {d.name}
-                  {d.concertLinked && <span className="text-[10px] opacity-70">(حفلات)</span>}
                   <button type="button" onClick={() => removeDept(d.name)} className="text-amber-400 hover:text-red-500 transition-colors"><X size={12} /></button>
                 </span>
               ))}

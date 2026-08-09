@@ -373,6 +373,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "out_view",   label: "عرض المنصرف" },
           { key: "out_add",    label: "تسجيل منصرف" },
           { key: "out_settle", label: "إرجاع للمخزون أو تسجيل تالف" },
+          { key: "out_reassign", label: "إعادة إسناد عملية إلى وجهة أخرى", hint: "ينقل التكلفة من حفلة أو عقد إلى غيره", sensitive: true },
           { key: "out_delete", label: "حذف عملية منصرف", sensitive: true },
         ],
         fields: [

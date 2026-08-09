@@ -415,6 +415,8 @@ export async function buildCostsWorkbook(
   interface Move {
     date: Date | null; kind: string; item: string; barcode: string; unit: string;
     qty: number; price: number; total: number; party: string; client: string;
+    /* الوجهة تخصّ المنصرف وحده — تبقى فارغة في الوارد والإنتاج والتالف */
+    channel?: string;
     returned: number | null; damaged: number | null; note: string;
   }
   const moves: Move[] = [];
@@ -430,6 +432,10 @@ export async function buildCostsWorkbook(
       client: "", returned: null, damaged: null, note: "",
     });
   }
+  /* الوجهة كما تُعرض في الواجهة — والفارغة تُكتب صراحةً لا تُترك بيضاء */
+  const CHANNEL_LABEL: Record<string, string> = {
+    restaurant: "المطعم", concerts: "حفلة", contracts: "عقد", general: "عام",
+  };
   for (const d of outSnap.docs) {
     const e = d.data() as Record<string, unknown>;
     moves.push({
@@ -438,6 +444,7 @@ export async function buildCostsWorkbook(
       unit: (e.unit as string) ?? "", qty: (e.quantity as number) ?? 0,
       price: (e.unitPrice as number) ?? 0, total: (e.totalCost as number) ?? 0,
       party: (e.departmentName as string) ?? "",
+      channel: CHANNEL_LABEL[(e.channel as string) ?? ""] ?? "بلا وجهة",
       client: ((e.clientName as string) || (e.concertName as string) || (e.manualConcertName as string) || ""),
       returned: (e.returnedQty as number) ?? 0, damaged: (e.damagedQty as number) ?? 0, note: "",
     });

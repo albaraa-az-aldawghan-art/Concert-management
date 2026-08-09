@@ -69,6 +69,7 @@ export const COSTS_COLUMNS: ExportColumn[] = [
   { key: "price",    label: "سعر الوحدة",     width: 13, fmt: "money", default: true },
   { key: "total",    label: "الإجمالي",       width: 14, fmt: "money", default: true },
   { key: "party",    label: "المورد / القسم", width: 20, default: true },
+  { key: "channel",  label: "الوجهة",         width: 12, default: true },
   { key: "client",   label: "العميل / الحفلة", width: 20, default: true },
   { key: "returned", label: "المرتجع",        width: 11 },
   { key: "damaged",  label: "التالف",         width: 11 },

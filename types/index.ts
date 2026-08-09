@@ -508,7 +508,21 @@ export interface CostIncoming {
   createdBy: string;
 }
 
+/** وجهة الصرف — تُختار صراحةً عند كل عملية ولا تُستنتج من إعداد سابق.
+ *  الاستنتاج بالنفي كان يُسقط أي عملية لا تنطبق عليها حالة، فتختفي
+ *  تكلفتها من الحسابات الثلاثة بلا أثر ولا تحذير. */
+export type OutgoingChannel = "restaurant" | "concerts" | "contracts" | "general";
+
+export const OUTGOING_CHANNELS: { key: OutgoingChannel; label: string; hint: string }[] = [
+  { key: "restaurant", label: "المطعم",     hint: "يُجمَّع في منصرف الشهر" },
+  { key: "concerts",   label: "حفلة",       hint: "يدخل تكلفة الحفلة وربحيتها" },
+  { key: "contracts",  label: "عقد",        hint: "يدخل تكلفة العقد وربحه" },
+  { key: "general",    label: "عام/تشغيلي", hint: "لا يخصّ جهة — يُعرض منفصلاً" },
+];
+
 export interface CostOutgoing {
+  /** لمن هذا الصرف؟ غيابها يعني عملية قديمة تحتاج إسناداً */
+  channel?: OutgoingChannel | null;
   id: string;
   itemBarcode: string;
   itemName: string;
@@ -537,14 +551,12 @@ export interface CostOutgoing {
   createdBy: string;
 }
 
+/** قسم المنصرف: تصنيف ثانوي يقول «أي مطبخ صرف»، لا يقرّر الوجهة.
+ *  كانت له أعلام (concertLinked / contractLinked / restaurant) هي بوّابة
+ *  الوجهة، فقسمٌ بلا علامة كان يُسقط تكلفته من كل الحسابات. أُلغيت
+ *  لصالح القناة الصريحة، وتُترك في المستندات القديمة بلا قراءة. */
 export interface CostDepartment {
   name: string;
-  /** يطالب باختيار حفلة عند الصرف فتُحمَّل التكلفة عليها */
-  concertLinked: boolean;
-  /** يطالب باختيار عقد — أقسام التعاقدات والمدارس */
-  contractLinked?: boolean;
-  /** قسم مطعم: تكاليفه تُجمَّع شهرياً في قسم المطعم */
-  restaurant?: boolean;
 }
 
 export interface CostSettings {

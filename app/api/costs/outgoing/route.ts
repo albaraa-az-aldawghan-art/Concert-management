@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       manualConcertName: optStr(body.manualConcertName),
       contractId: optStr(body.contractId),
       contractName: optStr(body.contractName),
+      channel: optStr(body.channel),
       dispenseDate: dateStr(body.dispenseDate, "تاريخ الصرف"),
       createdBy: caller.uid,
     });

@@ -155,7 +155,6 @@ export default function ControlCenterPage() {
   const [costSettings, setCostSettings] = useState<CostSettings>({ units: [], departments: [] });
   const [deptInput, setDeptInput] = useState("");
   const [deptLinked, setDeptLinked] = useState(false);
-  const [deptKind, setDeptKind] = useState<"plain" | "concert" | "contract" | "restaurant">("plain");
   const [expenseTypes, setExpenseTypes] = useState<ExpenseSettings["types"]>([]);
   const [features, setFeatures] = useState<SystemFeatures>(DEFAULT_FEATURES);
   const [labels, setLabels] = useState<SystemLabels>(DEFAULT_LABELS);
@@ -351,31 +350,20 @@ export default function ControlCenterPage() {
           <Card>
             <p className="font-bold text-slate-800 mb-1">أقسام المنصرف</p>
             <p className="text-xs text-slate-500 mb-3">
-              القسم المعلَّم «يرتبط بالحفلات» يطالب باختيار العميل عند الصرف، فتُحمَّل التكلفة على حفلته.
+              تصنيف ثانوي يقول «أي مطبخ صرف». وجهة الصرف (مطعم أو حفلة أو عقد أو عام)
+              تُختار عند كل عملية في صفحة المنصرف، لا هنا — فلا تسقط تكلفة لأن قسماً لم يُعلَّم.
             </p>
             <div className="flex gap-2 mb-2.5 flex-wrap">
               <input type="text" value={deptInput} onChange={(e) => setDeptInput(e.target.value)}
                 placeholder="اسم القسم..."
                 className="flex-1 min-w-[160px] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
-              <select value={deptKind} onChange={(e) => setDeptKind(e.target.value as typeof deptKind)}
-                className="border border-slate-200 rounded-xl px-2 py-2 text-xs bg-white">
-                <option value="plain">قسم عادي</option>
-                <option value="concert">يرتبط بالحفلات</option>
-                <option value="contract">يرتبط بالتعاقدات</option>
-                <option value="restaurant">قسم مطعم</option>
-              </select>
               <Button type="button" variant="outline" size="sm"
                 onClick={() => {
                   const v = deptInput.trim();
                   if (!v || costSettings.departments.some((d) => d.name === v)) return;
-                  const dept: CostDepartment = {
-                    name: v,
-                    concertLinked: deptKind === "concert",
-                    contractLinked: deptKind === "contract",
-                    restaurant: deptKind === "restaurant",
-                  };
+                  const dept: CostDepartment = { name: v };
                   setCostSettings((p) => ({ ...p, departments: [...p.departments, dept] }));
-                  setDeptInput(""); setDeptKind("plain");
+                  setDeptInput("");
                 }}>
                 <Plus size={14} />
               </Button>
@@ -386,9 +374,6 @@ export default function ControlCenterPage() {
               ) : costSettings.departments.map((d) => (
                 <span key={d.name} className="flex items-center gap-1 bg-amber-50 text-amber-700 text-sm px-3 py-1 rounded-full font-medium">
                   {d.name}
-                  {d.concertLinked && <span className="text-[10px] opacity-70">(حفلات)</span>}
-                  {d.contractLinked && <span className="text-[10px] opacity-70">(تعاقدات)</span>}
-                  {d.restaurant && <span className="text-[10px] opacity-70">(مطعم)</span>}
                   <button type="button" onClick={() => setCostSettings((p) => ({ ...p, departments: p.departments.filter((x) => x.name !== d.name) }))}
                     className="opacity-50 hover:opacity-100 hover:text-red-500 transition-colors"><X size={12} /></button>
                 </span>
