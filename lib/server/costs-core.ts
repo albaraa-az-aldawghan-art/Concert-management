@@ -84,6 +84,14 @@ export async function svcDeleteIncoming(db: Firestore, id: string) {
           `لا يمكن حذف هذا الوارد — المتبقي من "${item.name}" ${balance} ${item.unit} فقط والحذف يسحب ${e.quantity}. احذف عمليات الصرف أو التالف المرتبطة أولاً.`
         );
       }
+      /* استُهلك جزء من الصنف بعد هذا الوارد؟ حذفه حينها يترك متوسطاً
+         لا يمثّل أي سعر شراء حقيقي — لأن ما خرج خرج بمتوسط مخلوط لا
+         يمكن فكّه. يُمنع الحذف ويُوجَّه إلى التصحيح بوارد معاكس. */
+      if ((item.totalOut ?? 0) > 0) {
+        throw new ApiError(
+          `لا يمكن حذف هذا الوارد — صُرف من "${item.name}" بعده، وحذفه يترك متوسط تكلفة لا يمثّل سعر شراء حقيقي. صحّح بوارد معاكس أو عدّل العملية.`
+        );
+      }
       tx.update(itemRef, {
         totalIn: (item.totalIn ?? 0) - e.quantity,
         totalInValue: Math.max(0, r2((item.totalInValue ?? 0) - e.totalBeforeVat)),

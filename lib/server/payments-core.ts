@@ -49,7 +49,22 @@ async function recalcDeposit(db: Firestore, concertId: string, alsoConfirm: bool
 export async function svcAddPayment(db: Firestore, d: PaymentInput, opts: { confirmConcert: boolean }) {
   const concert = await db.collection("concerts").doc(d.concertId).get();
   if (!concert.exists) throw new ApiError("الحفلة غير موجودة", 404);
+  if (concert.data()?.status === "cancelled") throw new ApiError("الحفلة ملغاة — لا تُسجَّل عليها دفعات");
   await assertInvoiceFree(db, d.invoiceNumber);
+
+  /* المحصَّل لا يتجاوز السعر: خطأ رقم واحد يقلب المتبقي إلى سالب ضخم
+     ويشوّه القائمة المالية كلها. إن كان السعر تغيّر فليُحدَّث أولاً. */
+  const price = (concert.data()?.price as number) ?? 0;
+  if (price > 0) {
+    const paid = (await db.collection("concert_payments").where("concertId", "==", d.concertId).get())
+      .docs.reduce((s, x) => s + ((x.data().amount as number) ?? 0), 0);
+    const remaining = Math.round((price - paid) * 100) / 100;
+    if (d.amount > remaining + 0.01) {
+      throw new ApiError(
+        `المبلغ أكبر من المتبقي على الحفلة (${remaining} ريال). عدّل سعر الحفلة أولاً إن تغيّر.`
+      );
+    }
+  }
 
   const ref = db.collection("concert_payments").doc();
   await ref.set({ ...d, createdAt: Timestamp.now() });
