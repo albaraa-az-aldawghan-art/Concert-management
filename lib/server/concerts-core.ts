@@ -1,5 +1,7 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { syncDispenseRequest } from "@/lib/server/dispense-requests-core";
+import { svcSettleOutgoing } from "@/lib/server/costs-core";
 import { svcReleaseConcertStock } from "@/lib/server/stock-core";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -104,12 +106,43 @@ export async function svcDeleteConcert(db: Firestore, id: string) {
 export async function svcCancelConcert(
   db: Firestore,
   id: string,
-  d: { reason: string; refundAmount: number | null; refundDate: string | null; refundMethod: string | null }
+  d: {
+    reason: string; refundAmount: number | null; refundDate: string | null; refundMethod: string | null;
+    /** حسم ما صُرف على الحفلة: لكل عملية إما رجع للمخزون أو تلف.
+     *  إلزامي — وإلا بقيت خسارة معلّقة لا يعرف أحد مصيرها. */
+    settlements?: { outgoingId: string; returnedQty: number; damagedQty: number; reason: string }[];
+  }
 ) {
   const ref = db.collection("concerts").doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
   if (snap.data()!.status === "cancelled") throw new ApiError("الحفلة ملغاة أصلاً");
+
+  /* كل عملية صرف عليها كمية لم تُحسم تمنع الإلغاء حتى يُقرَّر مصيرها */
+  const outSnap = await db.collection("cost_outgoing").where("concertId", "==", id).get();
+  const open = outSnap.docs.filter((doc) => {
+    const o = doc.data() as { quantity?: number; returnedQty?: number; damagedQty?: number };
+    return r2((o.quantity ?? 0) - (o.returnedQty ?? 0) - (o.damagedQty ?? 0)) > 0;
+  });
+  const given = new Map((d.settlements ?? []).map((x) => [x.outgoingId, x]));
+  const missing = open.filter((doc) => !given.has(doc.id));
+  if (missing.length > 0) {
+    throw new ApiError(
+      `حدّد مصير ${missing.length} عملية صرف على الحفلة: رجعت للمخزون أم تلفت`
+    );
+  }
+
+  /* تُحسم أولاً: لو فشل أحدها لم تُلغَ الحفلة وبقي كل شيء متسقاً */
+  for (const doc of open) {
+    const st = given.get(doc.id)!;
+    await svcSettleOutgoing(db, doc.id, {
+      returnedQty: st.returnedQty,
+      damagedQty: st.damagedQty,
+      reason: st.reason || d.reason || "إلغاء الحفلة",
+      damageDate: new Date().toISOString().slice(0, 10),
+      createdBy: "system",
+    });
+  }
 
   await svcReleaseConcertStock(db, id); // الملغاة لا تحجز موارد
   await ref.update({
@@ -120,6 +153,7 @@ export async function svcCancelConcert(
     refundDate: d.refundDate || null,
     refundMethod: d.refundMethod || null,
   });
+  await syncDispenseRequest(db, id, "system"); // الطلب المعلّق يُحذف مع الإلغاء
 }
 
 export async function svcMarkPaid(db: Firestore, id: string, uid: string) {
@@ -225,13 +259,21 @@ export async function svcDeleteExpense(db: Firestore, id: string) {
 
 export async function svcAddConcertFood(
   db: Firestore,
-  d: { concertId: string; categoryId: string; categoryName: string; selectedOption: string; quantity: number | null; notes: string | null; createdBy: string }
+  d: {
+    concertId: string; categoryId: string; categoryName: string; selectedOption: string;
+    /** باركود صنف التكاليف — به يُعرف المتوفر وتُحسب التكلفة ويُبنى طلب الصرف */
+    costItemBarcode: string | null;
+    packageId: string | null;
+    quantity: number | null; notes: string | null; createdBy: string;
+  }
 ) {
   if (!(await db.collection("concerts").doc(d.concertId).get()).exists) {
     throw new ApiError("الحفلة غير موجودة", 404);
   }
   const ref = db.collection("concert_food").doc();
   await ref.set({ ...d, createdAt: Timestamp.now() });
+  /* الصرف يتبع أصناف الحفلة: المضاف يصير طلباً، والمحذوف يرجع للمخزون */
+  await syncDispenseRequest(db, d.concertId, d.createdBy);
   return { id: ref.id };
 }
 
@@ -240,11 +282,19 @@ export async function svcUpdateConcertFood(db: Firestore, id: string, d: { quant
   if (d.quantity !== undefined) patch.quantity = d.quantity;
   if (d.notes !== undefined) patch.notes = d.notes;
   if (Object.keys(patch).length === 0) return;
-  await db.collection("concert_food").doc(id).update(patch);
+  const ref = db.collection("concert_food").doc(id);
+  const snap = await ref.get();
+  await ref.update(patch);
+  const concertId = snap.data()?.concertId as string | undefined;
+  if (concertId) await syncDispenseRequest(db, concertId, "system");
 }
 
 export async function svcDeleteConcertFood(db: Firestore, id: string) {
-  await db.collection("concert_food").doc(id).delete();
+  const ref = db.collection("concert_food").doc(id);
+  const snap = await ref.get();
+  const concertId = snap.data()?.concertId as string | undefined;
+  await ref.delete();
+  if (concertId) await syncDispenseRequest(db, concertId, "system");
 }
 
 /* ── سجل الحفلة ────────────────────────────────────────────── */

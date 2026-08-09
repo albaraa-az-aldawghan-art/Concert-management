@@ -40,7 +40,9 @@ async function recalcDeposit(db: Firestore, concertId: string, alsoConfirm: bool
   const total = pays.docs.reduce((s, d) => s + ((d.data().amount as number) ?? 0), 0);
   const update: Record<string, unknown> = { deposit: total };
   // أول دفعة تؤكّد الحفلة — تبقى القاعدة كما كانت في العميل
-  if (alsoConfirm && concert.data()?.status === "planned") update.status = "confirmed";
+  /* أول دفعة تؤكّد الحفلة، والتأكيد هو ما يُنشئ طلب الصرف */
+  const nowConfirmed = alsoConfirm && concert.data()?.status === "planned";
+  if (nowConfirmed) update.status = "confirmed";
   await db.collection("concerts").doc(concertId).update(update);
 }
 

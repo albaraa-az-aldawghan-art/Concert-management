@@ -16,6 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       categoryId: str(body.categoryId, "القسم"),
       categoryName: str(body.categoryName, "اسم القسم"),
       selectedOption: optStr(body.selectedOption) ?? "",
+      costItemBarcode: optStr(body.costItemBarcode),
+      packageId: optStr(body.packageId),
       quantity: body.quantity != null ? Number(body.quantity) : null,
       notes: optStr(body.notes, 500),
       createdBy: caller.uid,

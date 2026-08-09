@@ -289,6 +289,8 @@ export async function cancelConcert(
     refundAmount: number | null;
     refundDate: string | null;
     refundMethod: string | null;
+    /** لكل عملية صرف على الحفلة: كم رجع للمخزون وكم تلف */
+    settlements?: { outgoingId: string; returnedQty: number; damagedQty: number; reason: string }[];
   }
 ): Promise<void> {
   await api.post(`/api/concerts/${concertId}/cancel`, data);

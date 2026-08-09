@@ -520,6 +520,25 @@ export const OUTGOING_CHANNELS: { key: OutgoingChannel; label: string; hint: str
   { key: "general",    label: "عام/تشغيلي", hint: "لا يخصّ جهة — يُعرض منفصلاً" },
 ];
 
+/** طلب صرف حفلة: يُنشأ عند التأكيد بأصناف أكلها، ولا يُصرف حتى يُقرّ */
+export interface DispenseRequest {
+  id: string;
+  concertId: string;
+  concertNumber: number;
+  concertName: string;
+  clientName: string;
+  concertDate: Timestamp | null;
+  lines: { barcode: string; itemName: string; unit: string; quantity: number }[];
+  status: "pending" | "approving" | "approved" | "rejected";
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt?: Timestamp;
+  approvedAt?: Timestamp | null;
+  approvedBy?: string | null;
+  outgoingIds?: string[];
+  rejectReason?: string | null;
+}
+
 export interface CostOutgoing {
   /** لمن هذا الصرف؟ غيابها يعني عملية قديمة تحتاج إسناداً */
   channel?: OutgoingChannel | null;

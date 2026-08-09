@@ -374,6 +374,8 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "out_add",    label: "تسجيل منصرف" },
           { key: "out_settle", label: "إرجاع للمخزون أو تسجيل تالف" },
           { key: "out_reassign", label: "إعادة إسناد عملية إلى وجهة أخرى", hint: "ينقل التكلفة من حفلة أو عقد إلى غيره", sensitive: true },
+          { key: "req_view",    label: "عرض طلبات صرف الحفلات" },
+          { key: "req_approve", label: "إقرار طلب صرف حفلة", hint: "الإقرار يصرف الأصناف فعلاً ويحمّلها على الحفلة", sensitive: true },
           { key: "out_delete", label: "حذف عملية منصرف", sensitive: true },
         ],
         fields: [

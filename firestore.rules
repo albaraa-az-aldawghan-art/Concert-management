@@ -231,6 +231,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /dispense_requests/{docId} {
+      allow read:  if isAdmin() || hasFeat('costs', 'req_view') || hasFeat('costs', 'req_approve');
+      allow write: if false; // الإقرار والمزامنة من الخادم وحده
+    }
+
     match /cost_outgoing/{entryId} {
       allow read:  if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
       allow write: if false;

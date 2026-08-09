@@ -7,6 +7,7 @@ import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoin
 import { getConcerts } from "@/lib/firestore/concerts";
 import { getContracts } from "@/lib/firestore/contracts";
 import { getSalesSections } from "@/lib/firestore/sales";
+import { getPendingRequests, approveRequest, rejectRequest } from "@/lib/firestore/dispense-requests";
 import { useToast } from "@/components/ui/toast";
 import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { formatDate } from "@/lib/utils";
 import { averageCost } from "@/lib/recipes";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
-import { CostOutgoing, CostItem, CostSettings, Concert, Contract, OutgoingChannel, OUTGOING_CHANNELS, SalesSection } from "@/types";
+import { CostOutgoing, CostItem, CostSettings, Concert, Contract, OutgoingChannel, OUTGOING_CHANNELS, SalesSection, DispenseRequest } from "@/types";
 import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -35,6 +36,8 @@ export default function CostsOutgoingPage() {
   const canSettle = isAdmin || feat("costs", "out_settle");
   const canDelete = isAdmin || feat("costs", "out_delete");
   const canReassign = isAdmin || feat("costs", "out_reassign");
+  const canSeeReq = isAdmin || feat("costs", "req_view") || feat("costs", "req_approve");
+  const canApproveReq = isAdmin || feat("costs", "req_approve");
   const fo = {
     cost:  isAdmin || feat("costs", "of_cost"),
     dest:  isAdmin || feat("costs", "of_dest"),
@@ -72,6 +75,9 @@ export default function CostsOutgoingPage() {
   /* قسم البيع داخل الوجهة، أو "raw" للمواد الخام غير المضمومة لقسم */
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [pickedSection, setPickedSection] = useState<string | null>(null);
+  /* طلبات صرف الحفلات المعلّقة — تُقرّ من هنا فتُصرف على حفلتها */
+  const [requests, setRequests] = useState<DispenseRequest[]>([]);
+  const [reqBusy, setReqBusy] = useState<string | null>(null);
   const [concertMode, setConcertMode] = useState<"registered" | "manual">("registered");
   const [concertSearch, setConcertSearch] = useState("");
   const [pickedConcert, setPickedConcert] = useState<Concert | null>(null);
@@ -86,11 +92,13 @@ export default function CostsOutgoingPage() {
 
   async function load() {
     setLoading(true);
-    const [e, s, c, i, ct, sec] = await Promise.all([
+    const [e, s, c, i, ct, sec, reqs] = await Promise.all([
       getCostOutgoing(), getCostSettings(), getConcerts(), getCostItems().catch(() => [] as CostItem[]),
       getContracts().catch(() => [] as Contract[]),
       getSalesSections().catch(() => [] as SalesSection[]),
+      getPendingRequests().catch(() => [] as DispenseRequest[]),
     ]);
+    setRequests(reqs);
     setSections(sec);
     setContracts(ct);
     setEntries(e);
@@ -172,6 +180,24 @@ export default function CostsOutgoingPage() {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRequest(id: string, action: "approve" | "reject") {
+    setReqBusy(id);
+    try {
+      if (action === "approve") {
+        await approveRequest(id, settings.departments[0]?.name ?? "المطبخ");
+        showToast("أُقرّ الطلب وصُرفت أصنافه على الحفلة");
+      } else {
+        await rejectRequest(id, "");
+        showToast("رُفض الطلب ولم يُصرف شيء");
+      }
+      load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setReqBusy(null);
     }
   }
 
@@ -406,6 +432,82 @@ export default function CostsOutgoingPage() {
             </Button>
           )}
         </div>
+      )}
+
+      {/* ══ طلبات صرف الحفلات ══
+          تُنشأ تلقائياً عند تأكيد الحفلة بأصناف أكلها، ولا يُصرف منها
+          شيء حتى يُقرّها المسؤول — والإقرار هو ما يُنشئ عمليات المنصرف */}
+      {canSeeReq && requests.length > 0 && (
+        <Card className="space-y-3 border-amber-200 bg-amber-50/40">
+          <div className="flex items-center gap-2">
+            <Music size={16} className="text-amber-600" />
+            <p className="font-bold text-slate-800">
+              طلبات صرف بانتظار إقرارك ({requests.length})
+            </p>
+          </div>
+
+          {requests.map((r) => {
+            const total = r.lines.reduce((s, l) => s + l.quantity, 0);
+            return (
+              <div key={r.id} className="bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-2.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800 flex items-center gap-2 flex-wrap">
+                      {r.concertNumber > 0 && (
+                        <span className="text-xs font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                          #{String(r.concertNumber).padStart(3, "0")}
+                        </span>
+                      )}
+                      {r.clientName || r.concertName}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {r.concertName}
+                      {r.concertDate && ` · ${formatDate(r.concertDate)}`}
+                      {" · "}
+                      <span className="tabular-nums-auto">{r.lines.length}</span> صنف ·{" "}
+                      <span className="tabular-nums-auto">{money(total)}</span> وحدة
+                    </p>
+                  </div>
+                  {canApproveReq && (
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        loading={reqBusy === r.id}
+                        onClick={() => handleRequest(r.id, "approve")}
+                      >
+                        <CheckCircle2 size={14} /> إقرار وصرف
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={reqBusy === r.id}
+                        onClick={() => handleRequest(r.id, "reject")}
+                      >
+                        رفض
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {r.lines.map((l) => (
+                    <span
+                      key={l.barcode}
+                      className="text-[11px] bg-slate-50 text-slate-700 px-2 py-0.5 rounded-full tabular-nums-auto"
+                    >
+                      {l.itemName} × {money(l.quantity)} {l.unit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <p className="text-[11px] text-slate-500">
+            الإقرار يصرف الأصناف بمتوسط تكلفتها ويحمّلها على الحفلة. وتعديل أصناف الحفلة
+            قبل الإقرار يُحدّث الطلب، وبعده يرجع المحذوف للمخزون ويصير المضاف طلباً جديداً.
+          </p>
+        </Card>
       )}
 
       {/* ══ التقسيم المفصَّل ══ */}

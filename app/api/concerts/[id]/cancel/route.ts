@@ -16,6 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       refundAmount: body.refundAmount != null ? Number(body.refundAmount) : null,
       refundDate: optStr(body.refundDate),
       refundMethod: optStr(body.refundMethod),
+      /* حسم ما صُرف: يُتحقَّق منه في الخدمة لا هنا، فالقاعدة واحدة */
+      settlements: Array.isArray(body.settlements) ? body.settlements : [],
     });
   });
 }

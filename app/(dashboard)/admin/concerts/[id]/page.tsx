@@ -110,6 +110,8 @@ export default function AdminConcertDetailPage() {
   const [editPeopleCount, setEditPeopleCount] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  /* مصير كل عملية صرف عند الإلغاء: رجعت للمخزون أم تلفت */
+  const [cancelFates, setCancelFates] = useState<Record<string, "returned" | "damaged">>({});
   const [cancelHasRefund, setCancelHasRefund] = useState(false);
   const [cancelRefundAmount, setCancelRefundAmount] = useState("");
   const [cancelRefundDate, setCancelRefundDate] = useState("");
@@ -749,6 +751,11 @@ export default function AdminConcertDetailPage() {
     }
   }
 
+  /* عمليات الصرف التي لم تُحسم بعد — لا تُلغى الحفلة قبل حسمها */
+  const openDispenses = costOutgoing.filter(
+    (o) => (o.quantity ?? 0) - (o.returnedQty ?? 0) - (o.damagedQty ?? 0) > 0
+  );
+
   async function handleCancelConcert() {
     if (!concert || !appUser) return;
     setSaving(true);
@@ -758,13 +765,23 @@ export default function AdminConcertDetailPage() {
         refundAmount: cancelHasRefund && cancelRefundAmount ? parseFloat(cancelRefundAmount) : null,
         refundDate: cancelHasRefund && cancelRefundDate ? cancelRefundDate : null,
         refundMethod: cancelHasRefund ? cancelRefundMethod : null,
+        settlements: openDispenses.map((o) => {
+          const open = (o.quantity ?? 0) - (o.returnedQty ?? 0) - (o.damagedQty ?? 0);
+          const fate = cancelFates[o.id] ?? "returned";
+          return {
+            outgoingId: o.id,
+            returnedQty: fate === "returned" ? open : 0,
+            damagedQty: fate === "damaged" ? open : 0,
+            reason: fate === "damaged" ? "تلف بإلغاء الحفلة" : "",
+          };
+        }),
       });
       await addConcertLog({ concertId: concert.id, description: `تم إلغاء الحفلة${cancelReason ? ": " + cancelReason : ""}`, createdBy: appUser.uid });
       showToast("تم إلغاء الحفلة");
       setShowCancelModal(false);
       loadData();
-    } catch {
-      showToast("حدث خطأ", "error");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }
@@ -2528,6 +2545,57 @@ export default function AdminConcertDetailPage() {
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
             سيتم تغيير حالة الحفلة إلى "ملغاة" ولن تُحسب في القوائم المالية.
           </div>
+
+          {/* ما صُرف على الحفلة لا يُترك معلّقاً: لكل عملية قرار ملزم —
+              رجعت للمخزون فتعود قيمتها، أو تلفت فتُقيَّد خسارةً */}
+          {openDispenses.length > 0 && (
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+                مصير ما صُرف على الحفلة ({openDispenses.length})
+              </label>
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                {openDispenses.map((o) => {
+                  const open = (o.quantity ?? 0) - (o.returnedQty ?? 0) - (o.damagedQty ?? 0);
+                  const fate = cancelFates[o.id] ?? "returned";
+                  return (
+                    <div key={o.id} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{o.itemName}</p>
+                        <p className="text-[11px] text-slate-400 tabular-nums-auto">
+                          {open} {o.unit} · {(o.totalCost ?? 0).toLocaleString("en-US")} ريال
+                        </p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {([
+                          { key: "returned" as const, label: "رجع للمخزون" },
+                          { key: "damaged" as const, label: "تلف" },
+                        ]).map((opt) => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setCancelFates((p) => ({ ...p, [o.id]: opt.key }))}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                              fate === opt.key
+                                ? opt.key === "damaged"
+                                  ? "bg-red-500 text-white"
+                                  : "bg-emerald-600 text-white"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                الافتراضي «رجع للمخزون» — غيّره لما تلف فعلاً فتُقيَّد قيمته خسارةً في التالف
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">سبب الإلغاء (اختياري)</label>
             <textarea
