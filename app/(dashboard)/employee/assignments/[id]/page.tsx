@@ -19,7 +19,7 @@ import { Package, UtensilsCrossed, CalendarDays, Clock, MapPin, ChevronRight, Fi
 // images and counts, food sections with quantities. No actions whatsoever.
 export default function EmployeeConcertViewPage() {
   const { id } = useParams<{ id: string }>();
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
 
   const [concert, setConcert] = useState<Concert | null>(null);
@@ -63,13 +63,14 @@ export default function EmployeeConcertViewPage() {
     return <p className="text-center text-slate-400 py-12">لم يتم العثور على الحفلة</p>;
   }
 
-  // Employees may only open concerts they belong to; admin and custom roles
-  // with the "employees" permission can open any concert
-  const overseer = appUser?.role === "admin" || (appUser?.role === "custom" && can("employees"));
-  if (appUser && !overseer && appUser.role !== "employee") {
+  /* النطاق نفسه المستعمل في القائمة: «view_all» يفتح كل الحفلات، ومن
+     دونه لا يفتح إلا المسندة إليه. كان الشرط باسم الدور، فكان كل دور
+     مخصص إمّا يفتح كل الحفلات وإمّا يُمنع من الصفحة كلها. */
+  const overseer = feat("employees", "view_all");
+  if (appUser && !can("employees")) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
-  if (appUser && appUser.role === "employee" && !(concert.employeeIds ?? []).includes(appUser.uid)) {
+  if (appUser && !overseer && !(concert.employeeIds ?? []).includes(appUser.uid)) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بعرض هذه الحفلة</p>;
   }
 

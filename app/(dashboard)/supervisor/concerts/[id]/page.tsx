@@ -210,13 +210,14 @@ export default function SupervisorConcertDetailPage() {
   // Page access + feature gating: real supervisors and admin get everything;
   // custom roles follow their granted "supervisor" checklist.
   const role = appUser?.role;
-  const pageAllowed = role === "admin" || role === "supervisor" || (role === "custom" && can("supervisor"));
+  const pageAllowed = can("supervisor");
   if (appUser && !pageAllowed) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
   /* دور المشرف صار مستنداً تُعدَّل صلاحياته، فلا يُستثنى بالاسم:
      نزعُ خطوة منه يجب أن يُخفي زرّها كما يمنعها الخادم. */
-  const fxs = (k: string) => role === "admin" || feat("supervisor", k);
+  /* لا استثناء بالاسم — الأدمن يمرّ من feat نفسها */
+  const fxs = (k: string) => feat("supervisor", k);
 
   /* خطوات التشغيل الخمس — تعتمد كلها على العلامات المحفوظة مع الحفلة
      لا على مرحلتها، فكل خطوة تُفتح فور اكتمال ما قبلها ولا تنفتح مرتين. */

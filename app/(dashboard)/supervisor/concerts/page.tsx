@@ -17,7 +17,7 @@ import { Music, Calendar, MapPin, UserCog, UserRound, UsersRound } from "lucide-
 const PAGE_SIZE = 10;
 
 export default function SupervisorConcertsPage() {
-  const { appUser, can } = useAuth();
+  const { appUser, can, feat } = useAuth();
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
@@ -30,10 +30,11 @@ export default function SupervisorConcertsPage() {
 
   useEffect(() => { setPage(1); }, [filterStatus, supFilter, search, dateF]);
 
-  // Admin and custom roles granted the "supervisor" page oversee everything;
-  // real supervisors see their own concerts only.
-  const isAdmin = appUser?.role === "admin" || (appUser?.role === "custom" && can("supervisor"));
-  const pageAllowed = isAdmin || appUser?.role === "supervisor";
+  /* النطاق صلاحية لا اسم دور: من مُنح «view_all» يرى كل الحفلات، ومن
+     دونه يرى المسندة إليه وحدها. ربطُه بالاسم كان يجعل كل دور يُمنح
+     الصفحة مشرفاً على الجميع، فلا يمكن إنشاء مشرف عادي أصلاً. */
+  const isAdmin = feat("supervisor", "view_all");
+  const pageAllowed = can("supervisor");
 
   useEffect(() => {
     if (!appUser) return;

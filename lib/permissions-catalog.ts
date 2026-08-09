@@ -524,6 +524,14 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
     hint: "خطوات تنفيذ الحفلة ميدانياً",
     groups: [
       {
+        key: "scope",
+        label: "نطاق ما يراه",
+        hint: "المشرف يرى حفلاته وحدها ما لم يُمنح الإشراف على الكل",
+        actions: [
+          { key: "view_all", label: "عرض كل الحفلات لا المسندة إليه وحده", sensitive: true },
+        ],
+      },
+      {
         key: "flow",
         label: "خطوات التنفيذ",
         actions: [

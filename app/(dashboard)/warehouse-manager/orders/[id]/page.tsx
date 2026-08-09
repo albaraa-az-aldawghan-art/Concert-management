@@ -38,9 +38,9 @@ export default function WarehouseOrderSheetPage() {
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
-  const allowed = isStaff || (appUser?.role === "custom" && can("warehouse_orders"));
-  const canConfirmOrder = isStaff || feat("warehouse_orders", "confirm");
+  /* لا استثناء بالاسم — الصلاحية وحدها تقرّر */
+  const allowed = can("warehouse_orders");
+  const canConfirmOrder = feat("warehouse_orders", "confirm");
 
   useEffect(() => {
     async function load() {

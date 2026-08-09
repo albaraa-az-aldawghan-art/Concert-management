@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const caller = await requireCaller(req, body);
     const allowed =
-      caller.isAdmin || caller.role === "supervisor" || caller.role === "warehouse_manager" ||
+      /* لا استثناء بالاسم — نزعُ الإجراء من الدور يجب أن يمنعه فعلاً */
       caller.feat("supervisor", "report_missing") || caller.feat("missing_items", "resolve");
     if (!allowed) throw new ApiError("لا تملك صلاحية تسجيل المفقودات", 403);
 

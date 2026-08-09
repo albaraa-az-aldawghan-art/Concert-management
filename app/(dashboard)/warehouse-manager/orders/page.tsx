@@ -30,10 +30,11 @@ export default function WarehouseOrdersPage() {
 
   useEffect(() => { setPage(1); }, [search, dateF, statusF]);
 
-  const isStaff = appUser?.role === "warehouse_manager" || appUser?.role === "admin";
-  const allowed = isStaff || (appUser?.role === "custom" && can("warehouse_orders"));
-  const canConfirm = isStaff || feat("warehouse_orders", "confirm");
-  const canConfirmReturn = isStaff || feat("warehouse_orders", "confirm_return");
+  /* لا استثناء بالاسم: الدور مستند تُعدَّل صلاحياته، ونزعُ إجراء منه يجب
+     أن يمنعه فعلاً — وإلا كان الكتالوج زينة */
+  const allowed = can("warehouse_orders");
+  const canConfirm = feat("warehouse_orders", "confirm");
+  const canConfirmReturn = feat("warehouse_orders", "confirm_return");
 
   useEffect(() => { load(); }, []);
 

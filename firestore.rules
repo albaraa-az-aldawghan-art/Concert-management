@@ -67,14 +67,23 @@ service cloud.firestore {
 
     // ── الحفلات ────────────────────────────────────────────────
     match /concerts/{concertId} {
+      // النطاق هنا هو نطاق الواجهة نفسه: من مُنح «view_all» يقرأ الكل،
+      // ومن دونه لا يقرأ إلا حفلاته. كان مجرّد امتلاك صفحة المشرف أو
+      // صفحة المهام يفتح كل الحفلات، فيتجاوز التصفية التي تعرضها الشاشة.
       allow get: if isAdmin() || isWarehouse() || isKitchen() || pageOn('concerts') || pageOn('kitchen') || pageOn('profitability') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
+        pageOn('warehouse_orders') ||
+        hasFeat('supervisor', 'view_all') || hasFeat('employees', 'view_all') ||
+        (pageOn('supervisor') && uid() in resource.data.supervisorIds) ||
+        (pageOn('employees')  && uid() in resource.data.employeeIds) ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       // list قاعدة مستقلة عن get ولا غنى عنها: كل قائمة حفلات في البرنامج
       // تمرّ منها. حُذفت سهواً عند نقل الكتابة للخادم فتعطّلت لوحة التحكم.
       allow list: if isAdmin() || isWarehouse() || pageOn('concerts') || pageOn('profitability') ||
-        pageOn('supervisor') || pageOn('employees') || pageOn('warehouse_orders') ||
+        pageOn('warehouse_orders') ||
+        hasFeat('supervisor', 'view_all') || hasFeat('employees', 'view_all') ||
+        (pageOn('supervisor') && uid() in resource.data.supervisorIds) ||
+        (pageOn('employees')  && uid() in resource.data.employeeIds) ||
         (isSupervisor() && uid() in resource.data.supervisorIds) ||
         (isEmployee()   && uid() in resource.data.employeeIds);
       // الكتابة من الخادم وحده (Admin SDK يتجاوز القواعد) — القواعد

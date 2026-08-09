@@ -14,7 +14,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { AppUser, UserRole, CustomRole } from "@/types";
 import { getCustomRoles } from "@/lib/firestore/roles";
-import { PERMISSION_PAGES, normalizedFeatures } from "@/lib/permissions";
+import { PERMISSION_PAGES, normalizedFeatures, BUILT_IN_ROLE_IDS, roleDocIdFor } from "@/lib/permissions";
 import { getLastSignIn, daysSince, sinceLabel, isIdle } from "@/lib/firestore/staff";
 import { useSystem } from "@/contexts/SystemContext";
 import { getRoleLabel, formatDate } from "@/lib/utils";
@@ -22,17 +22,21 @@ import {
   Plus, Trash2, Users, Pencil, Shield, Eye, Settings2, ShieldCheck, Lock,
 } from "lucide-react";
 
-/* الأدوار الجاهزة التي لا تُشتق من كتالوج الصلاحيات — صلاحياتها مثبَّتة في الكود */
-const BUILT_IN: { value: string; label: string; note: string }[] = [
-  { value: "admin",             label: "أدمن",        note: "صلاحية كاملة على النظام — لا تُعدَّل" },
-  { value: "warehouse_manager", label: "مدير الموارد", note: "الموارد وطلباتها والمفقودات" },
-  { value: "supervisor",        label: "مشرف",         note: "الحفلات المسندة إليه" },
-  { value: "employee",          label: "موظف",         note: "مهامه في الحفلات" },
-  { value: "kitchen",           label: "مطبخ",         note: "طلبات المطبخ" },
-];
+/* ═══════════════════════════════════════════════════════════════
+   الدور مستنده — ولا قائمة ثانية في الكود إلى جانب المستندات.
 
-/* الأدوار التي يجوز إسنادها عند الإضافة — «أدمن» ليس منها عمداً */
-const assignable = BUILT_IN.filter((r) => r.value !== "admin");
+   كانت هنا قائمة بأسماء الأدوار الجاهزة الخمسة، فترتّب عليها عيبان:
+   كل دور جاهز يظهر مرتين (مجموعة فارغة من مستنده وأخرى بأعضائه)،
+   ويبقى معروضاً وقابلاً للإسناد بعد حذف مستنده — فيُنشأ حساب على
+   دور بلا صلاحيات لا يرى صاحبه شيئاً ولا يفهم لماذا.
+
+   «أدمن» وحده بلا مستند: صلاحياته تجاوز في الحارس لا قائمة تُقرأ.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* معرّف المستند ← الدور المخزَّن في الحساب (عكس BUILT_IN_ROLE_IDS) */
+const BASE_ROLE_BY_DOC: Record<string, string> = Object.fromEntries(
+  Object.entries(BUILT_IN_ROLE_IDS).map(([role, docId]) => [docId, role])
+);
 
 /* مجموعة معروضة: دور واحد ومن يحمله */
 interface RoleGroup {
@@ -85,40 +89,53 @@ export default function StaffPage() {
   const roleValueOf = (u: AppUser) =>
     u.role === "custom" && u.customRoleId ? `custom::${u.customRoleId}` : u.role;
 
-  /* التصنيف: كل دور ومن يحمله. تُعرض الأدوار المخصصة أولاً لأنها التي تُدار من هنا،
-     والمجموعات الفارغة تظهر أيضاً كي يُرى الدور الذي لم يُسند لأحد بعد. */
+  /* التصنيف: كل دور ومن يحمله — مقروءاً من المستندات وحدها. المجموعة
+     الفارغة تظهر كي يُرى الدور الذي لم يُسند لأحد بعد، أما الدور
+     المحذوف فلا يظهر إطلاقاً. */
   const groups = useMemo<RoleGroup[]>(() => {
     const q = query.trim().toLowerCase();
     const match = (u: AppUser) =>
       !q || u.name.toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q);
 
-    const customGroups: RoleGroup[] = customRoles.map((r) => ({
-      key: `custom::${r.id}`,
-      name: r.name,
-      note: "دور مخصص — صلاحياته محدّدة أدناه",
-      custom: r,
-      members: users.filter((u) => u.customRoleId === r.id && match(u)),
-    }));
-
-    const builtInGroups: RoleGroup[] = BUILT_IN.map((b) => ({
-      key: b.value,
-      name: b.label,
-      note: b.note,
+    const adminGroup: RoleGroup = {
+      key: "admin",
+      name: "أدمن",
+      note: "صلاحية كاملة على النظام — لا تُعدَّل ولا تحتاج دوراً",
       custom: null,
-      members: users.filter((u) => u.role === b.value && match(u)),
-    }));
+      members: users.filter((u) => u.role === "admin" && match(u)),
+    };
 
-    /* موظف على دور مخصص حُذف مرجعه — لا يُخفى بل يُعرض ليُصلَح */
+    const roleGroups: RoleGroup[] = customRoles.map((r) => {
+      const base = r.baseRole ?? BASE_ROLE_BY_DOC[r.id] ?? null;
+      return {
+        key: base ?? `custom::${r.id}`,
+        name: r.name,
+        note: r.hint ?? (base ? "دور جاهز — صلاحياته تُعدَّل كأي دور" : "دور مخصص — صلاحياته أدناه"),
+        custom: r,
+        members: users.filter((u) => roleDocIdFor(u) === r.id && match(u)),
+      };
+    });
+
+    /* موظف على دور حُذف مستنده — لا يُخفى بل يُعرض ليُصلَح */
     const orphans = users.filter(
-      (u) => u.role === "custom" && !customRoles.some((r) => r.id === u.customRoleId) && match(u)
+      (u) => u.role !== "admin" && !customRoles.some((r) => r.id === roleDocIdFor(u)) && match(u)
     );
 
-    const all = [...customGroups, ...builtInGroups];
+    const all = [adminGroup, ...roleGroups];
     if (orphans.length) {
       all.push({ key: "__orphan", name: "دور محذوف", note: "الدور المرتبط لم يعد موجوداً — أسند دوراً آخر", custom: null, members: orphans });
     }
     return q ? all.filter((g) => g.members.length > 0) : all;
   }, [users, customRoles, query]);
+
+  /* ما يجوز إسناده: الأدوار الموجودة فعلاً. «أدمن» ليس منها عمداً */
+  const assignable = useMemo(
+    () => customRoles.map((r) => ({
+      value: r.baseRole ?? BASE_ROLE_BY_DOC[r.id] ?? `custom::${r.id}`,
+      label: r.name,
+    })),
+    [customRoles]
+  );
 
   const shown = groups.reduce((s, g) => s + g.members.length, 0);
 
@@ -271,7 +288,7 @@ export default function StaffPage() {
         <div>
           <h2 className="text-xl font-bold text-slate-800">الموظفون</h2>
           <p className="text-sm text-slate-500">
-            {users.length} موظف · {customRoles.length} دور مخصص
+            {users.length} موظف · {customRoles.length} دور
           </p>
         </div>
         <div className="flex gap-2">
@@ -282,13 +299,29 @@ export default function StaffPage() {
               </Button>
             </Link>
           )}
-          {canCreate && (
-            <Button onClick={() => setShowAdd(true)} className="gap-2">
+          {canCreate && assignable.length > 0 && (
+            <Button onClick={() => { setForm({ ...form, role: assignable[0].value }); setShowAdd(true); }} className="gap-2">
               <Plus size={16} /> إضافة موظف
             </Button>
           )}
         </div>
       </div>
+
+      {/* بلا دور واحد لا يُنشأ حساب: كان يُنشأ على دور محذوف فلا يرى صاحبه شيئاً */}
+      {!loading && assignable.length === 0 && canCreate && (
+        <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50 border-amber-200">
+          <p className="text-sm text-amber-800">
+            لا دور واحد في النظام — أنشئ دوراً وحدّد صلاحياته قبل إضافة أي موظف
+          </p>
+          {canManageRoles && (
+            <Link href="/admin/users/roles">
+              <Button variant="secondary" className="gap-2 shrink-0">
+                <Shield size={16} /> إنشاء دور
+              </Button>
+            </Link>
+          )}
+        </Card>
+      )}
 
       <div className="max-w-sm">
         <Input
@@ -323,7 +356,7 @@ export default function StaffPage() {
                     ) : g.key === "admin" ? (
                       <ShieldCheck size={16} className="text-blue-600 shrink-0" />
                     ) : (
-                      <Lock size={16} className="text-slate-300 shrink-0" />
+                      <Lock size={16} className="text-amber-400 shrink-0" />
                     )}
                     <h3 className="font-bold text-slate-800">{g.name}</h3>
                     <span className="text-xs text-slate-400">
@@ -426,7 +459,7 @@ export default function StaffPage() {
         <p className="text-[11px] text-slate-400 flex items-center gap-3 flex-wrap">
           <span className="inline-flex items-center gap-1"><Eye size={11} /> عرض فقط</span>
           <span className="inline-flex items-center gap-1"><Settings2 size={11} /> صلاحيات جزئية (العدد) أو كاملة</span>
-          <span className="inline-flex items-center gap-1"><Lock size={11} /> دور جاهز — صلاحياته مثبَّتة في النظام</span>
+          <span className="inline-flex items-center gap-1"><ShieldCheck size={11} /> أدمن — صلاحية كاملة لا تُعدَّل</span>
         </p>
       )}
 
@@ -467,13 +500,6 @@ export default function StaffPage() {
             {assignable.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-            {customRoles.length > 0 && (
-              <optgroup label="أدوار مخصصة">
-                {customRoles.map((r) => (
-                  <option key={r.id} value={`custom::${r.id}`}>{r.name}</option>
-                ))}
-              </optgroup>
-            )}
           </Select>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button>
@@ -509,13 +535,6 @@ export default function StaffPage() {
               {assignable.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
-              {customRoles.length > 0 && (
-                <optgroup label="أدوار مخصصة">
-                  {customRoles.map((r) => (
-                    <option key={r.id} value={`custom::${r.id}`}>{r.name}</option>
-                  ))}
-                </optgroup>
-              )}
             </Select>
           )}
           <Input
