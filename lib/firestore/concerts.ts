@@ -106,6 +106,21 @@ export async function supervisorDeliverToWarehouse(concertId: string, uid: strin
   await api.post(`/api/concerts/${concertId}/flag`, { flag: "toWarehouse" });
 }
 
+/** تنفيذ خطوة من سير العمل مباشرة — يستكمل معها ما قبلها */
+export async function runWorkflowStep(concertId: string, flag: string) {
+  await api.post(`/api/concerts/${concertId}/flag`, { flag });
+}
+
+/** التراجع عن خطوة — يُسقط ما بعدها */
+export async function undoWorkflowStep(concertId: string, flag: string) {
+  await api.post(`/api/concerts/${concertId}/flag`, { flag, undo: true });
+}
+
+/** التراجع عن تأكيد الموارد — يُعيد حجز ما أُفرج عنه */
+export async function undoWarehouseReturn(concertId: string) {
+  await api.del(`/api/concerts/${concertId}/return`);
+}
+
 export async function updateDeposit(concertId: string, newDeposit: number) {
   await updateDoc(doc(db, "concerts", concertId), { deposit: newDeposit });
 }

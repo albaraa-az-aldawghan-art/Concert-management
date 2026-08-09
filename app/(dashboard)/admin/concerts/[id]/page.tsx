@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert } from "@/lib/firestore/concerts";
+import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert, setConcertLocation, runWorkflowStep, undoWorkflowStep, confirmWarehouseReturn, undoWarehouseReturn } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -119,6 +119,9 @@ export default function AdminConcertDetailPage() {
   const [logs, setLogs] = useState<ConcertLog[]>([]);
   const [saving, setSaving] = useState(false);
   const [paidSaving, setPaidSaving] = useState(false);
+  /* سير العمل: مفتاح الخطوة الجارية، وهدف التراجع المنتظر تأكيده */
+  const [wfBusy, setWfBusy] = useState<string | null>(null);
+  const [undoTarget, setUndoTarget] = useState<{ flag: string; label: string } | null>(null);
 
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -675,10 +678,14 @@ export default function AdminConcertDetailPage() {
     if (!concert || !appUser) return;
     setSaving(true);
     try {
-      const updates: Partial<Concert> = { location: editLocation };
-      await updateConcert(concert.id, updates);
-      const desc = editLocation ? `تم تغيير الموقع إلى: ${editLocation.address}` : "تم إزالة الموقع";
-      await addConcertLog({ concertId: concert.id, description: desc, createdBy: appUser.uid });
+      /* التحديد يمرّ بمسار الخطوة — هو من يسجّلها في السجل، فلا يُكتب
+         سطران لعملية واحدة. والإزالة تعديل حقل لا خطوة، فتبقى كما هي. */
+      if (editLocation) {
+        await setConcertLocation(concert.id, editLocation);
+      } else {
+        await updateConcert(concert.id, { location: null } as Partial<Concert>);
+        await addConcertLog({ concertId: concert.id, description: "تم إزالة الموقع", createdBy: appUser.uid });
+      }
       showToast("تم تحديث الموقع");
       setShowEditLocation(false);
       loadData();
@@ -686,6 +693,45 @@ export default function AdminConcertDetailPage() {
       showToast("حدث خطأ", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /* ── سير العمل: تنفيذ خطوة والتراجع عنها ─────────────────────
+     الخطوة الثانية موقع حقيقي لا علامة، فزرّها يفتح الخريطة بدل أن
+     يختلق إحداثيات. والسادسة عند الموارد ولها مسارها لأنها تحرّك المخزون. */
+  async function runStep(flag: string) {
+    if (!concert) return;
+    if (flag === "location") {
+      setEditLocation(concert.location ?? null);
+      setShowEditLocation(true);
+      return;
+    }
+    setWfBusy(flag);
+    try {
+      if (flag === "warehouseReturn") await confirmWarehouseReturn(concert.id, appUser?.uid ?? "");
+      else await runWorkflowStep(concert.id, flag);
+      showToast("تم تنفيذ الخطوة");
+      loadData();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "تعذّر تنفيذ الخطوة", "error");
+    } finally {
+      setWfBusy(null);
+    }
+  }
+
+  async function handleUndoStep() {
+    if (!concert || !undoTarget) return;
+    setWfBusy(undoTarget.flag);
+    try {
+      if (undoTarget.flag === "warehouseReturn") await undoWarehouseReturn(concert.id);
+      else await undoWorkflowStep(concert.id, undoTarget.flag);
+      showToast("تم التراجع عن الخطوة");
+      setUndoTarget(null);
+      loadData();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "تعذّر التراجع", "error");
+    } finally {
+      setWfBusy(null);
     }
   }
 
@@ -845,6 +891,8 @@ export default function AdminConcertDetailPage() {
     assignSup: feat("concerts", "assign_supervisors"),
     assignEmp: feat("concerts", "assign_employees"),
     stages:    feat("concerts", "stages_view"),
+    wfRun:     feat("concerts", "wf_run"),
+    wfUndo:    feat("concerts", "wf_undo"),
     log:       feat("concerts", "log_view"),
     contract:  feat("concerts", "contract_view"),
     cancel:    feat("concerts", "cancel"),
@@ -868,6 +916,7 @@ export default function AdminConcertDetailPage() {
     matStatus:   feat("concerts", "mf_status"),
     foodCost:      feat("concerts", "ff_cost"),
     foodAvailable: feat("concerts", "ff_available"),
+    wfActor:       feat("concerts", "wf_actor"),
   };
   const hasAnyPower = Object.values(fx).some(Boolean);
 
@@ -1054,6 +1103,19 @@ export default function AdminConcertDetailPage() {
       {fx.stages && (() => {
         const stage = operationalStage(concert);
         const isCancelled = normalizeStatus(concert.status) === "cancelled";
+        /* الخطوة السادسة ليست من خطوات المشرف: يفعلها الموارد وهي وحدها
+           التي تحرّك المخزون فعلاً، فتُعرض بعدها لا بينها */
+        const confirmStep = {
+          flag: "warehouseReturn" as const,
+          label: "تأكيد الموارد استلام المواد",
+          done: !!concert.warehouseReturnConfirmed,
+          by: concert.warehouseReturnConfirmedBy ?? null,
+          at: concert.warehouseReturnConfirmedAt ?? null,
+        };
+        const rows = [...stage.steps, confirmStep];
+        const canRun  = fx.wfRun  && !isCancelled;
+        const canUndo = fx.wfUndo && !isCancelled;
+
         return (
           <Card>
             <div className="flex items-center justify-between mb-4">
@@ -1063,21 +1125,78 @@ export default function AdminConcertDetailPage() {
               </span>
             </div>
 
-            {/* قائمة إنجاز خطوات المشرف — مشتقة من العلامات المحفوظة لا من الحالة */}
-            <div className="space-y-2">
-              {stage.steps.map((s, i) => (
-                <div key={s.label} className="flex items-center gap-3">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 shrink-0 ${
-                    s.done ? "bg-green-500 border-green-500" : "bg-white border-slate-200"
+            {/* قائمة إنجاز خطوات المشرف — مشتقة من العلامات المحفوظة لا من الحالة.
+                ومن يملك «تنفيذ أي خطوة» يحرّكها من هنا بلا انتظار أحد. */}
+            <div className="space-y-1">
+              {rows.map((s, i) => {
+                const isConfirm = s.flag === "warehouseReturn";
+                const implied = "implied" in s ? s.implied : false;
+                /* التراجع عن خطوة مُستنتَجة عبث: هي خضراء بسبب خطوة بعدها،
+                   ومحوُها لا يغيّر شيئاً حتى تُمحى تلك */
+                const undoable = s.done && !implied;
+                return (
+                  <div key={s.flag} className={`flex items-center gap-3 rounded-xl px-2 py-2 ${
+                    isConfirm ? "bg-slate-50/70 mt-2" : ""
                   }`}>
-                    {s.done
-                      ? <Check size={12} className="text-white" />
-                      : <span className="text-[10px] font-bold text-slate-400">{i + 1}</span>}
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 shrink-0 ${
+                      s.done
+                        ? implied ? "bg-white border-green-400" : "bg-green-500 border-green-500"
+                        : "bg-white border-slate-200"
+                    }`}>
+                      {s.done
+                        ? <Check size={12} className={implied ? "text-green-500" : "text-white"} />
+                        : <span className="text-[10px] font-bold text-slate-400">{i + 1}</span>}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${s.done ? "text-slate-700 font-medium" : "text-slate-400"}`}>{s.label}</p>
+                      {ff.wfActor && s.done && (
+                        <p className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2">
+                          {implied
+                            ? <span className="text-amber-600">مُستنتَجة من خطوة بعدها — لم تُسجَّل بذاتها</span>
+                            : <>
+                                <Actor uid={s.by} prefix="نفّذها" />
+                                {s.at && <span className="tabular-nums-auto">{formatDateTime(s.at)}</span>}
+                              </>}
+                        </p>
+                      )}
+                      {s.flag === "location" && s.done && !concert.location && (
+                        <p className="text-[11px] text-amber-600">لم يُحدَّد الموقع على الخريطة بعد</p>
+                      )}
+                    </div>
+
+                    {(canRun || canUndo) && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!s.done && canRun && (
+                          <button
+                            onClick={() => runStep(s.flag)}
+                            disabled={wfBusy !== null}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#1C2D50] text-white hover:bg-[#152340] disabled:opacity-40 transition-colors"
+                          >
+                            {wfBusy === s.flag ? "…" : "تنفيذ"}
+                          </button>
+                        )}
+                        {undoable && canUndo && (
+                          <button
+                            onClick={() => setUndoTarget({ flag: s.flag, label: s.label })}
+                            disabled={wfBusy !== null}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 disabled:opacity-40 transition-colors"
+                          >
+                            تراجع
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className={`text-sm ${s.done ? "text-slate-700 font-medium" : "text-slate-400"}`}>{s.label}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {canRun && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                تنفيذ خطوة يستكمل ما قبلها · والتراجع عنها يُسقط ما بعدها
+              </p>
+            )}
 
             {!isCancelled && (
               <div className="mt-3 rounded-xl px-4 py-2.5 text-xs bg-[#EEF1F7] border border-[#D4DCE8] text-[#1C2D50] font-semibold">
@@ -2020,6 +2139,21 @@ export default function AdminConcertDetailPage() {
       </Modal>
 
       {/* Delete Payment */}
+      {/* التراجع عن خطوة — تُذكر عواقبه قبل تنفيذه لا بعده */}
+      <ConfirmModal
+        open={!!undoTarget}
+        onClose={() => setUndoTarget(null)}
+        onConfirm={handleUndoStep}
+        title={`التراجع عن: ${undoTarget?.label ?? ""}`}
+        message={
+          undoTarget?.flag === "warehouseReturn"
+            ? "سيُعاد حجز المواد التي أُرجعت للمخزون عند التأكيد. إن كانت قد حُجزت لحفلة أخرى بعد إرجاعها، سيُرفض التراجع ويُذكر اسم المادة."
+            : "ستسقط معها كل خطوة بعدها — الخطوات متسلسلة، فلا يبقى «سُلّمت للموارد» بعد إلغاء ما قبلها."
+        }
+        confirmLabel="تراجع"
+        loading={wfBusy !== null}
+      />
+
       <ConfirmModal
         open={!!deletePaymentTarget}
         onClose={() => setDeletePaymentTarget(null)}

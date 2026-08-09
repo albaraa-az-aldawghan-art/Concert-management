@@ -198,6 +198,82 @@ export async function svcConfirmWarehouseReturn(db: Firestore, concertId: string
   });
 }
 
+/** التراجع عن تأكيد الاستلام: يُعاد حجز ما أُفرج عنه.
+ *
+ *  التأكيد هو الخطوة الوحيدة في سير العمل التي تحرّك المخزون فعلاً،
+ *  فالتراجع عنه لا يكفي فيه محو علامة — لو مُحيت وحدها لبقيت المواد
+ *  في «المتوفر» وهي عند الحفلة، فيُصرف منها مرتين.
+ *
+ *  ولأن غيرها قد يكون حجز تلك الكمية بعد الإفراج، يُتحقّق من كفاية
+ *  المتوفر أولاً لكل المواد: إما أن يتراجع الكل أو لا شيء. */
+export async function svcUndoWarehouseReturn(db: Firestore, concertId: string, uid: string) {
+  const cRef = db.collection("concerts").doc(concertId);
+  const cSnap = await cRef.get();
+  if (!cSnap.exists) throw new ApiError("الحفلة غير موجودة", 404);
+  if (!cSnap.data()!.warehouseReturnConfirmed) throw new ApiError("لم يُؤكَّد الاستلام أصلاً");
+
+  const [itemsSnap, missingSnap] = await Promise.all([
+    db.collection("concert_items").where("concertId", "==", concertId).get(),
+    db.collection("missing_items").where("concertId", "==", concertId).get().catch(() => null),
+  ]);
+
+  const missingByItem = new Map<string, number>();
+  for (const d of missingSnap?.docs ?? []) {
+    const m = d.data() as { itemId: string; missingCount: number };
+    missingByItem.set(m.itemId, (missingByItem.get(m.itemId) ?? 0) + (m.missingCount ?? 0));
+  }
+
+  /* ما أعاده التأكيد هو ما نستردّه: المواد التي ختمها بـconfirmed أو
+     has_missing. ما أُفرج عنه لسبب آخر (حذف، إلغاء) لا يُمَسّ. */
+  const toHold = itemsSnap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as { itemId: string; itemName: string; count: number; stockHeld?: boolean; returnStatus?: string }) }))
+    .filter((i) => !i.stockHeld && (i.returnStatus === "confirmed" || i.returnStatus === "has_missing"))
+    .map((i) => ({ ...i, qty: Math.max(i.count - Math.min(missingByItem.get(i.itemId) ?? 0, i.count), 0) }))
+    .filter((i) => i.qty > 0);
+
+  const needByItem = new Map<string, number>();
+  for (const i of toHold) needByItem.set(i.itemId, (needByItem.get(i.itemId) ?? 0) + i.qty);
+  for (const [itemId, need] of needByItem) {
+    const whSnap = await db.collection("warehouse_items").doc(itemId).get();
+    if (!whSnap.exists) continue; // مادة حُذفت من الموارد — لا شيء يُحجز
+    const available = (whSnap.data()!.availableCount as number) ?? 0;
+    if (available < need) {
+      const name = toHold.find((i) => i.itemId === itemId)?.itemName ?? itemId;
+      throw new ApiError(
+        `تعذّر التراجع: "${name}" حُجزت بعد إرجاعها ولم يبقَ منها ما يكفي (المطلوب ${need} · المتوفر ${available})`
+      );
+    }
+  }
+
+  for (const i of toHold) {
+    const itemRef = db.collection("concert_items").doc(i.id);
+    await db.runTransaction(async (tx) => {
+      const iSnap = await tx.get(itemRef);
+      if (!iSnap.exists) return;
+      if (iSnap.data()!.stockHeld) return; // أُعيد حجزها في هذه الأثناء
+      const whRef = db.collection("warehouse_items").doc(i.itemId);
+      const whSnap = await tx.get(whRef);
+      if (whSnap.exists) {
+        const available = (whSnap.data()!.availableCount as number) ?? 0;
+        if (available < i.qty) throw new ApiError(`تعذّر التراجع: "${i.itemName}" لم يعد متوفراً`);
+        tx.update(whRef, { availableCount: available - i.qty });
+      }
+      tx.update(itemRef, { stockHeld: true, returnStatus: "pending" });
+    });
+  }
+
+  await cRef.update({
+    warehouseReturnConfirmed: false,
+    warehouseReturnConfirmedBy: null,
+    warehouseReturnConfirmedAt: null,
+  });
+  await db.collection("concert_logs").add({
+    concertId, createdBy: uid, createdAt: Timestamp.now(),
+    description: `سير العمل — تراجُع عن: تأكيد الموارد استلام المواد`
+      + (toHold.length ? ` — أُعيد حجز ${toHold.length} مادة` : ""),
+  });
+}
+
 /* ── مواد الموارد نفسها ────────────────────────────────────── */
 
 export async function svcAddWarehouseItem(

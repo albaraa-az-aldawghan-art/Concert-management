@@ -119,6 +119,7 @@ export interface Concert {
   executingStartedBy?: string | null;
   supervisorDeliveredToWarehouse: boolean;
   supervisorDeliveredToWarehouseAt: Timestamp | null;
+  supervisorDeliveredToWarehouseBy?: string | null;
   warehouseReturnConfirmed: boolean;
   warehouseReturnConfirmedBy: string | null;
   warehouseReturnConfirmedAt: Timestamp | null;

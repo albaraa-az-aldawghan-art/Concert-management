@@ -1,3 +1,4 @@
+import { Timestamp } from "firebase/firestore";
 import { Concert } from "@/types";
 
 /** الحالات الأربع المعتمدة. تبقى معرّفة هنا حتى تُضيَّق ConcertStatus
@@ -115,6 +116,24 @@ export function hasStartedExecuting(c: Pick<Concert,
   return legacyExecuting.includes(c.status as string);
 }
 
+/** مفاتيح الخطوات كما يفهمها الخادم — الترتيب نفسه ولا مصدر ثانٍ له */
+export const OPERATIONAL_FLAGS = ["delivery", "location", "executing", "return", "toWarehouse"] as const;
+export type OperationalFlag = (typeof OPERATIONAL_FLAGS)[number];
+
+export interface OperationalStep {
+  flag: OperationalFlag;
+  label: string;
+  /** مُنجَزة في العرض — تشمل المُستنتَجة من خطوة لاحقة */
+  done: boolean;
+  /** مُنجَزة فعلاً: لها علامة محفوظة، لا مجرد استنتاج */
+  recorded: boolean;
+  /** خضراء لأن خطوة بعدها تمّت، لا لأنها سُجّلت */
+  implied: boolean;
+  /** من سجّلها ومتى — فارغان في المُستنتَجة */
+  by: string | null;
+  at: Timestamp | null;
+}
+
 export interface OperationalStage {
   /** كم خطوة أُنجزت (0..5) */
   done: number;
@@ -123,7 +142,7 @@ export interface OperationalStage {
   /** نص مختصر للعرض في القوائم */
   label: string;
   /** حالة كل خطوة على حدة — لقائمة الإنجاز */
-  steps: { label: string; done: boolean }[];
+  steps: OperationalStep[];
 }
 
 export function operationalStage(c: Concert): OperationalStage {
@@ -134,6 +153,13 @@ export function operationalStage(c: Concert): OperationalStage {
     !!c.returnApproved,
     !!c.supervisorDeliveredToWarehouse,
   ];
+  const actors: { by: string | null; at: Timestamp | null }[] = [
+    { by: c.deliveryApprovedBy ?? null, at: c.deliveryApprovedAt ?? null },
+    { by: null, at: null }, // الموقع قيمة لا علامة — لا صاحب له ولا وقت
+    { by: c.executingStartedBy ?? null, at: c.executingStartedAt ?? null },
+    { by: c.returnApprovedBy ?? null, at: c.returnApprovedAt ?? null },
+    { by: c.supervisorDeliveredToWarehouseBy ?? null, at: c.supervisorDeliveredToWarehouseAt ?? null },
+  ];
   /* الخطوات متسلسلة: من أنجز الرابعة فقد مرّ بالثلاث قبلها بالضرورة.
      بلا هذا تظهر فجوة — خطوة خضراء وما قبلها رمادي — ويصير العدّاد
      لا يطابق القائمة. */
@@ -143,7 +169,15 @@ export function operationalStage(c: Concert): OperationalStage {
     .reverse()
     .map((f) => (seen = seen || f))
     .reverse();
-  const steps = OPERATIONAL_STEPS.map((label, i) => ({ label, done: flags[i] }));
+  const steps: OperationalStep[] = OPERATIONAL_STEPS.map((label, i) => ({
+    flag: OPERATIONAL_FLAGS[i],
+    label,
+    done: flags[i],
+    recorded: raw[i],
+    implied: flags[i] && !raw[i],
+    by: actors[i].by,
+    at: actors[i].at,
+  }));
   const done = flags.filter(Boolean).length;
   const nextIdx = flags.findIndex((f) => !f);
   const next = nextIdx === -1 ? null : OPERATIONAL_STEPS[nextIdx];

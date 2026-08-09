@@ -169,24 +169,151 @@ export async function svcMarkPaid(db: Firestore, id: string, uid: string) {
   await ref.update({ isPaid: true, paidAt: Timestamp.now(), paidBy: uid, status: "completed" });
 }
 
-/** العلامات التشغيلية — كلٌّ يكتب علامته ووقتها وصاحبها */
-const FLAGS: Record<string, (uid: string) => Record<string, unknown>> = {
-  delivery: (uid) => ({ deliveryApproved: true, deliveryApprovedBy: uid, deliveryApprovedAt: Timestamp.now() }),
-  executing: (uid) => ({ executingStarted: true, executingStartedBy: uid, executingStartedAt: Timestamp.now() }),
-  return: (uid) => ({ returnApproved: true, returnApprovedBy: uid, returnApprovedAt: Timestamp.now() }),
-  toWarehouse: () => ({ supervisorDeliveredToWarehouse: true, supervisorDeliveredToWarehouseAt: Timestamp.now() }),
+/* ── خطوات التشغيل ─────────────────────────────────────────────
+   تعريف واحد مرتّب تقرأه الخطوتان: التنفيذ والتراجع. كان لكل واحدة
+   قائمة علاماتها فأمكن أن تتقدّم إحداهما على الأخرى بصمت.
+
+   الخطوة الثانية (الموقع) ليست علامة منطقية بل قيمة حقيقية، فلا
+   تُملأ استنتاجاً أبداً — لا يخترع الخادم إحداثيات لم يذكرها أحد.  */
+
+export const WORKFLOW_ORDER = ["delivery", "location", "executing", "return", "toWarehouse"] as const;
+export type WorkflowFlag = (typeof WORKFLOW_ORDER)[number];
+
+export const WORKFLOW_LABEL: Record<WorkflowFlag, string> = {
+  delivery:    "استلام المواد من الموارد",
+  location:    "تحديد موقع الحفلة",
+  executing:   "بدء التنفيذ",
+  return:      "استلام المواد من الحفلة",
+  toWarehouse: "تسليم المواد للموارد",
 };
 
-export async function svcSetConcertFlag(db: Firestore, id: string, flag: string, uid: string) {
-  const build = FLAGS[flag];
-  if (!build) throw new ApiError("خطوة غير معروفة");
-  const ref = db.collection("concerts").doc(id);
-  if (!(await ref.get()).exists) throw new ApiError("الحفلة غير موجودة", 404);
-  await ref.update(build(uid));
+/** العلامات التشغيلية — كلٌّ يكتب علامته ووقتها وصاحبها */
+const FLAGS: Record<Exclude<WorkflowFlag, "location">, {
+  /** الحقل المنطقي الذي يُقرأ منه إنجاز الخطوة */
+  field: string;
+  set: (uid: string) => Record<string, unknown>;
+  clear: () => Record<string, unknown>;
+}> = {
+  delivery: {
+    field: "deliveryApproved",
+    set: (uid) => ({ deliveryApproved: true, deliveryApprovedBy: uid, deliveryApprovedAt: Timestamp.now() }),
+    clear: () => ({ deliveryApproved: false, deliveryApprovedBy: null, deliveryApprovedAt: null }),
+  },
+  executing: {
+    field: "executingStarted",
+    set: (uid) => ({ executingStarted: true, executingStartedBy: uid, executingStartedAt: Timestamp.now() }),
+    clear: () => ({ executingStarted: false, executingStartedBy: null, executingStartedAt: null }),
+  },
+  return: {
+    field: "returnApproved",
+    set: (uid) => ({ returnApproved: true, returnApprovedBy: uid, returnApprovedAt: Timestamp.now() }),
+    clear: () => ({ returnApproved: false, returnApprovedBy: null, returnApprovedAt: null }),
+  },
+  toWarehouse: {
+    field: "supervisorDeliveredToWarehouse",
+    set: (uid) => ({
+      supervisorDeliveredToWarehouse: true, supervisorDeliveredToWarehouseBy: uid,
+      supervisorDeliveredToWarehouseAt: Timestamp.now(),
+    }),
+    clear: () => ({
+      supervisorDeliveredToWarehouse: false, supervisorDeliveredToWarehouseBy: null,
+      supervisorDeliveredToWarehouseAt: null,
+    }),
+  },
+};
+
+function assertKnownFlag(flag: string): WorkflowFlag {
+  if (!(WORKFLOW_ORDER as readonly string[]).includes(flag)) throw new ApiError("خطوة غير معروفة");
+  return flag as WorkflowFlag;
 }
 
-export async function svcSetLocation(db: Firestore, id: string, loc: { lat: number; lng: number; address: string }) {
-  await db.collection("concerts").doc(id).update({ location: loc });
+/** تنفيذ خطوة. ما قبلها يُستكمل معها: الخطوات متسلسلة، ومن سلّم المواد
+ *  للموارد فقد استلمها منها بالضرورة. بلا هذا تُخزَّن فجوة تُظهر خطوة
+ *  خضراء وما قبلها رمادي. */
+export async function svcSetConcertFlag(db: Firestore, id: string, flag: string, uid: string) {
+  const target = assertKnownFlag(flag);
+  if (target === "location") throw new ApiError("تحديد الموقع يحتاج إحداثيات");
+
+  const ref = db.collection("concerts").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
+  const c = snap.data() as Record<string, unknown>;
+  if (c.status === "cancelled") throw new ApiError("الحفلة ملغاة — لا تُحدَّث خطواتها");
+
+  const upTo = WORKFLOW_ORDER.indexOf(target);
+  const patch: Record<string, unknown> = {};
+  const filled: string[] = [];
+  for (let i = 0; i <= upTo; i++) {
+    const f = WORKFLOW_ORDER[i];
+    if (f === "location") continue; // قيمة حقيقية لا تُستنتج
+    const def = FLAGS[f as Exclude<WorkflowFlag, "location">];
+    if (c[def.field]) continue;
+    Object.assign(patch, def.set(uid));
+    if (f !== target) filled.push(WORKFLOW_LABEL[f]);
+  }
+  if (Object.keys(patch).length === 0) return; // مُنجَزة أصلاً — لا يُعاد ختمها بوقت جديد
+
+  await ref.update(patch);
+  await svcAddLog(db, {
+    concertId: id, createdBy: uid,
+    description: `سير العمل: ${WORKFLOW_LABEL[target]}`
+      + (filled.length ? ` — واستُكملت معها: ${filled.join(" · ")}` : ""),
+  });
+}
+
+/** التراجع عن خطوة. ما بعدها يسقط معها للسبب نفسه معكوساً: لا يبقى
+ *  «سُلّمت للموارد» بعد إلغاء «استُلمت من الحفلة». */
+export async function svcClearConcertFlag(db: Firestore, id: string, flag: string, uid: string) {
+  const target = assertKnownFlag(flag);
+
+  const ref = db.collection("concerts").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
+  const c = snap.data() as Record<string, unknown>;
+
+  /* تأكيد الموارد أعاد المواد للمخزون فعلاً — التراجع عمّا قبله بلا
+     التراجع عنه يترك المخزون يصف واقعاً لم يعد قائماً */
+  if (c.warehouseReturnConfirmed) {
+    throw new ApiError("تراجَع أولاً عن «تأكيد الموارد استلام المواد» فقد أُعيدت المواد للمخزون");
+  }
+
+  const from = WORKFLOW_ORDER.indexOf(target);
+  const patch: Record<string, unknown> = {};
+  const cleared: string[] = [];
+  for (let i = WORKFLOW_ORDER.length - 1; i >= from; i--) {
+    const f = WORKFLOW_ORDER[i];
+    if (f === "location") {
+      if (c.location) { patch.location = null; cleared.push(WORKFLOW_LABEL[f]); }
+      continue;
+    }
+    const def = FLAGS[f as Exclude<WorkflowFlag, "location">];
+    if (!c[def.field]) continue;
+    Object.assign(patch, def.clear());
+    cleared.push(WORKFLOW_LABEL[f]);
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  await ref.update(patch);
+  await svcAddLog(db, {
+    concertId: id, createdBy: uid,
+    description: `سير العمل — تراجُع عن: ${cleared.reverse().join(" · ")}`,
+  });
+}
+
+export async function svcSetLocation(
+  db: Firestore, id: string, loc: { lat: number; lng: number; address: string }, uid?: string
+) {
+  const ref = db.collection("concerts").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
+  if (snap.data()!.status === "cancelled") throw new ApiError("الحفلة ملغاة — لا تُحدَّث خطواتها");
+  await ref.update({ location: loc });
+  if (uid) {
+    await svcAddLog(db, {
+      concertId: id, createdBy: uid,
+      description: `سير العمل: ${WORKFLOW_LABEL.location} — ${loc.address}`,
+    });
+  }
 }
 
 /* ── فواتير المصروفات ──────────────────────────────────────── */
