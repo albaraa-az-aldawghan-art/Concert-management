@@ -1,5 +1,6 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { syncDispenseRequest } from "@/lib/server/dispense-requests-core";
 
 /* دفعات الحفلات على الخادم: المدفوع مشتقّ من مجموع الدفعات لا من رقم
    يرسله العميل، ورقم الفاتورة يُفحص تكراره قبل أي كتابة. */
@@ -44,6 +45,10 @@ async function recalcDeposit(db: Firestore, concertId: string, alsoConfirm: bool
   const nowConfirmed = alsoConfirm && concert.data()?.status === "planned";
   if (nowConfirmed) update.status = "confirmed";
   await db.collection("concerts").doc(concertId).update(update);
+
+  /* التأكيد هو ما يُنشئ طلب الصرف ويُخبر المطبخ والموارد. كان هذا
+     السطر ناقصاً فلم يقع الطلب إلا إذا عُدِّلت أصناف الأكل بعد التأكيد. */
+  if (nowConfirmed) await syncDispenseRequest(db, concertId, "system");
 }
 
 export async function svcAddPayment(db: Firestore, d: PaymentInput, opts: { confirmConcert: boolean }) {
