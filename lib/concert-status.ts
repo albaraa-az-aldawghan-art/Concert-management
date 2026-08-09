@@ -96,15 +96,23 @@ export const OPERATIONAL_STEPS = [
 
 export const OPERATIONAL_TOTAL = OPERATIONAL_STEPS.length;
 
-// الحفلات التي بدأت التنفيذ قبل إضافة حقل executingStarted كانت تحفظ
-// ذلك في الحالة وحدها — نستنتجها حتى لا تعود الخطوة للظهور عليها.
+/** هل بدأ تنفيذ الحفلة ميدانياً؟
+ *
+ *  «مكتملة» ليست دليلاً على ذلك: بعد توحيد الحالات صارت تعني التسوية
+ *  المالية وحدها — حفلة تُدفع بالكامل قبل يومها تصير مكتملة ولم يبدأ
+ *  تنفيذها بعد. إدراجها هنا كان يُظهر الخطوة الثالثة مُنجزة والأولى
+ *  والثانية لا، فيتناقض العدّاد مع القائمة.
+ *
+ *  الحالات الوسيطة القديمة تبقى مقروءة: هي وحدها التي كانت تحمل
+ *  معنى التشغيل في المخطّط السابق. */
 export function hasStartedExecuting(c: Pick<Concert,
   "executingStarted" | "status" | "returnApproved" | "supervisorDeliveredToWarehouse" | "warehouseReturnConfirmed"
 >): boolean {
   if (c.executingStarted) return true;
+  /* خطوة لاحقة تمّت ⇒ ما قبلها تمّ بالضرورة */
   if (c.returnApproved || c.supervisorDeliveredToWarehouse || c.warehouseReturnConfirmed) return true;
-  const legacy = ["executing", "materials_returned", "delivered_to_warehouse", "warehouse_confirmed", "completed"];
-  return legacy.includes(c.status as string);
+  const legacyExecuting = ["executing", "materials_returned", "delivered_to_warehouse", "warehouse_confirmed"];
+  return legacyExecuting.includes(c.status as string);
 }
 
 export interface OperationalStage {
@@ -119,13 +127,22 @@ export interface OperationalStage {
 }
 
 export function operationalStage(c: Concert): OperationalStage {
-  const flags = [
+  const raw = [
     !!c.deliveryApproved,
     !!c.location,
     hasStartedExecuting(c),
     !!c.returnApproved,
     !!c.supervisorDeliveredToWarehouse,
   ];
+  /* الخطوات متسلسلة: من أنجز الرابعة فقد مرّ بالثلاث قبلها بالضرورة.
+     بلا هذا تظهر فجوة — خطوة خضراء وما قبلها رمادي — ويصير العدّاد
+     لا يطابق القائمة. */
+  let seen = false;
+  const flags = raw
+    .slice()
+    .reverse()
+    .map((f) => (seen = seen || f))
+    .reverse();
   const steps = OPERATIONAL_STEPS.map((label, i) => ({ label, done: flags[i] }));
   const done = flags.filter(Boolean).length;
   const nextIdx = flags.findIndex((f) => !f);
