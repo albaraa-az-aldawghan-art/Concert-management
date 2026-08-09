@@ -229,6 +229,8 @@ export async function addCostProduction(data: {
   outputBarcode: string;
   outputQty: number;
   inputs: { barcode: string; qty: number }[];
+  /** أقسام البيع التي يُضمّ إليها المنتج — إلزامية */
+  sectionIds: string[];
   productionDate: string;
   expiryDate?: string | null;
   notes: string | null;
@@ -238,6 +240,7 @@ export async function addCostProduction(data: {
     outputBarcode: data.outputBarcode,
     outputQty: data.outputQty,
     inputs: data.inputs,
+    sectionIds: data.sectionIds,
     productionDate: data.productionDate,
     expiryDate: data.expiryDate ?? null,
     notes: data.notes,

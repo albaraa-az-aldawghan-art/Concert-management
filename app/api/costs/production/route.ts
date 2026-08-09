@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
         barcode: str(i.barcode, "مادة خام"),
         qty: num(i.qty, "كمية المادة الخام", { positive: true }),
       })),
+      sectionIds: Array.isArray(body.sectionIds) ? body.sectionIds.map(String) : [],
       productionDate: dateStr(body.productionDate, "تاريخ الإنتاج"),
       expiryDate: body.expiryDate ? dateStr(body.expiryDate, "تاريخ الانتهاء") : null,
       notes: optStr(body.notes, 500),

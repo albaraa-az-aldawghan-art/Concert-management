@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
-import { CostItem, CostProduction, RecipeLine } from "@/types";
+import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
+import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
 import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer } from "lucide-react";
 
@@ -72,6 +73,10 @@ function CostsProductionPageInner() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CostProduction | null>(null);
+  /* أقسام البيع: تُختار مع الإنتاج لا في خطوة لاحقة تُنسى */
+  const [sections, setSections] = useState<SalesSection[]>([]);
+  const [pickedSections, setPickedSections] = useState<string[]>([]);
+  const [sectionChannel, setSectionChannel] = useState<SalesChannel>("restaurant");
   const [output, setOutput] = useState<CostItem | null>(null);
   const [outputSearch, setOutputSearch] = useState("");
   const [outputQty, setOutputQty] = useState("");
@@ -92,19 +97,22 @@ function CostsProductionPageInner() {
 
   async function load() {
     setLoading(true);
-    const [i, p, st] = await Promise.all([
+    const [i, p, st, sec] = await Promise.all([
       getCostItems(),
       getCostProductions().catch(() => [] as CostProduction[]),
       getCostSettings().catch(() => ({ units: [], departments: [] })),
+      getSalesSections().catch(() => [] as SalesSection[]),
     ]);
     setItems(i);
     setProductions(p);
     setUnits(st.units);
+    setSections(sec);
     setLoading(false);
   }
 
   function openAdd() {
     setOutput(null); setOutputSearch(""); setOutputQty("");
+    setPickedSections([]); setSectionChannel("restaurant");
     setInputs([]); setInputSearch("");
     setProdDate(new Date().toISOString().slice(0, 10));
     setExpiryDate("");
@@ -116,6 +124,8 @@ function CostsProductionPageInner() {
   /* اختيار المُنتَج يُعبّئ خلطته القياسية إن وُجدت */
   function pickOutput(item: CostItem) {
     setOutput(item);
+    /* المنتج المعروف يأتي بأقسامه فلا يُعيد المستخدم اختيارها */
+    setPickedSections(item.salesSections ?? []);
     setOutputSearch("");
     // مدة صلاحية آخر دفعة تُطبَّق على هذه الدفعة ابتداءً من تاريخ إنتاجها
     const days = shelfLifeDays(item);
@@ -179,6 +189,10 @@ function CostsProductionPageInner() {
     if (!appUser || !output) return;
     if (outQty <= 0) { showToast("أدخل كمية الإنتاج", "error"); return; }
     if (parsedInputs.length === 0) { showToast("أضف مادة خام واحدة على الأقل بكمية", "error"); return; }
+    if (pickedSections.length === 0) {
+      showToast("اختر القسم الذي يُضمّ إليه المنتج — بدونه لن يظهر عند الصرف", "error");
+      return;
+    }
     if (expiryDate && prodDate && expiryDate < prodDate) {
       showToast("تاريخ الانتهاء يجب أن يكون بعد تاريخ الإنتاج", "error");
       return;
@@ -189,6 +203,7 @@ function CostsProductionPageInner() {
         outputBarcode: output.id,
         outputQty: outQty,
         inputs: parsedInputs.map((l) => ({ barcode: l.barcode, qty: l.n })),
+        sectionIds: pickedSections,
         productionDate: prodDate,
         expiryDate: expiryDate || null,
         notes: notes.trim() || null,
@@ -366,7 +381,7 @@ function CostsProductionPageInner() {
                     {output.productionRecipe?.length ? " · عُبّئت خلطته القياسية" : ""}
                   </p>
                 </div>
-                <button type="button" onClick={() => { setOutput(null); setInputs([]); }}
+                <button type="button" onClick={() => { setOutput(null); setInputs([]); setPickedSections([]); }}
                   className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
               </div>
             ) : (
@@ -426,6 +441,80 @@ function CostsProductionPageInner() {
             <>
               <Input label={`الكمية المُنتَجة (${output.unit})`} type="number" min={0} step="0.01" required
                 value={outputQty} onChange={(e) => setOutputQty(e.target.value)} />
+
+              {/* قسم البيع — هنا لا في خطوة لاحقة تُنسى، فمنتج بلا قسم
+                  لا يظهر عند الصرف ولا عند اختيار أصناف الحفلة */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+                  في أي قسم يُباع هذا المنتج؟
+                </label>
+                <div className="flex gap-1.5 mb-2 flex-wrap">
+                  {SALES_CHANNELS.map((c) => {
+                    const n = sections.filter(
+                      (s) => s.channel === c.key && pickedSections.includes(s.id)
+                    ).length;
+                    return (
+                      <button
+                        key={c.key}
+                        type="button"
+                        onClick={() => setSectionChannel(c.key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          sectionChannel === c.key
+                            ? "bg-[#1C2D50] text-white"
+                            : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {c.label}
+                        {n > 0 && (
+                          <span className={`ms-1.5 tabular-nums-auto ${sectionChannel === c.key ? "text-white/70" : "text-[#1C2D50]"}`}>
+                            {n}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {(() => {
+                  const chanSections = sections.filter((s) => s.channel === sectionChannel);
+                  if (chanSections.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
+                        لا أقسام في هذه القناة — أنشئها من صفحة منتجات البيع
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {chanSections.map((sec) => {
+                        const on = pickedSections.includes(sec.id);
+                        return (
+                          <button
+                            key={sec.id}
+                            type="button"
+                            onClick={() => setPickedSections((prev) =>
+                              on ? prev.filter((x) => x !== sec.id) : [...prev, sec.id]
+                            )}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                              on
+                                ? "bg-[#EEF1F7] text-[#1C2D50] border border-[#1C2D50]"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            {on && "✓ "}{sec.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  {pickedSections.length === 0
+                    ? "إلزامي — بدونه لن يظهر المنتج عند الصرف"
+                    : `مضموم إلى ${pickedSections.length} قسم · يجوز في أكثر من قناة`}
+                </p>
+              </div>
 
               {/* المدخلات */}
               <div>

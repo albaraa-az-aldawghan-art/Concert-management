@@ -21,6 +21,7 @@ interface ItemDoc {
   totalOut?: number;
   totalInValue?: number;
   expiryDate?: string | null;
+  salesSections?: string[];
 }
 
 function balanceOf(i: ItemDoc) {
@@ -289,10 +290,22 @@ export async function svcAddProduction(
   db: Firestore,
   d: {
     outputBarcode: string; outputQty: number; inputs: { barcode: string; qty: number }[];
+    /** أقسام البيع التي يُضمّ إليها المنتج — إلزامية، فمنتج بلا قسم
+     *  لا يظهر عند الصرف ولا عند اختيار أصناف الحفلة */
+    sectionIds: string[];
     productionDate: string; expiryDate: string | null; notes: string | null; createdBy: string;
   }
 ) {
   if (d.inputs.length === 0) throw new ApiError("أضف مادة خام واحدة على الأقل");
+
+  /* الأقسام تُتحقَّق قبل المعاملة — قراءات خارجية لا تصحّ داخلها */
+  const sections = [...new Set((d.sectionIds ?? []).filter(Boolean))];
+  if (sections.length === 0) throw new ApiError("اختر القسم الذي يُضمّ إليه المنتج");
+  for (const id of sections) {
+    if (!(await db.collection("sales_sections").doc(id).get()).exists) {
+      throw new ApiError("أحد الأقسام المختارة غير موجود");
+    }
+  }
   if (d.inputs.some((i) => i.barcode === d.outputBarcode)) {
     throw new ApiError("لا يمكن أن يكون الصنف المُنتَج أحد مدخلاته");
   }
@@ -360,6 +373,9 @@ export async function svcAddProduction(
       totalInValue: r2((output.totalInValue ?? 0) + totalCost),
       productionDate: d.productionDate,
       expiryDate: d.expiryDate,
+      /* يُضمّ لأقسامه هنا لا في خطوة لاحقة تُنسى — الاتحاد لا الاستبدال
+         حتى لا يفقد المنتج قسماً ضُمّ إليه في إنتاج سابق */
+      salesSections: [...new Set([...(output.salesSections ?? []), ...sections])],
     });
   });
   return { id: prodRef.id };

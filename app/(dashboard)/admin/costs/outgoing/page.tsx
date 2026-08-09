@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getCostOutgoing, addCostOutgoing, deleteCostOutgoing, settleCostOutgoing, getCostItems, getCostSettings, reassignOutgoing } from "@/lib/firestore/costs";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { getContracts } from "@/lib/firestore/contracts";
+import { getSalesSections } from "@/lib/firestore/sales";
 import { useToast } from "@/components/ui/toast";
 import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { formatDate } from "@/lib/utils";
 import { averageCost } from "@/lib/recipes";
 import { normalizeStatus, statusColor, statusLabel } from "@/lib/concert-status";
-import { CostOutgoing, CostItem, CostSettings, Concert, Contract, OutgoingChannel, OUTGOING_CHANNELS } from "@/types";
+import { CostOutgoing, CostItem, CostSettings, Concert, Contract, OutgoingChannel, OUTGOING_CHANNELS, SalesSection } from "@/types";
 import { Plus, PackageMinus, Trash2, CheckCircle2, Music, AlertTriangle, Undo2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -68,6 +69,9 @@ export default function CostsOutgoingPage() {
   const [form, setForm] = useState({ quantity: "", unitPrice: "", departmentName: "", dispenseDate: "" });
   /* الوجهة: تُختار صراحةً ولا تُستنتج من القسم */
   const [channel, setChannel] = useState<OutgoingChannel | null>(null);
+  /* قسم البيع داخل الوجهة، أو "raw" للمواد الخام غير المضمومة لقسم */
+  const [sections, setSections] = useState<SalesSection[]>([]);
+  const [pickedSection, setPickedSection] = useState<string | null>(null);
   const [concertMode, setConcertMode] = useState<"registered" | "manual">("registered");
   const [concertSearch, setConcertSearch] = useState("");
   const [pickedConcert, setPickedConcert] = useState<Concert | null>(null);
@@ -82,10 +86,12 @@ export default function CostsOutgoingPage() {
 
   async function load() {
     setLoading(true);
-    const [e, s, c, i, ct] = await Promise.all([
+    const [e, s, c, i, ct, sec] = await Promise.all([
       getCostOutgoing(), getCostSettings(), getConcerts(), getCostItems().catch(() => [] as CostItem[]),
       getContracts().catch(() => [] as Contract[]),
+      getSalesSections().catch(() => [] as SalesSection[]),
     ]);
+    setSections(sec);
     setContracts(ct);
     setEntries(e);
     setSettings(s);
@@ -100,6 +106,7 @@ export default function CostsOutgoingPage() {
     setScannedItem(null);
     setForm({ quantity: "", unitPrice: "", departmentName: settings.departments[0]?.name ?? "", dispenseDate: new Date().toISOString().slice(0, 10) });
     setChannel(null);
+    setPickedSection(null);
     setConcertMode("registered");
     setConcertSearch("");
     setPickedConcert(null);
@@ -253,6 +260,18 @@ export default function CostsOutgoingPage() {
   if (appUser && !pageAllowed) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
+
+  /* أقسام الوجهة المختارة — «عام» لا قناة بيع له فيصرف من الخام مباشرة */
+  const channelSections = channel && channel !== "general"
+    ? sections.filter((x) => x.channel === channel)
+    : [];
+
+  /* أصناف القسم المختار، أو المواد الخام غير المضمومة لأي قسم */
+  const sectionItems = pickedSection === "raw"
+    ? items.filter((i) => (i.salesSections ?? []).length === 0)
+    : pickedSection
+    ? items.filter((i) => (i.salesSections ?? []).includes(pickedSection))
+    : [];
 
   const q = search.trim();
   const filtered = entries
@@ -633,7 +652,10 @@ export default function CostsOutgoingPage() {
                   type="button"
                   onClick={() => {
                     setChannel(c.key);
-                    /* تبديل الوجهة يمسح اختيار الجهة السابقة فلا تبقى معلّقة */
+                    /* تبديل الوجهة يمسح القسم والصنف والجهة، فلا يبقى شيء
+                       من اختيار سابق لا ينتمي للوجهة الجديدة */
+                    setPickedSection(null);
+                    setScannedItem(null);
                     setPickedConcert(null);
                     setPickedContract(null);
                     setManualConcertName("");
@@ -659,7 +681,66 @@ export default function CostsOutgoingPage() {
             </p>
           ) : (
           <>
-          <CostItemPicker items={items} onPick={pickItem} onScanMiss={handleScanMiss} showBalance />
+          {/* القسم داخل الوجهة: يحصر الأصناف المعروضة فيما يخصّه فعلاً،
+              و«مواد خام» يفتح ما لم يُضمّ لأي قسم */}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+              من أي قسم؟
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {channelSections.map((sec) => {
+                const n = items.filter((i) => (i.salesSections ?? []).includes(sec.id)).length;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => { setPickedSection(sec.id); setScannedItem(null); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      pickedSection === sec.id
+                        ? "bg-[#1C2D50] text-white"
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {sec.name}
+                    <span className={`ms-1.5 tabular-nums-auto ${pickedSection === sec.id ? "text-white/70" : "text-slate-400"}`}>
+                      {n}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => { setPickedSection("raw"); setScannedItem(null); }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  pickedSection === "raw"
+                    ? "bg-amber-500 text-white"
+                    : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                }`}
+              >
+                مواد خام
+                <span className={`ms-1.5 tabular-nums-auto ${pickedSection === "raw" ? "text-white/70" : "text-amber-500"}`}>
+                  {items.filter((i) => (i.salesSections ?? []).length === 0).length}
+                </span>
+              </button>
+            </div>
+            {channel !== "general" && channelSections.length === 0 && (
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                لا أقسام بيع في هذه القناة — أنشئها من صفحة منتجات البيع، أو اصرف من المواد الخام
+              </p>
+            )}
+          </div>
+
+          {!pickedSection ? (
+            <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+              اختر القسم لتظهر أصنافه
+            </p>
+          ) : sectionItems.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+              لا أصناف في هذا القسم بعد
+            </p>
+          ) : (
+          <>
+          <CostItemPicker items={sectionItems} onPick={pickItem} onScanMiss={handleScanMiss} showBalance />
           {scannedItem ? (
             <>
               {/* مادة منتهية الصلاحية: التحذير هنا لا في تقرير يُفتح لاحقاً،
@@ -827,6 +908,8 @@ export default function CostsOutgoingPage() {
             </>
           ) : (
             <p className="text-xs text-slate-400 text-center py-2">امسح باركود الصنف أو اختره من القائمة للمتابعة</p>
+          )}
+          </>
           )}
           </>
           )}
