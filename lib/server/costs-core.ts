@@ -292,6 +292,122 @@ export async function svcSettleOutgoing(
   });
 }
 
+/* ── تعديل عملية صرف قائمة ─────────────────────────────────────
+   الحفلة تُصرف مرة، أما عقد المقصف فيُعدَّل يومه مراراً حتى يُقفل.
+   الحذف وإعادة الإنشاء يعيد التسعير بمتوسط لحظةٍ أخرى فينحرف التاريخ،
+   ولذلك تُحرَّك الكمية بالفرق وحده: الزيادة تخرج بمتوسط اليوم، والنقص
+   يعود بالقيمة التي خرج بها فعلاً (stockValue ÷ quantity) — فمهما
+   عُدِّل الرقم صعوداً ونزولاً عاد المخزون وقيمته إلى ما كانا عليه.
+
+   لا يستدعيها شيء من المسارات القائمة: أُضيفت للجدول اليومي وحده.  */
+export async function svcAdjustOutgoingQty(db: Firestore, id: string, newQty: number) {
+  if (newQty < 0) throw new ApiError("الكمية لا تقبل قيمة سالبة");
+  const entryRef = db.collection("cost_outgoing").doc(id);
+
+  await db.runTransaction(async (tx) => {
+    const eSnap = await tx.get(entryRef);
+    if (!eSnap.exists) throw new ApiError("عملية الصرف غير موجودة", 404);
+    const e = eSnap.data() as {
+      itemBarcode: string; itemName: string; unit: string; quantity: number;
+      unitPrice: number; stockValue?: number; returnedQty?: number; damagedQty?: number;
+    };
+    const delta = r2(newQty - e.quantity);
+    if (delta === 0) return;
+
+    const settled = (e.returnedQty ?? 0) + (e.damagedQty ?? 0);
+    if (newQty < settled) {
+      throw new ApiError(`لا تُنقص الكمية دون ${settled} — هذا ما حُسم منها إرجاعاً أو تلفاً`);
+    }
+
+    const itemRef = db.collection("cost_items").doc(e.itemBarcode);
+    const iSnap = await tx.get(itemRef);
+    if (!iSnap.exists) throw new ApiError("الصنف غير مسجّل");
+    const item = iSnap.data() as ItemDoc;
+
+    let valueDelta: number; // ما يخرج من قيمة المخزون (+) أو يعود إليها (−)
+    if (delta > 0) {
+      const balance = balanceOf(item);
+      if (delta > balance + 1e-9) {
+        throw new ApiError(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
+      }
+      valueDelta = r2(avgOf(item) * delta);
+    } else {
+      const perUnit = e.quantity > 0 ? (e.stockValue ?? 0) / e.quantity : 0;
+      valueDelta = r2(perUnit * delta); // سالب — يعود للمخزون
+    }
+
+    const consumed = r2(newQty - settled);
+    tx.update(entryRef, {
+      quantity: newQty,
+      stockValue: Math.max(0, r2((e.stockValue ?? 0) + valueDelta)),
+      totalCost: r2(consumed * e.unitPrice),
+    });
+    tx.update(itemRef, {
+      totalOut: Math.max(0, r2((item.totalOut ?? 0) + delta)),
+      totalInValue: Math.max(0, r2((item.totalInValue ?? 0) - valueDelta)),
+    });
+  });
+}
+
+/** ضبط التالف على قيمة مطلقة لا تراكمية.
+ *
+ *  svcSettleOutgoing تُضيف إلى ما سبق، وهو الصواب حين يصل الإرجاع
+ *  دفعات. أما الجدول اليومي فيعيد إرسال حالة اليوم كاملة كل حفظ، فلو
+ *  جُمعت لتضاعف التالف بكل ضغطة حفظ. ولذلك مستند التالف هنا معرّفه
+ *  مشتقّ من عملية الصرف: يُعاد كتابته لا يُكرَّر.
+ *
+ *  التالف لا يعود للمخزون — خرج فعلاً — ولا يُحمَّل على العقد: يُطرح
+ *  من totalCost ويُسجَّل تالفاً عاماً، تماماً كما يفعل الموقع اليوم.  */
+export async function svcSetOutgoingDamage(
+  db: Firestore,
+  id: string,
+  d: { damagedQty: number; reason: string; damageDate: string; createdBy: string }
+) {
+  if (d.damagedQty < 0) throw new ApiError("التالف لا يقبل قيمة سالبة");
+  const entryRef = db.collection("cost_outgoing").doc(id);
+  const damageRef = db.collection("cost_damage").doc(`out_${id}`);
+
+  await db.runTransaction(async (tx) => {
+    const eSnap = await tx.get(entryRef);
+    if (!eSnap.exists) throw new ApiError("عملية الصرف غير موجودة", 404);
+    const e = eSnap.data() as {
+      itemBarcode: string; itemName: string; unit: string; quantity: number;
+      unitPrice: number; returnedQty?: number; damagedQty?: number;
+      contractId?: string | null; contractName?: string | null;
+    };
+    const dmg = r2(d.damagedQty);
+    if (dmg + (e.returnedQty ?? 0) > e.quantity + 1e-9) {
+      throw new ApiError(`التالف ${dmg} أكثر من المصروف ${e.quantity} ${e.unit}`);
+    }
+    const consumed = r2(e.quantity - (e.returnedQty ?? 0) - dmg);
+    tx.update(entryRef, { damagedQty: dmg, totalCost: r2(consumed * e.unitPrice) });
+
+    if (dmg > 0) {
+      tx.set(damageRef, {
+        itemBarcode: e.itemBarcode,
+        itemName: e.itemName,
+        unit: e.unit,
+        quantity: dmg,
+        unitCost: e.unitPrice,
+        totalCost: r2(dmg * e.unitPrice),
+        reason: d.reason,
+        source: "outgoing",
+        outgoingId: id,
+        concertId: null,
+        concertName: null,
+        clientName: null,
+        contractId: e.contractId ?? null,
+        contractName: e.contractName ?? null,
+        damageDate: d.damageDate,
+        createdAt: Timestamp.now(),
+        createdBy: d.createdBy,
+      });
+    } else {
+      tx.delete(damageRef); // عاد التالف صفراً — لا يبقى قيد بلا كمية
+    }
+  });
+}
+
 /* ── الإنتاج ───────────────────────────────────────────────── */
 
 export async function svcAddProduction(

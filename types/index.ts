@@ -239,6 +239,93 @@ export interface ContractTerm {
   quantity: number;
   unitPrice: number;
   total: number;
+  /** رصيد الصنف لدى الجهة قبل أول يوم مسجَّل — يدخل حساب أول يوم
+   *  وحده، ثم يحلّ محلّه «المتبقي» من اليوم السابق */
+  openingQty?: number;
+  /** تصنيف محاسبي حرّ (غذائية · تعبئة وتغليف · مواد نظافة…) يُجمَّع به
+   *  ملخص الشهر. اختياري ولا يؤثّر في أي حساب. */
+  category?: string | null;
+}
+
+/* ═══ الجدول اليومي للعقد ═══
+   عقود المقاصف تُدار يوماً بيوم: يصل للجهة كمٌّ من كل صنف، يتلف منه
+   شيء، ويُجرد الباقي آخر اليوم — فيُعرف المباع طرحاً لا عدّاً.
+
+   ما يُدخَل ثلاثة أرقام لكل صنف (المورَّد · التالف · المتبقي)، وما
+   عداها مشتقّ على الخادم فلا يُكتب رقمان لمعنى واحد.                */
+
+/** وسم بند المصروف: يقرّر موضعه في المطابقة لا في الجمع وحده.
+ *  «من الصندوق» خرج نقداً فيُنقص المتوقَّع، و«خصم من المحصَّل» دخل
+ *  الصندوق وليس من البيع فيُنقص المحصَّل. بلا هذا التمييز لا تُغلق
+ *  المطابقة أبداً. */
+export type ContractExpenseKind = "from_till" | "deduct_collected";
+
+export interface ContractExpenseLine {
+  key: string;
+  label: string;
+  kind: ContractExpenseKind;
+  amount: number;
+}
+
+export interface ContractLedgerConfig {
+  enabled: boolean;
+  /** بنود المصروف المتاحة لهذا العقد — تُعدَّل بلا مسّ بقية العقود */
+  expenseLines: { key: string; label: string; kind: ContractExpenseKind }[];
+  /** العهدة المبدئية التي تُقترح لكل يوم جديد */
+  defaultCustody: number;
+  /** أقسام قناة «التعاقدات» التي يُصرف منها — فارغة تعني كلها */
+  sectionIds: string[];
+  /** قسم المنصرف الذي تُنسب إليه عمليات هذا العقد */
+  departmentName: string | null;
+}
+
+export interface ContractDayLine {
+  barcode: string;
+  itemName: string;
+  unit: string;
+  /** سعر البيع وقت التسجيل — لقطة، فتغيير البند لاحقاً لا يعيد كتابة التاريخ */
+  salePrice: number;
+  /* ── المُدخَل ── */
+  supplied: number;
+  damaged: number;
+  remaining: number;
+  /* ── المشتقّ على الخادم ── */
+  openingQty: number;
+  sold: number;
+  revenue: number;
+  /** عملية المنصرف المملوكة لهذا السطر — واحدة لا تتكرّر */
+  outgoingId: string | null;
+  /** تكلفة ما صُرف فعلاً بعد حسم التالف */
+  cost: number;
+}
+
+export interface ContractDayTotals {
+  sales: number;
+  collected: number;
+  deducted: number;
+  paidFromTill: number;
+  expected: number;
+  variance: number;
+  cost: number;
+  expenses: number;
+}
+
+export interface ContractDay {
+  id: string; // `${contractId}_${date}` — معرّف مشتقّ فلا يتكرّر يومان
+  contractId: string;
+  date: string; // yyyy-mm-dd
+  lines: ContractDayLine[];
+  collections: { bank_transfer: number; mada: number; visa: number; cash: number };
+  expenses: ContractExpenseLine[];
+  custody: number;
+  notes: string | null;
+  totals: ContractDayTotals;
+  /** دفعات العقد التي رُحِّل إليها تحصيل هذا اليوم — وجودها يمنع الترحيل مرتين */
+  postedPaymentIds: string[] | null;
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt?: Timestamp | null;
+  updatedBy?: string | null;
 }
 
 export interface Contract {
@@ -256,6 +343,8 @@ export interface Contract {
   vatRate: number | null;
   terms: ContractTerm[];
   notes: string | null;
+  /** إعداد الجدول اليومي — غيابه يعني عقداً بلا تشغيل يومي */
+  ledger?: ContractLedgerConfig | null;
   /** مشتقّ من الدفعات — لا يُكتب يدوياً */
   paid?: number | null;
   cancelledAt?: Timestamp | null;

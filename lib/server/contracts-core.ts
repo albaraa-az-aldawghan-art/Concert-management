@@ -134,6 +134,11 @@ export async function svcDeleteContract(db: Firestore, id: string) {
   if (!used.empty) {
     throw new ApiError("لا يمكن حذف العقد — صُرفت عليه خامات مسجّلة. ألغِه بدل حذفه.");
   }
+  /* يومٌ بلا توريد لا يترك أثراً في المنصرف، فلا يكفي الفحص أعلاه وحده */
+  const days = await db.collection("contract_days").where("contractId", "==", id).limit(1).get();
+  if (!days.empty) {
+    throw new ApiError("لا يمكن حذف العقد — له أيام مسجّلة في الجدول اليومي. ألغِه بدل حذفه.");
+  }
   const pays = await db.collection("contract_payments").where("contractId", "==", id).get();
   const batch = db.batch();
   for (const d of pays.docs) batch.delete(d.ref);

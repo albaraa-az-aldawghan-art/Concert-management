@@ -21,8 +21,9 @@ import { averageCost } from "@/lib/recipes";
 import { Contract, CostItem, CostOutgoing, SalesSection } from "@/types";
 import {
   FileSignature, Plus, Trash2, Pencil, X, Check, Info, CalendarDays,
-  Search, Ban, CheckCircle2, TrendingUp,
+  Search, Ban, CheckCircle2, TrendingUp, Table2,
 } from "lucide-react";
+import Link from "next/link";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -46,6 +47,7 @@ export default function ContractsPage() {
   const canCancel = isAdmin || feat("contracts", "cancel");
   const canComplete = isAdmin || feat("contracts", "complete");
   const canDelete = isAdmin || feat("contracts", "delete");
+  const canLedger = isAdmin || feat("contracts", "ledger_view");
   /* الحقول: دور قد يتابع العقود ولا يرى أرقامها */
   const fc = {
     value:  isAdmin || feat("contracts", "cf_value"),
@@ -291,6 +293,12 @@ export default function ContractsPage() {
                     {fc.actor && <Actor uid={c.createdBy} className="mt-0.5" />}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {canLedger && (
+                      <Link href={`/admin/contracts/${c.id}`}
+                        className="p-1.5 text-slate-400 hover:text-[#1C2D50]" title="الجدول اليومي">
+                        <Table2 size={14} />
+                      </Link>
+                    )}
                     {canEdit && c.status === "active" && (
                       <button onClick={() => openEdit(c)} className="p-1.5 text-slate-400 hover:text-[#1C2D50]" title="تعديل">
                         <Pencil size={14} />

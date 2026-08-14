@@ -295,6 +295,23 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "cf_actor",  label: "من أنشأ العقد" },
         ],
       },
+      {
+        key: "ledger",
+        label: "الجدول اليومي",
+        hint: "دفتر تشغيل المقصف: المورَّد والتالف والمتبقي لكل صنف كل يوم، والتحصيل ومطابقته",
+        actions: [
+          { key: "ledger_view",   label: "عرض الجدول اليومي وشهوره" },
+          { key: "ledger_edit",   label: "تسجيل يوم وتعديله", hint: "المورَّد يخرج من المخزون فعلاً" },
+          { key: "ledger_delete", label: "حذف يوم", hint: "يُرجع كل ما صُرف فيه", sensitive: true },
+          { key: "ledger_config", label: "إعداد بنود المصروف والعهدة والأقسام" },
+          { key: "ledger_post",   label: "ترحيل تحصيل الشهر دفعةً على العقد", sensitive: true },
+          { key: "ledger_export", label: "تصدير الشهر إلى إكسل", sensitive: true },
+        ],
+        fields: [
+          { key: "lf_cost",        label: "التكلفة والربح" },
+          { key: "lf_collections", label: "التحصيل والمطابقة اليومية" },
+        ],
+      },
     ],
   },
 

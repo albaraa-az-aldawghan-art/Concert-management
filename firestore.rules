@@ -178,6 +178,13 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
       allow write: if false;
     }
 
+    /* الجدول اليومي: كل أرقامه مشتقّة على الخادم من ثلاثة مُدخَلات،
+       وكتابته تحرّك المخزون — فلا تُكتب من المتصفح بحال. */
+    match /contract_days/{dayId} {
+      allow read:  if isAdmin() || hasFeat('contracts', 'ledger_view');
+      allow write: if false;
+    }
+
     /* هيكل منتجات البيع والبكجات: يقرؤه الجميع لبناء القوائم،
        والكتابة من الخادم وحده (يتحقّق أن الصنف مسجّل والقسم موجود). */
     match /sales_sections/{sectionId} {
