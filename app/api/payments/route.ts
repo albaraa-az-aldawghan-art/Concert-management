@@ -15,9 +15,8 @@ export async function POST(req: NextRequest) {
     require_(caller, "concerts", "pay_add", "إضافة الدفعات");
     if (!METHODS.includes(body.method)) throw new ApiError("وسيلة دفع غير معروفة");
 
-    // الشبكة بفاتورة دائماً، والتسجيل يُشتقّ من وجود رقم الفاتورة
-    const invoiceNumber = optStr(body.invoiceNumber, 60);
-    const hasInvoice = body.method === "card" ? true : (body.hasInvoice ?? null);
+    /* الفاتورة انتقلت إلى الحفلة: فاتورة واحدة للعمل كله لا لكل دفعة.
+       ما يصل من العميل من حقول فاتورة يُتجاهل عمداً. */
     return svcAddPayment(caller.db, {
       concertId: str(body.concertId, "الحفلة"),
       method: body.method,
@@ -27,9 +26,6 @@ export async function POST(req: NextRequest) {
       receiverName: body.method === "cash" ? optStr(body.receiverName) : null,
       bankName: body.method === "bank_transfer" ? optStr(body.bankName) : null,
       senderName: body.method === "bank_transfer" ? optStr(body.senderName) : null,
-      hasInvoice,
-      invoiceRegistered: hasInvoice ? !!invoiceNumber : null,
-      invoiceNumber: hasInvoice ? invoiceNumber : null,
       createdBy: caller.uid,
     }, { confirmConcert: body.confirmConcert !== false });
   });

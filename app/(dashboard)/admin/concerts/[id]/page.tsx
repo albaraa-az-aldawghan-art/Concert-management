@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, updateConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert, setConcertLocation, runWorkflowStep, undoWorkflowStep, confirmWarehouseReturn, undoWarehouseReturn } from "@/lib/firestore/concerts";
+import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert, setConcertInvoice, setConcertLocation, runWorkflowStep, undoWorkflowStep, confirmWarehouseReturn, undoWarehouseReturn } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
 import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Input, Select } from "@/components/ui/input";
-import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave, InvoiceState } from "@/components/ui/payment-invoice-fields";
+import { ConcertInvoiceFields, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, SalesSection, ConcertPackage, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems } from "@/lib/firestore/costs";
@@ -28,7 +28,7 @@ import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConc
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
 import { thumbUrl } from "@/lib/cloudinary";
-import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode, Receipt } from "lucide-react";
+import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, X, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode, Receipt } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = { card: "شبكة", cash: "كاش", bank_transfer: "تحويل بنكي" };
@@ -126,7 +126,8 @@ export default function AdminConcertDetailPage() {
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<ConcertPayment | null>(null);
-  const [invoiceTarget, setInvoiceTarget] = useState<ConcertPayment | null>(null);
+  /* الفاتورة للحفلة كلها لا لكل دفعة */
+  const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceDraft, setInvoiceDraft] = useState<InvoiceState>({ hasInvoice: null, invoiceNumber: "" });
   const [paymentForm, setPaymentForm] = useState({
     method: "card" as PaymentMethod,
@@ -136,8 +137,6 @@ export default function AdminConcertDetailPage() {
     receiverName: "",
     bankName: "",
     senderName: "",
-    hasInvoice: true as boolean | null,
-    invoiceNumber: "",
   });
 
   const [sections, setSections] = useState<SalesSection[]>([]);
@@ -164,8 +163,13 @@ export default function AdminConcertDetailPage() {
     if (id) loadData();
   }, [id]);
 
-  async function loadData() {
-    setLoading(true);
+  /** إعادة التحميل. `silent` تُبقي الصفحة معروضة أثناء الجلب.
+   *
+   *  رفعُ loading يستبدل الصفحة كلها بدوّارة، فيفقد المتصفح موضع
+   *  التمرير ويعود بك إلى أعلاها. مقبولٌ عند فتح الصفحة، غير مقبول بعد
+   *  تعديل كمية صنف في أسفلها. */
+  async function loadData(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
     const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData] = await Promise.all([
@@ -260,7 +264,7 @@ export default function AdminConcertDetailPage() {
       setShowFoodForm(false);
       setAddFoodCheck({});
       setAddFoodMeta({});
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
@@ -273,7 +277,9 @@ export default function AdminConcertDetailPage() {
     const k = foodPickKey(sectionId, item.id);
     setAddFoodCheck((prev) => ({
       ...prev,
-      [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" },
+      /* الاختيار يعني «واحد على الأقل»: تركُها فارغة كان يُظهر صفراً
+         فيُحفظ الصنف بكمية لا تعني شيئاً */
+      [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity || "1" },
     }));
     setAddFoodMeta((prev) => ({ ...prev, [k]: { sectionId, sectionName, item } }));
   }
@@ -323,7 +329,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تم تعديل الكمية");
       setEditFoodQtyTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -354,7 +360,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تم تعديل الكمية");
       setEditItemQtyTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -376,7 +382,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تم حذف قسم المأكولات من الحفلة");
       setDeleteFoodTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -399,13 +405,12 @@ export default function AdminConcertDetailPage() {
         receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
         bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
         senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-        ...invoiceToSave(paymentForm.method, { hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }),
         createdBy: appUser.uid,
       });
       showToast("تمت إضافة الدفعة");
       setShowPaymentForm(false);
-      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceNumber: "" });
-      loadData();
+      setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -413,23 +418,29 @@ export default function AdminConcertDetailPage() {
     }
   }
 
-  /* حالة الفاتورة تُراجَع بعد أيام عادةً — فتُعدَّل وحدها دون المساس
-     بالمبلغ، لأن تغيير المبلغ يستوجب إعادة حساب المدفوع. */
-  function openInvoiceEdit(p: ConcertPayment) {
-    setInvoiceTarget(p);
-    setInvoiceDraft({ hasInvoice: p.hasInvoice ?? null, invoiceNumber: p.invoiceNumber ?? "" });
+  /* فاتورة الحفلة تُراجَع بعد أيام عادةً — فتُعدَّل وحدها. وهي واحدة
+     للحفلة كلها مهما تعدّدت دفعاتها. */
+  function openInvoiceEdit() {
+    setInvoiceDraft({
+      hasInvoice: concert?.hasInvoice ?? null,
+      invoiceNumber: concert?.invoiceNumber ?? "",
+    });
+    setShowInvoice(true);
   }
 
   async function handleSaveInvoice() {
-    if (!invoiceTarget) return;
+    if (!concert) return;
     setSaving(true);
     try {
-      await updateConcertPayment(invoiceTarget.id, invoiceToSave(invoiceTarget.method, invoiceDraft));
-      showToast("تم تحديث حالة الفاتورة");
-      setInvoiceTarget(null);
-      loadData();
-    } catch {
-      showToast("حدث خطأ", "error");
+      await setConcertInvoice(concert.id, {
+        hasInvoice: invoiceDraft.hasInvoice,
+        invoiceNumber: invoiceDraft.hasInvoice ? invoiceDraft.invoiceNumber.trim() || null : null,
+      });
+      showToast("تم تحديث فاتورة الحفلة");
+      setShowInvoice(false);
+      loadData({ silent: true });
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
     }
@@ -442,7 +453,7 @@ export default function AdminConcertDetailPage() {
       await deleteConcertPayment(deletePaymentTarget.id, concert.id);
       showToast("تم حذف الدفعة");
       setDeletePaymentTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -459,7 +470,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: id, description: `تم حذف مادة: ${deleteItemTarget.itemName} × ${deleteItemTarget.count}`, createdBy: appUser.uid });
       showToast("تم حذف المادة من الحفلة");
       setDeleteItemTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -487,10 +498,10 @@ export default function AdminConcertDetailPage() {
       setShowItemForm(false);
       setAddItemType("");
       setAddItemCheck({});
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
-      loadData();
+      loadData({ silent: true });
     } finally {
       setSaving(false);
     }
@@ -514,7 +525,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تم تحديث سعر الحفلة");
       setShowEditPrice(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -541,7 +552,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم تغيير مبلغ القاعة من ${oldDesc} إلى ${newDesc}`, createdBy: appUser.uid });
       showToast("تم تحديث مبلغ القاعة");
       setShowEditHallCost(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -590,7 +601,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تمت إضافة الفاتورة");
       setShowAddExpense(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -610,7 +621,7 @@ export default function AdminConcertDetailPage() {
       });
       showToast("تم حذف الفاتورة");
       setDeleteExpenseTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -628,7 +639,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم تغيير اسم المكان من "${oldName}" إلى "${newName ?? "—"}"`, createdBy: appUser.uid, field: "venueName", oldValue: oldName, newValue: newName ?? "" });
       showToast("تم تحديث اسم المكان");
       setShowEditVenueName(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -646,7 +657,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم تغيير عدد الأشخاص من "${oldCount}" إلى "${newCount ?? "—"}"`, createdBy: appUser.uid, field: "peopleCount", oldValue: oldCount, newValue: newCount ?? "" });
       showToast("تم تحديث عدد الأشخاص");
       setShowEditPeopleCount(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -666,7 +677,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم تغيير تاريخ الحفلة من ${oldDesc} إلى ${formatDate(newTimestamp)}`, createdBy: appUser.uid, field: "date", oldValue: oldDateISO, newValue: editDate });
       showToast("تم تحديث تاريخ الحفلة");
       setShowEditDate(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -688,7 +699,7 @@ export default function AdminConcertDetailPage() {
       }
       showToast("تم تحديث الموقع");
       setShowEditLocation(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -711,7 +722,7 @@ export default function AdminConcertDetailPage() {
       if (flag === "warehouseReturn") await confirmWarehouseReturn(concert.id, appUser?.uid ?? "");
       else await runWorkflowStep(concert.id, flag);
       showToast("تم تنفيذ الخطوة");
-      loadData();
+      loadData({ silent: true });
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر تنفيذ الخطوة", "error");
     } finally {
@@ -727,7 +738,7 @@ export default function AdminConcertDetailPage() {
       else await undoWorkflowStep(concert.id, undoTarget.flag);
       showToast("تم التراجع عن الخطوة");
       setUndoTarget(null);
-      loadData();
+      loadData({ silent: true });
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر التراجع", "error");
     } finally {
@@ -742,7 +753,7 @@ export default function AdminConcertDetailPage() {
       await markConcertAsPaid(concert.id, appUser.uid);
       await addConcertLog({ concertId: concert.id, description: "تم تأكيد التسوية المالية — الحفلة مكتملة بالكامل", createdBy: appUser.uid });
       showToast("تم تأكيد التسوية المالية");
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -758,7 +769,7 @@ export default function AdminConcertDetailPage() {
       await updateConcert(concert.id, { supervisorIds: editSupervisorIds });
       showToast("تم تحديث المشرفين");
       setShowEditSupervisors(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -773,7 +784,7 @@ export default function AdminConcertDetailPage() {
       await updateConcert(concert.id, { employeeIds: editEmployeeIds });
       showToast("تم تحديث الموظفين");
       setShowEditEmployees(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -789,7 +800,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: "تم تحديث الملاحظات", createdBy: appUser.uid });
       showToast("تم تحديث الملاحظات");
       setShowEditNotes(false);
-      loadData();
+      loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
     } finally {
@@ -825,7 +836,7 @@ export default function AdminConcertDetailPage() {
       await addConcertLog({ concertId: concert.id, description: `تم إلغاء الحفلة${cancelReason ? ": " + cancelReason : ""}`, createdBy: appUser.uid });
       showToast("تم إلغاء الحفلة");
       setShowCancelModal(false);
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
@@ -1498,6 +1509,28 @@ export default function AdminConcertDetailPage() {
           </div>
         </div>
 
+        {/* فاتورة الحفلة — واحدة للحفلة كلها مهما تعدّدت دفعاتها */}
+        {ff.payInvoice && (() => {
+          const inv = invoiceLabel(concert);
+          return (
+            <div className="flex items-center justify-between gap-3 mb-4 rounded-xl border border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                <FileText size={15} className="text-[#1C2D50] shrink-0" />
+                <span className="text-sm font-semibold text-slate-700">فاتورة الحفلة</span>
+                {inv
+                  ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span>
+                  : <span className="text-[11px] text-slate-400">لم تُحدَّد</span>}
+              </div>
+              {fx.payInvoice && (
+                <button onClick={openInvoiceEdit}
+                  className="text-xs font-semibold text-[#1C2D50] hover:underline shrink-0">
+                  {inv ? "تعديل" : "تحديد"}
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
         {fx.payAdd && (
           <Button onClick={() => setShowPaymentForm(true)} variant="outline" className="mb-4">
             <Plus size={16} /> إضافة دفعة
@@ -1524,10 +1557,6 @@ export default function AdminConcertDetailPage() {
                     {ff.payAmount && (
                       <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
                     )}
-                    {ff.payInvoice && (() => {
-                      const inv = invoiceLabel(p);
-                      return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
-                    })()}
                   </div>
                   <p className="text-xs text-slate-400 pr-5 flex flex-wrap items-center gap-x-2">
                     {(ff.payDate || ff.payBank) && (
@@ -1539,14 +1568,8 @@ export default function AdminConcertDetailPage() {
                     {ff.payActor && <Actor uid={p.createdBy} prefix="سجّلها" showIcon={false} />}
                   </p>
                 </div>
-                {(fx.payInvoice || fx.payDelete) && (
+                {fx.payDelete && (
                   <div className="flex items-center gap-2 shrink-0">
-                    {fx.payInvoice && (
-                      <button onClick={() => openInvoiceEdit(p)} title="تعديل حالة الفاتورة"
-                        className="text-slate-300 hover:text-[#1C2D50] transition-colors">
-                        <FileText size={14} />
-                      </button>
-                    )}
                     {fx.payDelete && (
                       <button
                         onClick={() => setDeletePaymentTarget(p)}
@@ -1671,11 +1694,17 @@ export default function AdminConcertDetailPage() {
                               type="number" min={1} value={editItemQtyValue}
                               onChange={(e) => setEditItemQtyValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
-                              className="w-14 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-center bg-white"
+                              className="w-16 text-sm border border-slate-300 rounded-lg px-2 py-1 text-center bg-white tabular-nums-auto"
                               autoFocus
                             />
-                            <button onClick={handleSaveItemQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
-                            <button onClick={() => setEditItemQtyTarget(null)} className="text-slate-400 text-xs">✕</button>
+                            <button onClick={handleSaveItemQty} disabled={saving} title="حفظ"
+                              className="w-8 h-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                              <Check size={16} strokeWidth={3} />
+                            </button>
+                            <button onClick={() => setEditItemQtyTarget(null)} title="إلغاء"
+                              className="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                              <X size={16} strokeWidth={3} />
+                            </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
@@ -1736,11 +1765,17 @@ export default function AdminConcertDetailPage() {
                               type="number" min={1} value={editItemQtyValue}
                               onChange={(e) => setEditItemQtyValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
-                              className="w-14 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-center bg-white"
+                              className="w-16 text-sm border border-slate-300 rounded-lg px-2 py-1 text-center bg-white tabular-nums-auto"
                               autoFocus
                             />
-                            <button onClick={handleSaveItemQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
-                            <button onClick={() => setEditItemQtyTarget(null)} className="text-slate-400 text-xs">✕</button>
+                            <button onClick={handleSaveItemQty} disabled={saving} title="حفظ"
+                              className="w-8 h-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                              <Check size={16} strokeWidth={3} />
+                            </button>
+                            <button onClick={() => setEditItemQtyTarget(null)} title="إلغاء"
+                              className="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                              <X size={16} strokeWidth={3} />
+                            </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
@@ -1827,11 +1862,17 @@ export default function AdminConcertDetailPage() {
                         type="number" min={0} value={editFoodQtyValue}
                         onChange={(e) => setEditFoodQtyValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
-                        className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 text-center bg-white"
+                        className="w-16 text-sm border border-orange-300 rounded-lg px-2 py-1 text-center bg-white tabular-nums-auto"
                         autoFocus
                       />
-                      <button onClick={handleSaveFoodQty} disabled={saving} className="text-green-600 hover:text-green-700 text-xs font-bold">✓</button>
-                      <button onClick={() => setEditFoodQtyTarget(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                      <button onClick={handleSaveFoodQty} disabled={saving} title="حفظ"
+                        className="w-8 h-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                        <Check size={16} strokeWidth={3} />
+                      </button>
+                      <button onClick={() => setEditFoodQtyTarget(null)} title="إلغاء"
+                        className="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                        <X size={16} strokeWidth={3} />
+                      </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5">
@@ -2037,7 +2078,7 @@ export default function AdminConcertDetailPage() {
               <button
                 key={m}
                 type="button"
-                onClick={() => setPaymentForm({ ...paymentForm, method: m, ...defaultInvoiceFor(m) })}
+                onClick={() => setPaymentForm({ ...paymentForm, method: m })}
                 className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${
                   paymentForm.method === m
                     ? "border-[#1C2D50] bg-[#EEF1F7] text-[#1C2D50]"
@@ -2088,11 +2129,9 @@ export default function AdminConcertDetailPage() {
             </div>
           </div>
 
-          <PaymentInvoiceFields
-            method={paymentForm.method}
-            value={{ hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }}
-            onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
-          />
+          <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+            الفاتورة للحفلة كلها لا لكل دفعة — تُسجَّل من بطاقة «فاتورة الحفلة».
+          </p>
 
           {paymentForm.amount && concert && (
             <div className="bg-[#EEF1F7] border border-[#EEF1F7] rounded-xl px-4 py-3 text-sm">
@@ -2112,30 +2151,27 @@ export default function AdminConcertDetailPage() {
         </div>
       </Modal>
 
-      {/* تعديل حالة الفاتورة لدفعة قائمة */}
-      <Modal open={!!invoiceTarget} onClose={() => setInvoiceTarget(null)} title="حالة الفاتورة" size="sm">
-        {invoiceTarget && (
-          <div className="space-y-4">
-            <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
-              <p className="font-bold text-slate-800 text-sm">
-                {invoiceTarget.amount.toLocaleString("en-US")} ريال
-                <span className="text-xs font-normal text-slate-500 mr-2">{METHOD_LABELS[invoiceTarget.method]}</span>
-              </p>
-              <p className="text-[11px] text-slate-500 tabular-nums-auto mt-0.5">{invoiceTarget.date}</p>
-            </div>
-
-            <PaymentInvoiceFields
-              method={invoiceTarget.method}
-              value={invoiceDraft}
-              onChange={setInvoiceDraft}
-            />
-
-            <div className="flex gap-3 justify-end pt-1">
-              <Button variant="secondary" type="button" onClick={() => setInvoiceTarget(null)}>إلغاء</Button>
-              <Button onClick={handleSaveInvoice} loading={saving}>حفظ</Button>
-            </div>
+      {/* فاتورة الحفلة — واحدة للحفلة كلها */}
+      <Modal open={showInvoice} onClose={() => setShowInvoice(false)} title="فاتورة الحفلة" size="sm">
+        <div className="space-y-4">
+          <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+            <p className="font-bold text-slate-800 text-sm">{concert.name}</p>
+            <p className="text-[11px] text-slate-500 tabular-nums-auto mt-0.5">
+              {payments.length} دفعة · {(concert.deposit ?? 0).toLocaleString("en-US")} ريال محصَّل
+            </p>
           </div>
-        )}
+
+          <ConcertInvoiceFields
+            value={invoiceDraft}
+            onChange={setInvoiceDraft}
+            hasCardPayment={payments.some((p) => p.method === "card")}
+          />
+
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowInvoice(false)}>إلغاء</Button>
+            <Button onClick={handleSaveInvoice} loading={saving}>حفظ</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Delete Payment */}

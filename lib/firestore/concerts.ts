@@ -160,31 +160,6 @@ export async function getConcertPayments(concertId: string): Promise<ConcertPaym
     .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
-/** رقم الفاتورة يجب ألا يتكرّر في دفعتين — فاتورة مكرّرة في الدفاتر
- *  لا يكشفها شيء لاحقاً. يُرجع الدفعة المتعارضة إن وُجدت. */
-export async function findPaymentByInvoiceNumber(
-  invoiceNumber: string,
-  excludePaymentId?: string
-): Promise<ConcertPayment | null> {
-  const num = invoiceNumber.trim();
-  if (!num) return null;
-  const snap = await getDocs(
-    query(collection(db, "concert_payments"), where("invoiceNumber", "==", num))
-  );
-  const hit = snap.docs.find((d) => d.id !== excludePaymentId);
-  return hit ? ({ id: hit.id, ...hit.data() } as ConcertPayment) : null;
-}
-
-async function assertInvoiceNumberFree(num: string | null | undefined, excludeId?: string) {
-  if (!num) return;
-  const clash = await findPaymentByInvoiceNumber(num, excludeId);
-  if (clash) {
-    throw new Error(
-      `رقم الفاتورة ${num} مستخدم في دفعة أخرى (${clash.amount.toLocaleString("en-US")} ريال${clash.date ? ` بتاريخ ${clash.date}` : ""})`
-    );
-  }
-}
-
 export async function addConcertPayment(
   data: Omit<ConcertPayment, "id" | "createdAt">
 ): Promise<void> {
@@ -197,13 +172,12 @@ export async function addConcertPaymentRecord(
   await api.post("/api/payments", { ...data, confirmConcert: false });
 }
 
-/** تعديل بيانات دفعة قائمة — حالة الفاتورة تُراجَع لاحقاً عادةً.
- *  المبلغ ليس ضمنها لأن تغييره يستوجب إعادة حساب deposit. */
-export async function updateConcertPayment(
-  paymentId: string,
-  data: Partial<Pick<ConcertPayment, "hasInvoice" | "invoiceRegistered" | "invoiceNumber">>
+/** فاتورة الحفلة — واحدة للحفلة كلها. رقمها لا يتكرّر في النظام. */
+export async function setConcertInvoice(
+  concertId: string,
+  d: { hasInvoice: boolean | null; invoiceNumber: string | null }
 ): Promise<void> {
-  await api.patch(`/api/payments/${paymentId}`, data);
+  await api.patch(`/api/concerts/${concertId}/invoice`, d);
 }
 
 export async function deleteConcertPayment(paymentId: string, concertId: string): Promise<void> {

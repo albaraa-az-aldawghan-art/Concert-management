@@ -38,7 +38,10 @@ export const SALES_COLUMNS: ExportColumn[] = [
   { key: "payAmounts",  label: "مبالغ الدفعات",          width: 18 },
   { key: "payBanks",    label: "البنك / نوع الشبكة",     width: 20 },
   { key: "paySenders",  label: "المحوِّل / المستلم",      width: 20 },
-  { key: "payInvoices", label: "أرقام الفواتير",         width: 20 },
+  /* الفاتورة للحفلة لا للدفعة — عمودٌ للرقم وآخر لحالته بدل قائمة
+     أرقامٍ كانت تجمع فاتورةً لكل دفعة على عملٍ واحد */
+  { key: "invoiceNo",     label: "رقم الفاتورة",           width: 16, default: true },
+  { key: "invoiceStatus", label: "حالة الفاتورة",          width: 16 },
   { key: "payDetails",  label: "تفاصيل الدفعات كاملة",   width: 46 },
   { key: "hall",      label: "تكلفة القاعة",          width: 14, fmt: "money" },
   { key: "raw",       label: "خامات التكاليف",        width: 15, fmt: "money", default: true },

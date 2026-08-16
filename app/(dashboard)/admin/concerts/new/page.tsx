@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createConcert, addConcertItem, addConcertPaymentRecord, getUpcomingConcerts } from "@/lib/firestore/concerts";
+import { createConcert, addConcertItem, addConcertPaymentRecord, setConcertInvoice, getUpcomingConcerts } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUsersByRole } from "@/lib/firestore/users";
 import { getVatRate } from "@/lib/firestore/settings";
@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { PaymentInvoiceFields, defaultInvoiceFor, invoiceLabel, invoiceToSave } from "@/components/ui/payment-invoice-fields";
+import { ConcertInvoiceFields, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
 import { WarehouseItem, AppUser, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing, SalesSection, ConcertPackage } from "@/types";
 import { normalizeStatus } from "@/lib/concert-status";
@@ -38,9 +38,6 @@ interface PaymentEntry {
   receiverName: string | null;
   bankName: string | null;
   senderName: string | null;
-  hasInvoice: boolean | null;
-  invoiceRegistered: boolean | null;
-  invoiceNumber: string | null;
 }
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -135,9 +132,9 @@ export default function NewConcertPage() {
     receiverName: "",
     bankName: "",
     senderName: "",
-    hasInvoice: true as boolean | null,
-    invoiceNumber: "",
   });
+  /* فاتورة الحفلة — واحدة للحفلة كلها لا لكل دفعة */
+  const [invoice, setInvoice] = useState<InvoiceState>({ hasInvoice: null, invoiceNumber: "" });
 
   useEffect(() => {
     async function load() {
@@ -204,7 +201,9 @@ export default function NewConcertPage() {
     const k = foodPickKey(sectionId, item.id);
     setFoodCheck((prev) => ({
       ...prev,
-      [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity ?? "" },
+      /* الاختيار يعني «واحد على الأقل»: تركُها فارغة كان يُظهر صفراً
+         فيُحفظ الصنف بكمية لا تعني شيئاً */
+      [k]: { checked: !prev[k]?.checked, quantity: prev[k]?.quantity || "1" },
     }));
     setFoodMeta((prev) => ({ ...prev, [k]: { sectionId, sectionName, item } }));
   }
@@ -278,10 +277,9 @@ export default function NewConcertPage() {
       receiverName: paymentForm.method === "cash" ? paymentForm.receiverName.trim() || null : null,
       bankName: paymentForm.method === "bank_transfer" ? paymentForm.bankName.trim() || null : null,
       senderName: paymentForm.method === "bank_transfer" ? paymentForm.senderName.trim() || null : null,
-      ...invoiceToSave(paymentForm.method, { hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }),
     };
     setPaymentEntries((prev) => [...prev, entry]);
-    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "", hasInvoice: true, invoiceNumber: "" });
+    setPaymentForm({ method: "card", amount: "", date: "", cardType: "visa", receiverName: "", bankName: "", senderName: "" });
   }
 
   function toggleSupervisor(uid: string) {
@@ -385,9 +383,6 @@ export default function NewConcertPage() {
             receiverName: p.receiverName,
             bankName: p.bankName,
             senderName: p.senderName,
-            hasInvoice: p.hasInvoice,
-            invoiceRegistered: p.invoiceRegistered,
-            invoiceNumber: p.invoiceNumber,
             createdBy: appUser.uid,
           })
         ),
@@ -627,7 +622,7 @@ export default function NewConcertPage() {
           </h3>
           <div className="flex gap-2 mb-4">
             {(["card", "cash", "bank_transfer"] as PaymentMethod[]).map((m) => (
-              <button key={m} type="button" onClick={() => setPaymentForm({ ...paymentForm, method: m, ...defaultInvoiceFor(m) })}
+              <button key={m} type="button" onClick={() => setPaymentForm({ ...paymentForm, method: m })}
                 className={`flex-1 py-2 rounded-xl text-sm font-medium border-2 transition-colors flex items-center justify-center gap-1.5 ${paymentForm.method === m ? "border-[#1C2D50] bg-[#EEF1F7] text-[#1C2D50]" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
                 {m === "card" && <CreditCard size={14} />}
                 {m === "cash" && <Banknote size={14} />}
@@ -663,11 +658,7 @@ export default function NewConcertPage() {
               <Input label="التاريخ" type="date" value={paymentForm.date}
                 onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} />
             </div>
-            <PaymentInvoiceFields
-              method={paymentForm.method}
-              value={{ hasInvoice: paymentForm.hasInvoice, invoiceNumber: paymentForm.invoiceNumber }}
-              onChange={(v) => setPaymentForm({ ...paymentForm, ...v })}
-            />
+
           </div>
           <Button type="button" variant="outline" onClick={addPaymentEntry}
             disabled={!paymentForm.amount || !paymentForm.date} className="w-full mb-3">
@@ -681,10 +672,6 @@ export default function NewConcertPage() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{METHOD_LABELS[p.method]}</span>
                       <span className="font-bold text-slate-800 text-sm">{p.amount.toLocaleString("en-US")} ريال</span>
-                      {(() => {
-                        const inv = invoiceLabel(p);
-                        return inv ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${inv.cls}`}>{inv.text}</span> : null;
-                      })()}
                     </div>
                     <p className="text-xs text-slate-400">{p.date}{getPaymentDetail(p) ? ` — ${getPaymentDetail(p)}` : ""}</p>
                   </div>

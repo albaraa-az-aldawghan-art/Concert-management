@@ -256,9 +256,11 @@ export async function buildSalesWorkbook(
         .map((p) => (p.method === "bank_transfer" ? p.bankName ?? "" : p.method === "card" ? CARD_AR[p.cardType ?? ""] ?? "" : ""))
         .join(String.fromCharCode(10)),
       paySenders: pays.map((p) => p.senderName ?? p.receiverName ?? "").join(String.fromCharCode(10)),
-      payInvoices: pays
-        .map((p) => p.invoiceNumber ?? (p.hasInvoice === false ? "بدون فاتورة" : ""))
-        .join(String.fromCharCode(10)),
+      invoiceNo: (c.invoiceNumber as string | null) ?? "",
+      invoiceStatus:
+        c.hasInvoice === false ? "بدون فاتورة"
+        : c.hasInvoice === true ? (String(c.invoiceNumber ?? "").trim() ? "مسجّلة" : "لم تُسجَّل")
+        : "",
       payDetails: pays.map(payLine).join(String.fromCharCode(10)),
       hall: r2(hall),
       raw: r2(raw),

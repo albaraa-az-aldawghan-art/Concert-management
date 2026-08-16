@@ -166,11 +166,17 @@ export async function svcAddContractPayment(
   const c = await db.collection("contracts").doc(d.contractId).get();
   if (!c.exists) throw new ApiError("العقد غير موجود", 404);
 
-  // رقم الفاتورة لا يتكرّر بين دفعات العقود ولا مع دفعات الحفلات
+  /* رقم الفاتورة لا يتكرّر: بين دفعات العقود، ولا مع فاتورة حفلة.
+     فاتورة الحفلة صارت على مستند الحفلة لا على دفعاتها، فالفحص انتقل
+     إليها — ولو بقي على concert_payments لتسلّل رقمٌ مكرّر بلا اعتراض. */
   if (d.invoiceNumber) {
-    for (const col of ["contract_payments", "concert_payments"]) {
-      const clash = await db.collection(col).where("invoiceNumber", "==", d.invoiceNumber).limit(1).get();
-      if (!clash.empty) throw new ApiError(`رقم الفاتورة ${d.invoiceNumber} مستخدم في دفعة أخرى`);
+    const clashPay = await db.collection("contract_payments")
+      .where("invoiceNumber", "==", d.invoiceNumber).limit(1).get();
+    if (!clashPay.empty) throw new ApiError(`رقم الفاتورة ${d.invoiceNumber} مستخدم في دفعة عقد أخرى`);
+    const clashConcert = await db.collection("concerts")
+      .where("invoiceNumber", "==", d.invoiceNumber).limit(1).get();
+    if (!clashConcert.empty) {
+      throw new ApiError(`رقم الفاتورة ${d.invoiceNumber} مستعمل في حفلة: ${clashConcert.docs[0].data().name}`);
     }
   }
 

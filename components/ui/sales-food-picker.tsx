@@ -188,7 +188,7 @@ export function SalesFoodPicker({
                       <label className="text-xs text-slate-400 whitespace-nowrap">الكمية:</label>
                       <input type="number" min={1} value={state?.quantity ?? ""}
                         onChange={(e) => onQuantity(section!.id, item.id, e.target.value)}
-                        placeholder="0"
+                        placeholder="1"
                         className="w-16 border border-orange-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white" />
                     </div>
                   )}

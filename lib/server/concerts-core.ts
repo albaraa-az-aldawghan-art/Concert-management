@@ -316,6 +316,50 @@ export async function svcSetLocation(
   }
 }
 
+/* ── فاتورة الحفلة ────────────────────────────────────────────
+   فاتورة واحدة للحفلة لا لكل دفعة. ورقمها لا يتكرّر في النظام كله:
+   يُفحص على الحفلات والعقود ودفعات العقود معاً، فرقمٌ مكرّر في
+   الدفاتر لا يكشفه شيء لاحقاً.                                    */
+export async function svcSetConcertInvoice(
+  db: Firestore,
+  id: string,
+  d: { hasInvoice: boolean | null; invoiceNumber: string | null; uid: string }
+) {
+  const ref = db.collection("concerts").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
+
+  const num = d.hasInvoice === true ? (d.invoiceNumber ?? "").trim() || null : null;
+
+  if (num) {
+    const clashConcert = (await db.collection("concerts").where("invoiceNumber", "==", num).get())
+      .docs.find((x) => x.id !== id);
+    if (clashConcert) {
+      throw new ApiError(`رقم الفاتورة ${num} مستعمل في حفلة أخرى: ${clashConcert.data().name}`);
+    }
+    const clashPay = await db.collection("contract_payments").where("invoiceNumber", "==", num).limit(1).get();
+    if (!clashPay.empty) throw new ApiError(`رقم الفاتورة ${num} مستعمل في دفعة عقد`);
+  }
+
+  const prev = snap.data()!;
+  await ref.update({
+    hasInvoice: d.hasInvoice,
+    invoiceNumber: num,
+    invoiceSetAt: Timestamp.now(),
+    invoiceSetBy: d.uid,
+  });
+
+  const before = prev.hasInvoice === false ? "بدون فاتورة" : (prev.invoiceNumber || "—");
+  const after = d.hasInvoice === false ? "بدون فاتورة" : (num || "—");
+  if (before !== after) {
+    await svcAddLog(db, {
+      concertId: id, createdBy: d.uid, field: "invoice",
+      oldValue: String(before), newValue: String(after),
+      description: `فاتورة الحفلة: من ${before} إلى ${after}`,
+    });
+  }
+}
+
 /* ── فواتير المصروفات ──────────────────────────────────────── */
 
 /** يعيد كتابة تكاليف الحفلة من فواتيرها — تماماً كما يُشتق المدفوع
@@ -434,7 +478,13 @@ export async function svcAddLog(
   db: Firestore,
   d: { concertId: string; description: string; field?: string; oldValue?: string; newValue?: string; createdBy: string }
 ) {
+  /* المفاتيح غير المعرَّفة تُحذف قبل الكتابة.
+     Firestore يقبل غياب الحقل ويرفض قيمته undefined — والفرق بينهما
+     كان يُسقط كل سطر سجل لا يحمل الحقول الثلاثة مجتمعة: إضافة صنف،
+     وإضافة مواد، وإلغاء الحفلة، وتحديث الملاحظات… فيرى المستخدم خطأً
+     أحمر بينما عمله تمّ، ويضيع أثره من سجل التدقيق. */
+  const clean = Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined));
   const ref = db.collection("concert_logs").doc();
-  await ref.set({ ...d, createdAt: Timestamp.now() });
+  await ref.set({ ...clean, createdAt: Timestamp.now() });
   return { id: ref.id };
 }

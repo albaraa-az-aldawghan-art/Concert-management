@@ -1,26 +1,13 @@
-/* مسار خادم (API): يتحقّق من الهوية والصلاحية ثم ينفّذ العملية على قاعدة البيانات. */
+/* مسار خادم (API): يتحقّق من الهوية والصلاحية ثم ينفّذ العملية على قاعدة البيانات.
+   لا PATCH هنا: الفاتورة انتقلت إلى الحفلة (‏PATCH /api/concerts/[id]/invoice)،
+   فلم يبقَ في الدفعة حقلٌ يُعدَّل بعد إنشائها — والمبلغ يُغيَّر بالحذف
+   وإعادة التسجيل كي يُعاد اشتقاق المحصَّل. */
 
 import { NextRequest } from "next/server";
-import { requireCaller, require_, handle, optStr } from "@/lib/server/guard";
-import { svcUpdatePaymentInvoice, svcDeletePayment } from "@/lib/server/payments-core";
+import { requireCaller, require_, handle } from "@/lib/server/guard";
+import { svcDeletePayment } from "@/lib/server/payments-core";
 
 export const dynamic = "force-dynamic";
-
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return handle(async () => {
-    const body = await req.json();
-    const caller = await requireCaller(req, body);
-    require_(caller, "concerts", "pay_invoice", "تسجيل رقم الفاتورة");
-    const { id } = await params;
-    const invoiceNumber = optStr(body.invoiceNumber, 60);
-    const hasInvoice = body.hasInvoice ?? null;
-    await svcUpdatePaymentInvoice(caller.db, id, {
-      hasInvoice,
-      invoiceRegistered: hasInvoice ? !!invoiceNumber : null,
-      invoiceNumber: hasInvoice ? invoiceNumber : null,
-    });
-  });
-}
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {

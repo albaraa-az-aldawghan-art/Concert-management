@@ -127,6 +127,15 @@ export interface Concert {
   isPaid: boolean;
   paidAt: Timestamp | null;
   paidBy: string | null;
+  /* ── فاتورة الحفلة ──────────────────────────────────────────
+     فاتورة واحدة للحفلة كلها لا لكل دفعة. كانت على الدفعة، فحفلةٌ
+     تُدفع على ثلاث دفعات كانت تحتمل ثلاثة أرقام فواتير لعملٍ واحد —
+     وهو ما لا يقابله شيء في الدفاتر. */
+  /** بفاتورة أم بدون — null يعني لم يُقرَّر بعد */
+  hasInvoice?: boolean | null;
+  invoiceNumber?: string | null;
+  invoiceSetAt?: Timestamp | null;
+  invoiceSetBy?: string | null;
   notes: string | null;
   hallCostType: "percentage" | "fixed" | null;
   hallCostValue: number | null;
