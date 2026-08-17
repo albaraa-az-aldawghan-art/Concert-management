@@ -194,6 +194,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "mat_add",      label: "إضافة مواد للحفلة" },
           { key: "mat_edit_qty", label: "تعديل الكميات" },
           { key: "mat_delete",   label: "حذف مادة من الحفلة" },
+          { key: "send_warehouse", label: "الإرسال للموارد" },
         ],
         fields: [
           { key: "mf_cost",     label: "تكلفة المادة وقيمتها" },
@@ -420,6 +421,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         actions: [
           { key: "prod_view",   label: "عرض الإنتاج" },
           { key: "prod_add",    label: "تسجيل إنتاج (دمج خامات)" },
+          { key: "prod_edit",   label: "تعديل عملية إنتاج مسجّلة", hint: "يعيد حساب المخزون والتكلفة", sensitive: true },
           { key: "prod_recipe", label: "كتابة الوصفات وتعديلها" },
           { key: "prod_label",  label: "طباعة ملصق الدفعة" },
           { key: "prod_delete", label: "حذف عملية إنتاج", sensitive: true },

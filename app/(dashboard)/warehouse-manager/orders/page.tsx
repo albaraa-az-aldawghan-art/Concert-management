@@ -160,6 +160,12 @@ export default function WarehouseOrdersPage() {
           )}
         </div>
 
+        {order.note && (
+          <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 mt-3 line-clamp-2">
+            {order.note}
+          </p>
+        )}
+
         <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
           <Link href={`/warehouse-manager/orders/${order.concertId}`} className="flex-1">
             <Button variant="outline" size="sm" className="w-full">

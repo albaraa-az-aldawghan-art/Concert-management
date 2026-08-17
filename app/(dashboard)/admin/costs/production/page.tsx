@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getCostItems, getCostProductions, addCostProduction, deleteCostProduction, updateProductionRecipe,
-  createCostItemGenerated, getCostSettings,
+  getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
+  updateProductionRecipe, createCostItemGenerated, getCostSettings,
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
@@ -19,9 +19,10 @@ import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, Dat
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
-import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer } from "lucide-react";
+import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil } from "lucide-react";
 
 const PAGE_SIZE = 10;
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 interface InputLine { barcode: string; itemName: string; unit: string; qty: string; }
 
@@ -55,6 +56,7 @@ function CostsProductionPageInner() {
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
   const canRecord = isAdmin || feat("costs", "prod_add");
   const canView = isAdmin || feat("costs", "prod_view");
+  const canEditEntry = isAdmin || feat("costs", "prod_edit");
   const canRecipe = isAdmin || feat("costs", "prod_recipe");
   const canLabel = isAdmin || feat("costs", "prod_label");
   const canDelete = isAdmin || feat("costs", "prod_delete");
@@ -72,6 +74,8 @@ function CostsProductionPageInner() {
   const [page, setPage] = useState(1);
 
   const [showAdd, setShowAdd] = useState(false);
+  /** غير null أثناء تعديل عملية قائمة — الصنف المُنتَج يبقى ثابتاً حينها */
+  const [editTarget, setEditTarget] = useState<CostProduction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CostProduction | null>(null);
   /* أقسام البيع: تُختار مع الإنتاج لا في خطوة لاحقة تُنسى */
   const [sections, setSections] = useState<SalesSection[]>([]);
@@ -111,6 +115,7 @@ function CostsProductionPageInner() {
   }
 
   function openAdd() {
+    setEditTarget(null);
     setOutput(null); setOutputSearch(""); setOutputQty("");
     setPickedSections([]); setSectionChannel("restaurant");
     setInputs([]); setInputSearch("");
@@ -119,6 +124,50 @@ function CostsProductionPageInner() {
     setNewOutputUnit(units[0] ?? "");
     setNotes("");
     setShowAdd(true);
+  }
+
+  /** تعديل عملية قائمة: الصنف المُنتَج يُقفل، وما عداه قابل للتصحيح.
+   *  أقسام البيع لا تُعرض قابلة للتعديل — لم تُخزَّن على العملية بذاتها
+   *  بل اتُّحدت على الصنف مرة عند الإنشاء، فلا يُعرف أي جزء منها يخصّها. */
+  function openEdit(p: CostProduction) {
+    setEditTarget(p);
+    setOutput(items.find((i) => i.id === p.outputBarcode) ?? null);
+    setOutputSearch("");
+    setOutputQty(String(p.outputQty));
+    setPickedSections([]);
+    setSectionChannel("restaurant");
+    setInputs(p.inputs.map((l) => ({ barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty) })));
+    setInputSearch("");
+    setProdDate(p.productionDate);
+    setExpiryDate(p.expiryDate ?? "");
+    setNotes(p.notes ?? "");
+    setShowAdd(true);
+  }
+
+  function closeModal() {
+    setShowAdd(false);
+    setEditTarget(null);
+  }
+
+  /** المتاح لصنف خلال التعديل يشمل ما حجزته هذه العملية نفسها — فتصحيح
+   *  كمية من 40 إلى 45 لا يُرفض بحجة أن الـ40 الأولى محجوزة بها بالذات. */
+  function availableFor(barcode: string): number {
+    const base = itemBalance(items.find((i) => i.id === barcode));
+    if (!editTarget) return base;
+    const old = editTarget.inputs.find((i) => i.barcode === barcode);
+    return old ? r2(base + old.qty) : base;
+  }
+
+  /** متوسط سعر صنف أثناء التعديل — على رصيده وقيمته "المُعادين" بعد
+   *  عكس أثر هذه العملية، كي تطابق معاينة التكلفة ما سيحسبه الخادم فعلاً */
+  function avgCostFor(barcode: string): number {
+    const it = items.find((i) => i.id === barcode);
+    if (!editTarget || !it) return averageCost(it);
+    const old = editTarget.inputs.find((i) => i.barcode === barcode);
+    if (!old) return averageCost(it);
+    const reversedBalance = r2(itemBalance(it) + old.qty);
+    const reversedValue = r2((it.totalInValue ?? 0) + old.totalCost);
+    return reversedBalance > 0 ? r2(reversedValue / reversedBalance) : 0;
   }
 
   /* اختيار المُنتَج يُعبّئ خلطته القياسية إن وُجدت */
@@ -173,23 +222,17 @@ function CostsProductionPageInner() {
     .map((l) => ({ ...l, n: parseFloat(l.qty) || 0 }))
     .filter((l) => l.n > 0);
 
-  const estimatedCost = parsedInputs.reduce((s, l) => {
-    const it = items.find((i) => i.id === l.barcode);
-    return s + averageCost(it) * l.n;
-  }, 0);
+  const estimatedCost = parsedInputs.reduce((s, l) => s + avgCostFor(l.barcode) * l.n, 0);
   const outQty = parseFloat(outputQty) || 0;
   const unitCost = outQty > 0 ? estimatedCost / outQty : 0;
 
-  const shortages = parsedInputs.filter((l) => {
-    const it = items.find((i) => i.id === l.barcode);
-    return l.n > itemBalance(it);
-  });
+  const shortages = parsedInputs.filter((l) => l.n > availableFor(l.barcode));
 
   async function handleSave() {
     if (!appUser || !output) return;
     if (outQty <= 0) { showToast("أدخل كمية الإنتاج", "error"); return; }
     if (parsedInputs.length === 0) { showToast("أضف مادة خام واحدة على الأقل بكمية", "error"); return; }
-    if (pickedSections.length === 0) {
+    if (!editTarget && pickedSections.length === 0) {
       showToast("اختر القسم الذي يُضمّ إليه المنتج — بدونه لن يظهر عند الصرف", "error");
       return;
     }
@@ -199,6 +242,19 @@ function CostsProductionPageInner() {
     }
     setSaving(true);
     try {
+      if (editTarget) {
+        await updateCostProduction(editTarget.id, {
+          outputQty: outQty,
+          inputs: parsedInputs.map((l) => ({ barcode: l.barcode, qty: l.n })),
+          productionDate: prodDate,
+          expiryDate: expiryDate || null,
+          notes: notes.trim() || null,
+        });
+        showToast("تم حفظ تعديل الإنتاج");
+        closeModal();
+        load();
+        return;
+      }
       await addCostProduction({
         outputBarcode: output.id,
         outputQty: outQty,
@@ -313,62 +369,95 @@ function CostsProductionPageInner() {
           <p>لا توجد عمليات إنتاج مطابقة</p>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {paginated.map((p) => (
-            <Card key={p.id}>
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-800">
-                    {p.outputName}
-                    <span className="text-sm font-normal text-slate-500 mr-2 tabular-nums-auto">
+        <Card className="overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
+                <th className="px-4 py-3 font-semibold">المُنتَج</th>
+                {fp.inputs && <th className="px-4 py-3 font-semibold">المدخلات</th>}
+                {fp.inputs && <th className="px-4 py-3 font-semibold">تكلفة الوحدة</th>}
+                {fp.inputs && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
+                <th className="px-4 py-3 font-semibold">التاريخ</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((p) => (
+                <tr key={p.id} className="border-b border-slate-50 last:border-none align-top">
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-800">{p.outputName}</p>
+                    <p className="text-xs text-slate-500 tabular-nums-auto mt-0.5">
                       {p.outputQty.toLocaleString("en-US")} {p.outputUnit}
-                    </span>
-                  </p>
-                  <p className="text-xs text-slate-400 tabular-nums-auto">
-                    {fmtDate(p.productionDate)}
-                    {p.expiryDate && <span className="text-amber-600"> ← {fmtDate(p.expiryDate)}</span>}
-                    {" · "}تكلفة الوحدة {money(p.unitCost)} ريال
-                    {fp.actor && <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-bold text-[#1C2D50] tabular-nums-auto">{money(p.totalCost)} ريال</span>
-                  {/* إعادة طباعة ملصق هذه الدفعة بتاريخيها هي، لا بتاريخ آخر دفعة */}
-                  <button
-                    onClick={() => setLabelTarget({
-                      id: p.outputBarcode, name: p.outputName,
-                      productionDate: p.productionDate, expiryDate: p.expiryDate ?? null,
-                    })}
-                    className="text-slate-400 hover:text-[#1C2D50] transition-colors"
-                    title="طباعة ملصق هذه الدفعة"
-                  >
-                    <Printer size={14} />
-                  </button>
-                  {canDelete && (
-                    <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                    </p>
+                    {p.notes && <p className="text-xs text-slate-400 mt-0.5">{p.notes}</p>}
+                  </td>
+                  {fp.inputs && (
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {p.inputs.map((i) => (
+                          <span key={i.barcode} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
+                            {i.itemName} {i.qty.toLocaleString("en-US")} {i.unit}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                   )}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-                {p.inputs.map((i) => (
-                  <span key={i.barcode} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto">
-                    {i.itemName} {i.qty.toLocaleString("en-US")} {i.unit}
-                  </span>
-                ))}
-              </div>
-              {p.notes && <p className="text-xs text-slate-400 mt-2">{p.notes}</p>}
-            </Card>
-          ))}
-        </div>
+                  {fp.inputs && (
+                    <td className="px-4 py-3 tabular-nums-auto text-slate-600">{money(p.unitCost)} ريال</td>
+                  )}
+                  {fp.inputs && (
+                    <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{money(p.totalCost)} ريال</td>
+                  )}
+                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
+                    {fmtDate(p.productionDate)}
+                    {p.expiryDate && <span className="block text-amber-600">← {fmtDate(p.expiryDate)}</span>}
+                    {fp.actor && <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {canLabel && (
+                        /* إعادة طباعة ملصق هذه الدفعة بتاريخيها هي، لا بتاريخ آخر دفعة */
+                        <button
+                          onClick={() => setLabelTarget({
+                            id: p.outputBarcode, name: p.outputName,
+                            productionDate: p.productionDate, expiryDate: p.expiryDate ?? null,
+                          })}
+                          className="text-slate-400 hover:text-[#1C2D50] transition-colors"
+                          title="طباعة ملصق هذه الدفعة"
+                        >
+                          <Printer size={14} />
+                        </button>
+                      )}
+                      {canEditEntry && (
+                        <button onClick={() => openEdit(p)} className="text-slate-400 hover:text-[#1C2D50] transition-colors" title="تعديل">
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors" title="حذف">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       )}
 
       <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
 
       {/* تسجيل إنتاج */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="تسجيل إنتاج" size="lg">
+      <Modal open={showAdd} onClose={closeModal} title={editTarget ? "تعديل عملية إنتاج" : "تسجيل إنتاج"} size="lg">
         <div className="space-y-4">
+          {editTarget && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <p>التعديل يعيد حساب المخزون والتكلفة فوراً. الصنف المُنتَج ثابت لا يتغيّر.</p>
+            </div>
+          )}
           {/* الصنف المُنتَج */}
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">الصنف المُنتَج</label>
@@ -378,12 +467,18 @@ function CostsProductionPageInner() {
                   <p className="font-bold text-slate-800 text-sm truncate">{output.name}</p>
                   <p className="text-[11px] text-slate-500">
                     <span className="font-mono">{output.id}</span> · الوحدة: {output.unit}
-                    {output.productionRecipe?.length ? " · عُبّئت خلطته القياسية" : ""}
+                    {output.productionRecipe?.length && !editTarget ? " · عُبّئت خلطته القياسية" : ""}
                   </p>
                 </div>
-                <button type="button" onClick={() => { setOutput(null); setInputs([]); setPickedSections([]); }}
-                  className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
+                {!editTarget && (
+                  <button type="button" onClick={() => { setOutput(null); setInputs([]); setPickedSections([]); }}
+                    className="text-xs text-slate-500 hover:text-red-500 shrink-0">تغيير</button>
+                )}
               </div>
+            ) : editTarget ? (
+              <p className="text-xs text-red-600 border border-red-200 bg-red-50 rounded-xl px-3 py-2">
+                الصنف المُنتَج الأصلي لم يعد موجوداً في التكاليف — لا يمكن تعديل هذه العملية من هنا.
+              </p>
             ) : (
               <>
                 <input type="text" value={outputSearch} onChange={(e) => setOutputSearch(e.target.value)}
@@ -443,78 +538,99 @@ function CostsProductionPageInner() {
                 value={outputQty} onChange={(e) => setOutputQty(e.target.value)} />
 
               {/* قسم البيع — هنا لا في خطوة لاحقة تُنسى، فمنتج بلا قسم
-                  لا يظهر عند الصرف ولا عند اختيار أصناف الحفلة */}
-              <div>
-                <label className="text-sm font-semibold text-slate-700 block mb-1.5">
-                  في أي قسم يُباع هذا المنتج؟
-                </label>
-                <div className="flex gap-1.5 mb-2 flex-wrap">
-                  {SALES_CHANNELS.map((c) => {
-                    const n = sections.filter(
-                      (s) => s.channel === c.key && pickedSections.includes(s.id)
-                    ).length;
-                    return (
-                      <button
-                        key={c.key}
-                        type="button"
-                        onClick={() => setSectionChannel(c.key)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                          sectionChannel === c.key
-                            ? "bg-[#1C2D50] text-white"
-                            : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        {c.label}
-                        {n > 0 && (
-                          <span className={`ms-1.5 tabular-nums-auto ${sectionChannel === c.key ? "text-white/70" : "text-[#1C2D50]"}`}>
-                            {n}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  لا يظهر عند الصرف ولا عند اختيار أصناف الحفلة.
+                  لا تُخزَّن الأقسام على عملية الإنتاج نفسها بل تُتّحد على
+                  الصنف مرة عند الإنشاء، فلا سبيل لمعرفة أيّها يخصّ هذه
+                  العملية بعينها — ولذلك تُعرض للقراءة فقط عند التعديل. */}
+              {editTarget ? (
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 block mb-1.5">أقسام بيع هذا الصنف حالياً</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sections.filter((s) => output.salesSections?.includes(s.id)).length === 0 ? (
+                      <p className="text-xs text-slate-400">لا أقسام مضمومة</p>
+                    ) : sections.filter((s) => output.salesSections?.includes(s.id)).map((sec) => (
+                      <span key={sec.id} className="px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                        {sec.name}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    تابعة للصنف نفسه لا لهذه العملية — تُضاف بتسجيل إنتاج جديد له
+                  </p>
                 </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+                    في أي قسم يُباع هذا المنتج؟
+                  </label>
+                  <div className="flex gap-1.5 mb-2 flex-wrap">
+                    {SALES_CHANNELS.map((c) => {
+                      const n = sections.filter(
+                        (s) => s.channel === c.key && pickedSections.includes(s.id)
+                      ).length;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setSectionChannel(c.key)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                            sectionChannel === c.key
+                              ? "bg-[#1C2D50] text-white"
+                              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {c.label}
+                          {n > 0 && (
+                            <span className={`ms-1.5 tabular-nums-auto ${sectionChannel === c.key ? "text-white/70" : "text-[#1C2D50]"}`}>
+                              {n}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {(() => {
-                  const chanSections = sections.filter((s) => s.channel === sectionChannel);
-                  if (chanSections.length === 0) {
+                  {(() => {
+                    const chanSections = sections.filter((s) => s.channel === sectionChannel);
+                    if (chanSections.length === 0) {
+                      return (
+                        <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
+                          لا أقسام في هذه القناة — أنشئها من صفحة منتجات البيع
+                        </p>
+                      );
+                    }
                     return (
-                      <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
-                        لا أقسام في هذه القناة — أنشئها من صفحة منتجات البيع
-                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {chanSections.map((sec) => {
+                          const on = pickedSections.includes(sec.id);
+                          return (
+                            <button
+                              key={sec.id}
+                              type="button"
+                              onClick={() => setPickedSections((prev) =>
+                                on ? prev.filter((x) => x !== sec.id) : [...prev, sec.id]
+                              )}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                                on
+                                  ? "bg-[#EEF1F7] text-[#1C2D50] border border-[#1C2D50]"
+                                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                              }`}
+                            >
+                              {on && "✓ "}{sec.name}
+                            </button>
+                          );
+                        })}
+                      </div>
                     );
-                  }
-                  return (
-                    <div className="flex flex-wrap gap-1.5">
-                      {chanSections.map((sec) => {
-                        const on = pickedSections.includes(sec.id);
-                        return (
-                          <button
-                            key={sec.id}
-                            type="button"
-                            onClick={() => setPickedSections((prev) =>
-                              on ? prev.filter((x) => x !== sec.id) : [...prev, sec.id]
-                            )}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                              on
-                                ? "bg-[#EEF1F7] text-[#1C2D50] border border-[#1C2D50]"
-                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            {on && "✓ "}{sec.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+                  })()}
 
-                <p className="text-[11px] text-slate-400 mt-1.5">
-                  {pickedSections.length === 0
-                    ? "إلزامي — بدونه لن يظهر المنتج عند الصرف"
-                    : `مضموم إلى ${pickedSections.length} قسم · يجوز في أكثر من قناة`}
-                </p>
-              </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    {pickedSections.length === 0
+                      ? "إلزامي — بدونه لن يظهر المنتج عند الصرف"
+                      : `مضموم إلى ${pickedSections.length} قسم · يجوز في أكثر من قناة`}
+                  </p>
+                </div>
+              )}
 
               {/* المدخلات */}
               <div>
@@ -524,8 +640,7 @@ function CostsProductionPageInner() {
                 ) : (
                   <div className="space-y-1.5 mb-2">
                     {inputs.map((l, idx) => {
-                      const it = items.find((i) => i.id === l.barcode);
-                      const bal = itemBalance(it);
+                      const bal = availableFor(l.barcode);
                       const n = parseFloat(l.qty) || 0;
                       const short = n > bal;
                       return (
@@ -556,7 +671,7 @@ function CostsProductionPageInner() {
                       {available.length === 0 ? "لا توجد أصناف أخرى متاحة" : "لا توجد نتائج مطابقة"}
                     </p>
                   ) : inputChoices.map((i) => {
-                    const bal = itemBalance(i);
+                    const bal = availableFor(i.id);
                     return (
                       <button key={i.id} type="button" onClick={() => addInput(i)}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
@@ -596,14 +711,18 @@ function CostsProductionPageInner() {
               <Input label="ملاحظة (اختياري)" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
               <div className="flex gap-2 justify-between items-center pt-1">
-                <button type="button" onClick={handleSaveRecipe}
-                  disabled={saving || parsedInputs.length === 0 || outQty <= 0}
-                  className="flex items-center gap-1.5 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] disabled:opacity-40">
-                  <Save size={13} /> حفظ كخلطة قياسية لهذا الصنف
-                </button>
+                {editTarget ? <span /> : (
+                  <button type="button" onClick={handleSaveRecipe}
+                    disabled={saving || parsedInputs.length === 0 || outQty <= 0}
+                    className="flex items-center gap-1.5 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] disabled:opacity-40">
+                    <Save size={13} /> حفظ كخلطة قياسية لهذا الصنف
+                  </button>
+                )}
                 <div className="flex gap-3">
-                  <Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button>
-                  <Button onClick={handleSave} loading={saving} disabled={shortages.length > 0}>تسجيل الإنتاج</Button>
+                  <Button variant="secondary" type="button" onClick={closeModal}>إلغاء</Button>
+                  <Button onClick={handleSave} loading={saving} disabled={shortages.length > 0}>
+                    {editTarget ? "حفظ التعديل" : "تسجيل الإنتاج"}
+                  </Button>
                 </div>
               </div>
             </>

@@ -48,6 +48,9 @@ export interface KitchenOrder {
   concertDate: Timestamp | null;
   venueName: string | null;
   peopleCount?: string | null; // لقطة من الحفلة وقت الإرسال (الطلبات القديمة بدونها)
+  /** ملاحظة كُتبت لحظة الإرسال — خاصة بهذا الطلب لا بالحفلة عموماً،
+   *  فرسالة للمطبخ لا تظهر سهواً في طلب الموارد والعكس */
+  note?: string | null;
   status: "sent" | "received";
   sentAt: Timestamp;
   sentBy: string;

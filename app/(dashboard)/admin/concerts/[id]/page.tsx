@@ -15,10 +15,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
-import { Input, Select } from "@/components/ui/input";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { ConcertInvoiceFields, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, SalesSection, ConcertPackage, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
-import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse } from "@/lib/firestore/kitchen";
+import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse, getWarehouseOrderByConcert } from "@/lib/firestore/kitchen";
 import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems } from "@/lib/firestore/costs";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
 import { getSectionsOfChannel, getPackages } from "@/lib/firestore/sales";
@@ -156,8 +156,17 @@ export default function AdminConcertDetailPage() {
   const [addItemCheck, setAddItemCheck] = useState<Record<string, { checked: boolean; quantity: string }>>({});
   const [addItemSearch, setAddItemSearch] = useState("");
 
+  /* المطبخ والموارد جهتان مستقلتان — كل واحدة زرّها وحالتها وملاحظتها،
+     فإرسال طلب لأحدهما لا يمسّ الآخر */
   const [kitchenOrder, setKitchenOrder] = useState<KitchenOrder | null>(null);
   const [sendingKitchen, setSendingKitchen] = useState(false);
+  const [showKitchenSend, setShowKitchenSend] = useState(false);
+  const [kitchenNote, setKitchenNote] = useState("");
+
+  const [warehouseOrder, setWarehouseOrder] = useState<KitchenOrder | null>(null);
+  const [sendingWarehouse, setSendingWarehouse] = useState(false);
+  const [showWarehouseSend, setShowWarehouseSend] = useState(false);
+  const [warehouseNote, setWarehouseNote] = useState("");
 
   useEffect(() => {
     if (id) loadData();
@@ -172,7 +181,7 @@ export default function AdminConcertDetailPage() {
     if (!opts?.silent) setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, warehouseOrderData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -184,6 +193,7 @@ export default function AdminConcertDetailPage() {
       getUsersByRole("employee").catch(() => []),
       getConcertLogs(id).catch(() => []),
       getKitchenOrderByConcert(id).catch(() => null),
+      getWarehouseOrderByConcert(id).catch(() => null),
       getCostOutgoingByConcert(id).catch(() => []),
       getExpensesByConcert(id).catch(() => []),
       getExpenseSettings().catch(() => ({ types: [] })),
@@ -210,6 +220,7 @@ export default function AdminConcertDetailPage() {
     setAllEmployees(allEmps);
     setLogs(logsData);
     setKitchenOrder(kitchenData);
+    setWarehouseOrder(warehouseOrderData);
     setCostOutgoing(costOutgoingData);
     setExpenses(expensesData);
     setExpenseTypes(expenseSettings.types);
@@ -443,6 +454,38 @@ export default function AdminConcertDetailPage() {
       showToast(e instanceof Error ? e.message : "حدث خطأ", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /* المطبخ والموارد جهتان منفصلتان — كل واحدة تُرسَل بملاحظتها الخاصة،
+     فرسالة "زد الطلبية 10%" للمطبخ لا تظهر سهواً في طلب الموارد */
+  async function handleSendKitchen() {
+    if (!appUser || !concert || sendingKitchen) return;
+    setSendingKitchen(true);
+    try {
+      await sendConcertToKitchen(concert, kitchenNote.trim() || null);
+      setKitchenOrder(await getKitchenOrderByConcert(concert.id));
+      showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ" : "تم إرسال الحفلة للمطبخ");
+      setShowKitchenSend(false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "حدث خطأ أثناء الإرسال", "error");
+    } finally {
+      setSendingKitchen(false);
+    }
+  }
+
+  async function handleSendWarehouse() {
+    if (!appUser || !concert || sendingWarehouse) return;
+    setSendingWarehouse(true);
+    try {
+      await sendConcertToWarehouse(concert, warehouseNote.trim() || null);
+      setWarehouseOrder(await getWarehouseOrderByConcert(concert.id));
+      showToast(warehouseOrder ? "تم إعادة الإرسال للموارد" : "تم إرسال الحفلة للموارد");
+      setShowWarehouseSend(false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "حدث خطأ أثناء الإرسال", "error");
+    } finally {
+      setSendingWarehouse(false);
     }
   }
 
@@ -897,6 +940,7 @@ export default function AdminConcertDetailPage() {
     foodEditQty: feat("concerts", "food_edit_qty"),
     foodDelete:  feat("concerts", "food_delete"),
     kitchen:     feat("concerts", "send_kitchen"),
+    warehouse:   feat("concerts", "send_warehouse"),
 
     /* الفريق والوثائق */
     assignSup: feat("concerts", "assign_supervisors"),
@@ -1046,24 +1090,8 @@ export default function AdminConcertDetailPage() {
           )}
           {fx.kitchen && normalizeStatus(concert.status) !== "cancelled" && (
             <button
-              onClick={async () => {
-                if (!appUser || sendingKitchen) return;
-                setSendingKitchen(true);
-                try {
-                  await Promise.all([
-                    sendConcertToKitchen(concert),
-                    sendConcertToWarehouse(concert),
-                  ]);
-                  setKitchenOrder(await getKitchenOrderByConcert(concert.id));
-                  showToast(kitchenOrder ? "تم إعادة الإرسال للمطبخ والموارد" : "تم إرسال الحفلة للمطبخ والموارد");
-                } catch {
-                  showToast("حدث خطأ أثناء الإرسال", "error");
-                } finally {
-                  setSendingKitchen(false);
-                }
-              }}
-              disabled={sendingKitchen}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
+              onClick={() => { setKitchenNote(kitchenOrder?.note ?? ""); setShowKitchenSend(true); }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 kitchenOrder?.status === "received"
                   ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
                   : kitchenOrder
@@ -1072,13 +1100,30 @@ export default function AdminConcertDetailPage() {
               }`}
             >
               <UtensilsCrossed size={15} />
-              {sendingKitchen
-                ? "جارٍ الإرسال..."
-                : kitchenOrder?.status === "received"
+              {kitchenOrder?.status === "received"
                 ? "المطبخ استلم ✓ — إعادة إرسال"
                 : kitchenOrder
-                ? "أُرسل للمطبخ والموارد — إعادة إرسال"
-                : "إرسال للمطبخ والموارد"}
+                ? "أُرسل للمطبخ — إعادة إرسال"
+                : "إرسال للمطبخ"}
+            </button>
+          )}
+          {fx.warehouse && normalizeStatus(concert.status) !== "cancelled" && (
+            <button
+              onClick={() => { setWarehouseNote(warehouseOrder?.note ?? ""); setShowWarehouseSend(true); }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                warehouseOrder?.status === "received"
+                  ? "bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                  : warehouseOrder
+                  ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+              }`}
+            >
+              <Package size={15} />
+              {warehouseOrder?.status === "received"
+                ? "الموارد استلمت ✓ — إعادة إرسال"
+                : warehouseOrder
+                ? "أُرسل للموارد — إعادة إرسال"
+                : "إرسال للموارد"}
             </button>
           )}
           {fx.cancel && normalizeStatus(concert.status) !== "cancelled" && (
@@ -2170,6 +2215,60 @@ export default function AdminConcertDetailPage() {
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" type="button" onClick={() => setShowInvoice(false)}>إلغاء</Button>
             <Button onClick={handleSaveInvoice} loading={saving}>حفظ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* إرسال للمطبخ — بملاحظة خاصة بهذا الطلب */}
+      <Modal open={showKitchenSend} onClose={() => setShowKitchenSend(false)} title="إرسال للمطبخ" size="sm">
+        <div className="space-y-4">
+          <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+            <p className="font-bold text-slate-800 text-sm">{concert.name}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {kitchenOrder
+                ? `أُرسل من قبل${kitchenOrder.status === "received" ? " — والمطبخ استلم" : " — بانتظار الاستلام"}`
+                : "لم يُرسل لهذه الحفلة طلب مطبخ بعد"}
+            </p>
+          </div>
+          <Textarea
+            label="ملاحظة للمطبخ (اختياري)"
+            value={kitchenNote}
+            onChange={(e) => setKitchenNote(e.target.value)}
+            placeholder="مثال: زد كمية الأرز 10% — عدد الحضور أكثر من المتوقَّع"
+            rows={3}
+          />
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowKitchenSend(false)}>إلغاء</Button>
+            <Button onClick={handleSendKitchen} loading={sendingKitchen} className="gap-2">
+              <UtensilsCrossed size={15} /> {kitchenOrder ? "إعادة الإرسال" : "إرسال"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* إرسال للموارد — بملاحظة خاصة بهذا الطلب */}
+      <Modal open={showWarehouseSend} onClose={() => setShowWarehouseSend(false)} title="إرسال للموارد" size="sm">
+        <div className="space-y-4">
+          <div className="border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+            <p className="font-bold text-slate-800 text-sm">{concert.name}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {warehouseOrder
+                ? `أُرسل من قبل${warehouseOrder.status === "received" ? " — والموارد استلمت" : " — بانتظار الاستلام"}`
+                : "لم يُرسل لهذه الحفلة طلب موارد بعد"}
+            </p>
+          </div>
+          <Textarea
+            label="ملاحظة للموارد (اختياري)"
+            value={warehouseNote}
+            onChange={(e) => setWarehouseNote(e.target.value)}
+            placeholder="مثال: الطاولات تُسلَّم للمشرف مباشرة قبل الموعد بساعة"
+            rows={3}
+          />
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" type="button" onClick={() => setShowWarehouseSend(false)}>إلغاء</Button>
+            <Button onClick={handleSendWarehouse} loading={sendingWarehouse} className="gap-2">
+              <Package size={15} /> {warehouseOrder ? "إعادة الإرسال" : "إرسال"}
+            </Button>
           </div>
         </div>
       </Modal>

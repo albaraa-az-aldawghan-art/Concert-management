@@ -5,8 +5,8 @@ import { Concert, KitchenOrder } from "@/types";
 
 // One kitchen order per concert — the doc id IS the concert id, so resending
 // simply refreshes the same order (and resets it to "sent" for re-confirmation).
-export async function sendConcertToKitchen(concert: Concert): Promise<void> {
-  await api.post("/api/orders/kitchen", { action: "send", concertId: concert.id });
+export async function sendConcertToKitchen(concert: Concert, note?: string | null): Promise<void> {
+  await api.post("/api/orders/kitchen", { action: "send", concertId: concert.id, note: note ?? null });
 }
 
 export async function getKitchenOrders(): Promise<KitchenOrder[]> {
@@ -28,8 +28,8 @@ export async function confirmKitchenOrder(orderId: string): Promise<void> {
 
 // ── Warehouse orders — same lifecycle as kitchen orders, but the sheet
 //    shows ONLY the concert's materials (no food sections) ────────────
-export async function sendConcertToWarehouse(concert: Concert): Promise<void> {
-  await api.post("/api/orders/warehouse", { action: "send", concertId: concert.id });
+export async function sendConcertToWarehouse(concert: Concert, note?: string | null): Promise<void> {
+  await api.post("/api/orders/warehouse", { action: "send", concertId: concert.id, note: note ?? null });
 }
 
 export async function getWarehouseOrders(): Promise<KitchenOrder[]> {

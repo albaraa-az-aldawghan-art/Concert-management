@@ -161,6 +161,7 @@ export async function syncDispenseRequest(db: Firestore, concertId: string, uid:
 
   /* المطبخ والموارد يُخبَران بنفس اللحظة التي يُنشأ فيها الطلب —
      كان الإرسال زراً يدوياً قد يُنسى، والآن يتبع التأكيد */
+  /* بلا تمرير note: إعادة إرسال آلية، لا تمسّ ملاحظة سجّلها إنسان يدوياً */
   await svcSendOrder(db, "kitchen", concertId, uid).catch(() => {});
   await svcSendOrder(db, "warehouse", concertId, uid).catch(() => {});
 

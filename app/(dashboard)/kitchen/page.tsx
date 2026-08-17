@@ -131,6 +131,12 @@ export default function KitchenPage() {
           )}
         </div>
 
+        {order.note && (
+          <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded-lg px-2.5 py-1.5 mt-3 line-clamp-2">
+            {order.note}
+          </p>
+        )}
+
         <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
           <Link href={`/kitchen/${order.concertId}`} className="flex-1">
             <Button variant="outline" size="sm" className="w-full">

@@ -40,17 +40,25 @@ async function snapshot(db: Firestore, concertId: string) {
   };
 }
 
-/** الإرسال: مستند واحد لكل حفلة، فإعادة الإرسال تُحدّثه ولا تُكرّره */
-export async function svcSendOrder(db: Firestore, kind: Kind, concertId: string, uid: string) {
+/** الإرسال: مستند واحد لكل حفلة، فإعادة الإرسال تُحدّثه ولا تُكرّره.
+ *
+ *  `note` بقيمتين مختلفتي المعنى: نصّ أو null يعني إنساناً أرسل من
+ *  الزرّ فيُكتب كما هو (والفراغ يمحو ملاحظة سابقة عمداً)؛ وتركه بلا
+ *  تمرير (undefined) يعني إعادة إرسال آلية تتبع تأكيد الحفلة — لا تمسّ
+ *  ملاحظة كتبها أحد سلفاً. بلا هذا التفريق كان كل تعديل في أصناف الأكل
+ *  بعد التأكيد يمحو ملاحظة المطبخ بصمت. */
+export async function svcSendOrder(db: Firestore, kind: Kind, concertId: string, uid: string, note?: string | null) {
   const snap = await snapshot(db, concertId);
-  await db.collection(COL[kind]).doc(concertId).set({
+  const patch: Record<string, unknown> = {
     ...snap,
     status: "sent",
     sentAt: Timestamp.now(),
     sentBy: uid,
     receivedAt: null,
     receivedBy: null,
-  });
+  };
+  if (note !== undefined) patch.note = note;
+  await db.collection(COL[kind]).doc(concertId).set(patch, { merge: true });
 }
 
 /** التأكيد: المؤكِّد يُؤخذ من الرمز لا مما يرسله المتصفح */

@@ -1,13 +1,14 @@
 /* مسار خادم (API): يتحقّق من الهوية والصلاحية ثم ينفّذ العملية على قاعدة البيانات. */
 
 import { NextRequest } from "next/server";
-import { ApiError, handle, requireCaller, require_, str } from "@/lib/server/guard";
+import { ApiError, handle, requireCaller, require_, str, optStr } from "@/lib/server/guard";
 import { svcSendOrder, svcConfirmOrder } from "@/lib/server/kitchen-core";
 
 export const dynamic = "force-dynamic";
 
 /** إرسال طلب للمطبخ أو للموارد، أو تأكيد استلامه.
- *  الإرسال صلاحية الحفلات، والتأكيد صلاحية الجهة المستلمة. */
+ *  الإرسال والتأكيد صلاحيتان منفصلتان لكل جهة — لا يفتح إرسال المطبخ
+ *  الباب لإرسال الموارد ولا العكس. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
   return handle(async () => {
     const body = await req.json();
@@ -18,8 +19,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ kin
     const action = str(body.action, "الإجراء");
 
     if (action === "send") {
-      require_(caller, "concerts", "send_kitchen", "إرسال طلبات الحفلات");
-      await svcSendOrder(caller.db, kind, str(body.concertId, "الحفلة"), caller.uid);
+      if (kind === "kitchen") require_(caller, "concerts", "send_kitchen", "إرسال طلبات المطبخ");
+      else require_(caller, "concerts", "send_warehouse", "إرسال طلبات الموارد");
+      await svcSendOrder(caller.db, kind, str(body.concertId, "الحفلة"), caller.uid, optStr(body.note, 500));
       return { ok: true };
     }
 

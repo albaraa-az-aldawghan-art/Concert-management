@@ -292,10 +292,18 @@ export default function KitchenSheetPage() {
             )}
           </div>
 
+          {/* ملاحظة الإرسال — كُتبت لحظة إرسال هذا الطلب بعينه للمطبخ */}
+          {order?.note && (
+            <div className="px-5 py-3 border-t border-slate-100">
+              <p className="text-xs font-bold text-orange-600 mb-1.5">ملاحظة الإرسال للمطبخ</p>
+              <p className="text-sm text-slate-700 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">{order.note}</p>
+            </div>
+          )}
+
           {/* Notes */}
           {concert.notes && (
             <div className="px-5 py-3 border-t border-slate-100">
-              <p className="text-xs font-bold text-slate-500 mb-1.5">ملاحظات</p>
+              <p className="text-xs font-bold text-slate-500 mb-1.5">ملاحظات الحفلة العامة</p>
               <p className="text-sm text-slate-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{concert.notes}</p>
             </div>
           )}

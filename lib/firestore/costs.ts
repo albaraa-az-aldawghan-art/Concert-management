@@ -251,6 +251,26 @@ export async function deleteCostProduction(entry: CostProduction): Promise<void>
   await api.del(`/api/costs/production/${entry.id}`);
 }
 
+/** تعديل عملية إنتاج قائمة — الصنف المُنتَج ثابت، وما عداه قابل للتصحيح */
+export async function updateCostProduction(
+  id: string,
+  data: {
+    outputQty: number;
+    inputs: { barcode: string; qty: number }[];
+    productionDate: string;
+    expiryDate?: string | null;
+    notes: string | null;
+  }
+): Promise<void> {
+  await api.patch(`/api/costs/production/${id}`, {
+    outputQty: data.outputQty,
+    inputs: data.inputs,
+    productionDate: data.productionDate,
+    expiryDate: data.expiryDate ?? null,
+    notes: data.notes,
+  });
+}
+
 /** حفظ الخلطة القياسية على الصنف المُنتَج — تُعبّئ نموذج الإنتاج تلقائياً */
 export async function updateProductionRecipe(barcode: string, recipe: RecipeLine[]): Promise<void> {
   await api.patch(`/api/costs/items/${encodeURIComponent(barcode)}`, { productionRecipe: recipe });

@@ -505,6 +505,133 @@ export async function svcAddProduction(
   return { id: prodRef.id };
 }
 
+/** تعديل عملية إنتاج قائمة: يعكس أثرها القديم على المخزون ثم يطبّق
+ *  الجديد، ذرّياً في معاملة واحدة — لا حذفاً ثم إنشاءً، فلا تنكشف
+ *  حالة وسيطة ولا يفلت خطأ منتصف الطريق.
+ *
+ *  الصنف المُنتَج ثابت لا يُغيَّر: تصحيح كمياته وتاريخه ومدخلاته وارد،
+ *  أمّا تحويل الإنتاج إلى صنف آخر فمعناه حذف هذه العملية وتسجيل غيرها.
+ *  ولذلك أقسام البيع لا تُمسّ هنا أيضاً — لم تُخزَّن على العملية أصلاً
+ *  بل اتُّحدت مرة على الصنف وقت الإنشاء، فلا سبيل لمعرفة أي جزء منها
+ *  يخصّ هذه العملية بعينها ليُعاد أو يُستبدل.
+ *
+ *  كل مادة خام تُعاد إلى رصيدها ومتوسطها كأن هذه العملية لم تكن، ثم
+ *  تُستهلك المدخلات الجديدة من ذلك الرصيد "المُعاد" — فتعديل كمية من
+ *  40 إلى 45 لا يُرفض بحجة أن الـ40 الأولى محجوزة أصلاً بهذه العملية
+ *  نفسها. ومادة أُزيلت من القائمة تُعاد فقط بلا استهلاك جديد. */
+export async function svcUpdateProduction(
+  db: Firestore,
+  id: string,
+  d: {
+    outputQty: number;
+    inputs: { barcode: string; qty: number }[];
+    productionDate: string; expiryDate: string | null; notes: string | null;
+  }
+) {
+  if (d.inputs.length === 0) throw new ApiError("أضف مادة خام واحدة على الأقل");
+  const seen = new Set<string>();
+  for (const i of d.inputs) {
+    if (seen.has(i.barcode)) throw new ApiError("تكرّرت مادة خام في المدخلات");
+    seen.add(i.barcode);
+  }
+
+  const prodRef = db.collection("cost_production").doc(id);
+
+  await db.runTransaction(async (tx) => {
+    const pSnap = await tx.get(prodRef);
+    if (!pSnap.exists) throw new ApiError("عملية الإنتاج غير موجودة", 404);
+    const p = pSnap.data() as {
+      outputBarcode: string; outputQty: number; totalCost: number;
+      inputs: { barcode: string; qty: number; totalCost: number }[];
+    };
+    if (d.inputs.some((i) => i.barcode === p.outputBarcode)) {
+      throw new ApiError("لا يمكن أن يكون الصنف المُنتَج أحد مدخلاته");
+    }
+
+    const outputRef = db.collection("cost_items").doc(p.outputBarcode);
+
+    // اتحاد مراجع المدخلات القديمة والجديدة — صنف ظهر في الاثنين يُقرأ مرة واحدة
+    const refByBarcode = new Map<string, FirebaseFirestore.DocumentReference>();
+    for (const i of p.inputs) refByBarcode.set(i.barcode, db.collection("cost_items").doc(i.barcode));
+    for (const i of d.inputs) refByBarcode.set(i.barcode, db.collection("cost_items").doc(i.barcode));
+    const barcodes = [...refByBarcode.keys()];
+
+    const [outSnap, ...inSnaps] = await Promise.all([
+      tx.get(outputRef),
+      ...barcodes.map((b) => tx.get(refByBarcode.get(b)!)),
+    ]);
+    const snapByBarcode = new Map(barcodes.map((b, i) => [b, inSnaps[i]]));
+
+    if (!outSnap.exists) throw new ApiError("الصنف المُنتَج غير مسجّل");
+    const output = outSnap.data() as ItemDoc;
+
+    // ١) عكس القديم على الصنف المُنتَج
+    const outBalance = balanceOf(output);
+    if (p.outputQty > outBalance) {
+      throw new ApiError(
+        `لا يمكن تعديل هذا الإنتاج — صُرف من المُنتَج ما يجعل المتبقي ${outBalance} ${output.unit} فقط`
+      );
+    }
+    let outTotalIn = (output.totalIn ?? 0) - p.outputQty;
+    let outTotalInValue = Math.max(0, r2((output.totalInValue ?? 0) - p.totalCost));
+
+    // ٢) عكس القديم لكل مدخل — أرقام محلية بلا كتابة فعلية بعد
+    const state = new Map<string, { totalIn: number; totalOut: number; totalInValue: number; name: string; unit: string }>();
+    for (const barcode of barcodes) {
+      const snap = snapByBarcode.get(barcode)!;
+      if (!snap.exists) continue; // صنف حُذف من التكاليف — لا شيء يُعاد إليه
+      const item = snap.data() as ItemDoc;
+      let totalOut = item.totalOut ?? 0;
+      let totalInValue = item.totalInValue ?? 0;
+      const old = p.inputs.find((i) => i.barcode === barcode);
+      if (old) {
+        totalOut = Math.max(0, totalOut - old.qty);
+        totalInValue = r2(totalInValue + old.totalCost);
+      }
+      state.set(barcode, { totalIn: item.totalIn ?? 0, totalOut, totalInValue, name: item.name, unit: item.unit });
+    }
+
+    // ٣) تطبيق الجديد: استهلاك من الرصيد "المُعاد" أعلاه
+    const newLines: { barcode: string; itemName: string; unit: string; qty: number; unitCost: number; totalCost: number }[] = [];
+    let newTotalCost = 0;
+    for (const inp of d.inputs) {
+      const s = state.get(inp.barcode);
+      if (!s) throw new ApiError("إحدى المواد الخام غير مسجّلة");
+      const synthetic: ItemDoc = { name: s.name, unit: s.unit, totalIn: s.totalIn, totalOut: s.totalOut, totalInValue: s.totalInValue };
+      const balance = balanceOf(synthetic);
+      if (inp.qty > balance) {
+        throw new ApiError(`الكمية المتوفرة من "${s.name}" غير كافية (المتوفر: ${balance} ${s.unit})`);
+      }
+      const unitCost = avgOf(synthetic);
+      const lineCost = r2(unitCost * inp.qty);
+      newTotalCost += lineCost;
+      newLines.push({ barcode: inp.barcode, itemName: s.name, unit: s.unit, qty: inp.qty, unitCost: r2(unitCost), totalCost: lineCost });
+      state.set(inp.barcode, { ...s, totalOut: r2(s.totalOut + inp.qty), totalInValue: Math.max(0, r2(s.totalInValue - lineCost)) });
+    }
+    newTotalCost = r2(newTotalCost);
+
+    for (const barcode of barcodes) {
+      const s = state.get(barcode);
+      if (!s) continue;
+      tx.update(refByBarcode.get(barcode)!, { totalOut: s.totalOut, totalInValue: s.totalInValue });
+    }
+
+    outTotalIn = r2(outTotalIn + d.outputQty);
+    outTotalInValue = r2(outTotalInValue + newTotalCost);
+    tx.update(outputRef, { totalIn: outTotalIn, totalInValue: outTotalInValue });
+
+    tx.update(prodRef, {
+      outputQty: d.outputQty,
+      inputs: newLines,
+      totalCost: newTotalCost,
+      unitCost: d.outputQty > 0 ? r2(newTotalCost / d.outputQty) : 0,
+      productionDate: d.productionDate,
+      expiryDate: d.expiryDate,
+      notes: d.notes,
+    });
+  });
+}
+
 export async function svcDeleteProduction(db: Firestore, id: string) {
   const prodRef = db.collection("cost_production").doc(id);
   await db.runTransaction(async (tx) => {
