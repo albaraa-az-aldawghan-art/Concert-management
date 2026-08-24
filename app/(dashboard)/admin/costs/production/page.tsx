@@ -225,6 +225,11 @@ function CostsProductionPageInner() {
     const recipe = item.productionRecipe ?? [];
     if (!recipe.length) return { maxQty: 0, ready: false, shortageName: null };
     const perQty = recipe[0].perQty || 1;
+    // سطر بلا كمية محدَّدة في الملف الأصلي (مكوّن "حسب الرغبة" لم يُقدَّر
+    // رقمياً) لا يمكن التحقق من كفايته — الوصفة تُعتبر ناقصة لا جاهزة،
+    // بدل تجاهل السطر بصمت وإظهارها جاهزة خطأً
+    const incomplete = recipe.some((l) => typeof l.qty !== "number" || typeof l.perQty !== "number");
+    if (incomplete) return { maxQty: 0, ready: false, shortageName: "الوصفة ناقصة الكمية" };
     let maxQty = Infinity;
     let shortageName: string | null = null;
     for (const line of recipe) {
@@ -415,47 +420,78 @@ function CostsProductionPageInner() {
       </div>
 
       {recipeItems.length > 0 && (
-        <Card className="p-0 overflow-hidden">
+        <Card className="p-0 overflow-hidden bg-slate-50 border-slate-200">
           <button
             type="button"
             onClick={() => setShowRecipes((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right hover:bg-slate-50 transition-colors"
+            className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right hover:bg-slate-100 transition-colors"
           >
-            <FlaskConical size={16} className="text-[#1C2D50] shrink-0" />
-            <span className="font-bold text-slate-800 text-sm">الوصفات القياسية</span>
+            <FlaskConical size={16} className="text-slate-500 shrink-0" />
+            <span className="font-bold text-slate-700 text-sm">الوصفات القياسية</span>
             <span className="text-xs text-slate-500">
               {recipeItems.length} صنفاً له وصفة جاهزة —{" "}
-              <b className={readyCount > 0 ? "text-emerald-600" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
+              <b className={readyCount > 0 ? "text-slate-700" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
             </span>
             <span className="mr-auto text-slate-400 text-xs">{showRecipes ? "إخفاء" : "عرض"}</span>
           </button>
 
           {showRecipes && (
-            <div className="border-t border-slate-100">
-              <div className="p-3 border-b border-slate-100">
+            <div className="border-t border-slate-200">
+              <div className="p-3 border-b border-slate-200 bg-slate-50">
                 <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
               </div>
-              <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-50">
-                {recipeItems.map(({ item, maxQty, ready, shortageName }) => (
-                  <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${ready ? "bg-emerald-500" : "bg-slate-300"}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
-                      <p className="text-[11px] text-slate-500 tabular-nums-auto">
-                        {ready
-                          ? `الحد الأقصى الآن: ${money(maxQty)} ${item.unit}`
-                          : shortageName
-                          ? `غير متوفر — ينقص: ${shortageName}`
-                          : "غير متوفر"}
-                      </p>
-                    </div>
-                    {ready && canRecord && (
-                      <Button size="sm" variant="success" onClick={() => openAddWithRecipe(item)} className="shrink-0">
-                        تسجيل
-                      </Button>
-                    )}
-                  </div>
-                ))}
+              <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
+                      <th className="px-4 py-2.5 font-semibold">المُنتَج</th>
+                      {fp.inputs && <th className="px-4 py-2.5 font-semibold">المدخلات</th>}
+                      <th className="px-4 py-2.5 font-semibold">الحالة</th>
+                      <th className="px-4 py-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recipeItems.map(({ item, maxQty, ready, shortageName }) => (
+                      <tr key={item.id} className="border-b border-slate-200 last:border-none align-top">
+                        <td className="px-4 py-2.5">
+                          <p className="font-semibold text-slate-600">{item.name}</p>
+                          <p className="text-xs text-slate-400">{item.unit}</p>
+                        </td>
+                        {fp.inputs && (
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {(item.productionRecipe ?? []).map((l) => (
+                                <span key={l.barcode} className="text-[11px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
+                                  {l.itemName} {(l.qty ?? 0).toLocaleString("en-US")} {l.unit}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5 tabular-nums-auto">
+                          {ready ? (
+                            <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
+                              جاهز — حتى {money(maxQty)} {item.unit}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-slate-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                              {shortageName ? `غير متوفر — ينقص: ${shortageName}` : "غير متوفر"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {ready && canRecord && (
+                            <Button size="sm" variant="secondary" onClick={() => openAddWithRecipe(item)} className="shrink-0">
+                              تسجيل
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
