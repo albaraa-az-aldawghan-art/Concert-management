@@ -390,14 +390,17 @@ function CostsProductionPageInner() {
   const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
   /* لوحة الوصفات القياسية: كل صنف له وصفة، جاهزه أولاً فغير الجاهزة —
-     فالعمل يبدأ بما يمكن تنفيذه فعلاً لا بأبجدية الأسماء */
-  const rq = recipeSearch.trim();
-  const recipeItems = items
+     فالعمل يبدأ بما يمكن تنفيذه فعلاً لا بأبجدية الأسماء. وجود اللوحة
+     نفسها يعتمد على القائمة الكاملة لا المفلترة بالبحث — وإلا اختفت
+     اللوحة بحقل بحثها معاً متى بحثت عن شيء بلا نتيجة، فتعلق بلا طريقة
+     لمسح البحث والرجوع. */
+  const allRecipeItems = items
     .filter((i) => (i.productionRecipe?.length ?? 0) > 0)
-    .filter((i) => !rq || i.name.includes(rq))
     .map((i) => ({ item: i, ...producibility(i) }))
     .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
-  const readyCount = recipeItems.filter((r) => r.ready).length;
+  const readyCount = allRecipeItems.filter((r) => r.ready).length;
+  const rq = recipeSearch.trim();
+  const recipeItems = rq ? allRecipeItems.filter((r) => r.item.name.includes(rq)) : allRecipeItems;
 
   return (
     <div className="space-y-5">
@@ -419,7 +422,7 @@ function CostsProductionPageInner() {
         </p>
       </div>
 
-      {recipeItems.length > 0 && (
+      {allRecipeItems.length > 0 && (
         <Card className="p-0 overflow-hidden bg-slate-50 border-slate-200">
           <button
             type="button"
@@ -429,7 +432,7 @@ function CostsProductionPageInner() {
             <FlaskConical size={16} className="text-slate-500 shrink-0" />
             <span className="font-bold text-slate-700 text-sm">الوصفات القياسية</span>
             <span className="text-xs text-slate-500">
-              {recipeItems.length} صنفاً له وصفة جاهزة —{" "}
+              {allRecipeItems.length} صنفاً له وصفة جاهزة —{" "}
               <b className={readyCount > 0 ? "text-slate-700" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
             </span>
             <span className="mr-auto text-slate-400 text-xs">{showRecipes ? "إخفاء" : "عرض"}</span>
@@ -440,6 +443,9 @@ function CostsProductionPageInner() {
               <div className="p-3 border-b border-slate-200 bg-slate-50">
                 <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
               </div>
+              {recipeItems.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-8">لا توجد نتائج مطابقة لبحثك</p>
+              ) : (
               <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -493,6 +499,7 @@ function CostsProductionPageInner() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
         </Card>
