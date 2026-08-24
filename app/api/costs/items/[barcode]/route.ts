@@ -22,6 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
         ? (body.expiryDate ? dateStr(body.expiryDate, "تاريخ الانتهاء") : null)
         : undefined,
       productionRecipe: body.productionRecipe,
+      sectionPrices: body.sectionPrices,
     });
   });
 }

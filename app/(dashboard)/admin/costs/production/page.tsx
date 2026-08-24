@@ -95,6 +95,9 @@ function CostsProductionPageInner() {
     { id: string; name: string; productionDate?: string | null; expiryDate?: string | null } | null
   >(null);
   const [notes, setNotes] = useState("");
+  /* الوصفات القياسية القابلة للإنتاج — لوحة منفصلة عن سجل العمليات فعلياً */
+  const [showRecipes, setShowRecipes] = useState(false);
+  const [recipeSearch, setRecipeSearch] = useState("");
 
   useEffect(() => { setPage(1); }, [search, dateF]);
   useEffect(() => { load(); }, []);
@@ -187,6 +190,51 @@ function CostsProductionPageInner() {
     } else {
       setInputs([]);
     }
+  }
+
+  /* قفزة مباشرة من لوحة «الوصفات القياسية»: فتح النموذج مُعبَّأً بالكامل
+     بلا الاعتماد على قيمة outputQty السابقة (قد تكون من جلسة سابقة) */
+  function openAddWithRecipe(item: CostItem) {
+    setEditTarget(null);
+    setOutput(item);
+    setOutputSearch("");
+    setPickedSections(item.salesSections ?? []);
+    setSectionChannel("restaurant");
+    const today = new Date().toISOString().slice(0, 10);
+    setProdDate(today);
+    const days = shelfLifeDays(item);
+    setExpiryDate(days != null ? addDays(today, days) : "");
+    setNewOutputUnit(units[0] ?? "");
+    setNotes("");
+    setInputSearch("");
+    if (item.productionRecipe?.length) {
+      setInputs(item.productionRecipe.map((l) => ({
+        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty),
+      })));
+      setOutputQty(String(item.productionRecipe[0].perQty || 1));
+    } else {
+      setInputs([]);
+      setOutputQty("");
+    }
+    setShowAdd(true);
+  }
+
+  /** أقصى كمية قابلة للإنتاج الآن من وصفة صنف، والخام الأضيق إن كانت
+   *  ناقصة — حسابي بحت لا يمسّ القاعدة، فلا خطر من عرضه دائماً. */
+  function producibility(item: CostItem): { maxQty: number; ready: boolean; shortageName: string | null } {
+    const recipe = item.productionRecipe ?? [];
+    if (!recipe.length) return { maxQty: 0, ready: false, shortageName: null };
+    const perQty = recipe[0].perQty || 1;
+    let maxQty = Infinity;
+    let shortageName: string | null = null;
+    for (const line of recipe) {
+      const per = line.perQty || 1;
+      const maxFromLine = line.qty > 0 ? r2((availableFor(line.barcode) / line.qty) * per) : Infinity;
+      if (maxFromLine < maxQty) { maxQty = maxFromLine; shortageName = line.itemName; }
+    }
+    if (!isFinite(maxQty)) maxQty = 0;
+    const ready = maxQty >= perQty;
+    return { maxQty, ready, shortageName: ready ? null : shortageName };
   }
 
   /* الصنف المُنتَج يُنشأ هنا ويُولَّد له باركوده — فالإنتاج هو لحظة ميلاده */
@@ -336,6 +384,16 @@ function CostsProductionPageInner() {
 
   const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
+  /* لوحة الوصفات القياسية: كل صنف له وصفة، جاهزه أولاً فغير الجاهزة —
+     فالعمل يبدأ بما يمكن تنفيذه فعلاً لا بأبجدية الأسماء */
+  const rq = recipeSearch.trim();
+  const recipeItems = items
+    .filter((i) => (i.productionRecipe?.length ?? 0) > 0)
+    .filter((i) => !rq || i.name.includes(rq))
+    .map((i) => ({ item: i, ...producibility(i) }))
+    .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
+  const readyCount = recipeItems.filter((r) => r.ready).length;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -355,6 +413,54 @@ function CostsProductionPageInner() {
           <b> بتكلفة مدخلاته</b> — فيصير متوسط سعره صادقاً، ومنه تُحسب تكلفة أصناف الأكل المرتبطة به.
         </p>
       </div>
+
+      {recipeItems.length > 0 && (
+        <Card className="p-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowRecipes((v) => !v)}
+            className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right hover:bg-slate-50 transition-colors"
+          >
+            <FlaskConical size={16} className="text-[#1C2D50] shrink-0" />
+            <span className="font-bold text-slate-800 text-sm">الوصفات القياسية</span>
+            <span className="text-xs text-slate-500">
+              {recipeItems.length} صنفاً له وصفة جاهزة —{" "}
+              <b className={readyCount > 0 ? "text-emerald-600" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
+            </span>
+            <span className="mr-auto text-slate-400 text-xs">{showRecipes ? "إخفاء" : "عرض"}</span>
+          </button>
+
+          {showRecipes && (
+            <div className="border-t border-slate-100">
+              <div className="p-3 border-b border-slate-100">
+                <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
+              </div>
+              <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-50">
+                {recipeItems.map(({ item, maxQty, ready, shortageName }) => (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${ready ? "bg-emerald-500" : "bg-slate-300"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
+                      <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                        {ready
+                          ? `الحد الأقصى الآن: ${money(maxQty)} ${item.unit}`
+                          : shortageName
+                          ? `غير متوفر — ينقص: ${shortageName}`
+                          : "غير متوفر"}
+                      </p>
+                    </div>
+                    {ready && canRecord && (
+                      <Button size="sm" variant="success" onClick={() => openAddWithRecipe(item)} className="shrink-0">
+                        تسجيل
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف المُنتَج أو المواد الخام..." />
       <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الإنتاج" matchedCount={filtered.length} unitLabel="عملية" />

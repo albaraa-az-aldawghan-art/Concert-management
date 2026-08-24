@@ -13,6 +13,8 @@ import {
   getCostSettings,
   updateCostSettings,
 } from "@/lib/firestore/costs";
+import { getSalesSections } from "@/lib/firestore/sales";
+import { getVatRate } from "@/lib/firestore/settings";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +25,7 @@ import { ExportDialog } from "@/components/ui/export-dialog";
 import { COSTS_COLUMNS } from "@/lib/server/export-columns";
 import { CameraScanModal } from "@/components/ui/camera-scan-modal";
 import { SearchBox } from "@/components/ui/list-filters";
-import { CostItem, CostSettings, CostDepartment } from "@/types";
+import { CostItem, CostSettings, CostDepartment, SalesSection } from "@/types";
 import {
   Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera, FileSpreadsheet,
 } from "lucide-react";
@@ -34,6 +36,9 @@ function fmtDate(d?: string | null): string {
   const [y, m, day] = d.split("-");
   return y && m && day ? `${day}/${m}/${y}` : d;
 }
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function ItemCard({
   item,
@@ -145,6 +150,9 @@ export default function AdminCostsPage() {
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
+  const [sections, setSections] = useState<SalesSection[]>([]);
+  const [vatRate, setVatRate] = useState(15);
+  const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -172,9 +180,15 @@ export default function AdminCostsPage() {
 
   async function load() {
     setLoading(true);
-    const [i, s] = await Promise.all([getCostItems(), getCostSettings()]);
+    const [i, s, sec, vat] = await Promise.all([
+      getCostItems(), getCostSettings(),
+      getSalesSections().catch(() => [] as SalesSection[]),
+      getVatRate().catch(() => 15),
+    ]);
     setItems(i);
     setSettings(s);
+    setSections(sec);
+    setVatRate(vat);
     setLoading(false);
   }
 
@@ -192,6 +206,12 @@ export default function AdminCostsPage() {
       name: item.name, unit: item.unit, barcodeMode: "generate", barcode: "",
       productionDate: item.productionDate ?? "", expiryDate: item.expiryDate ?? "",
     });
+    const prices: Record<string, string> = {};
+    for (const id of item.salesSections ?? []) {
+      const p = item.sectionPrices?.[id];
+      if (p != null) prices[id] = String(p);
+    }
+    setPriceInputs(prices);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -206,7 +226,13 @@ export default function AdminCostsPage() {
     setSaving(true);
     try {
       if (editTarget) {
-        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates });
+        const sectionPrices: Record<string, number> = {};
+        for (const id of editTarget.salesSections ?? []) {
+          const raw = priceInputs[id];
+          const n = raw ? parseFloat(raw) : NaN;
+          if (Number.isFinite(n) && n > 0) sectionPrices[id] = n;
+        }
+        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates, sectionPrices });
         showToast("تم تحديث الصنف");
         setEditTarget(null);
       } else if (form.barcodeMode === "supplier") {
@@ -417,6 +443,46 @@ export default function AdminCostsPage() {
           )}
           {editTarget && (
             <p className="text-xs text-slate-500 flex items-center gap-1.5"><Barcode size={12} /> الباركود: <span className="font-mono">{editTarget.id}</span> (لا يمكن تغييره)</p>
+          )}
+
+          {editTarget && (
+            <div>
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">أسعار البيع حسب القسم</label>
+              {(editTarget.salesSections ?? []).length === 0 ? (
+                <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
+                  لم يُضَم هذا الصنف لأي قسم بيع بعد — التسعير يحتاج ضمّه لقسم أولاً.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {(editTarget.salesSections ?? []).map((id) => {
+                    const sec = sections.find((s) => s.id === id);
+                    const raw = priceInputs[id] ?? "";
+                    const gross = parseFloat(raw);
+                    const hasPrice = Number.isFinite(gross) && gross > 0;
+                    const net = hasPrice ? r2(gross / (1 + vatRate / 100)) : null;
+                    return (
+                      <div key={id} className="border border-slate-200 rounded-xl px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <span className="text-sm font-semibold text-slate-800 truncate">
+                            {sec?.name ?? "قسم محذوف"}
+                          </span>
+                          <input
+                            type="number" min={0} step="0.01" value={raw} placeholder="السعر شامل الضريبة"
+                            onChange={(e) => setPriceInputs((prev) => ({ ...prev, [id]: e.target.value }))}
+                            className="w-32 border border-slate-200 rounded-lg px-2.5 py-1 text-sm text-left tabular-nums-auto"
+                          />
+                        </div>
+                        {hasPrice && (
+                          <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                            قبل الضريبة: {money(net!)} ريال · الضريبة ({vatRate}%): {money(r2(gross - net!))} ريال
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex gap-3 justify-end pt-2">

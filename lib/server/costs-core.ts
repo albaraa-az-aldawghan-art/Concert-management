@@ -806,12 +806,14 @@ export async function svcUpdateItem(
     productionDate?: string | null; expiryDate?: string | null;
     /** الخلطة القياسية — تُحفظ من صفحة الإنتاج */
     productionRecipe?: unknown;
+    /** سعر البيع شامل الضريبة لكل قسم — معرّف القسم ← السعر */
+    sectionPrices?: unknown;
   }
 ) {
   const ref = db.collection("cost_items").doc(barcode);
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("الصنف غير موجود", 404);
-  const item = snap.data() as ItemDoc;
+  const item = snap.data() as ItemDoc & { salesSections?: string[] };
 
   // الوحدة تُقفل بعد أول وارد: تغييرها يجعل كل وصفة خاطئة بصمت
   if (d.unit && (item.totalIn ?? 0) > 0 && item.unit !== d.unit) {
@@ -825,6 +827,20 @@ export async function svcUpdateItem(
   if (d.productionDate !== undefined) patch.productionDate = d.productionDate;
   if (d.expiryDate !== undefined) patch.expiryDate = d.expiryDate;
   if (d.productionRecipe !== undefined) patch.productionRecipe = d.productionRecipe;
+  if (d.sectionPrices !== undefined) {
+    if (typeof d.sectionPrices !== "object" || d.sectionPrices === null || Array.isArray(d.sectionPrices)) {
+      throw new ApiError("صيغة الأسعار غير صحيحة");
+    }
+    const assigned = new Set(item.salesSections ?? []);
+    const clean: Record<string, number> = {};
+    for (const [sectionId, price] of Object.entries(d.sectionPrices as Record<string, unknown>)) {
+      if (!assigned.has(sectionId)) throw new ApiError("لا يمكن تسعير قسم لا يضمّ هذا الصنف");
+      const n = Number(price);
+      if (!Number.isFinite(n) || n < 0) throw new ApiError("السعر يجب أن يكون رقماً موجباً");
+      clean[sectionId] = Math.round(n * 100) / 100;
+    }
+    patch.sectionPrices = clean;
+  }
   await ref.update(patch);
 }
 
