@@ -184,7 +184,7 @@ function CostsProductionPageInner() {
     setExpiryDate(days != null && prodDate ? addDays(prodDate, days) : "");
     if (item.productionRecipe?.length) {
       setInputs(item.productionRecipe.map((l) => ({
-        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty),
+        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: l.qty != null ? String(l.qty) : "",
       })));
       if (!outputQty) setOutputQty(String(item.productionRecipe[0].perQty || 1));
     } else {
@@ -193,7 +193,9 @@ function CostsProductionPageInner() {
   }
 
   /* قفزة مباشرة من لوحة «الوصفات القياسية»: فتح النموذج مُعبَّأً بالكامل
-     بلا الاعتماد على قيمة outputQty السابقة (قد تكون من جلسة سابقة) */
+     بلا الاعتماد على قيمة outputQty السابقة (قد تكون من جلسة سابقة).
+     تُستخدم لتسجيل إنتاج فعلي (الوصفة جاهزة) ولتعديل الوصفة نفسها
+     (بلا شرط الجاهزية — سطر بلا كمية يظهر حقلاً فارغاً يُعبَّأ الآن). */
   function openAddWithRecipe(item: CostItem) {
     setEditTarget(null);
     setOutput(item);
@@ -209,7 +211,7 @@ function CostsProductionPageInner() {
     setInputSearch("");
     if (item.productionRecipe?.length) {
       setInputs(item.productionRecipe.map((l) => ({
-        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: String(l.qty),
+        barcode: l.barcode, itemName: l.itemName, unit: l.unit, qty: l.qty != null ? String(l.qty) : "",
       })));
       setOutputQty(String(item.productionRecipe[0].perQty || 1));
     } else {
@@ -488,11 +490,22 @@ function CostsProductionPageInner() {
                           )}
                         </td>
                         <td className="px-4 py-2.5">
-                          {ready && canRecord && (
-                            <Button size="sm" variant="secondary" onClick={() => openAddWithRecipe(item)} className="shrink-0">
-                              تسجيل
-                            </Button>
-                          )}
+                          <div className="flex gap-1.5 justify-end">
+                            {canRecipe && (
+                              <button
+                                onClick={() => openAddWithRecipe(item)}
+                                className="text-slate-400 hover:text-[#1C2D50] transition-colors p-1"
+                                title="تعديل الوصفة"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            {ready && canRecord && (
+                              <Button size="sm" variant="secondary" onClick={() => openAddWithRecipe(item)} className="shrink-0">
+                                تسجيل
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -860,7 +873,7 @@ function CostsProductionPageInner() {
               <Input label="ملاحظة (اختياري)" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
               <div className="flex gap-2 justify-between items-center pt-1">
-                {editTarget ? <span /> : (
+                {editTarget || !canRecipe ? <span /> : (
                   <button type="button" onClick={handleSaveRecipe}
                     disabled={saving || parsedInputs.length === 0 || outQty <= 0}
                     className="flex items-center gap-1.5 text-xs font-medium text-[#1C2D50] hover:text-[#111D35] disabled:opacity-40">
