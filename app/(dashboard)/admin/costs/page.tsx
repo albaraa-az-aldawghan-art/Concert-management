@@ -63,6 +63,7 @@ function ItemCard({
 }) {
   const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
   const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
+  const kind = item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
   return (
     <Card>
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -81,6 +82,13 @@ function ItemCard({
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">
+        <span
+          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+            kind === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"
+          }`}
+        >
+          {kind === "produced" ? "منتج مُصنَّع" : "مادة خام"}
+        </span>
         <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium">
           الوحدة: {item.unit}
         </span>
@@ -168,7 +176,7 @@ export default function AdminCostsPage() {
 
   const [form, setForm] = useState({
     name: "", unit: "", barcodeMode: "generate" as "generate" | "supplier", barcode: "",
-    productionDate: "", expiryDate: "",
+    productionDate: "", expiryDate: "", kind: "raw" as "raw" | "produced",
   });
   const [bulkNames, setBulkNames] = useState("");
   const [bulkUnit, setBulkUnit] = useState("");
@@ -195,7 +203,7 @@ export default function AdminCostsPage() {
   function openAdd() {
     setForm({
       name: "", unit: settings.units[0] ?? "", barcodeMode: "generate", barcode: "",
-      productionDate: "", expiryDate: "",
+      productionDate: "", expiryDate: "", kind: "raw",
     });
     setShowAdd(true);
   }
@@ -205,6 +213,7 @@ export default function AdminCostsPage() {
     setForm({
       name: item.name, unit: item.unit, barcodeMode: "generate", barcode: "",
       productionDate: item.productionDate ?? "", expiryDate: item.expiryDate ?? "",
+      kind: item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw"),
     });
     const prices: Record<string, string> = {};
     for (const id of item.salesSections ?? []) {
@@ -232,18 +241,18 @@ export default function AdminCostsPage() {
           const n = raw ? parseFloat(raw) : NaN;
           if (Number.isFinite(n) && n > 0) sectionPrices[id] = n;
         }
-        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates, sectionPrices });
+        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates, sectionPrices, kind: form.kind });
         showToast("تم تحديث الصنف");
         setEditTarget(null);
       } else if (form.barcodeMode === "supplier") {
         if (!form.barcode.trim()) { showToast("أدخل رقم الباركود", "error"); setSaving(false); return; }
         await createCostItemFromSupplierBarcode({
-          name: form.name.trim(), unit: form.unit, barcode: form.barcode.trim(), ...dates, createdBy: appUser.uid,
+          name: form.name.trim(), unit: form.unit, barcode: form.barcode.trim(), ...dates, createdBy: appUser.uid, kind: form.kind,
         });
         showToast("تم تسجيل الصنف");
         setShowAdd(false);
       } else {
-        const created = await createCostItemGenerated({ name: form.name.trim(), unit: form.unit, ...dates, createdBy: appUser.uid });
+        const created = await createCostItemGenerated({ name: form.name.trim(), unit: form.unit, ...dates, createdBy: appUser.uid, kind: form.kind });
         showToast("تم تسجيل الصنف وتوليد باركوده");
         setShowAdd(false);
         setLabelTarget(created);
@@ -403,6 +412,20 @@ export default function AdminCostsPage() {
             <option value="" disabled>اختر الوحدة</option>
             {settings.units.map((u) => <option key={u} value={u}>{u}</option>)}
           </Select>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-2">نوع الصنف (تنظيمي — لا يخفي الصنف من أي قائمة)</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setForm({ ...form, kind: "raw" })}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${form.kind === "raw" ? "border-teal-600 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-600"}`}>
+                مادة خام
+              </button>
+              <button type="button" onClick={() => setForm({ ...form, kind: "produced" })}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${form.kind === "produced" ? "border-violet-600 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-600"}`}>
+                منتج مُصنَّع
+              </button>
+            </div>
+          </div>
 
           <div>
             <div className="grid grid-cols-2 gap-3">

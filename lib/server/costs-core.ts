@@ -758,8 +758,12 @@ export async function svcCreateItem(
   d: {
     name: string; unit: string; mode: "generate" | "supplier"; barcode?: string;
     productionDate: string | null; expiryDate: string | null; createdBy: string;
+    kind?: "raw" | "produced";
   }
 ) {
+  if (d.kind !== undefined && d.kind !== "raw" && d.kind !== "produced") {
+    throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج");
+  }
   const base = {
     name: d.name,
     unit: d.unit,
@@ -770,6 +774,7 @@ export async function svcCreateItem(
     expiryDate: d.expiryDate,
     createdAt: Timestamp.now(),
     createdBy: d.createdBy,
+    ...(d.kind !== undefined ? { kind: d.kind } : {}),
   };
 
   if (d.mode === "supplier") {
@@ -808,6 +813,8 @@ export async function svcUpdateItem(
     productionRecipe?: unknown;
     /** سعر البيع شامل الضريبة لكل قسم — معرّف القسم ← السعر */
     sectionPrices?: unknown;
+    /** وسم تنظيمي: مادة خام أم منتج مُصنَّع — لا يؤثر على أي فلترة */
+    kind?: "raw" | "produced";
   }
 ) {
   const ref = db.collection("cost_items").doc(barcode);
@@ -827,6 +834,10 @@ export async function svcUpdateItem(
   if (d.productionDate !== undefined) patch.productionDate = d.productionDate;
   if (d.expiryDate !== undefined) patch.expiryDate = d.expiryDate;
   if (d.productionRecipe !== undefined) patch.productionRecipe = d.productionRecipe;
+  if (d.kind !== undefined) {
+    if (d.kind !== "raw" && d.kind !== "produced") throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج");
+    patch.kind = d.kind;
+  }
   if (d.sectionPrices !== undefined) {
     if (typeof d.sectionPrices !== "object" || d.sectionPrices === null || Array.isArray(d.sectionPrices)) {
       throw new ApiError("صيغة الأسعار غير صحيحة");

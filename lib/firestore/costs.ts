@@ -80,6 +80,7 @@ export async function createCostItemGenerated(data: {
   productionDate?: string | null;
   expiryDate?: string | null;
   createdBy: string;
+  kind?: "raw" | "produced";
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "generate",
@@ -87,6 +88,7 @@ export async function createCostItemGenerated(data: {
     unit: data.unit,
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
+    kind: data.kind,
   });
   const snap = await getDoc(doc(db, "cost_items", id));
   return { id, ...(snap.data() as Omit<CostItem, "id">) };
@@ -100,6 +102,7 @@ export async function createCostItemFromSupplierBarcode(data: {
   productionDate?: string | null;
   expiryDate?: string | null;
   createdBy: string;
+  kind?: "raw" | "produced";
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "supplier",
@@ -108,6 +111,7 @@ export async function createCostItemFromSupplierBarcode(data: {
     barcode: data.barcode,
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
+    kind: data.kind,
   });
   const snap = await getDoc(doc(db, "cost_items", id));
   return { id, ...(snap.data() as Omit<CostItem, "id">) };
@@ -128,7 +132,7 @@ export async function bulkCreateCostItems(
 
 export async function updateCostItem(
   barcode: string,
-  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices">>
+  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind">>
 ): Promise<void> {
   await api.patch(`/api/costs/items/${encodeURIComponent(barcode)}`, data);
 }

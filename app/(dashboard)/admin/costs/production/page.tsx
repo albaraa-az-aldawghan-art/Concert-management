@@ -255,7 +255,7 @@ function CostsProductionPageInner() {
       const created = await createCostItemGenerated({
         name, unit: newOutputUnit,
         productionDate: prodDate || null, expiryDate: expiryDate || null,
-        createdBy: appUser.uid,
+        createdBy: appUser.uid, kind: "produced",
       });
       setItems((prev) => [...prev, created]);
       setOutput(created);
@@ -282,7 +282,7 @@ function CostsProductionPageInner() {
     setCreatingInput(true);
     try {
       const created = await createCostItemGenerated({
-        name, unit: newInputUnit, createdBy: appUser.uid,
+        name, unit: newInputUnit, createdBy: appUser.uid, kind: "raw",
       });
       setItems((prev) => [...prev, created]);
       addInput(created);
@@ -404,10 +404,17 @@ function CostsProductionPageInner() {
 
   // القائمتان تعرضان كل الأصناف افتراضياً، والبحث يضيّقها — لا يُشترط
   // أن يتذكّر المستخدم الاسم قبل أن يرى ما لديه
+  // وسم تنظيمي فقط لا يُخفي أي صنف — منتج قد يُستهلك بدوره كمكوّن في وصفة أخرى
+  const kindOf = (i: CostItem) => i.kind ?? ((i.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
+  const byKind = (first: "produced" | "raw") => (a: CostItem, b: CostItem) =>
+    kindOf(a) === kindOf(b) ? 0 : kindOf(a) === first ? -1 : 1;
+
   const oq = outputSearch.trim();
-  const outputChoices = oq ? items.filter((i) => i.name.includes(oq) || i.id.includes(oq)) : items;
+  const outputChoices = (oq ? items.filter((i) => i.name.includes(oq) || i.id.includes(oq)) : items)
+    .slice().sort(byKind("produced"));
   const iq = inputSearch.trim();
-  const available = items.filter((i) => i.id !== output?.id && !inputs.some((l) => l.barcode === i.id));
+  const available = items.filter((i) => i.id !== output?.id && !inputs.some((l) => l.barcode === i.id))
+    .slice().sort(byKind("raw"));
   const inputChoices = iq ? available.filter((i) => i.name.includes(iq) || i.id.includes(iq)) : available;
 
   const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -675,9 +682,14 @@ function CostsProductionPageInner() {
                   ) : outputChoices.map((i) => (
                     <button key={i.id} type="button" onClick={() => pickOutput(i)}
                       className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm text-slate-800 truncate">{i.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{i.id}</p>
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"}`}>
+                          {kindOf(i) === "produced" ? "منتج" : "خام"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm text-slate-800 truncate">{i.name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">{i.id}</p>
+                        </div>
                       </div>
                       <span className="text-[10px] text-slate-400 shrink-0">{i.unit}</span>
                     </button>
@@ -858,7 +870,12 @@ function CostsProductionPageInner() {
                     return (
                       <button key={i.id} type="button" onClick={() => addInput(i)}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
-                        <span className="truncate">{i.name}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"}`}>
+                            {kindOf(i) === "produced" ? "منتج" : "خام"}
+                          </span>
+                          <span className="truncate">{i.name}</span>
+                        </span>
                         <span className={`text-[10px] shrink-0 tabular-nums-auto ${bal <= 0 ? "text-red-600 font-semibold" : "text-slate-400"}`}>
                           متوفر {bal.toLocaleString("en-US")} {i.unit}
                         </span>

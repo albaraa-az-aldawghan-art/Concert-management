@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       productionDate: body.productionDate ? dateStr(body.productionDate, "تاريخ الإنتاج") : null,
       expiryDate: body.expiryDate ? dateStr(body.expiryDate, "تاريخ الانتهاء") : null,
       createdBy: caller.uid,
+      kind: body.kind === "raw" || body.kind === "produced" ? body.kind : undefined,
     });
   });
 }

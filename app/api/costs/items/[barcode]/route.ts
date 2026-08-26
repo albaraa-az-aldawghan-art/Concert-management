@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
         : undefined,
       productionRecipe: body.productionRecipe,
       sectionPrices: body.sectionPrices,
+      kind: body.kind === "raw" || body.kind === "produced" ? body.kind : undefined,
     });
   });
 }
