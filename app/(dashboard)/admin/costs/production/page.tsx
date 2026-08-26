@@ -91,6 +91,8 @@ function CostsProductionPageInner() {
   const [units, setUnits] = useState<string[]>([]);
   const [creatingOutput, setCreatingOutput] = useState(false);
   const [newOutputUnit, setNewOutputUnit] = useState("");
+  const [creatingInput, setCreatingInput] = useState(false);
+  const [newInputUnit, setNewInputUnit] = useState("");
   const [labelTarget, setLabelTarget] = useState<
     { id: string; name: string; productionDate?: string | null; expiryDate?: string | null } | null
   >(null);
@@ -273,6 +275,25 @@ function CostsProductionPageInner() {
     setInputSearch("");
   }
 
+  /* مادة خام غير مسجّلة بعد؟ تُنشأ هنا مباشرة وتُضاف كمكوّن فوراً — بلا حاجة للخروج لصفحة الأصناف أولاً */
+  async function createInput() {
+    const name = inputSearch.trim();
+    if (!appUser || !name || !newInputUnit) return;
+    setCreatingInput(true);
+    try {
+      const created = await createCostItemGenerated({
+        name, unit: newInputUnit, createdBy: appUser.uid,
+      });
+      setItems((prev) => [...prev, created]);
+      addInput(created);
+      showToast(`أُنشئت المادة وتولّد باركودها: ${created.id}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setCreatingInput(false);
+    }
+  }
+
   const parsedInputs = inputs
     .map((l) => ({ ...l, n: parseFloat(l.qty) || 0 }))
     .filter((l) => l.n > 0);
@@ -453,7 +474,7 @@ function CostsProductionPageInner() {
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
                       <th className="px-4 py-2.5 font-semibold">المُنتَج</th>
-                      {fp.inputs && <th className="px-4 py-2.5 font-semibold">المدخلات</th>}
+                      {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
                       <th className="px-4 py-2.5 font-semibold">الحالة</th>
                       <th className="px-4 py-2.5"></th>
                     </tr>
@@ -845,6 +866,32 @@ function CostsProductionPageInner() {
                     );
                   })}
                 </div>
+                {iq && (
+                  <div className="mt-2 border border-dashed border-emerald-300 bg-emerald-50 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+                      <Barcode size={13} />
+                      مادة خام جديدة؟ أنشئها هنا ويُولَّد لها باركود داخلي
+                    </p>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[11px] text-slate-500 block mb-1">الاسم</label>
+                        <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm truncate">{iq}</div>
+                      </div>
+                      <div className="w-28 shrink-0">
+                        <label className="text-[11px] text-slate-500 block mb-1">الوحدة</label>
+                        <select value={newInputUnit} onChange={(e) => setNewInputUnit(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                          <option value="" disabled>اختر</option>
+                          {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                      <Button type="button" size="sm" variant="success" loading={creatingInput}
+                        onClick={createInput} disabled={!newInputUnit}>
+                        إنشاء
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {shortages.length > 0 && (
