@@ -21,7 +21,7 @@ import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker"
 import { WarehouseItem, AppUser, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing, SalesSection, ConcertPackage } from "@/types";
 import { normalizeStatus } from "@/lib/concert-status";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
-import { getCostItems, getCostOutgoingForConcerts } from "@/lib/firestore/costs";
+import { getCostItems, getCostOutgoingForConcerts, getCostSettings } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound, FileEdit, Save } from "lucide-react";
@@ -123,6 +123,7 @@ function NewConcertPageInner() {
   /* بيانات كل سطر مختار: القسم والصنف — تُحفظ مع الاختيار فلا تُبحث ثانيةً */
   const [foodMeta, setFoodMeta] = useState<Record<string, { sectionId: string; sectionName: string; item: CostItem }>>({});
   const [costItems, setCostItems] = useState<CostItem[]>([]);
+  const [costUnits, setCostUnits] = useState<string[]>([]);
   /* لحساب المرتبط بحفلات قادمة — قراءة فقط، لا حجز في قاعدة البيانات */
   const [otherConcerts, setOtherConcerts] = useState<Concert[]>([]);
   const [allFood, setAllFood] = useState<ConcertFood[]>([]);
@@ -143,7 +144,7 @@ function NewConcertPageInner() {
 
   useEffect(() => {
     async function load() {
-      const [items, sups, emps, foodCats, vat, costs, cons, pkgs] = await Promise.all([
+      const [items, sups, emps, foodCats, vat, costs, cons, pkgs, settings] = await Promise.all([
         getWarehouseItems(),
         getUsersByRole("supervisor"),
         getUsersByRole("employee"),
@@ -152,6 +153,7 @@ function NewConcertPageInner() {
         getCostItems().catch(() => [] as CostItem[]),
         getUpcomingConcerts().catch(() => [] as Concert[]),
         getPackages().catch(() => [] as ConcertPackage[]),
+        getCostSettings().catch(() => ({ units: [], departments: [] })),
       ]);
       // أصناف الأكل والمنصرف تُقرأ للحفلات القادمة وحدها لا للأرشيف كله
       const upIds = cons
@@ -171,6 +173,7 @@ function NewConcertPageInner() {
       setAllFood(cFood);
       setAllOutgoing(out);
       setPackages(pkgs);
+      setCostUnits(settings.units);
 
       // استئناف مسودة محفوظة — تُبنى المدخلات من أحدث بيانات التكاليف
       // المحمَّلة للتو، لا من لقطة مجمَّدة قد تشير لأصناف تغيّرت أسماؤها
@@ -938,6 +941,9 @@ function NewConcertPageInner() {
             packages={packages}
             onApplyPackage={applyPackage}
             committed={committed}
+            units={costUnits}
+            createdBy={appUser?.uid}
+            onItemCreated={(item) => setCostItems((prev) => [...prev, item])}
           />
 
           <div className="mt-4">

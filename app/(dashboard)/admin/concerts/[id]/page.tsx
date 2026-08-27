@@ -19,7 +19,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { ConcertInvoiceFields, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, SalesSection, ConcertPackage, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse, getWarehouseOrderByConcert } from "@/lib/firestore/kitchen";
-import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems } from "@/lib/firestore/costs";
+import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems, getCostSettings } from "@/lib/firestore/costs";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
 import { getSectionsOfChannel, getPackages } from "@/lib/firestore/sales";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
@@ -86,6 +86,7 @@ export default function AdminConcertDetailPage() {
   const [editNotes, setEditNotes] = useState("");
   /* ── فواتير مصروفات الحفلة ── */
   const [costItems, setCostItems] = useState<CostItem[]>([]);
+  const [costUnits, setCostUnits] = useState<string[]>([]);
   /* المرتبط بحفلات أخرى قادمة — قراءة فقط بلا حجز */
   const [allConcerts, setAllConcerts] = useState<Concert[]>([]);
   const [allFood, setAllFood] = useState<ConcertFood[]>([]);
@@ -181,7 +182,7 @@ export default function AdminConcertDetailPage() {
     if (!opts?.silent) setLoading(true);
     // Each secondary read falls back to empty on failure (e.g. Firestore rules
     // lag behind a new collection) — one denied read must never brick the page.
-    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, warehouseOrderData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData] = await Promise.all([
+    const [concertData, itemsData, missingData, foodCats, foodItems, paymentsData, warehouseData, allSups, allEmps, logsData, kitchenData, warehouseOrderData, costOutgoingData, expensesData, expenseSettings, costItemsData, allConcertsData, packagesData, costSettingsData] = await Promise.all([
       getConcertById(id),
       getConcertItems(id).catch(() => []),
       getMissingItemsByConcert(id).catch(() => []),
@@ -200,6 +201,7 @@ export default function AdminConcertDetailPage() {
       getCostItems().catch(() => [] as CostItem[]),
       getUpcomingConcerts().catch(() => [] as Concert[]),
       getPackages().catch(() => [] as ConcertPackage[]),
+      getCostSettings().catch(() => ({ units: [], departments: [] })),
     ]);
     // المرتبط يُحسب من الحفلات القادمة وحدها — لا يُقرأ الأرشيف
     const upIds = allConcertsData
@@ -229,6 +231,7 @@ export default function AdminConcertDetailPage() {
     setPackages(packagesData);
     setAllFood(allFoodData);
     setAllOutgoing(allOutgoingData);
+    setCostUnits(costSettingsData.units);
 
     if (concertData) {
       const supData = await Promise.all((concertData.supervisorIds ?? []).map((uid) => getUserById(uid).catch(() => null)));
@@ -2435,6 +2438,9 @@ export default function AdminConcertDetailPage() {
             packages={packages}
             onApplyPackage={applyPackageHere}
             committed={committed}
+            units={costUnits}
+            createdBy={appUser?.uid}
+            onItemCreated={(item) => setCostItems((prev) => [...prev, item])}
           />
 
           {/* Summary */}

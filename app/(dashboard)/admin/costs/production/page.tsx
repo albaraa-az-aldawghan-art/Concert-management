@@ -424,11 +424,15 @@ function CostsProductionPageInner() {
      نفسها يعتمد على القائمة الكاملة لا المفلترة بالبحث — وإلا اختفت
      اللوحة بحقل بحثها معاً متى بحثت عن شيء بلا نتيجة، فتعلق بلا طريقة
      لمسح البحث والرجوع. */
+  // كل صنف له وصفة فعلاً، أو مُصنَّف "منتج" صراحةً بانتظار وصفته أول مرة
+  // (مثل صنف أكل أُنشئ للتو من صفحة الحفلة) — لا يُغرق اللوحة بمواد
+  // خام حقيقية بلا وصفة، فتلك لم تُصنَّف "منتج" أصلاً
   const allRecipeItems = items
-    .filter((i) => (i.productionRecipe?.length ?? 0) > 0)
+    .filter((i) => (i.productionRecipe?.length ?? 0) > 0 || i.kind === "produced")
     .map((i) => ({ item: i, ...producibility(i) }))
     .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
   const readyCount = allRecipeItems.filter((r) => r.ready).length;
+  const needsRecipeCount = allRecipeItems.filter((r) => (r.item.productionRecipe?.length ?? 0) === 0).length;
   const rq = recipeSearch.trim();
   const recipeItems = rq ? allRecipeItems.filter((r) => r.item.name.includes(rq)) : allRecipeItems;
 
@@ -462,8 +466,9 @@ function CostsProductionPageInner() {
             <FlaskConical size={16} className="text-slate-500 shrink-0" />
             <span className="font-bold text-slate-700 text-sm">الوصفات القياسية</span>
             <span className="text-xs text-slate-500">
-              {allRecipeItems.length} صنفاً له وصفة جاهزة —{" "}
+              {allRecipeItems.length} صنف مُنتَج —{" "}
               <b className={readyCount > 0 ? "text-slate-700" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
+              {needsRecipeCount > 0 && <b className="text-red-600"> · {needsRecipeCount} يحتاج خلطة</b>}
             </span>
             <span className="mr-auto text-slate-400 text-xs">{showRecipes ? "إخفاء" : "عرض"}</span>
           </button>
@@ -496,16 +501,25 @@ function CostsProductionPageInner() {
                         {fp.inputs && (
                           <td className="px-4 py-2.5">
                             <div className="flex flex-wrap gap-1 max-w-xs">
-                              {(item.productionRecipe ?? []).map((l) => (
-                                <span key={l.barcode} className="text-[11px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
-                                  {l.itemName} {(l.qty ?? 0).toLocaleString("en-US")} {l.unit}
-                                </span>
-                              ))}
+                              {(item.productionRecipe ?? []).length === 0 ? (
+                                <span className="text-[11px] text-slate-400">لم تُضَف مكوّنات بعد</span>
+                              ) : (
+                                (item.productionRecipe ?? []).map((l) => (
+                                  <span key={l.barcode} className="text-[11px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
+                                    {l.itemName} {(l.qty ?? 0).toLocaleString("en-US")} {l.unit}
+                                  </span>
+                                ))
+                              )}
                             </div>
                           </td>
                         )}
                         <td className="px-4 py-2.5 tabular-nums-auto">
-                          {ready ? (
+                          {(item.productionRecipe ?? []).length === 0 ? (
+                            <span className="inline-flex items-center gap-1.5 text-red-600 font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                              يحتاج خلطة
+                            </span>
+                          ) : ready ? (
                             <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
                               جاهز — حتى {money(maxQty)} {item.unit}

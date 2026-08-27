@@ -7,7 +7,8 @@ import { useMemo, useState } from "react";
 import { CostItem, SalesSection, ConcertPackage } from "@/types";
 import { itemBalance, averageCost } from "@/lib/recipes";
 import { itemsOfSection } from "@/lib/firestore/sales";
-import { UtensilsCrossed, Search, Package as PackageIcon, FlaskConical, Boxes } from "lucide-react";
+import { createCostItemGenerated } from "@/lib/firestore/costs";
+import { UtensilsCrossed, Search, Package as PackageIcon, FlaskConical, Boxes, Barcode } from "lucide-react";
 
 export interface FoodPick {
   /** مفتاح فريد للسطر: القسم + الباركود */
@@ -33,6 +34,9 @@ export function SalesFoodPicker({
   packages,
   onApplyPackage,
   committed,
+  units,
+  createdBy,
+  onItemCreated,
 }: {
   sections: SalesSection[];
   items: CostItem[];
@@ -43,14 +47,37 @@ export function SalesFoodPicker({
   onApplyPackage?: (p: ConcertPackage) => void;
   /** المرتبط بحفلات قادمة أخرى — لعرض المتاح فعلياً لا الرصيد الخام */
   committed?: Map<string, number>;
+  /** إتاحة إنشاء صنف أكل جديد مباشرة من هنا — بلا الثلاثة، يبقى القسم بحثاً فقط */
+  units?: string[];
+  createdBy?: string;
+  onItemCreated?: (item: CostItem) => void;
 }) {
   const [activeSection, setActiveSection] = useState<string>(sections[0]?.id ?? "");
   const [search, setSearch] = useState("");
+  const [newItemUnit, setNewItemUnit] = useState("");
+  const [creatingItem, setCreatingItem] = useState(false);
+
+  const canCreateItem = !!units && !!createdBy && !!onItemCreated;
 
   const section = useMemo(
     () => sections.find((s) => s.id === activeSection) ?? sections[0],
     [sections, activeSection]
   );
+
+  async function createItem() {
+    const name = search.trim();
+    if (!name || !newItemUnit || !createdBy || !section) return;
+    setCreatingItem(true);
+    try {
+      const created = await createCostItemGenerated({ name, unit: newItemUnit, createdBy, kind: "produced" });
+      onItemCreated?.(created);
+      onToggle(section.id, section.name, created);
+      setSearch("");
+      setNewItemUnit("");
+    } finally {
+      setCreatingItem(false);
+    }
+  }
 
   const q = search.trim();
   const list = section
@@ -126,6 +153,34 @@ export function SalesFoodPicker({
           className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300" />
       </div>
 
+      {/* صنف جديد؟ يُنشأ هنا فوراً — يبقى بحاجة خلطة حتى تُعرَّف لاحقاً */}
+      {canCreateItem && q && (
+        <div className="border border-dashed border-emerald-300 bg-emerald-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+            <Barcode size={13} />
+            صنف جديد؟ أنشئه هنا ويُولَّد له باركود داخلي — سيحتاج خلطة قبل إنتاجه فعلياً
+          </p>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 min-w-0">
+              <label className="text-[11px] text-slate-500 block mb-1">الاسم</label>
+              <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm truncate">{q}</div>
+            </div>
+            <div className="w-28 shrink-0">
+              <label className="text-[11px] text-slate-500 block mb-1">الوحدة</label>
+              <select value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                <option value="" disabled>اختر</option>
+                {(units ?? []).map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={createItem} disabled={creatingItem || !newItemUnit}
+              className="shrink-0 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors">
+              {creatingItem ? "..." : "إنشاء"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* أصناف القسم */}
       <div className="border border-orange-100 rounded-xl overflow-hidden">
         <div className="bg-orange-50 px-4 py-2.5 border-b border-orange-100 flex items-center gap-2">
@@ -171,6 +226,10 @@ export function SalesFoodPicker({
                     </span>
                     {item.productionRecipe?.length ? (
                       <FlaskConical size={11} className="inline text-emerald-600 mr-1.5" />
+                    ) : item.kind === "produced" ? (
+                      <span className="inline-flex items-center gap-1 text-red-600 text-[10px] font-bold mr-1.5 align-middle whitespace-nowrap">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" /> يحتاج خلطة
+                      </span>
                     ) : (
                       <PackageIcon size={11} className="inline text-slate-400 mr-1.5" />
                     )}
