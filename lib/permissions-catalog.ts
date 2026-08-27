@@ -473,6 +473,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "edit",    label: "تعديل مادة وصورتها" },
           { key: "reorder", label: "إعادة الترتيب بالسحب" },
           { key: "delete",  label: "حذف مادة" },
+          { key: "export",  label: "تصدير الموارد إلى إكسل", sensitive: true },
         ],
         fields: [
           { key: "wf_price",     label: "سعر المادة", sensitive: true },

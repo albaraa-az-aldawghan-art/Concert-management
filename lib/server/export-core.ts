@@ -607,3 +607,71 @@ export async function buildCostsWorkbook(
 
   return wb;
 }
+
+/* ═══ تصدير الموارد (جرد لحظي — لا حركة زمنية، فورقة واحدة تكفي) ═══ */
+
+const WAREHOUSE_COLUMNS: ExportColumn[] = [
+  { key: "name",      label: "الاسم",        width: 30 },
+  { key: "type",      label: "النوع",        width: 12 },
+  { key: "total",     label: "الإجمالي",     width: 12, fmt: "int" },
+  { key: "available", label: "المتوفر",      width: 12, fmt: "int" },
+  { key: "used",      label: "المستخدم",     width: 12, fmt: "int" },
+  { key: "price",     label: "سعر الحبة",    width: 14, fmt: "money" },
+  { key: "value",     label: "قيمة المتوفر", width: 16, fmt: "money" },
+];
+
+interface WarehouseRow {
+  name: string; type: "internal" | "external";
+  totalCount: number; availableCount: number; pricePerUnit: number | null;
+  order: number | null;
+}
+
+export async function buildWarehouseWorkbook(db: Firestore): Promise<ExcelJS.Workbook> {
+  const snap = await db.collection("warehouse_items").get();
+  const items: WarehouseRow[] = snap.docs.map((d) => {
+    const e = d.data() as Record<string, unknown>;
+    return {
+      name: (e.name as string) ?? "",
+      type: e.type === "external" ? "external" : "internal",
+      totalCount: (e.totalCount as number) ?? 0,
+      availableCount: (e.availableCount as number) ?? 0,
+      pricePerUnit: (e.pricePerUnit as number | null) ?? null,
+      order: (e.order as number) ?? null,
+    };
+  });
+  items.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "الفريج لإدارة الفعاليات";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("الموارد", { views: [{ rightToLeft: true }] });
+  ws.columns = WAREHOUSE_COLUMNS.map((c) => ({ width: c.width }));
+
+  const internalCount = items.filter((i) => i.type === "internal").length;
+  const externalCount = items.length - internalCount;
+  writeHeader(ws, "جرد الموارد", `${internalCount} داخلي · ${externalCount} خارجي`, WAREHOUSE_COLUMNS.length);
+  const headerRow = writeColumnHeaders(ws, WAREHOUSE_COLUMNS.map((c) => c.label));
+
+  const rows = items.map((it) => [
+    it.name,
+    it.type === "internal" ? "داخلي" : "خارجي",
+    it.totalCount,
+    it.availableCount,
+    it.totalCount - it.availableCount,
+    it.pricePerUnit,
+    it.pricePerUnit != null ? r2(it.pricePerUnit * it.availableCount) : null,
+  ]);
+  for (const r of rows) ws.addRow(r);
+  const lastRow = headerRow + rows.length;
+  applyFormats(ws, headerRow + 1, lastRow, WAREHOUSE_COLUMNS);
+  if (rows.length > 0) {
+    ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastRow, column: WAREHOUSE_COLUMNS.length } };
+    writeTotalsRow(ws, WAREHOUSE_COLUMNS, rows);
+  } else {
+    ws.addRow(["لا توجد مواد في الموارد"]).font = { color: { argb: "FF94A3B8" }, italic: true };
+  }
+  ws.views = [{ rightToLeft: true, state: "frozen", ySplit: headerRow }];
+
+  return wb;
+}

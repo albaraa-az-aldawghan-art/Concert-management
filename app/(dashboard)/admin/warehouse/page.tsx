@@ -14,7 +14,7 @@ import {
 import {
   SortableContext,
   useSortable,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -27,14 +27,17 @@ import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
 import { uploadImage, thumbUrl } from "@/lib/cloudinary";
-import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search, FileSpreadsheet } from "lucide-react";
 
-/* ── Sortable item card — mirrors the food categories card design ── */
-function SortableItemCard({
+/* ── صف قابل للسحب داخل الجدول — نفس منطق الترتيب السابق على البطاقات ── */
+function SortableItemRow({
   item,
   canEdit,
   canDelete,
   canReorder,
+  showPrice,
+  showAvailable,
   onEdit,
   onDelete,
 }: {
@@ -42,6 +45,8 @@ function SortableItemCard({
   canEdit: boolean;
   canDelete: boolean;
   canReorder: boolean;
+  showPrice: boolean;
+  showAvailable: boolean;
   onEdit: (item: WarehouseItem) => void;
   onDelete: (item: WarehouseItem) => void;
 }) {
@@ -52,111 +57,101 @@ function SortableItemCard({
   const ratio = item.totalCount > 0 ? item.availableCount / item.totalCount : 0;
 
   return (
-    <div
+    <tr
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 50 : undefined,
+        position: isDragging ? "relative" : undefined,
       }}
+      className="border-b border-slate-100 last:border-0 bg-white"
     >
-      <Card>
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {/* Drag handle */}
-            {canReorder && (
-              <button
-                {...attributes}
-                {...listeners}
-                className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
-                style={{ touchAction: "none" }}
-                aria-label="سحب لإعادة الترتيب"
-              >
-                <GripVertical size={18} />
+      <td className="px-3 py-2 w-8">
+        {canReorder && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none"
+            style={{ touchAction: "none" }}
+            aria-label="سحب لإعادة الترتيب"
+          >
+            <GripVertical size={16} />
+          </button>
+        )}
+      </td>
+      <td className="px-3 py-2 w-14">
+        {item.imageUrl ? (
+          <a href={item.imageUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={thumbUrl(item.imageUrl, 120)}
+              alt={item.name}
+              loading="lazy"
+              className="w-9 h-9 object-cover rounded-lg border border-slate-200"
+            />
+          </a>
+        ) : (
+          <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+            <Package size={14} className="text-slate-300" />
+          </div>
+        )}
+      </td>
+      <td className="px-3 py-2 font-semibold text-slate-800 text-sm min-w-[10rem]">{item.name}</td>
+      <td className="px-3 py-2">
+        <span
+          className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+            item.type === "internal" ? "bg-[#EEF1F7] text-[#1C2D50]" : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {item.type === "internal" ? "داخلي" : "خارجي"}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-sm text-slate-700 tabular-nums-auto text-center">{item.totalCount}</td>
+      {showAvailable && (
+        <>
+          <td className="px-3 py-2 text-sm tabular-nums-auto text-center">
+            <span className={item.availableCount === 0 ? "text-red-600 font-semibold" : "text-emerald-700"}>
+              {item.availableCount}
+            </span>
+          </td>
+          <td className="px-3 py-2 text-sm text-orange-600 tabular-nums-auto text-center">{used}</td>
+        </>
+      )}
+      {showPrice && (
+        <td className="px-3 py-2 text-sm text-amber-700 tabular-nums-auto text-center whitespace-nowrap">
+          {item.pricePerUnit != null ? `${item.pricePerUnit.toLocaleString("en-US")} ر.س` : "—"}
+        </td>
+      )}
+      {showAvailable && (
+        <td className="px-3 py-2 w-28">
+          <div className="bg-slate-100 rounded-full h-1.5 min-w-[4rem]">
+            <div
+              className={`h-1.5 rounded-full transition-all ${
+                ratio > 0.5 ? "bg-emerald-500" : ratio > 0.2 ? "bg-orange-400" : "bg-red-400"
+              }`}
+              style={{ width: `${Math.max(ratio * 100, 2)}%` }}
+            />
+          </div>
+        </td>
+      )}
+      <td className="px-3 py-2 w-16">
+        {(canEdit || canDelete) && (
+          <div className="flex gap-1 justify-end">
+            {canEdit && (
+              <button onClick={() => onEdit(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors">
+                <Pencil size={14} />
               </button>
             )}
-            {/* Image / placeholder */}
-            {item.imageUrl ? (
-              <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                <img
-                  src={thumbUrl(item.imageUrl, 160)}
-                  alt={item.name}
-                  loading="lazy"
-                  className="w-12 h-12 object-cover rounded-xl border border-slate-200"
-                />
-              </a>
-            ) : (
-              <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                <Package size={18} className="text-slate-300" />
-              </div>
+            {canDelete && (
+              <button onClick={() => onDelete(item)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                <Trash2 size={14} />
+              </button>
             )}
-            <div className="min-w-0">
-              <p className="font-bold text-slate-800 text-base truncate">{item.name}</p>
-              <span
-                className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold mt-0.5 ${
-                  item.type === "internal"
-                    ? "bg-[#EEF1F7] text-[#1C2D50]"
-                    : "bg-amber-50 text-amber-700"
-                }`}
-              >
-                {item.type === "internal" ? "داخلي" : "خارجي"}
-              </span>
-            </div>
           </div>
-          {(canEdit || canDelete) && (
-            <div className="flex gap-1 shrink-0 mr-1">
-              {canEdit && (
-                <button
-                  onClick={() => onEdit(item)}
-                  className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors"
-                >
-                  <Pencil size={14} />
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  onClick={() => onDelete(item)}
-                  className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Stats as pill chips — same language as the food options pills */}
-        <div className="flex flex-wrap gap-1.5">
-          <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
-            الإجمالي {item.totalCount}
-          </span>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
-            item.availableCount === 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
-          }`}>
-            المتوفر {item.availableCount}
-          </span>
-          <span className="bg-orange-50 text-orange-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
-            المستخدم {used}
-          </span>
-          {item.pricePerUnit != null && (
-            <span className="bg-amber-50 text-amber-700 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
-              {item.pricePerUnit.toLocaleString("en-US")} ريال/حبة
-            </span>
-          )}
-        </div>
-
-        {/* Availability bar */}
-        <div className="mt-3 bg-slate-100 rounded-full h-1.5">
-          <div
-            className={`h-1.5 rounded-full transition-all ${
-              ratio > 0.5 ? "bg-emerald-500" : ratio > 0.2 ? "bg-orange-400" : "bg-red-400"
-            }`}
-            style={{ width: `${Math.max(ratio * 100, 2)}%` }}
-          />
-        </div>
-      </Card>
-    </div>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -168,6 +163,7 @@ export default function AdminWarehousePage() {
   const canEdit = feat("warehouse", "edit");
   const canDelete = feat("warehouse", "delete");
   const canReorderPerm = feat("warehouse", "reorder");
+  const canExport = feat("warehouse", "export");
   /* السعر يقيّم المفقودات — ليس كل من يرى المواد يرى قيمتها */
   const fw = {
     price:     feat("warehouse", "wf_price"),
@@ -179,6 +175,7 @@ export default function AdminWarehousePage() {
   const [editTarget, setEditTarget] = useState<WarehouseItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WarehouseItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filterType, setFilterType] = useState("");
   const [search, setSearch] = useState("");
 
@@ -320,6 +317,35 @@ export default function AdminWarehousePage() {
     }
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const res = await fetch("/api/export/warehouse", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? "تعذّر التصدير");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "الموارد.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast("نُزّل الملف");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const q = search.trim();
   const filtered = items.filter(
     (i) => (!filterType || i.type === filterType) && (!q || i.name.includes(q))
@@ -431,12 +457,20 @@ export default function AdminWarehousePage() {
             {internalCount} داخلي · {externalCount} خارجي
           </p>
         </div>
-        {canAdd && (
-          <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
-            <Plus size={16} />
-            إضافة مادة
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {canExport && (
+            <Button variant="secondary" loading={exporting} onClick={handleExport}>
+              <FileSpreadsheet size={16} />
+              تصدير إكسل
+            </Button>
+          )}
+          {canAdd && (
+            <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
+              <Plus size={16} />
+              إضافة مادة
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search + Filter */}
@@ -488,23 +522,47 @@ export default function AdminWarehousePage() {
           {filterType !== "" && canEdit && (
             <p className="text-xs text-slate-400">اختر «الكل» لتتمكن من إعادة الترتيب بالسحب</p>
           )}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={filtered.map((i) => i.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.map((item) => (
-                  <SortableItemCard
-                    key={item.id}
-                    item={item}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    canReorder={canReorder}
-                    onEdit={openEdit}
-                    onDelete={setDeleteTarget}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <Card className="p-0 overflow-x-auto">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
+                      <th className="px-3 py-2.5 w-8"></th>
+                      <th className="px-3 py-2.5 w-14"></th>
+                      <th className="px-3 py-2.5 font-semibold">الاسم</th>
+                      <th className="px-3 py-2.5 font-semibold">النوع</th>
+                      <th className="px-3 py-2.5 font-semibold text-center">الإجمالي</th>
+                      {fw.available && (
+                        <>
+                          <th className="px-3 py-2.5 font-semibold text-center">المتوفر</th>
+                          <th className="px-3 py-2.5 font-semibold text-center">المستخدم</th>
+                        </>
+                      )}
+                      {fw.price && <th className="px-3 py-2.5 font-semibold text-center">سعر الحبة</th>}
+                      {fw.available && <th className="px-3 py-2.5 font-semibold">التوفر</th>}
+                      <th className="px-3 py-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((item) => (
+                      <SortableItemRow
+                        key={item.id}
+                        item={item}
+                        canEdit={canEdit}
+                        canDelete={canDelete}
+                        canReorder={canReorder}
+                        showPrice={fw.price}
+                        showAvailable={fw.available}
+                        onEdit={openEdit}
+                        onDelete={setDeleteTarget}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </SortableContext>
+            </DndContext>
+          </Card>
         </>
       )}
 
