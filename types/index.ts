@@ -167,6 +167,36 @@ export interface Concert {
   createdBy: string;
 }
 
+/** مسودة حفلة قيد الإنشاء — لقطة كاملة من نموذج «إنشاء حفلة جديدة»
+ *  قبل اكتمالها، فلا يُفقد ما كُتب عند الخروج من الصفحة سهواً. */
+export interface ConcertDraft {
+  id: string;
+  form: {
+    date: string; price: string; clientName: string; clientPhone: string; clientPhone2: string;
+    notes: string; venueName: string; peopleCount: string;
+    supervisorIds: string[]; employeeIds: string[];
+  };
+  hallCostType: "percentage" | "fixed" | null;
+  hallCostValue: string;
+  hallCostDate: string;
+  hallCostRecipient: string;
+  location: ConcertLocation | null;
+  itemCheck: Record<string, { checked: boolean; quantity: string }>;
+  foodCheck: Record<string, { checked: boolean; quantity: string }>;
+  /** نسخة خفيفة من اختيار الأكل: الباركود فقط، فيُعاد بناء الصنف الكامل
+   *  من أحدث بيانات التكاليف وقت الاستئناف بدل تجميد لقطة قد تُصبح قديمة. */
+  foodMetaLite: Record<string, { sectionId: string; sectionName: string; barcode: string }>;
+  paymentEntries: {
+    method: PaymentMethod; amount: number; date: string;
+    cardType: "visa" | "mada" | null; receiverName: string | null;
+    bankName: string | null; senderName: string | null;
+  }[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy: string;
+  createdByName: string;
+}
+
 export type DeliveryStatus = "pending" | "confirmed";
 export type ReturnStatus = "pending" | "confirmed" | "has_missing";
 

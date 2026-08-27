@@ -1,8 +1,9 @@
 ﻿"use client";
 
 /* إنشاء حفلة: البيانات والموقع والمواد وأصناف الأكل والدفعات في صفحة واحدة، مع عرض المتوفر من الخامات وتكلفتها التقديرية. */
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { createConcert, addConcertItem, addConcertPaymentRecord, setConcertInvoice, getUpcomingConcerts } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
@@ -10,6 +11,7 @@ import { getUsersByRole } from "@/lib/firestore/users";
 import { getVatRate } from "@/lib/firestore/settings";
 import { addConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { getSectionsOfChannel, getPackages, itemsOfSection } from "@/lib/firestore/sales";
+import { getConcertDraft, saveConcertDraft, deleteConcertDraft } from "@/lib/firestore/concert-drafts";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -22,7 +24,7 @@ import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/li
 import { getCostItems, getCostOutgoingForConcerts } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
-import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound } from "lucide-react";
+import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound, FileEdit, Save } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const LocationPickerDynamic = dynamic(
@@ -75,9 +77,10 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
   );
 }
 
-export default function NewConcertPage() {
+function NewConcertPageInner() {
   const { appUser, feat } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   // Creating a concert requires the explicit "create" capability
   const blocked = appUser?.role === "custom" && !feat("concerts", "create");
@@ -86,6 +89,8 @@ export default function NewConcertPage() {
   const [supervisors, setSupervisors] = useState<AppUser[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [location, setLocation] = useState<Location | null>(null);
   const [vatRate, setVatRate] = useState<number>(15);
 
@@ -166,6 +171,33 @@ export default function NewConcertPage() {
       setAllFood(cFood);
       setAllOutgoing(out);
       setPackages(pkgs);
+
+      // استئناف مسودة محفوظة — تُبنى المدخلات من أحدث بيانات التكاليف
+      // المحمَّلة للتو، لا من لقطة مجمَّدة قد تشير لأصناف تغيّرت أسماؤها
+      const draftParam = searchParams.get("draft");
+      if (draftParam) {
+        const draft = await getConcertDraft(draftParam).catch(() => null);
+        if (draft) {
+          setForm(draft.form);
+          setHallCostType(draft.hallCostType);
+          setHallCostValue(draft.hallCostValue);
+          setHallCostDate(draft.hallCostDate);
+          setHallCostRecipient(draft.hallCostRecipient);
+          setLocation(draft.location);
+          setItemCheck(draft.itemCheck);
+          setFoodCheck(draft.foodCheck);
+          const meta: Record<string, { sectionId: string; sectionName: string; item: CostItem }> = {};
+          for (const [k, m] of Object.entries(draft.foodMetaLite)) {
+            const item = costs.find((c) => c.id === m.barcode);
+            if (item) meta[k] = { sectionId: m.sectionId, sectionName: m.sectionName, item };
+          }
+          setFoodMeta(meta);
+          setPaymentEntries(draft.paymentEntries);
+          setDraftId(draft.id);
+        } else {
+          showToast("تعذّر العثور على المسودة — رُبما حُذفت", "error");
+        }
+      }
     }
     load();
   }, []);
@@ -388,12 +420,43 @@ export default function NewConcertPage() {
         ),
       ]);
 
+      // الحفلة صارت حقيقية — لا حاجة للمسودة التي انطلقت منها بعد الآن
+      if (draftId) await deleteConcertDraft(draftId).catch(() => {});
+
       showToast("تم إنشاء الحفلة بنجاح");
       router.push("/admin/concerts");
     } catch {
       showToast("حدث خطأ أثناء إنشاء الحفلة", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /* حفظ كل ما أُدخل حتى الآن كمسودة — بلا أي تحقق، فالغرض تحديداً
+     ألّا يُفقد عمل غير مكتمل. تُحدَّث نفس المسودة إن كنا قد فتحناها. */
+  async function handleSaveDraft() {
+    if (!appUser) return;
+    setSavingDraft(true);
+    try {
+      const foodMetaLite: Record<string, { sectionId: string; sectionName: string; barcode: string }> = {};
+      for (const [k, m] of Object.entries(foodMeta)) {
+        foodMetaLite[k] = { sectionId: m.sectionId, sectionName: m.sectionName, barcode: m.item.id };
+      }
+      const id = await saveConcertDraft(
+        draftId,
+        {
+          form, hallCostType, hallCostValue, hallCostDate, hallCostRecipient,
+          location, itemCheck, foodCheck, foodMetaLite, paymentEntries,
+        },
+        appUser.uid,
+        appUser.name ?? ""
+      );
+      setDraftId(id);
+      showToast("حُفظت المسودة — تقدر ترجع لها من صفحة المسودات");
+    } catch {
+      showToast("تعذّر حفظ المسودة", "error");
+    } finally {
+      setSavingDraft(false);
     }
   }
 
@@ -462,12 +525,29 @@ export default function NewConcertPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">إنشاء حفلة جديدة</h2>
-        <p className="text-sm text-slate-500">أدخل بيانات الحفلة كاملة</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">{draftId ? "متابعة مسودة" : "إنشاء حفلة جديدة"}</h2>
+          <p className="text-sm text-slate-500">أدخل بيانات الحفلة كاملة</p>
+        </div>
+        <Link href="/admin/concerts/drafts" className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-[#1C2D50] hover:underline">
+          <FileEdit size={15} /> المسودات
+        </Link>
       </div>
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          // إنتر داخل حقل نصي كان يُطلق حفظ الحفلة فوراً بلا قصد —
+          // يبقى الحفظ الفعلي بالضغط على الزر وحده. الملاحظات نص طويل
+          // فتبقى إنتر فيها كما هي (سطر جديد).
+          if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+            e.preventDefault();
+          }
+        }}
+        noValidate
+        className="space-y-5"
+      >
 
         {/* ── Basic Info ── */}
         <Card>
@@ -961,12 +1041,27 @@ export default function NewConcertPage() {
         </Card>
 
         {/* ── Submit ── */}
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-wrap gap-3 justify-end">
           <Button variant="secondary" type="button" onClick={() => router.back()}>إلغاء</Button>
+          <Button variant="outline" type="button" loading={savingDraft} onClick={handleSaveDraft}>
+            <Save size={15} /> حفظ في المسودة
+          </Button>
           <Button type="submit" loading={saving} size="lg">إنشاء الحفلة</Button>
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewConcertPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center h-64">
+        <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
+      </div>
+    }>
+      <NewConcertPageInner />
+    </Suspense>
   );
 }
 
