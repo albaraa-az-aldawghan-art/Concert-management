@@ -68,6 +68,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
           { key: "rev",             label: "إجمالي الإيرادات", sensitive: true },
           { key: "collected",       label: "إجمالي المحصَّل" },
           { key: "remaining",       label: "إجمالي المتبقي" },
+          { key: "overdue",         label: "المتأخرات من المدفوعات" },
           { key: "costs",           label: "مصاريف القاعات والنقل" },
           { key: "collection_rate", label: "نسبة التحصيل" },
         ],

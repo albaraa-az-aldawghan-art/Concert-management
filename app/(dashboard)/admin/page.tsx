@@ -57,6 +57,16 @@ export default function AdminDashboard() {
   const totalTransport  = concerts.reduce((s, c) => s + (c.transportCost ?? 0), 0);
   const collectionRate  = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
 
+  /* متأخرة = مضى على تاريخ الحفلة يوم كامل ولم يُحصَّل كامل المبلغ بعد —
+     تُستثنى الملغاة فلا مبلغ مستحق على حفلة لم تُقَم أصلاً */
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const overdueConcerts = concerts.filter((c) =>
+    normalizeStatus(c.status) !== "cancelled" &&
+    (c.price ?? 0) - (c.deposit ?? 0) > 0 &&
+    c.date.toDate().getTime() < oneDayAgo
+  );
+  const overdueAmount = overdueConcerts.reduce((s, c) => s + ((c.price ?? 0) - (c.deposit ?? 0)), 0);
+
   const recent = [...concerts].slice(0, 5);
 
   if (loading) {
@@ -92,6 +102,7 @@ export default function AdminDashboard() {
           { key: "rev",       label: "إجمالي الإيرادات", value: totalRevenue, icon: <TrendingUp size={20} />, color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]", suffix: "ريال" },
           { key: "collected", label: "إجمالي المحصَّل", value: totalCollected, icon: <Wallet size={20} />, color: "text-emerald-600", bg: "bg-emerald-50", suffix: "ريال" },
           { key: "remaining", label: "إجمالي المتبقي", value: totalRemaining, icon: <Clock size={20} />, color: "text-orange-600", bg: "bg-orange-50", suffix: "ريال" },
+          { key: "overdue",   label: "المتأخرات من المدفوعات", value: overdueAmount, icon: <AlertTriangle size={20} />, color: "text-red-600", bg: "bg-red-50", suffix: "ريال", hint: `${overdueConcerts.length} حفلة` },
           { key: "costs",     label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: <BarChart3 size={20} />, color: "text-purple-600", bg: "bg-purple-50", suffix: "ريال" },
         ].filter((s) => feat("dashboard", s.key)).map((s) => (
           <Card key={s.label}>
@@ -100,7 +111,10 @@ export default function AdminDashboard() {
             </div>
             <p className="text-xs text-slate-500 mb-1">{s.label}</p>
             <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("en-US")}</p>
-            <p className="text-xs text-slate-400">{s.suffix}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">{s.suffix}</p>
+              {s.hint && <p className="text-xs text-slate-400">{s.hint}</p>}
+            </div>
           </Card>
         ))}
       </div>
