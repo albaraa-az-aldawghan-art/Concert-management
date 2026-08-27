@@ -24,7 +24,7 @@ import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { COSTS_COLUMNS } from "@/lib/server/export-columns";
 import { CameraScanModal } from "@/components/ui/camera-scan-modal";
-import { SearchBox } from "@/components/ui/list-filters";
+import { SearchBox, Pagination } from "@/components/ui/list-filters";
 import { CostItem, CostSettings, CostDepartment, SalesSection } from "@/types";
 import {
   Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera, FileSpreadsheet,
@@ -39,8 +39,9 @@ function fmtDate(d?: string | null): string {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+const PAGE_SIZE = 50;
 
-function ItemCard({
+function ItemRow({
   item,
   canEdit,
   canDelete,
@@ -65,78 +66,69 @@ function ItemCard({
   const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
   const kind = item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="min-w-0">
-          <p className="font-bold text-slate-800 text-[15px] truncate">{item.name}</p>
-          <span className="font-mono text-[11px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md inline-block mt-1">
-            {item.id}
-          </span>
-        </div>
-        <span
-          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-            item.barcodeSource === "supplier" ? "bg-[#EEF1F7] text-[#1C2D50]" : "bg-amber-50 text-amber-700"
-          }`}
-        >
-          {item.barcodeSource === "supplier" ? "باركود المصنّع" : "باركود مولّد"}
+    <tr className="border-b border-slate-100 last:border-0 bg-white">
+      <td className="px-4 py-2.5 min-w-[10rem]">
+        <p className="font-semibold text-slate-800 text-sm truncate">{item.name}</p>
+        <span className="font-mono text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+          {item.id}
         </span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
+      </td>
+      <td className="px-4 py-2.5">
         <span
-          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+          className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${
             kind === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"
           }`}
         >
           {kind === "produced" ? "منتج مُصنَّع" : "مادة خام"}
         </span>
-        <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium">
-          الوحدة: {item.unit}
+      </td>
+      <td className="px-4 py-2.5 text-sm text-slate-600 whitespace-nowrap">{item.unit}</td>
+      <td className="px-4 py-2.5 tabular-nums-auto whitespace-nowrap">
+        <span className={`text-sm font-medium ${balance <= 0 ? "text-red-600" : "text-emerald-700"}`}>
+          {balance} {item.unit}
         </span>
+      </td>
+      <td className="px-4 py-2.5">
         <span
-          className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
-            balance <= 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
+          className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+            item.barcodeSource === "supplier" ? "bg-[#EEF1F7] text-[#1C2D50]" : "bg-amber-50 text-amber-700"
           }`}
         >
-          الرصيد {balance} {item.unit}
+          {item.barcodeSource === "supplier" ? "باركود المصنّع" : "باركود مولّد"}
         </span>
-        {showDates && item.productionDate && (
-          <span className="bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto">
-            الإنتاج {fmtDate(item.productionDate)}
-          </span>
-        )}
-        {showDates && item.expiryDate && (
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full font-medium tabular-nums-auto ${
-              expired ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"
-            }`}
-          >
-            {expired ? "منتهٍ" : "ينتهي"} {fmtDate(item.expiryDate)}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100">
-        {canLabel && item.barcodeSource === "generated" && (
-          <button
-            onClick={() => onLabel(item)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-[#1C2D50] hover:bg-[#EEF1F7] px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            <Printer size={13} /> طباعة الملصق
-          </button>
-        )}
-        <div className="mr-auto flex gap-1">
+      </td>
+      {showDates && (
+        <td className="px-4 py-2.5 whitespace-nowrap">
+          {item.productionDate && (
+            <span className="block text-[11px] text-slate-500 tabular-nums-auto">الإنتاج {fmtDate(item.productionDate)}</span>
+          )}
+          {item.expiryDate && (
+            <span className={`block text-[11px] tabular-nums-auto ${expired ? "text-red-600 font-semibold" : "text-amber-600"}`}>
+              {expired ? "منتهٍ" : "ينتهي"} {fmtDate(item.expiryDate)}
+            </span>
+          )}
+        </td>
+      )}
+      <td className="px-4 py-2.5 w-28">
+        <div className="flex items-center gap-1 justify-end">
+          {canLabel && item.barcodeSource === "generated" && (
+            <button onClick={() => onLabel(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors" title="طباعة الملصق">
+              <Printer size={14} />
+            </button>
+          )}
           {canEdit && (
-            <button onClick={() => onEdit(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors">
+            <button onClick={() => onEdit(item)} className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors" title="تعديل">
               <Pencil size={14} />
             </button>
           )}
           {canDelete && (
-            <button onClick={() => onDelete(item)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+            <button onClick={() => onDelete(item)} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors" title="حذف">
               <Trash2 size={14} />
             </button>
           )}
         </div>
-      </div>
-    </Card>
+      </td>
+    </tr>
   );
 }
 
@@ -163,6 +155,7 @@ export default function AdminCostsPage() {
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -185,6 +178,7 @@ export default function AdminCostsPage() {
   const [deptInput, setDeptInput] = useState("");
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [search]);
 
   async function load() {
     setLoading(true);
@@ -336,6 +330,9 @@ export default function AdminCostsPage() {
 
   const q = search.trim();
   const filtered = items.filter((i) => !q || i.name.includes(q) || i.id.includes(q));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-5">
@@ -387,21 +384,39 @@ export default function AdminCostsPage() {
           <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد أصناف تكاليف مسجّلة بعد"}</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              canEdit={canEditItem}
-              canDelete={canDeleteItem}
-              canLabel={canLabel}
-              showDates={showDates}
-              onEdit={openEdit}
-              onDelete={setDeleteTarget}
-              onLabel={setLabelTarget}
-            />
-          ))}
-        </div>
+        <>
+          <Card className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
+                  <th className="px-4 py-2.5 font-semibold">الاسم</th>
+                  <th className="px-4 py-2.5 font-semibold">النوع</th>
+                  <th className="px-4 py-2.5 font-semibold">الوحدة</th>
+                  <th className="px-4 py-2.5 font-semibold">الرصيد</th>
+                  <th className="px-4 py-2.5 font-semibold">الباركود</th>
+                  {showDates && <th className="px-4 py-2.5 font-semibold">التواريخ</th>}
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    canEdit={canEditItem}
+                    canDelete={canDeleteItem}
+                    canLabel={canLabel}
+                    showDates={showDates}
+                    onEdit={openEdit}
+                    onDelete={setDeleteTarget}
+                    onLabel={setLabelTarget}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </Card>
+          <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+        </>
       )}
 
       {/* Add / Edit */}
