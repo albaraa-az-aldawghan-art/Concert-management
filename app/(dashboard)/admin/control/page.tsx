@@ -350,8 +350,8 @@ export default function ControlCenterPage() {
           <Card>
             <p className="font-bold text-slate-800 mb-1">أقسام المنصرف</p>
             <p className="text-xs text-slate-500 mb-3">
-              تصنيف ثانوي يقول «أي مطبخ صرف». وجهة الصرف (مطعم أو حفلة أو عقد أو عام)
-              تُختار عند كل عملية في صفحة المنصرف، لا هنا — فلا تسقط تكلفة لأن قسماً لم يُعلَّم.
+              تصنيف ثانوي يقول «أي مطبخ صرف». وجهة الصرف (مطعم أو حفلة أو عقد) تُختار
+              عند كل عملية من داخل قسمها نفسه، لا هنا — فلا تسقط تكلفة لأن قسماً لم يُعلَّم.
             </p>
             <div className="flex gap-2 mb-2.5 flex-wrap">
               <input type="text" value={deptInput} onChange={(e) => setDeptInput(e.target.value)}

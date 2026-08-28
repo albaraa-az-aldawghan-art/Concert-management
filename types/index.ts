@@ -655,14 +655,14 @@ export interface CostIncoming {
 
 /** وجهة الصرف — تُختار صراحةً عند كل عملية ولا تُستنتج من إعداد سابق.
  *  الاستنتاج بالنفي كان يُسقط أي عملية لا تنطبق عليها حالة، فتختفي
- *  تكلفتها من الحسابات الثلاثة بلا أثر ولا تحذير. */
-export type OutgoingChannel = "restaurant" | "concerts" | "contracts" | "general";
+ *  تكلفتها من الحسابات الثلاثة بلا أثر ولا تحذير.
+ *  "عام/تشغيلي" أُزيلت من هذا التعداد — كل صرف له وجهة ثلاثية دائماً. */
+export type OutgoingChannel = "restaurant" | "concerts" | "contracts";
 
 export const OUTGOING_CHANNELS: { key: OutgoingChannel; label: string; hint: string }[] = [
   { key: "restaurant", label: "المطعم",     hint: "يُجمَّع في منصرف الشهر" },
   { key: "concerts",   label: "حفلة",       hint: "يدخل تكلفة الحفلة وربحيتها" },
   { key: "contracts",  label: "عقد",        hint: "يدخل تكلفة العقد وربحه" },
-  { key: "general",    label: "عام/تشغيلي", hint: "لا يخصّ جهة — يُعرض منفصلاً" },
 ];
 
 /** طلب صرف حفلة: يُنشأ عند التأكيد بأصناف أكلها، ولا يُصرف حتى يُقرّ */

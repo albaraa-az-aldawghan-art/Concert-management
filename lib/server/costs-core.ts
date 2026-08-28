@@ -110,8 +110,8 @@ export async function assertChannel(
   channel: string | null | undefined,
   d: { concertId: string | null; manualConcertName: string | null; contractId: string | null }
 ): Promise<OutgoingChannel> {
-  const known: OutgoingChannel[] = ["restaurant", "concerts", "contracts", "general"];
-  if (!channel) throw new ApiError("حدّد وجهة الصرف: مطعم أو حفلة أو عقد أو عام");
+  const known: OutgoingChannel[] = ["restaurant", "concerts", "contracts"];
+  if (!channel) throw new ApiError("حدّد وجهة الصرف: مطعم أو حفلة أو عقد");
   if (!known.includes(channel as OutgoingChannel)) throw new ApiError("وجهة صرف غير معروفة");
   const ch = channel as OutgoingChannel;
 
