@@ -7,7 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { signOut } from "@/lib/firestore/users";
 import { cn } from "@/lib/utils";
-import { PERMISSION_PAGES } from "@/lib/permissions";
+import { pageKeyFromPath } from "@/lib/permissions";
+import { PermissionPage } from "@/types";
 import { useSystem } from "@/contexts/SystemContext";
 import { applySystemNav } from "@/lib/nav";
 import {
@@ -347,34 +348,43 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
   );
 }
 
-const permissionIcons: Record<string, React.ReactNode> = {
-  dashboard:        <LayoutDashboard size={17} />,
-  finances:         <BarChart3 size={17} />,
-  concerts:         <Music size={17} />,
-  users:            <Users size={17} />,
-  warehouse:        <Package size={17} />,
-  warehouse_orders: <Truck size={17} />,
-  food:             <UtensilsCrossed size={17} />,
-  missing_items:    <AlertTriangle size={17} />,
-  kitchen:          <ChefHat size={17} />,
-  supervisor:       <UserCog size={17} />,
-  employees:        <UserRound size={17} />,
-  costs:            <Barcode size={17} />,
-  profitability:    <TrendingUp size={17} />,
-  contracts:        <FileSignature size={17} />,
-  restaurant:        <UtensilsCrossed size={17} />,
-  packages:         <Boxes size={17} />,
+/** روابط تحتاج صلاحية فرعية داخل صفحتها لا مجرّد فتح الصفحة — فمن يملك
+ *  «الإنتاج» وحده من التكاليف لا يرى «الوارد» إن لم يُمنحه صراحةً */
+const NAV_FEATURE: Record<string, string> = {
+  "/admin/costs/incoming":   "in_view",
+  "/admin/costs/production": "prod_view",
+  "/admin/costs/outgoing":   "out_view",
+  "/admin/costs/damage":     "dmg_view",
+  "/admin/costs/balance":    "bal_view",
+  "/admin/control":          "control",
 };
 
-/** أقسام «التكاليف» الفرعية — لا تظهر لدور مخصص إلا بصلاحية عرضها هي نفسها،
- *  فمن يملك «الإنتاج» وحده لا يرى «الوارد» إن لم يُمنحه صراحةً */
-const COSTS_SUB_NAV: { label: string; href: string; icon: React.ReactNode; feature: string }[] = [
-  { label: "الوارد",        href: "/admin/costs/incoming",   icon: <PackagePlus size={15} />,   feature: "in_view" },
-  { label: "الإنتاج",       href: "/admin/costs/production", icon: <FlaskConical size={15} />,  feature: "prod_view" },
-  { label: "المنصرف",       href: "/admin/costs/outgoing",   icon: <PackageMinus size={15} />,  feature: "out_view" },
-  { label: "التالف",        href: "/admin/costs/damage",     icon: <AlertTriangle size={15} />, feature: "dmg_view" },
-  { label: "رصيد الأصناف",  href: "/admin/costs/balance",    icon: <Scale size={15} />,          feature: "bal_view" },
-];
+/** يبني قائمة الدور المخصص من adminNav نفسها — لا نسخة موازية قد تفترق
+ *  عنها لاحقاً — فترتيب الأقسام وتفريعها يطابقان الأدمن دائماً بالضبط.
+ *  عنصر بلا صلاحية صفحته يُسقَط؛ إن كانت له فروع مسموحة تُرفَع فروعه إلى
+ *  المستوى الأعلى بدل اختفائها كلياً (مثال: يملك «الموارد» وحدها من دون
+ *  «الحفلات» — تظهر «الموارد» مستقلة لا مختبئة تحت قسم لا يفتحه). */
+function filterNavForCustomRole(
+  items: NavItem[],
+  can: (page: PermissionPage) => boolean,
+  feat: (page: PermissionPage, feature: string) => boolean
+): NavItem[] {
+  const result: NavItem[] = [];
+  for (const item of items) {
+    const children = item.children ? filterNavForCustomRole(item.children, can, feat) : undefined;
+    // إعدادات الحساب متاحة للجميع دائماً — تغيير كلمة المرور لا صلاحية له
+    const page = item.href === "/settings" ? null : pageKeyFromPath(item.href);
+    const feature = NAV_FEATURE[item.href];
+    const visible = page === null ? true : feature ? can(page) && feat(page, feature) : can(page);
+
+    if (visible) {
+      result.push(children && children.length > 0 ? { ...item, children } : { label: item.label, href: item.href, icon: item.icon });
+    } else if (children && children.length > 0) {
+      result.push(...children);
+    }
+  }
+  return result;
+}
 
 export function Sidebar() {
   const { appUser, customRole, can, feat } = useAuth();
@@ -383,27 +393,10 @@ export function Sidebar() {
   const router      = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Custom roles get a nav built from exactly what they're allowed to open
+  // الأدوار المخصصة تُبنى قائمتها من نفس قائمة الأدمن، مصفّاة بصلاحياتها
   const navItems: NavItem[] =
     appUser?.role === "custom"
-      ? [
-          // settings is appended statically below (password change is universal)
-          ...PERMISSION_PAGES.filter((p) => p.key !== "settings" && can(p.key)).map((p) => {
-            const item = { label: p.label, href: p.href, icon: permissionIcons[p.key] };
-            if (p.key !== "costs") return item;
-            // صفحة التكاليف وحدها فيها صفحات فرعية بروابط مستقلة — تُبنى هنا
-            // بلا تكرار للقائمة الثابتة (adminNav) كي لا يفترقا لاحقاً
-            const children = COSTS_SUB_NAV.filter((c) => feat("costs", c.feature))
-              .map((c) => ({ label: c.label, href: c.href, icon: c.icon }));
-            return children.length > 0 ? { ...item, children } : item;
-          }),
-          {
-            label: "الإعدادات", href: "/settings", icon: <Settings size={17} />,
-            ...(feat("settings", "control")
-              ? { children: [{ label: "مركز التحكم", href: "/admin/control", icon: <SlidersHorizontal size={15} /> }] }
-              : {}),
-          },
-        ]
+      ? filterNavForCustomRole(adminNav, can, feat)
       : navByRole[appUser?.role ?? "employee"] ?? [];
 
   // الميزات الموقوفة تُحذف من التنقّل، والمسمّيات تُطبَّق على الأقسام

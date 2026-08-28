@@ -167,7 +167,7 @@ export default function ControlCenterPage() {
   const [foodCats, setFoodCats] = useState<FoodCategory[]>([]);
   const [allFood, setAllFood] = useState<ConcertFood[]>([]);
 
-  useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
+  useEffect(() => { if (canOpen) load(); }, [canOpen]);
 
   async function load() {
     setLoading(true);
@@ -210,8 +210,8 @@ export default function ControlCenterPage() {
     }
   }
 
-  if (appUser && !isAdmin) {
-    return <p className="text-center text-slate-400 py-12">مركز التحكم للمدير فقط</p>;
+  if (appUser && !canOpen) {
+    return <p className="text-center text-slate-400 py-12">لا تملك صلاحية فتح مركز التحكم</p>;
   }
 
   if (loading) {
