@@ -10,7 +10,7 @@
    الحفظ أو أُعيد التأكيد.
    ═══════════════════════════════════════════════════════════════ */
 
-import { Timestamp, Firestore } from "firebase-admin/firestore";
+import { Timestamp, Firestore, DocumentReference } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcSettleOutgoing } from "@/lib/server/costs-core";
 import { svcSendOrder } from "@/lib/server/kitchen-core";
@@ -101,31 +101,45 @@ async function returnExcess(db: Firestore, concertId: string, barcode: string, e
   }
 }
 
-/** الطلب المعلّق لهذه الحفلة، إن وُجد */
-async function pendingOf(db: Firestore, concertId: string) {
+/** طلب معلّق قديم لم يُسجَّل بعد على مؤشّر الحفلة — تعويض عن بيانات
+ *  سابقة على إضافة pendingDispenseRequestId، فلا يُنشأ طلب مكرّر له */
+async function orphanedPendingOf(db: Firestore, concertId: string) {
   const snap = await db
     .collection("dispense_requests")
     .where("concertId", "==", concertId)
     .where("status", "==", "pending")
+    .limit(1)
     .get();
-  return snap.docs[0] ?? null;
+  return snap.docs[0]?.ref ?? null;
+}
+
+/** يحذف الطلب المعلّق المُشار إليه إن وُجد فعلاً، ويصفّر مؤشّر الحفلة */
+async function clearPending(db: Firestore, concertRef: DocumentReference, pendingId: string | null | undefined) {
+  const ref = pendingId ? db.collection("dispense_requests").doc(pendingId) : await orphanedPendingOf(db, concertRef.id);
+  if (ref) {
+    const snap = await ref.get();
+    if (snap.exists && snap.data()?.status === "pending") await ref.delete();
+  }
+  await concertRef.update({ pendingDispenseRequestId: null }).catch(() => {});
 }
 
 /** يُنشئ الطلب أو يُحدّثه أو يحذفه حسب ما تبقّى — يُنادى بعد كل ما يمسّ
- *  أصناف الأكل أو حالة الحفلة، وتكراره بلا تغيير لا يفعل شيئاً. */
+ *  أصناف الأكل أو حالة الحفلة، وتكراره بلا تغيير لا يفعل شيئاً.
+ *  الفحص والإنشاء ذرّيان معاً (انظر آخر الدالة) فإضافة عدّة أصناف أكل
+ *  دفعة واحدة بنداءات متزامنة لا تنشئ طلبات معلّقة مكرّرة. */
 export async function syncDispenseRequest(db: Firestore, concertId: string, uid: string) {
-  const cSnap = await db.collection("concerts").doc(concertId).get();
+  const concertRef = db.collection("concerts").doc(concertId);
+  const cSnap = await concertRef.get();
   if (!cSnap.exists) return;
   const c = cSnap.data() as {
     status?: string; name?: string; clientName?: string;
     concertNumber?: number; date?: Timestamp | null;
+    pendingDispenseRequestId?: string | null;
   };
-
-  const pending = await pendingOf(db, concertId);
 
   /* الحفلة غير المؤكدة أو الملغاة لا طلب لها — ويُلغى المعلّق إن وُجد */
   if (c.status !== "confirmed" && c.status !== "completed") {
-    if (pending) await pending.ref.delete();
+    await clearPending(db, concertRef, c.pendingDispenseRequestId);
     return;
   }
 
@@ -166,7 +180,7 @@ export async function syncDispenseRequest(db: Firestore, concertId: string, uid:
   await svcSendOrder(db, "warehouse", concertId, uid).catch(() => {});
 
   if (lines.length === 0) {
-    if (pending) await pending.ref.delete();
+    await clearPending(db, concertRef, c.pendingDispenseRequestId);
     return;
   }
 
@@ -181,17 +195,33 @@ export async function syncDispenseRequest(db: Firestore, concertId: string, uid:
     updatedAt: Timestamp.now(),
   };
 
-  if (pending) {
-    await pending.ref.update(payload);
-  } else {
-    await db.collection("dispense_requests").add({
-      ...payload,
-      createdAt: Timestamp.now(),
-      createdBy: uid,
-      approvedAt: null,
-      approvedBy: null,
-    });
-  }
+  /* الفحص والإنشاء ذرّيان معاً: كلاهما يقرأ ويكتب مستند الحفلة نفسه،
+     فنداءان متزامنان يتصادمان عليه — يُعاد أحدهما تلقائياً فيجد مؤشّر
+     الآخر ويُحدّث طلبه بدل إنشاء طلب مكرّر (وهذا هو الخلل الذي كان
+     يُنتج عشرات الطلبات المكرّرة لحفلة واحدة عند إضافة أصنافها دفعة). */
+  await db.runTransaction(async (tx) => {
+    const freshConcert = await tx.get(concertRef);
+    const pointerId = freshConcert.data()?.pendingDispenseRequestId as string | null | undefined;
+    let pendingRef = pointerId ? db.collection("dispense_requests").doc(pointerId) : null;
+    let pendingSnap = pendingRef ? await tx.get(pendingRef) : null;
+
+    // لا مؤشّر؟ طلب قديم سابق على هذا الحقل قد يكون موجوداً فعلاً
+    if (!pendingRef) {
+      const orphan = await tx.get(
+        db.collection("dispense_requests").where("concertId", "==", concertId).where("status", "==", "pending").limit(1)
+      );
+      if (!orphan.empty) { pendingRef = orphan.docs[0].ref; pendingSnap = orphan.docs[0]; }
+    }
+
+    if (pendingSnap?.exists && pendingSnap.data()?.status === "pending") {
+      tx.update(pendingRef!, payload);
+      if (pendingRef!.id !== pointerId) tx.update(concertRef, { pendingDispenseRequestId: pendingRef!.id });
+    } else {
+      const newRef = db.collection("dispense_requests").doc();
+      tx.set(newRef, { ...payload, createdAt: Timestamp.now(), createdBy: uid, approvedAt: null, approvedBy: null });
+      tx.update(concertRef, { pendingDispenseRequestId: newRef.id });
+    }
+  });
 }
 
 /** إقرار الطلب: يصرف كل سطر على الحفلة بمتوسط تكلفته.

@@ -163,6 +163,10 @@ export interface Concert {
   refundAmount?: number | null;
   refundDate?: string | null;
   refundMethod?: PaymentMethod | null;
+  /** مؤشّر إلى طلب الصرف المعلّق الحالي — يجعل التحقّق من وجوده ذرّياً
+   *  عبر معاملة على مستند الحفلة نفسه، فلا يتسابق نداءان متزامنان
+   *  (كإضافة عدّة أصناف أكل معاً) على إنشاء طلبين معلّقين بدل واحد. */
+  pendingDispenseRequestId?: string | null;
   createdAt: Timestamp;
   createdBy: string;
 }
