@@ -19,7 +19,8 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { ConcertInvoiceFields, invoiceLabel, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { Concert, ConcertItem, MissingItem, AppUser, SalesSection, ConcertPackage, ConcertFood, ConcertPayment, PaymentMethod, WarehouseItem, ConcertLocation, ConcertLog, KitchenOrder, CostOutgoing, ConcertExpense, ExpenseType, CostItem } from "@/types";
 import { sendConcertToKitchen, getKitchenOrderByConcert, sendConcertToWarehouse, getWarehouseOrderByConcert } from "@/lib/firestore/kitchen";
-import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems, getCostSettings } from "@/lib/firestore/costs";
+import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems, getCostSettings, addCostOutgoing } from "@/lib/firestore/costs";
+import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
 import { getSectionsOfChannel, getPackages } from "@/lib/firestore/sales";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
@@ -87,6 +88,12 @@ export default function AdminConcertDetailPage() {
   /* ── فواتير مصروفات الحفلة ── */
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costUnits, setCostUnits] = useState<string[]>([]);
+  const [costDepartments, setCostDepartments] = useState<string[]>([]);
+  /* ── تسجيل منصرف على هذه الحفلة ── */
+  const [showDispense, setShowDispense] = useState(false);
+  const [dispenseItem, setDispenseItem] = useState<CostItem | null>(null);
+  const [dispenseForm, setDispenseForm] = useState({ quantity: "", unitPrice: "", departmentName: "", dispenseDate: "" });
+  const [savingDispense, setSavingDispense] = useState(false);
   /* المرتبط بحفلات أخرى قادمة — قراءة فقط بلا حجز */
   const [allConcerts, setAllConcerts] = useState<Concert[]>([]);
   const [allFood, setAllFood] = useState<ConcertFood[]>([]);
@@ -232,6 +239,7 @@ export default function AdminConcertDetailPage() {
     setAllFood(allFoodData);
     setAllOutgoing(allOutgoingData);
     setCostUnits(costSettingsData.units);
+    setCostDepartments(costSettingsData.departments.map((d) => d.name));
 
     if (concertData) {
       const supData = await Promise.all((concertData.supervisorIds ?? []).map((uid) => getUserById(uid).catch(() => null)));
@@ -976,7 +984,62 @@ export default function AdminConcertDetailPage() {
     foodAvailable: feat("concerts", "ff_available"),
     wfActor:       feat("concerts", "wf_actor"),
   };
+  /* تسجيل منصرف على هذه الحفلة تحديداً — نفس صلاحية صفحة المنصرف
+     المركزية (costs.out_add)، فما يظهر هنا يعمل فعلاً على الخادم */
+  const canDispense = feat("costs", "out_add");
   const hasAnyPower = Object.values(fx).some(Boolean);
+
+  function openDispense() {
+    setDispenseItem(null);
+    setDispenseForm({ quantity: "", unitPrice: "", departmentName: costDepartments[0] ?? "", dispenseDate: new Date().toISOString().slice(0, 10) });
+    setShowDispense(true);
+  }
+
+  function pickDispenseItem(item: CostItem) {
+    setDispenseItem(item);
+    const avg = averageCost(item);
+    setDispenseForm((prev) => ({ ...prev, unitPrice: avg > 0 ? avg.toFixed(2) : "" }));
+  }
+
+  function handleDispenseScanMiss() {
+    showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
+  }
+
+  async function handleDispenseSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!appUser || !concert || !dispenseItem) return;
+    const quantity = parseFloat(dispenseForm.quantity);
+    const unitPrice = parseFloat(dispenseForm.unitPrice);
+    if (!quantity || quantity <= 0) { showToast("أدخل كمية صحيحة", "error"); return; }
+    if (!dispenseForm.departmentName) { showToast("اختر القسم", "error"); return; }
+    if (!dispenseForm.dispenseDate) { showToast("أدخل تاريخ الصرف", "error"); return; }
+    setSavingDispense(true);
+    try {
+      await addCostOutgoing({
+        itemBarcode: dispenseItem.id,
+        quantity,
+        unitPrice: unitPrice || 0,
+        departmentName: dispenseForm.departmentName,
+        channel: "concerts",
+        concertId: concert.id,
+        concertName: concert.name,
+        clientName: concert.clientName ?? null,
+        manualConcertName: null,
+        contractId: null,
+        contractName: null,
+        dispenseDate: dispenseForm.dispenseDate,
+        createdBy: appUser.uid,
+      });
+      showToast("تم تسجيل عملية المنصرف على الحفلة");
+      setShowDispense(false);
+      const fresh = await getCostOutgoingByConcert(id).catch(() => null);
+      if (fresh) setCostOutgoing(fresh);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
+    } finally {
+      setSavingDispense(false);
+    }
+  }
 
   /* فواتير المصروفات — تُدخَل للحفلة المؤكدة أو المكتملة فقط. فاتورة
      السيارة كثيراً ما تصل بعد انتهاء الحفلة، فحصرها في «مؤكدة» يعطّل العمل. */
@@ -2004,17 +2067,29 @@ export default function AdminConcertDetailPage() {
       )}
 
       {/* Raw Materials Cost (from التكاليف) */}
-      {costOutgoing.length > 0 && (
+      {(costOutgoing.length > 0 || canDispense) && (
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Barcode size={16} className="text-[#1C2D50]" />
               تكلفة المواد الخام ({costOutgoing.length})
             </h3>
-            <span className="font-bold text-[#1C2D50] tabular-nums-auto">
-              {costOutgoing.reduce((sum, e) => sum + e.totalCost, 0).toLocaleString("en-US")} ريال
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+                {costOutgoing.reduce((sum, e) => sum + e.totalCost, 0).toLocaleString("en-US")} ريال
+              </span>
+              {canDispense && (
+                <Button size="sm" onClick={openDispense}>
+                  <Plus size={14} /> تسجيل منصرف
+                </Button>
+              )}
+            </div>
           </div>
+          {costOutgoing.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+              لا توجد عمليات منصرف على هذه الحفلة بعد
+            </p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -2035,8 +2110,69 @@ export default function AdminConcertDetailPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Card>
       )}
+
+      {/* تسجيل منصرف على هذه الحفلة */}
+      <Modal open={showDispense} onClose={() => setShowDispense(false)} title="تسجيل منصرف على الحفلة">
+        <div className="space-y-4">
+          {!dispenseItem ? (
+            <CostItemPicker items={costItems} onPick={pickDispenseItem} onScanMiss={handleDispenseScanMiss} showBalance />
+          ) : (
+            <>
+              {dispenseItem.expiryDate && dispenseItem.expiryDate < new Date().toISOString().slice(0, 10) && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                  <AlertTriangle size={15} className="text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-600 leading-relaxed">
+                    انتهت صلاحية هذا الصنف في {dispenseItem.expiryDate} — لا تصرفه لهذه الحفلة.
+                  </p>
+                </div>
+              )}
+              <div className="flex items-center justify-between border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
+                <span className="font-bold text-slate-800 text-sm">{dispenseItem.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold">
+                    <CheckCircle2 size={13} /> الرصيد: {(dispenseItem.totalIn ?? 0) - (dispenseItem.totalOut ?? 0)} {dispenseItem.unit}
+                  </span>
+                  <button type="button" onClick={() => setDispenseItem(null)} className="text-xs text-slate-500 hover:text-red-500">تغيير</button>
+                </div>
+              </div>
+              <form onSubmit={handleDispenseSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700 block mb-1.5">الوحدة</label>
+                    <div className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-slate-50 text-slate-600 flex items-center justify-between">
+                      {dispenseItem.unit} <span className="text-[10px]">ثابتة لهذا الصنف 🔒</span>
+                    </div>
+                  </div>
+                  <Input label={`الكمية المنصرفة (${dispenseItem.unit})`} type="number" min={0} step="0.01" required
+                    value={dispenseForm.quantity} onChange={(e) => setDispenseForm({ ...dispenseForm, quantity: e.target.value })} />
+                </div>
+                <Input label="تاريخ الصرف" type="date" required
+                  value={dispenseForm.dispenseDate} onChange={(e) => setDispenseForm({ ...dispenseForm, dispenseDate: e.target.value })} />
+                <Select label="القسم" required value={dispenseForm.departmentName} onChange={(e) => setDispenseForm({ ...dispenseForm, departmentName: e.target.value })}>
+                  {costDepartments.map((d) => <option key={d} value={d}>{d}</option>)}
+                </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="سعر الصنف (للوحدة)" helperText="مُعبّأ تلقائياً بمتوسط سعر التكلفة — يمكن تعديله" type="number" min={0} step="0.01"
+                    value={dispenseForm.unitPrice} onChange={(e) => setDispenseForm({ ...dispenseForm, unitPrice: e.target.value })} />
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700 block mb-1.5">إجمالي تكلفة المنصرف</label>
+                    <div className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-[#EEF1F7] text-[#1C2D50] font-bold tabular-nums-auto">
+                      {(parseFloat(dispenseForm.quantity || "0") * parseFloat(dispenseForm.unitPrice || "0")).toLocaleString("en-US")} ريال
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-3 justify-end pt-2">
+                  <Button variant="secondary" type="button" onClick={() => setShowDispense(false)}>إلغاء</Button>
+                  <Button type="submit" loading={savingDispense}>حفظ عملية المنصرف</Button>
+                </div>
+              </form>
+            </>
+          )}
+        </div>
+      </Modal>
 
       {/* Missing Items */}
       {missing.length > 0 && (
