@@ -675,3 +675,80 @@ export async function buildWarehouseWorkbook(db: Firestore): Promise<ExcelJS.Wor
 
   return wb;
 }
+
+/* ═══ تصدير رصيد الأصناف (جرد لحظي — لا حركة زمنية، فورقة واحدة تكفي) ═══ */
+
+interface BalanceRow {
+  name: string; barcode: string; kind: "raw" | "produced"; unit: string;
+  totalIn: number; totalOut: number; totalInValue: number;
+}
+
+function balanceColumns(includeValue: boolean): ExportColumn[] {
+  const base: ExportColumn[] = [
+    { key: "name",    label: "الصنف",    width: 30 },
+    { key: "barcode", label: "الباركود", width: 14 },
+    { key: "kind",    label: "النوع",    width: 14 },
+    { key: "in",      label: "الوارد",   width: 12, fmt: "int" },
+    { key: "out",     label: "المنصرف",  width: 12, fmt: "int" },
+    { key: "balance", label: "الرصيد",   width: 12, fmt: "int" },
+    { key: "unit",    label: "الوحدة",   width: 10 },
+  ];
+  if (!includeValue) return base;
+  return [
+    ...base,
+    { key: "avgPrice", label: "متوسط السعر", width: 14, fmt: "money" },
+    { key: "value",    label: "القيمة",       width: 14, fmt: "money" },
+  ];
+}
+
+export async function buildBalanceWorkbook(db: Firestore, includeValue: boolean): Promise<ExcelJS.Workbook> {
+  const snap = await db.collection("cost_items").get();
+  const items: BalanceRow[] = snap.docs.map((d) => {
+    const e = d.data() as Record<string, unknown>;
+    return {
+      name: (e.name as string) ?? "",
+      barcode: d.id,
+      kind: e.kind === "raw" || e.kind === "produced" ? e.kind : ((e.productionRecipe as unknown[] | undefined)?.length ?? 0) > 0 ? "produced" : "raw",
+      unit: (e.unit as string) ?? "",
+      totalIn: (e.totalIn as number) ?? 0,
+      totalOut: (e.totalOut as number) ?? 0,
+      totalInValue: (e.totalInValue as number) ?? 0,
+    };
+  });
+  items.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+  const cols = balanceColumns(includeValue);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "الفريج لإدارة الفعاليات";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("رصيد الأصناف", { views: [{ rightToLeft: true }] });
+  ws.columns = cols.map((c) => ({ width: c.width }));
+  writeHeader(ws, "رصيد الأصناف", `${items.length} صنف`, cols.length);
+  const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
+
+  const rows = items.map((it) => {
+    const balance = it.totalIn - it.totalOut;
+    const row: (string | number)[] = [
+      it.name, it.barcode, it.kind === "produced" ? "منتج مُصنَّع" : "مادة خام",
+      it.totalIn, it.totalOut, balance, it.unit,
+    ];
+    if (includeValue) {
+      const avgPrice = balance > 0 ? r2(it.totalInValue / balance) : 0;
+      row.push(avgPrice, r2(it.totalInValue));
+    }
+    return row;
+  });
+  for (const r of rows) ws.addRow(r);
+  const lastRow = headerRow + rows.length;
+  applyFormats(ws, headerRow + 1, lastRow, cols);
+  if (rows.length > 0) {
+    ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastRow, column: cols.length } };
+    writeTotalsRow(ws, cols, rows);
+  } else {
+    ws.addRow(["لا توجد أصناف تكاليف مسجّلة بعد"]).font = { color: { argb: "FF94A3B8" }, italic: true };
+  }
+  ws.views = [{ rightToLeft: true, state: "frozen", ySplit: headerRow }];
+
+  return wb;
+}
