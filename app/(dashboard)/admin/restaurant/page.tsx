@@ -6,16 +6,26 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
+import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Actor } from "@/components/ui/actor";
 import { getCostOutgoing, getCostSettings, getCostItems } from "@/lib/firestore/costs";
 import { getSectionsOfChannel, itemsOfSection } from "@/lib/firestore/sales";
 import { CostOutgoing, CostSettings, CostItem, SalesSection } from "@/types";
 import {
   UtensilsCrossed, ChevronRight, ChevronLeft, PackageMinus, Info,
-  TrendingDown, Layers, Plus,
+  TrendingDown, Layers, FileSpreadsheet, Upload, CheckCircle2, AlertTriangle,
 } from "lucide-react";
+
+interface RestaurantImportResult {
+  created: number;
+  skippedEmpty: number;
+  errors: { row: number; barcode: string; message: string }[];
+}
 
 const MONTHS = [
   "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
@@ -38,6 +48,7 @@ function ym(dateStr: string | undefined, fallback?: { seconds: number }) {
 
 export default function RestaurantPage() {
   const { appUser, can, feat } = useAuth();
+  const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
   const pageAllowed = isAdmin || (appUser?.role === "custom" && can("restaurant"));
   const canDispense = isAdmin || feat("costs", "out_add");
@@ -51,6 +62,13 @@ export default function RestaurantPage() {
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [] });
   const [items, setItems] = useState<CostItem[]>([]);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importDate, setImportDate] = useState("");
+  const [importDept, setImportDept] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<RestaurantImportResult | null>(null);
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +91,73 @@ export default function RestaurantPage() {
     setItems(i);
     setSections(sec);
     setLoading(false);
+  }
+
+  async function handleDownloadTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const res = await fetch("/api/export/restaurant-template", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? "تعذّر تنزيل القالب");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "قالب منصرف المطعم.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast("نُزّل القالب");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر التنزيل", "error");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
+  function openImport() {
+    setImportFile(null);
+    setImportDate(new Date().toISOString().slice(0, 10));
+    setImportDept(settings.departments[0]?.name ?? "");
+    setImportResult(null);
+    setShowImport(true);
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) { showToast("أرفق الملف المُعبَّأ", "error"); return; }
+    if (!importDept) { showToast("اختر القسم", "error"); return; }
+    if (!importDate) { showToast("أدخل تاريخ الصرف", "error"); return; }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const form = new FormData();
+      form.append("file", importFile);
+      form.append("dispenseDate", importDate);
+      form.append("departmentName", importDept);
+      const res = await fetch("/api/restaurant/import", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "تعذّر الاستيراد");
+      setImportResult(json as RestaurantImportResult);
+      showToast(`سُجّلت ${json.created} عملية منصرف`);
+      load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر الاستيراد", "error");
+    } finally {
+      setImporting(false);
+    }
   }
 
   /** صرف المطعم: ما وُسم وجهته «المطعم» صراحةً عند التسجيل.
@@ -136,19 +221,23 @@ export default function RestaurantPage() {
           </p>
         </div>
         {canDispense && (
-          <Link href="/admin/costs/outgoing">
-            <Button>
-              <Plus size={16} /> تسجيل منصرف
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" loading={downloadingTemplate} onClick={handleDownloadTemplate}>
+              <FileSpreadsheet size={16} /> تنزيل قالب الإكسل
             </Button>
-          </Link>
+            <Button onClick={openImport}>
+              <Upload size={16} /> رفع الملف الممتلئ
+            </Button>
+          </div>
         )}
       </div>
 
       <div className="flex items-start gap-2.5 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-xs text-orange-800 leading-relaxed">
         <Info size={15} className="shrink-0 mt-0.5" />
         <p>
-          تكلفة المطعم = ما صُرف من الخامات على أقسامه. يُسجَّل الصرف <strong>في أي وقت</strong> من صفحة
-          المنصرف، ويُجمَّع هنا شهرياً. وأصناف قائمة المطعم تُحدَّد من
+          تكلفة المطعم = ما صُرف من الخامات على أقسامه. يُسجَّل الصرف بتنزيل القالب وتعبئة
+          الكمية المصروفة لكل صنف ثم رفعه — فيُسجَّل كل صف بكمية دفعة واحدة، ويُجمَّع هنا شهرياً.
+          وأصناف قائمة المطعم تُحدَّد من
           <Link href="/admin/food" className="underline mx-1">منتجات البيع ← مبيعات المطعم</Link>.
         </p>
       </div>
@@ -328,6 +417,58 @@ export default function RestaurantPage() {
           )}
         </>
       )}
+
+      {/* رفع ملف منصرف المطعم الممتلئ */}
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="رفع ملف منصرف المطعم">
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            نزّل القالب أولاً وعبّئ عمود «الكمية المصروفة» للأصناف التي صُرفت — اترك الباقي فارغاً،
+            ثم ارفع نفس الملف هنا. كل صف بكمية يصير عملية منصرف بتاريخ وقسم واحد لكل الملف.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="تاريخ الصرف" type="date" required value={importDate} onChange={(e) => setImportDate(e.target.value)} />
+            <Select label="القسم" required value={importDept} onChange={(e) => setImportDept(e.target.value)}>
+              {settings.departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">الملف المُعبَّأ</label>
+            <input type="file" accept=".xlsx"
+              onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 file:ml-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-[#EEF1F7] file:text-[#1C2D50] file:text-xs file:font-semibold" />
+          </div>
+
+          {importResult && (
+            <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+              <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle2 size={14} /> سُجّلت {importResult.created} عملية منصرف
+              </p>
+              {importResult.skippedEmpty > 0 && (
+                <p className="text-xs text-slate-500">{importResult.skippedEmpty} صنف بلا كمية — تُجوهل بلا صرف له</p>
+              )}
+              {importResult.errors.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+                    <AlertTriangle size={13} /> {importResult.errors.length} صف لم يُسجَّل
+                  </p>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {importResult.errors.map((e, i) => (
+                      <p key={i} className="text-[11px] text-red-600">
+                        صف {e.row} ({e.barcode || "بلا باركود"}): {e.message}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowImport(false)}>إغلاق</Button>
+            <Button onClick={handleImportSubmit} loading={importing}>رفع وتسجيل</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

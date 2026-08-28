@@ -752,3 +752,56 @@ export async function buildBalanceWorkbook(db: Firestore, includeValue: boolean)
 
   return wb;
 }
+
+/* ═══ قالب استيراد منصرف المطعم — يُملأ خارجاً ثم يُرفع فيُقرأ آلياً ═══
+   عمود «الباركود» هو مفتاح المطابقة عند الاستيراد، فلا يُحذف ولا يُعدَّل. */
+
+export const RESTAURANT_TEMPLATE_HEADERS = ["الباركود", "الاسم", "الوحدة", "الكمية المصروفة"];
+
+export async function buildRestaurantTemplateWorkbook(db: Firestore): Promise<ExcelJS.Workbook> {
+  const [itemsSnap, sectionsSnap] = await Promise.all([
+    db.collection("cost_items").get(),
+    db.collection("sales_sections").where("channel", "==", "restaurant").get(),
+  ]);
+  const restaurantSectionIds = new Set(sectionsSnap.docs.map((d) => d.id));
+  const items = itemsSnap.docs
+    .map((d) => {
+      const e = d.data() as Record<string, unknown>;
+      return { id: d.id, name: (e.name as string) ?? "", unit: (e.unit as string) ?? "", salesSections: (e.salesSections as string[]) ?? [] };
+    })
+    .filter((it) => it.salesSections.some((s) => restaurantSectionIds.has(s)))
+    .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+  const cols = [
+    { label: "الباركود", width: 14 },
+    { label: "الاسم", width: 30 },
+    { label: "الوحدة", width: 10 },
+    { label: "الكمية المصروفة", width: 16 },
+  ];
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "الفريج لإدارة الفعاليات";
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet("منصرف المطعم", { views: [{ rightToLeft: true }] });
+  ws.columns = cols.map((c) => ({ width: c.width }));
+  writeHeader(ws, "قالب منصرف المطعم", `${items.length} صنف — املأ عمود «الكمية المصروفة» فقط ثم ارفع الملف كما هو`, cols.length);
+  const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
+
+  for (const it of items) {
+    ws.addRow([it.id, it.name, it.unit, null]);
+  }
+  const lastRow = headerRow + items.length;
+  if (items.length > 0) {
+    ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastRow, column: cols.length } };
+    // عمود الكمية يبقى فارغاً بالتصميم — يُدخله من يملأ الملف
+    for (let r = headerRow + 1; r <= lastRow; r++) {
+      ws.getCell(r, 4).numFmt = "0.###";
+    }
+  } else {
+    ws.addRow(["لا توجد أصناف مضمومة لقسم مطعم بعد"]).font = { color: { argb: "FF94A3B8" }, italic: true };
+  }
+  ws.views = [{ rightToLeft: true, state: "frozen", ySplit: headerRow }];
+
+  return wb;
+}
