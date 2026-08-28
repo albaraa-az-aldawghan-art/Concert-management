@@ -361,10 +361,23 @@ const permissionIcons: Record<string, React.ReactNode> = {
   employees:        <UserRound size={17} />,
   costs:            <Barcode size={17} />,
   profitability:    <TrendingUp size={17} />,
+  contracts:        <FileSignature size={17} />,
+  restaurant:        <UtensilsCrossed size={17} />,
+  packages:         <Boxes size={17} />,
 };
 
+/** أقسام «التكاليف» الفرعية — لا تظهر لدور مخصص إلا بصلاحية عرضها هي نفسها،
+ *  فمن يملك «الإنتاج» وحده لا يرى «الوارد» إن لم يُمنحه صراحةً */
+const COSTS_SUB_NAV: { label: string; href: string; icon: React.ReactNode; feature: string }[] = [
+  { label: "الوارد",        href: "/admin/costs/incoming",   icon: <PackagePlus size={15} />,   feature: "in_view" },
+  { label: "الإنتاج",       href: "/admin/costs/production", icon: <FlaskConical size={15} />,  feature: "prod_view" },
+  { label: "المنصرف",       href: "/admin/costs/outgoing",   icon: <PackageMinus size={15} />,  feature: "out_view" },
+  { label: "التالف",        href: "/admin/costs/damage",     icon: <AlertTriangle size={15} />, feature: "dmg_view" },
+  { label: "رصيد الأصناف",  href: "/admin/costs/balance",    icon: <Scale size={15} />,          feature: "bal_view" },
+];
+
 export function Sidebar() {
-  const { appUser, customRole, can } = useAuth();
+  const { appUser, customRole, can, feat } = useAuth();
   const { settings } = useSystem();
   const pathname    = usePathname();
   const router      = useRouter();
@@ -375,12 +388,21 @@ export function Sidebar() {
     appUser?.role === "custom"
       ? [
           // settings is appended statically below (password change is universal)
-          ...PERMISSION_PAGES.filter((p) => p.key !== "settings" && can(p.key)).map((p) => ({
-            label: p.label,
-            href: p.href,
-            icon: permissionIcons[p.key],
-          })),
-          { label: "الإعدادات", href: "/settings", icon: <Settings size={17} /> },
+          ...PERMISSION_PAGES.filter((p) => p.key !== "settings" && can(p.key)).map((p) => {
+            const item = { label: p.label, href: p.href, icon: permissionIcons[p.key] };
+            if (p.key !== "costs") return item;
+            // صفحة التكاليف وحدها فيها صفحات فرعية بروابط مستقلة — تُبنى هنا
+            // بلا تكرار للقائمة الثابتة (adminNav) كي لا يفترقا لاحقاً
+            const children = COSTS_SUB_NAV.filter((c) => feat("costs", c.feature))
+              .map((c) => ({ label: c.label, href: c.href, icon: c.icon }));
+            return children.length > 0 ? { ...item, children } : item;
+          }),
+          {
+            label: "الإعدادات", href: "/settings", icon: <Settings size={17} />,
+            ...(feat("settings", "control")
+              ? { children: [{ label: "مركز التحكم", href: "/admin/control", icon: <SlidersHorizontal size={15} /> }] }
+              : {}),
+          },
         ]
       : navByRole[appUser?.role ?? "employee"] ?? [];
 
