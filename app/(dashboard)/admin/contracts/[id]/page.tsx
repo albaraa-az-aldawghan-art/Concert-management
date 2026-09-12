@@ -153,6 +153,7 @@ export default function ContractDetailPage() {
   const [month, setMonth] = useState(monthOf(todayISO()));
   const [data, setData] = useState<ContractMonth | null>(null);
   const [loading, setLoading] = useState(true);
+  const [monthLoading, setMonthLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   /* ── مسودّة اليوم ── */
@@ -206,11 +207,14 @@ export default function ContractDetailPage() {
   }
 
   async function loadMonth() {
-    if (!fx.view) return;
+    if (!fx.view) { setMonthLoading(false); return; }
+    setMonthLoading(true);
     try {
       setData(await getContractMonth(id, month));
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر تحميل الشهر", "error");
+    } finally {
+      setMonthLoading(false);
     }
   }
 
@@ -239,8 +243,13 @@ export default function ContractDetailPage() {
   /* ملء المسودّة من يوم مسجَّل، أو تعبئتها بكل بنود العقد ليوم جديد —
      فلا يُضغَط + على كل صنف من جديد كل يوم. «المتبقي» يبدأ برصيد أول
      اليوم نفسه لا صفراً، وإلا ظهر المباع كأن كل الرصيد بيع قبل أن
-     يلمس أحد رقماً. */
+     يلمس أحد رقماً.
+     ينتظر اكتمال تحميل الشهر أولاً: قبل وصول البيانات لا يُعرف هل
+     لهذا التاريخ يوم محفوظ، فيُظَنّ كل يوم جديداً وتُعبَّأ كل البنود —
+     ثم يصل الشهر فيتّضح أن له يوماً محفوظاً، فيُستبدَل الكل بسطوره
+     القليلة: وميض مربك من عشرات الأصناف إلى اثنين. */
   useEffect(() => {
+    if (monthLoading) return;
     const day = data?.days.find((d) => d.date === date);
     if (day) {
       setLines(day.lines.map((l) => ({
@@ -259,7 +268,7 @@ export default function ContractDetailPage() {
       setNotes("");
       setCustody(String(contract?.ledger?.defaultCustody ?? 500));
     }
-  }, [date, data, contract?.ledger?.defaultCustody, orderedBarcodes, openingMap]);
+  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, orderedBarcodes, openingMap]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -524,7 +533,11 @@ export default function ContractDetailPage() {
         )}
 
         {/* سطور اليوم */}
-        {lines.length === 0 ? (
+        {monthLoading ? (
+          <div className="flex justify-center py-6">
+            <div className="w-5 h-5 rounded-full border-2 border-[#1C2D50] border-t-transparent animate-spin" />
+          </div>
+        ) : lines.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-6">لا أصناف لهذا اليوم بعد</p>
         ) : (
           <div className="overflow-x-auto -mx-1 px-1">
