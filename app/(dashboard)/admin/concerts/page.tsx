@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { SALES_COLUMNS } from "@/lib/server/export-columns";
 import { ConfirmModal } from "@/components/ui/modal";
+import { SortHeader, RangeFilter, TextFilter, inRange } from "@/components/ui/list-filters";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import {
@@ -23,6 +24,7 @@ import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusCol
 type StatusFilter = ConcertStatus4 | "all";
 type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
+type SortKey       = "number" | "name" | "date" | "venue" | "status" | "team";
 
 const PAGE_SIZE = 10;
 
@@ -76,10 +78,19 @@ export default function AdminConcertsPage() {
   const [dateFrom, setDateFrom]       = useState("");
   const [dateTo, setDateTo]           = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [venueFilter, setVenueFilter] = useState("");
+  const [teamRange, setTeamRange]     = useState({ min: "", max: "" });
+  const [sortKey, setSortKey]         = useState<SortKey | null>(null);
+  const [sortDir, setSortDir]         = useState<"asc" | "desc">("asc");
   const [page, setPage]               = useState(1);
 
   useEffect(() => { loadConcerts(); }, []);
-  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery]);
+  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery, venueFilter, teamRange]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   async function loadConcerts() {
     setLoading(true);
@@ -138,13 +149,31 @@ export default function AdminConcertsPage() {
     return false;
   }
 
+  const teamSize = (c: Concert) => (c.supervisorIds ?? []).length + (c.employeeIds ?? []).length;
+
   const filtered = dateFiltered
     .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
-    .filter(passesSearch);
+    .filter(passesSearch)
+    .filter((c) => !venueFilter.trim() || (c.venueName ?? c.location?.address ?? "").includes(venueFilter.trim()))
+    .filter((c) => inRange(teamSize(c), teamRange.min, teamRange.max));
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const SORT_VAL: Record<SortKey, (c: Concert) => string | number> = {
+    number: (c) => c.concertNumber ?? -1,
+    name: (c) => c.name,
+    date: (c) => toDateStr(dateField === "createdAt" ? c.createdAt : c.date),
+    venue: (c) => c.venueName ?? c.location?.address ?? "",
+    status: (c) => statusLabel(c.status),
+    team: (c) => teamSize(c),
+  };
+  const sorted = sortKey ? [...filtered].sort((a, b) => {
+    const av = SORT_VAL[sortKey](a), bv = SORT_VAL[sortKey](b);
+    const cmp = typeof av === "string" ? av.localeCompare(bv as string, "ar") : (av as number) - (bv as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  }) : filtered;
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (loading) {
     return (
@@ -322,7 +351,7 @@ export default function AdminConcertsPage() {
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
             <p>لا توجد حفلات تطابق الفلاتر المحددة</p>
             <button
-              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); }}
+              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); setVenueFilter(""); setTeamRange({ min: "", max: "" }); }}
               className="mt-2 text-sm text-[#1C2D50] hover:underline"
             >
               مسح جميع الفلاتر
@@ -388,10 +417,31 @@ export default function AdminConcertsPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b-2 border-slate-200">
-                    {["#", "الحفلة", dateField === "createdAt" ? "تاريخ الإنشاء" : "تاريخ الحفلة", "المكان", "الحالة", "الفريق", ""].map((h) => (
-                      <th key={h} className="text-right text-xs font-semibold text-slate-500 pb-3 px-3">{h}</th>
-                    ))}
+                  <tr className="border-b border-slate-200">
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="#" sortKeyName="number" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الحفلة" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3">
+                      <SortHeader label={dateField === "createdAt" ? "تاريخ الإنشاء" : "تاريخ الحفلة"} sortKeyName="date" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    </th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المكان" sortKeyName="venue" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الحالة" sortKeyName="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الفريق" sortKeyName="team" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="pb-3 px-3"></th>
+                  </tr>
+                  {/* صف الفلاتر — تحت رؤوس الأعمدة مباشرة */}
+                  <tr className="border-b-2 border-slate-200 bg-slate-50/70">
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3">
+                      <TextFilter value={venueFilter} onChange={setVenueFilter} placeholder="فلترة بالمكان..." />
+                    </td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={teamRange.min} max={teamRange.max}
+                        onMin={(v) => setTeamRange((r) => ({ ...r, min: v }))} onMax={(v) => setTeamRange((r) => ({ ...r, max: v }))} />
+                    </td>
+                    <td className="py-2 px-3"></td>
                   </tr>
                 </thead>
                 <tbody>

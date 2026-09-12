@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
+import { SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -18,6 +19,28 @@ function calcHallCost(c: Concert): number {
   if (c.hallCostType === "percentage") return (c.price ?? 0) * c.hallCostValue / 100;
   return c.hallCostValue;
 }
+
+/** كل الأرقام المشتقّة لحفلة — مصدر واحد للفلترة والفرز والعرض معاً */
+function metricsOf(c: Concert) {
+  const hall = calcHallCost(c);
+  const price = c.price ?? 0;
+  const collected = c.deposit ?? 0;
+  const remaining = price - collected;
+  const transport = c.transportCost ?? 0;
+  const external = c.externalItemsCost ?? 0;
+  const labor = c.laborCost ?? 0;
+  const other = c.otherExpensesCost ?? 0;
+  const total = hall + transport + external + labor + other;
+  return { hall, price, collected, remaining, transport, external, labor, other, total };
+}
+
+const emptyRanges = {
+  priceMin: "", priceMax: "", hallMin: "", hallMax: "", transportMin: "", transportMax: "",
+  externalMin: "", externalMax: "", laborMin: "", laborMax: "", totalMin: "", totalMax: "",
+  collectedMin: "", collectedMax: "", remainingMin: "", remainingMax: "",
+};
+
+type SortKey = "name" | "date" | "status" | "price" | "hall" | "transport" | "external" | "labor" | "total" | "collected" | "remaining";
 
 /* ── local date helpers (avoid UTC shift bug) ── */
 function localStr(d: Date): string {
@@ -81,13 +104,21 @@ export default function FinancesPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [ranges, setRanges] = useState(emptyRanges);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     getConcerts().then((data) => { setConcerts(data); setLoading(false); });
   }, []);
 
-  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery]);
+  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery, ranges]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   const today                    = localStr(new Date());
   const [weekStart, weekEnd]     = getWeekBounds();
@@ -129,7 +160,41 @@ export default function FinancesPage() {
   const financial = dateFiltered.filter((c) => normalizeStatus(c.status) !== "cancelled");
   const filtered = financial
     .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
-    .filter(passesSearch);
+    .filter(passesSearch)
+    .filter((c) => {
+      const m = metricsOf(c);
+      if (!inRange(m.price, ranges.priceMin, ranges.priceMax)) return false;
+      if (!inRange(m.hall, ranges.hallMin, ranges.hallMax)) return false;
+      if (!inRange(m.transport, ranges.transportMin, ranges.transportMax)) return false;
+      if (!inRange(m.external, ranges.externalMin, ranges.externalMax)) return false;
+      if (!inRange(m.labor, ranges.laborMin, ranges.laborMax)) return false;
+      if (!inRange(m.total, ranges.totalMin, ranges.totalMax)) return false;
+      if (!inRange(m.collected, ranges.collectedMin, ranges.collectedMax)) return false;
+      if (!inRange(m.remaining, ranges.remainingMin, ranges.remainingMax)) return false;
+      return true;
+    });
+
+  const SORT_VAL: Record<SortKey, (c: Concert) => string | number> = {
+    name: (c) => c.name,
+    date: (c) => toLocalDateStr(dateField === "createdAt" ? c.createdAt : c.date),
+    status: (c) => statusLabel(c.status),
+    price: (c) => metricsOf(c).price,
+    hall: (c) => metricsOf(c).hall,
+    transport: (c) => metricsOf(c).transport,
+    external: (c) => metricsOf(c).external,
+    labor: (c) => metricsOf(c).labor,
+    total: (c) => metricsOf(c).total,
+    collected: (c) => metricsOf(c).collected,
+    remaining: (c) => metricsOf(c).remaining,
+  };
+  const sorted = sortKey ? [...filtered].sort((a, b) => {
+    const av = SORT_VAL[sortKey](a), bv = SORT_VAL[sortKey](b);
+    const cmp = typeof av === "string" ? av.localeCompare(bv as string, "ar") : (av as number) - (bv as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  }) : filtered;
+
+  const hasActiveFilters = Object.values(ranges).some((v) => v !== "");
+  function clearRangeFilters() { setRanges(emptyRanges); }
 
   const totalRevenue   = filtered.reduce((s, c) => s + (c.price ?? 0), 0);
   const totalCollected = filtered.reduce((s, c) => s + (c.deposit ?? 0), 0);
@@ -143,9 +208,9 @@ export default function FinancesPage() {
   const netRevenue     = totalRevenue - totalAllCosts;
   const rate           = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (loading) {
     return (
@@ -187,6 +252,8 @@ export default function FinancesPage() {
           <button onClick={() => setSearchQuery("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
         )}
       </div>
+
+      <ClearFiltersButton show={hasActiveFilters} onClear={clearRangeFilters} />
 
       {/* Date Filter */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
@@ -430,7 +497,7 @@ export default function FinancesPage() {
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
             <p>لا توجد حفلات تطابق الفلاتر المحددة</p>
             <button
-              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); }}
+              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); clearRangeFilters(); }}
               className="mt-2 text-sm text-[#1C2D50] hover:underline"
             >
               مسح جميع الفلاتر
@@ -495,10 +562,58 @@ export default function FinancesPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b-2 border-slate-200">
-                    {["العميل", dateField === "createdAt" ? "تاريخ الإنشاء" : "تاريخ الحفلة", "الحالة", "السعر", "القاعة", "النقل", "مواد خارجية", "عمالة", "مجموع التكاليف", "المحصَّل", "المتبقي"].map((h) => (
-                      <th key={h} className="text-right text-xs font-semibold text-slate-500 pb-3 px-3">{h}</th>
-                    ))}
+                  <tr className="border-b border-slate-200">
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="العميل" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3">
+                      <SortHeader label={dateField === "createdAt" ? "تاريخ الإنشاء" : "تاريخ الحفلة"} sortKeyName="date" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    </th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الحالة" sortKeyName="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="السعر" sortKeyName="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="القاعة" sortKeyName="hall" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="النقل" sortKeyName="transport" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="مواد خارجية" sortKeyName="external" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="عمالة" sortKeyName="labor" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="مجموع التكاليف" sortKeyName="total" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المحصَّل" sortKeyName="collected" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المتبقي" sortKeyName="remaining" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  </tr>
+                  {/* صف الفلاتر — تحت رؤوس الأعمدة مباشرة */}
+                  <tr className="border-b-2 border-slate-200 bg-slate-50/70">
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3"></td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.priceMin} max={ranges.priceMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, priceMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, priceMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.hallMin} max={ranges.hallMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, hallMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, hallMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.transportMin} max={ranges.transportMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, transportMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, transportMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.externalMin} max={ranges.externalMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, externalMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, externalMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.laborMin} max={ranges.laborMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, laborMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, laborMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.totalMin} max={ranges.totalMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, totalMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, totalMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.collectedMin} max={ranges.collectedMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, collectedMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, collectedMax: v }))} />
+                    </td>
+                    <td className="py-2 px-3">
+                      <RangeFilter min={ranges.remainingMin} max={ranges.remainingMax}
+                        onMin={(v) => setRanges((r) => ({ ...r, remainingMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, remainingMax: v }))} />
+                    </td>
                   </tr>
                 </thead>
                 <tbody>

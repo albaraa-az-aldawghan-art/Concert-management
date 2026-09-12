@@ -8,9 +8,9 @@ import { auth } from "@/lib/firebase";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SearchBox, Pagination } from "@/components/ui/list-filters";
+import { SearchBox, Pagination, SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem } from "@/types";
-import { Scale, FileSpreadsheet, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
+import { Scale, FileSpreadsheet } from "lucide-react";
 
 const PAGE_SIZE = 50;
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -41,25 +41,6 @@ function rowOf(item: CostItem): Row {
 }
 
 const emptyRanges = { inMin: "", inMax: "", outMin: "", outMax: "", balMin: "", balMax: "", priceMin: "", priceMax: "", valueMin: "", valueMax: "" };
-
-function inRange(val: number, min: string, max: string): boolean {
-  if (min !== "" && val < parseFloat(min)) return false;
-  if (max !== "" && val > parseFloat(max)) return false;
-  return true;
-}
-
-/** حقلا من/إلى مضغوطان لعمود رقمي واحد */
-function RangeFilter({ min, max, onMin, onMax }: { min: string; max: string; onMin: (v: string) => void; onMax: (v: string) => void }) {
-  return (
-    <div className="flex items-center gap-1">
-      <input type="number" value={min} onChange={(e) => onMin(e.target.value)} placeholder="من"
-        className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
-      <span className="text-slate-300 text-[10px]">–</span>
-      <input type="number" value={max} onChange={(e) => onMax(e.target.value)} placeholder="إلى"
-        className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
-    </div>
-  );
-}
 
 export default function CostsBalancePage() {
   const { appUser, can, feat } = useAuth();
@@ -130,17 +111,6 @@ export default function CostsBalancePage() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  function SortHeader({ label, sortKeyName }: { label: string; sortKeyName: SortKey }) {
-    const active = sortKey === sortKeyName;
-    return (
-      <button type="button" onClick={() => toggleSort(sortKeyName)}
-        className={`flex items-center gap-1 font-semibold transition-colors ${active ? "text-[#1C2D50]" : "hover:text-slate-700"}`}>
-        {label}
-        {active ? (sortDir === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronsUpDown size={12} className="opacity-30" />}
-      </button>
-    );
-  }
-
   const hasActiveFilters = kindFilter !== "" || unitFilter !== "" || Object.values(ranges).some((v) => v !== "");
 
   function clearFilters() {
@@ -198,11 +168,7 @@ export default function CostsBalancePage() {
         <div className="max-w-xs flex-1">
           <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالاسم أو الباركود..." />
         </div>
-        {hasActiveFilters && (
-          <button onClick={clearFilters} className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors w-fit">
-            <X size={13} /> مسح الفلاتر
-          </button>
-        )}
+        <ClearFiltersButton show={hasActiveFilters} onClear={clearFilters} />
       </div>
 
       {loading ? (
@@ -219,15 +185,15 @@ export default function CostsBalancePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
-                <th className="px-4 py-3"><SortHeader label="الصنف" sortKeyName="name" /></th>
+                <th className="px-4 py-3"><SortHeader label="الصنف" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                 <th className="px-4 py-3 font-semibold">الباركود</th>
-                <th className="px-4 py-3"><SortHeader label="النوع" sortKeyName="kind" /></th>
-                <th className="px-4 py-3"><SortHeader label="الوارد" sortKeyName="in" /></th>
-                <th className="px-4 py-3"><SortHeader label="المنصرف" sortKeyName="out" /></th>
-                <th className="px-4 py-3"><SortHeader label="الرصيد" sortKeyName="balance" /></th>
-                <th className="px-4 py-3"><SortHeader label="الوحدة" sortKeyName="unit" /></th>
-                {showValue && <th className="px-4 py-3"><SortHeader label="متوسط السعر" sortKeyName="price" /></th>}
-                {showValue && <th className="px-4 py-3"><SortHeader label="القيمة" sortKeyName="value" /></th>}
+                <th className="px-4 py-3"><SortHeader label="النوع" sortKeyName="kind" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                <th className="px-4 py-3"><SortHeader label="الوارد" sortKeyName="in" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                <th className="px-4 py-3"><SortHeader label="المنصرف" sortKeyName="out" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                <th className="px-4 py-3"><SortHeader label="الرصيد" sortKeyName="balance" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                <th className="px-4 py-3"><SortHeader label="الوحدة" sortKeyName="unit" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                {showValue && <th className="px-4 py-3"><SortHeader label="متوسط السعر" sortKeyName="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>}
+                {showValue && <th className="px-4 py-3"><SortHeader label="القيمة" sortKeyName="value" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>}
               </tr>
               {/* صف الفلاتر — تحت رؤوس الأعمدة مباشرة، كل فلتر تحت عموده */}
               <tr className="border-b border-slate-100 bg-slate-50/70">

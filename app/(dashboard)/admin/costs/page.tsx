@@ -24,7 +24,7 @@ import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { COSTS_COLUMNS } from "@/lib/server/export-columns";
 import { CameraScanModal } from "@/components/ui/camera-scan-modal";
-import { SearchBox, Pagination } from "@/components/ui/list-filters";
+import { SearchBox, Pagination, SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem, CostSettings, CostDepartment, SalesSection } from "@/types";
 import {
   Plus, Barcode, Pencil, Trash2, Printer, SlidersHorizontal, X, Upload, Package, Camera, FileSpreadsheet,
@@ -40,6 +40,12 @@ function fmtDate(d?: string | null): string {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const PAGE_SIZE = 50;
+
+function kindOf(item: CostItem): "raw" | "produced" | "sale" {
+  return item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
+}
+
+type SortKey = "name" | "kind" | "unit" | "balance";
 
 function ItemRow({
   item,
@@ -67,7 +73,7 @@ function ItemRow({
 }) {
   const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
   const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
-  const kind = item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
+  const kind = kindOf(item);
   const kindClass = kind === "produced" ? "bg-violet-50 text-violet-700" : kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700";
   return (
     <tr className="border-b border-slate-100 last:border-0 bg-white">
@@ -167,6 +173,11 @@ export default function AdminCostsPage() {
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<"" | "raw" | "produced" | "sale">("");
+  const [unitFilter, setUnitFilter] = useState("");
+  const [balRange, setBalRange] = useState({ min: "", max: "" });
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
 
@@ -193,7 +204,12 @@ export default function AdminCostsPage() {
   const [deptInput, setDeptInput] = useState("");
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, kindFilter, unitFilter, balRange]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   async function load() {
     setLoading(true);
@@ -236,7 +252,7 @@ export default function AdminCostsPage() {
     setForm({
       name: item.name, unit: item.unit, barcodeMode: "generate", barcode: "",
       productionDate: item.productionDate ?? "", expiryDate: item.expiryDate ?? "",
-      kind: item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw"),
+      kind: kindOf(item),
     });
     setSaleSectionIds(item.salesSections ?? []);
     const prices: Record<string, string> = {};
@@ -376,18 +392,44 @@ export default function AdminCostsPage() {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 
+  const unitOptions = [...new Set(items.map((i) => i.unit))].sort((a, b) => a.localeCompare(b, "ar"));
+
   const q = search.trim();
-  const filtered = items.filter((i) => !q || i.name.includes(q) || i.id.includes(q));
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const filtered = items.filter((i) => {
+    if (q && !i.name.includes(q) && !i.id.includes(q)) return false;
+    if (kindFilter && kindOf(i) !== kindFilter) return false;
+    if (unitFilter && i.unit !== unitFilter) return false;
+    if (!inRange((i.totalIn ?? 0) - (i.totalOut ?? 0), balRange.min, balRange.max)) return false;
+    return true;
+  });
+
+  const SORT_VAL: Record<SortKey, (i: CostItem) => string | number> = {
+    name: (i) => i.name, kind: (i) => kindOf(i), unit: (i) => i.unit,
+    balance: (i) => (i.totalIn ?? 0) - (i.totalOut ?? 0),
+  };
+  const sorted = sortKey ? [...filtered].sort((a, b) => {
+    const av = SORT_VAL[sortKey](a), bv = SORT_VAL[sortKey](b);
+    const cmp = typeof av === "string" ? av.localeCompare(bv as string, "ar") : (av as number) - (bv as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  }) : filtered;
+
+  const hasActiveFilters = kindFilter !== "" || unitFilter !== "" || balRange.min !== "" || balRange.max !== "";
+  function clearFilters() {
+    setKindFilter(""); setUnitFilter(""); setBalRange({ min: "", max: "" });
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800">أصناف التكاليف</h2>
-          <p className="text-sm text-slate-500">{items.length} صنف مسجّل</p>
+          <p className="text-sm text-slate-500">
+            {sorted.length === items.length ? `${items.length} صنف مسجّل` : `${sorted.length} من ${items.length} صنف`}
+          </p>
         </div>
         {/* صلاحية مستقلة: رؤية الأصناف لا تعني حقّ إخراجها ملفاً */}
         {canExport && (
@@ -418,8 +460,11 @@ export default function AdminCostsPage() {
         )}
       </div>
 
-      <div className="max-w-xs">
-        <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالاسم أو الباركود..." />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="max-w-xs flex-1">
+          <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالاسم أو الباركود..." />
+        </div>
+        <ClearFiltersButton show={hasActiveFilters} onClear={clearFilters} />
       </div>
 
       {loading ? (
@@ -429,7 +474,7 @@ export default function AdminCostsPage() {
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />
-          <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد أصناف تكاليف مسجّلة بعد"}</p>
+          <p>{q || hasActiveFilters ? "لا توجد نتائج مطابقة" : "لا توجد أصناف تكاليف مسجّلة بعد"}</p>
         </Card>
       ) : (
         <>
@@ -437,13 +482,40 @@ export default function AdminCostsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
-                  <th className="px-4 py-2.5 font-semibold">الاسم</th>
-                  <th className="px-4 py-2.5 font-semibold">النوع</th>
-                  <th className="px-4 py-2.5 font-semibold">الوحدة</th>
-                  <th className="px-4 py-2.5 font-semibold">الرصيد</th>
+                  <th className="px-4 py-2.5"><SortHeader label="الاسم" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  <th className="px-4 py-2.5"><SortHeader label="النوع" sortKeyName="kind" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  <th className="px-4 py-2.5"><SortHeader label="الوحدة" sortKeyName="unit" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  <th className="px-4 py-2.5"><SortHeader label="الرصيد" sortKeyName="balance" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5 font-semibold">الباركود</th>
                   {showDates && <th className="px-4 py-2.5 font-semibold">التواريخ</th>}
                   <th className="px-4 py-2.5"></th>
+                </tr>
+                {/* صف الفلاتر — تحت رؤوس الأعمدة مباشرة */}
+                <tr className="border-b border-slate-200 bg-slate-50/70">
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                    <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "" | "raw" | "produced" | "sale")}
+                      className="w-full border border-slate-200 rounded-md px-1.5 py-1 text-[11px] bg-white">
+                      <option value="">الكل</option>
+                      <option value="raw">مادة خام</option>
+                      <option value="produced">منتج مُصنَّع</option>
+                      <option value="sale">منتج بيع</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <select value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}
+                      className="w-full border border-slate-200 rounded-md px-1.5 py-1 text-[11px] bg-white">
+                      <option value="">الكل</option>
+                      {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <RangeFilter min={balRange.min} max={balRange.max}
+                      onMin={(v) => setBalRange((r) => ({ ...r, min: v }))} onMax={(v) => setBalRange((r) => ({ ...r, max: v }))} />
+                  </td>
+                  <td className="px-4 py-2"></td>
+                  {showDates && <td className="px-4 py-2"></td>}
+                  <td className="px-4 py-2"></td>
                 </tr>
               </thead>
               <tbody>

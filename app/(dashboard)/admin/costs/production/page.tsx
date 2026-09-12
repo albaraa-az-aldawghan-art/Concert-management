@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
@@ -100,6 +100,9 @@ function CostsProductionPageInner() {
   /* الوصفات القياسية القابلة للإنتاج — لوحة منفصلة عن سجل العمليات فعلياً */
   const [showRecipes, setShowRecipes] = useState(false);
   const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing">("");
+  const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
+  const [recipeSortDir, setRecipeSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => { setPage(1); }, [search, dateF]);
   useEffect(() => { load(); }, []);
@@ -433,8 +436,26 @@ function CostsProductionPageInner() {
     .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
   const readyCount = allRecipeItems.filter((r) => r.ready).length;
   const needsRecipeCount = allRecipeItems.filter((r) => (r.item.productionRecipe?.length ?? 0) === 0).length;
+
+  const recipeStatus = (r: (typeof allRecipeItems)[number]): "ready" | "short" | "missing" =>
+    (r.item.productionRecipe?.length ?? 0) === 0 ? "missing" : r.ready ? "ready" : "short";
+
   const rq = recipeSearch.trim();
-  const recipeItems = rq ? allRecipeItems.filter((r) => r.item.name.includes(rq)) : allRecipeItems;
+  const recipeFiltered = allRecipeItems
+    .filter((r) => !rq || r.item.name.includes(rq))
+    .filter((r) => !recipeStatusFilter || recipeStatus(r) === recipeStatusFilter);
+
+  const recipeItems = recipeSortKey ? [...recipeFiltered].sort((a, b) => {
+    const av = recipeSortKey === "name" ? a.item.name : recipeStatus(a);
+    const bv = recipeSortKey === "name" ? b.item.name : recipeStatus(b);
+    const cmp = av.localeCompare(bv, "ar");
+    return recipeSortDir === "asc" ? cmp : -cmp;
+  }) : recipeFiltered;
+
+  function toggleRecipeSort(key: "name" | "status") {
+    if (recipeSortKey === key) setRecipeSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setRecipeSortKey(key); setRecipeSortDir("asc"); }
+  }
 
   return (
     <div className="space-y-5">
@@ -475,19 +496,29 @@ function CostsProductionPageInner() {
 
           {showRecipes && (
             <div className="border-t border-slate-200">
-              <div className="p-3 border-b border-slate-200 bg-slate-50">
-                <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
+              <div className="p-3 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="max-w-xs flex-1">
+                  <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
+                </div>
+                <select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing")}
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1C2D50]">
+                  <option value="">كل الحالات</option>
+                  <option value="ready">جاهز للإنتاج</option>
+                  <option value="short">غير متوفر</option>
+                  <option value="missing">يحتاج خلطة</option>
+                </select>
+                <ClearFiltersButton show={!!recipeStatusFilter} onClear={() => setRecipeStatusFilter("")} />
               </div>
               {recipeItems.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-8">لا توجد نتائج مطابقة لبحثك</p>
+                <p className="text-center text-sm text-slate-400 py-8">لا توجد نتائج مطابقة</p>
               ) : (
               <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
-                      <th className="px-4 py-2.5 font-semibold">المُنتَج</th>
+                      <th className="px-4 py-2.5"><SortHeader label="المُنتَج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
-                      <th className="px-4 py-2.5 font-semibold">الحالة</th>
+                      <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>

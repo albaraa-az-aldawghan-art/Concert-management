@@ -1,7 +1,7 @@
 "use client";
 
-/* أدوات القوائم المشتركة: بحث وفلتر تاريخ وترقيم صفحات. */
-import { Search, CalendarDays, ChevronRight, ChevronLeft } from "lucide-react";
+/* أدوات القوائم المشتركة: بحث وفلتر تاريخ وترقيم صفحات وفلترة/فرز الأعمدة. */
+import { Search, CalendarDays, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════
    Shared list controls — the same design language as the concerts
@@ -197,6 +197,63 @@ export function DateFilterBar({
         </p>
       )}
     </div>
+  );
+}
+
+/* ── رأس عمود قابل للفرز — نفس نمط صفحة رصيد الأصناف، معمَّم لأي مفتاح فرز ── */
+export function SortHeader<K extends string>({
+  label, sortKeyName, activeKey, dir, onSort,
+}: {
+  label: string;
+  sortKeyName: K;
+  activeKey: K | null;
+  dir: "asc" | "desc";
+  onSort: (key: K) => void;
+}) {
+  const active = activeKey === sortKeyName;
+  return (
+    <button type="button" onClick={() => onSort(sortKeyName)}
+      className={`flex items-center gap-1 font-semibold transition-colors whitespace-nowrap ${active ? "text-[#1C2D50]" : "hover:text-slate-700"}`}>
+      {label}
+      {active ? (dir === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronsUpDown size={12} className="opacity-30" />}
+    </button>
+  );
+}
+
+/** حقلا من/إلى مضغوطان لعمود رقمي واحد */
+export function RangeFilter({ min, max, onMin, onMax }: { min: string; max: string; onMin: (v: string) => void; onMax: (v: string) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <input type="number" value={min} onChange={(e) => onMin(e.target.value)} placeholder="من"
+        className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
+      <span className="text-slate-300 text-[10px]">–</span>
+      <input type="number" value={max} onChange={(e) => onMax(e.target.value)} placeholder="إلى"
+        className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
+    </div>
+  );
+}
+
+/** فلتر نصّي مضغوط لعمود — نفس مظهر أعمدة الفلترة الأخرى */
+export function TextFilter({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full border border-slate-200 rounded-md px-1.5 py-1 text-[11px] bg-white focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
+  );
+}
+
+export function inRange(val: number, min: string, max: string): boolean {
+  if (min !== "" && val < parseFloat(min)) return false;
+  if (max !== "" && val > parseFloat(max)) return false;
+  return true;
+}
+
+/** زر "مسح الفلاتر" — يظهر فقط لو فيه فلتر فعّال */
+export function ClearFiltersButton({ show, onClear }: { show: boolean; onClear: () => void }) {
+  if (!show) return null;
+  return (
+    <button onClick={onClear} className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors w-fit">
+      <X size={13} /> مسح الفلاتر
+    </button>
   );
 }
 
