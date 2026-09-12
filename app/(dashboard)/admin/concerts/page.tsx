@@ -17,14 +17,14 @@ import { formatDate } from "@/lib/utils";
 import {
   Plus, Music, CalendarDays, Search, Hash,
   Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users, UsersRound,
-  FileSpreadsheet,
+  FileSpreadsheet, Wallet,
 } from "lucide-react";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 
 type StatusFilter = ConcertStatus4 | "all";
 type DateFilter   = "all" | "today" | "week" | "month" | "custom";
 type DateField    = "createdAt" | "date";
-type SortKey       = "number" | "name" | "date" | "venue" | "status" | "team";
+type SortKey       = "number" | "name" | "date" | "venue" | "status" | "team" | "price" | "remaining";
 
 const PAGE_SIZE = 10;
 
@@ -67,6 +67,10 @@ export default function AdminConcertsPage() {
   const canCreate = feat("concerts", "create");
   const canDelete = feat("concerts", "delete");
   const canExport = feat("concerts", "export"); // المدير يملكها دائماً عبر feat
+  /* عمودا المبلغ نفس صلاحية عرضهما في القائمة المالية — بيانات مالية
+     حسّاسة لا تُكشَف لمن لا يراها هناك أصلاً */
+  const showPrice = feat("finances", "f_price");
+  const showRemaining = feat("finances", "f_remaining");
   const [concerts, setConcerts]     = useState<Concert[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showExport, setShowExport] = useState(false);
@@ -152,6 +156,7 @@ export default function AdminConcertsPage() {
   }
 
   const teamSize = (c: Concert) => (c.supervisorIds ?? []).length + (c.employeeIds ?? []).length;
+  const remainingOf = (c: Concert) => (c.price ?? 0) - (c.deposit ?? 0);
 
   const filtered = dateFiltered
     .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
@@ -166,6 +171,8 @@ export default function AdminConcertsPage() {
     venue: (c) => c.venueName ?? c.location?.address ?? "",
     status: (c) => statusLabel(c.status),
     team: (c) => teamSize(c),
+    price: (c) => c.price ?? 0,
+    remaining: (c) => remainingOf(c),
   };
   const sorted = sortKey ? [...filtered].sort((a, b) => {
     const av = SORT_VAL[sortKey](a), bv = SORT_VAL[sortKey](b);
@@ -410,6 +417,18 @@ export default function AdminConcertsPage() {
                     <span className="flex items-center gap-1">
                       <Users size={11} />{(c.supervisorIds ?? []).length} مشرف · {(c.employeeIds ?? []).length} موظف
                     </span>
+                    {(showPrice || showRemaining) && (
+                      <span className="flex items-center gap-1">
+                        <Wallet size={11} />
+                        {showPrice && <span className="font-semibold text-slate-700">{(c.price ?? 0).toLocaleString("en-US")}</span>}
+                        {showPrice && showRemaining && " · "}
+                        {showRemaining && (
+                          <span className={`font-semibold ${remainingOf(c) > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+                            متبقي {remainingOf(c).toLocaleString("en-US")}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -427,6 +446,8 @@ export default function AdminConcertsPage() {
                     </th>
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المكان" sortKeyName="venue" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الحالة" sortKeyName="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    {showPrice && <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المبلغ الكلي" sortKeyName="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>}
+                    {showRemaining && <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المتبقي" sortKeyName="remaining" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>}
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="الفريق" sortKeyName="team" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                     <th className="pb-3 px-3"></th>
                   </tr>
@@ -439,6 +460,8 @@ export default function AdminConcertsPage() {
                       <TextFilter value={venueFilter} onChange={setVenueFilter} placeholder="فلترة بالمكان..." />
                     </td>
                     <td className="py-2 px-3"></td>
+                    {showPrice && <td className="py-2 px-3"></td>}
+                    {showRemaining && <td className="py-2 px-3"></td>}
                     <td className="py-2 px-3">
                       <RangeFilter min={teamRange.min} max={teamRange.max}
                         onMin={(v) => setTeamRange((r) => ({ ...r, min: v }))} onMax={(v) => setTeamRange((r) => ({ ...r, max: v }))} />
@@ -473,6 +496,18 @@ export default function AdminConcertsPage() {
                             {statusLabel(c.status)}
                           </span>
                         </td>
+                        {showPrice && (
+                          <td className="py-3.5 px-3 font-bold text-slate-800 tabular-nums-auto whitespace-nowrap">
+                            {(c.price ?? 0).toLocaleString("en-US")}
+                          </td>
+                        )}
+                        {showRemaining && (
+                          <td className="py-3.5 px-3 tabular-nums-auto whitespace-nowrap">
+                            <span className={`font-bold ${remainingOf(c) > 0 ? "text-orange-600" : "text-emerald-600"}`}>
+                              {remainingOf(c).toLocaleString("en-US")}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-3.5 px-3 text-xs text-slate-500 whitespace-nowrap">
                           {(c.supervisorIds ?? []).length} مشرف · {(c.employeeIds ?? []).length} موظف
                         </td>
@@ -496,7 +531,7 @@ export default function AdminConcertsPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-slate-200 bg-[#EEF1F7]">
-                    <td colSpan={7} className="py-3 px-3 text-xs font-bold text-slate-700">
+                    <td colSpan={7 + (showPrice ? 1 : 0) + (showRemaining ? 1 : 0)} className="py-3 px-3 text-xs font-bold text-slate-700">
                       الإجمالي الكلي: {filtered.length} حفلة
                     </td>
                   </tr>
