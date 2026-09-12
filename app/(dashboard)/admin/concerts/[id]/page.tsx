@@ -1052,6 +1052,13 @@ export default function AdminConcertDetailPage() {
     : "لا صلاحية للإضافة";
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0);
 
+  /* أصناف الأكل بترتيب القسم كما هو معرَّف في الإعدادات، ثم اسم الصنف داخل القسم */
+  const foodCatOrder = new Map(sections.map((c, i) => [c.name, c.order ?? i]));
+  const sortedConcertFood = [...concertFood].sort((a, b) => {
+    const catDiff = (foodCatOrder.get(a.categoryName) ?? 999) - (foodCatOrder.get(b.categoryName) ?? 999);
+    return catDiff !== 0 ? catDiff : a.selectedOption.localeCompare(b.selectedOption, "ar");
+  });
+
   /* المرتبط بحفلات قادمة أخرى — حفلة هذه الصفحة مستثناة كي لا تنافس نفسها */
   const upcomingOtherIds = new Set(
     allConcerts
@@ -1952,54 +1959,65 @@ export default function AdminConcertDetailPage() {
         {concertFood.length === 0 ? (
           <p className="text-sm text-slate-400">لم تتم إضافة أي أصناف أكل لهذه الحفلة</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {concertFood.map((f) => (
-              <div key={f.id} className="flex flex-col justify-between gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3.5 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-500">{f.categoryName}</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{f.selectedOption}</p>
-                    {f.notes && <p className="text-xs text-slate-400 mt-0.5">— {f.notes}</p>}
-                  </div>
-                  {fx.foodDelete && <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1 -m-1">
-                    <Trash2 size={14} />
-                  </button>}
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-orange-100">
-                  {editFoodQtyTarget?.id === f.id ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-slate-500">الكمية:</span>
-                      <input
-                        type="number" min={0} value={editFoodQtyValue}
-                        onChange={(e) => setEditFoodQtyValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
-                        className="w-16 text-sm border border-orange-300 rounded-lg px-2 py-1 text-center bg-white tabular-nums-auto"
-                        autoFocus
-                      />
-                      <button onClick={handleSaveFoodQty} disabled={saving} title="حفظ"
-                        className="w-8 h-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 transition-colors">
-                        <Check size={16} strokeWidth={3} />
-                      </button>
-                      <button onClick={() => setEditFoodQtyTarget(null)} title="إلغاء"
-                        className="w-8 h-8 shrink-0 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-100 hover:text-slate-700 transition-colors">
-                        <X size={16} strokeWidth={3} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-slate-500 font-medium">الكمية: <span className="font-bold text-[#1C2D50]">{f.quantity ?? 0}</span></span>
-                      {fx.foodEditQty && <button
-                        onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
-                        className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
-                        title="تعديل الكمية"
-                      >
-                        <Pencil size={13} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
+                  <th className="py-2 px-2 font-semibold">القسم</th>
+                  <th className="py-2 px-2 font-semibold">الصنف</th>
+                  <th className="py-2 px-2 font-semibold">الكمية</th>
+                  <th className="py-2 px-2 w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedConcertFood.map((f) => (
+                  <tr key={f.id} className="border-b border-slate-50 last:border-0 hover:bg-orange-50/60 transition-colors">
+                    <td className="py-2.5 px-2 text-xs text-slate-500 whitespace-nowrap">{f.categoryName}</td>
+                    <td className="py-2.5 px-2">
+                      <p className="text-sm font-bold text-slate-800">{f.selectedOption}</p>
+                      {f.notes && <p className="text-xs text-slate-400 mt-0.5">— {f.notes}</p>}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      {editFoodQtyTarget?.id === f.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number" min={0} value={editFoodQtyValue}
+                            onChange={(e) => setEditFoodQtyValue(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
+                            className="w-16 text-sm border border-orange-300 rounded-lg px-2 py-1 text-center bg-white tabular-nums-auto"
+                            autoFocus
+                          />
+                          <button onClick={handleSaveFoodQty} disabled={saving} title="حفظ"
+                            className="w-7 h-7 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                            <Check size={14} strokeWidth={3} />
+                          </button>
+                          <button onClick={() => setEditFoodQtyTarget(null)} title="إلغاء"
+                            className="w-7 h-7 shrink-0 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                            <X size={14} strokeWidth={3} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-[#1C2D50] tabular-nums-auto">{f.quantity ?? 0}</span>
+                          {fx.foodEditQty && <button
+                            onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
+                            className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
+                            title="تعديل الكمية"
+                          >
+                            <Pencil size={13} />
+                          </button>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      {fx.foodDelete && <button onClick={() => setDeleteFoodTarget(f)} className="text-slate-300 hover:text-red-500 transition-colors p-1 -m-1">
+                        <Trash2 size={14} />
                       </button>}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
