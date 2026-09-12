@@ -100,12 +100,14 @@ export default function FinancesPage() {
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dateFilter,   setDateFilter]   = useState<DateFilter>("all");
-  const [dateField,    setDateField]    = useState<DateField>("createdAt");
+  // الأساس تاريخ الحفلة نفسه لا تاريخ التسجيل — هذا ما يهمّ التخطيط
+  const [dateField,    setDateField]    = useState<DateField>("date");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [ranges, setRanges] = useState(emptyRanges);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  // ترتيب افتراضي بتاريخ الحفلة تصاعدياً — الأقرب أولاً
+  const [sortKey, setSortKey] = useState<SortKey | null>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
 
