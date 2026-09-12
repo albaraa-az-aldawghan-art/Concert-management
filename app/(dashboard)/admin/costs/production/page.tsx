@@ -6,7 +6,7 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
-  updateProductionRecipe, createCostItemGenerated, getCostSettings,
+  updateProductionRecipe, createCostItemGenerated, updateCostItem, getCostSettings,
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
@@ -272,6 +272,21 @@ function CostsProductionPageInner() {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
       setCreatingOutput(false);
+    }
+  }
+
+  /** تصنيف صنف مُنتَج موجود مسبقاً — من هنا مباشرة بلا فتح صفحة التكاليف */
+  async function quickSetOutputKind(kind: "raw" | "produced" | "sale") {
+    if (!output) return;
+    const prevItems = items, prevOutput = output;
+    setItems((p) => p.map((i) => (i.id === output.id ? { ...i, kind } : i)));
+    setOutput((o) => (o ? { ...o, kind } : o));
+    try {
+      await updateCostItem(output.id, { kind });
+    } catch (err) {
+      setItems(prevItems);
+      setOutput(prevOutput);
+      showToast(err instanceof Error ? err.message : "تعذّر تحديث النوع", "error");
     }
   }
 
@@ -704,11 +719,26 @@ function CostsProductionPageInner() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <p className="font-bold text-slate-800 text-sm truncate min-w-0">{output.name}</p>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                      kindOf(output) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(output) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
-                    }`}>
-                      {kindOf(output) === "produced" ? "إنتاج" : kindOf(output) === "sale" ? "منتج بيع" : "خام"}
-                    </span>
+                    {editTarget ? (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                        kindOf(output) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(output) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                      }`}>
+                        {kindOf(output) === "produced" ? "إنتاج" : kindOf(output) === "sale" ? "منتج بيع" : "خام"}
+                      </span>
+                    ) : (
+                      <select
+                        value={kindOf(output)}
+                        onChange={(e) => quickSetOutputKind(e.target.value as "raw" | "produced" | "sale")}
+                        title="نوع الصنف — تصنيف تنظيمي"
+                        className={`text-[9px] font-bold pl-1 pr-1.5 py-0.5 rounded-full shrink-0 border-0 outline-none cursor-pointer ${
+                          kindOf(output) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(output) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                        }`}
+                      >
+                        <option value="raw">خام</option>
+                        <option value="produced">إنتاج</option>
+                        <option value="sale">منتج بيع</option>
+                      </select>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-500">
                     <span className="font-mono">{output.id}</span> · الوحدة: {output.unit}
