@@ -50,6 +50,7 @@ function ItemRow({
   onEdit,
   onDelete,
   onLabel,
+  onQuickKind,
 }: {
   item: CostItem;
   canEdit: boolean;
@@ -61,10 +62,13 @@ function ItemRow({
   onEdit: (i: CostItem) => void;
   onDelete: (i: CostItem) => void;
   onLabel: (i: CostItem) => void;
+  /** تغيير النوع من القائمة مباشرة — بلا فتح نافذة التعديل، لسرعة تصنيف عدد كبير من الأصناف */
+  onQuickKind: (i: CostItem, kind: "raw" | "produced" | "sale") => void;
 }) {
   const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
   const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
   const kind = item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
+  const kindClass = kind === "produced" ? "bg-violet-50 text-violet-700" : kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700";
   return (
     <tr className="border-b border-slate-100 last:border-0 bg-white">
       <td className="px-4 py-2.5 min-w-[10rem]">
@@ -74,13 +78,21 @@ function ItemRow({
         </span>
       </td>
       <td className="px-4 py-2.5">
-        <span
-          className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${
-            kind === "produced" ? "bg-violet-50 text-violet-700" : kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
-          }`}
-        >
-          {kind === "produced" ? "منتج مُصنَّع" : kind === "sale" ? "منتج بيع" : "مادة خام"}
-        </span>
+        {canEdit ? (
+          <select
+            value={kind}
+            onChange={(e) => onQuickKind(item, e.target.value as "raw" | "produced" | "sale")}
+            className={`text-xs pr-2.5 pl-1 py-1 rounded-full font-medium whitespace-nowrap border-0 outline-none cursor-pointer ${kindClass}`}
+          >
+            <option value="raw">مادة خام</option>
+            <option value="produced">منتج مُصنَّع</option>
+            <option value="sale">منتج بيع</option>
+          </select>
+        ) : (
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${kindClass}`}>
+            {kind === "produced" ? "منتج مُصنَّع" : kind === "sale" ? "منتج بيع" : "مادة خام"}
+          </span>
+        )}
       </td>
       <td className="px-4 py-2.5 text-sm text-slate-600 whitespace-nowrap">{item.unit}</td>
       <td className="px-4 py-2.5 tabular-nums-auto whitespace-nowrap">
@@ -195,6 +207,18 @@ export default function AdminCostsPage() {
     setSections(sec);
     setVatRate(vat);
     setLoading(false);
+  }
+
+  /** تصنيف سريع من القائمة — بلا فتح نافذة التعديل، مفيد عند تصنيف عدد كبير من الأصناف */
+  async function quickSetKind(item: CostItem, kind: "raw" | "produced" | "sale") {
+    const prev = items;
+    setItems((p) => p.map((i) => (i.id === item.id ? { ...i, kind } : i)));
+    try {
+      await updateCostItem(item.id, { kind });
+    } catch (err) {
+      setItems(prev);
+      showToast(err instanceof Error ? err.message : "تعذّر تحديث النوع", "error");
+    }
   }
 
   function openAdd() {
@@ -434,6 +458,7 @@ export default function AdminCostsPage() {
                     onEdit={openEdit}
                     onDelete={setDeleteTarget}
                     onLabel={setLabelTarget}
+                    onQuickKind={quickSetKind}
                   />
                 ))}
               </tbody>
