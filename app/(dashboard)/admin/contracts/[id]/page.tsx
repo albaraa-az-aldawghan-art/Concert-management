@@ -89,7 +89,7 @@ function DayLineRow({
       }}
       className={`border-b border-slate-50 bg-white ${row.invalid ? "bg-red-50" : ""}`}
     >
-      <td className="px-1">
+      <td className="px-1 text-center">
         {editable && (
           <button
             {...attributes} {...listeners}
@@ -105,7 +105,7 @@ function DayLineRow({
       <td className="px-2 text-center tabular-nums-auto text-slate-500">{money(row.price)}</td>
       <td className="px-2 text-center tabular-nums-auto text-slate-500">{int(row.opening)}</td>
       {(["supplied", "damaged", "remaining"] as const).map((f) => (
-        <td key={f} className="px-1">
+        <td key={f} className="px-1 text-center">
           <input
             type="number" min="0" inputMode="numeric"
             value={row[f]}
@@ -119,7 +119,7 @@ function DayLineRow({
         {int(row.sold)}
       </td>
       <td className="px-2 text-center tabular-nums-auto font-bold text-[#1C2D50]">{money(row.revenue)}</td>
-      <td className="px-1">
+      <td className="px-1 text-center">
         {editable && (
           <button onClick={onDelete} className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
         )}
