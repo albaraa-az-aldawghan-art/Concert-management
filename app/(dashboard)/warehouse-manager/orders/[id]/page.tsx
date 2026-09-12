@@ -191,9 +191,16 @@ export default function WarehouseOrderSheetPage() {
 
           {/* Materials — grouped internal/external, image-top photo cards */}
           <div className="px-5 py-3">
-            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
-              <Package size={13} className="text-indigo-500" />
-              مواد الحفلة
+            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <Package size={13} className="text-indigo-500" />
+                مواد الحفلة
+              </span>
+              {items.length > 0 && (
+                <span className="text-[11px] font-bold text-[#1C2D50] bg-[#EEF1F7] px-2 py-0.5 rounded-md">
+                  الإجمالي الكلي: {items.reduce((s, it) => s + (it.count ?? 0), 0)}
+                </span>
+              )}
             </p>
             {items.length === 0 ? (
               <p className="text-sm text-slate-400">لا توجد مواد</p>
@@ -205,7 +212,7 @@ export default function WarehouseOrderSheetPage() {
                 ] as const).filter((g) => g.list.length > 0).map((group) => (
                   <div key={group.label} className="avoid-break">
                     <span className="inline-block bg-slate-100 text-slate-600 text-[11px] font-bold px-2.5 py-0.5 rounded-md mb-1.5">
-                      {group.label} ({group.list.length})
+                      {group.label} ({group.list.reduce((s, it) => s + (it.count ?? 0), 0)})
                     </span>
                     <div className="grid grid-cols-6 gap-1.5">
                       {group.list.map((it) => {

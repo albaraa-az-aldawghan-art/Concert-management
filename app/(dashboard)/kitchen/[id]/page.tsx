@@ -205,9 +205,16 @@ export default function KitchenSheetPage() {
 
           {/* Food */}
           <div className="px-5 py-3">
-            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
-              <UtensilsCrossed size={13} className="text-orange-500" />
-              الأقسام والأصناف
+            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <UtensilsCrossed size={13} className="text-orange-500" />
+                الأقسام والأصناف
+              </span>
+              {sortedGroups.length > 0 && (
+                <span className="text-[11px] font-bold text-[#1C2D50] bg-[#EEF1F7] px-2 py-0.5 rounded-md">
+                  الإجمالي الكلي: {food.reduce((s, f) => s + (f.quantity ?? 0), 0)}
+                </span>
+              )}
             </p>
             {sortedGroups.length === 0 ? (
               <p className="text-sm text-slate-400">لا توجد أصناف أكل</p>
