@@ -20,8 +20,13 @@ import { itemBalance, averageCost } from "@/lib/recipes";
 import { CostItem, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import {
   Plus, Trash2, Pencil, X, Search, Package, FlaskConical, Layers,
-  ChevronLeft, Barcode, Check, Info,
+  ChevronLeft, Barcode, Check, Info, Tag,
 } from "lucide-react";
+
+/** وسم النوع كما تعرضه صفحة التكاليف — خام/مُصنَّع/بيع، بلا فلترة */
+function kindOf(i: CostItem): "raw" | "produced" | "sale" {
+  return i.kind ?? ((i.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
+}
 
 export default function SalesProductsPage() {
   const { appUser, can, feat } = useAuth();
@@ -50,7 +55,7 @@ export default function SalesProductsPage() {
   /* نافذة اختيار أصناف القسم */
   const [pickFor, setPickFor] = useState<SalesSection | null>(null);
   const [pickSearch, setPickSearch] = useState("");
-  const [pickKind, setPickKind] = useState<"all" | "produced" | "raw">("all");
+  const [pickKind, setPickKind] = useState<"all" | "produced" | "raw" | "sale">("all");
 
   useEffect(() => { load(); }, []);
 
@@ -135,7 +140,7 @@ export default function SalesProductsPage() {
 
   const q = pickSearch.trim();
   const pickChoices = items
-    .filter((i) => (pickKind === "all" ? true : pickKind === "produced" ? !!i.productionRecipe?.length : !i.productionRecipe?.length))
+    .filter((i) => pickKind === "all" || kindOf(i) === pickKind)
     .filter((i) => !q || i.name.includes(q) || i.id.includes(q))
     .sort((a, b) => a.name.localeCompare(b.name, "ar"));
 
@@ -234,18 +239,16 @@ export default function SalesProductsPage() {
                   <p className="text-xs text-slate-400 mb-3">لا توجد أصناف — أضِفها من التكاليف</p>
                 ) : (
                   <div className="space-y-1 mb-3 max-h-52 overflow-y-auto">
-                    {secItems.map((i) => (
+                    {secItems.map((i) => {
+                      const kind = kindOf(i);
+                      return (
                       <div key={i.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5">
                         <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{i.name}</span>
-                        {i.productionRecipe?.length ? (
-                          <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold shrink-0">
-                            إنتاج
-                          </span>
-                        ) : (
-                          <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-bold shrink-0">
-                            خام
-                          </span>
-                        )}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${
+                          kind === "produced" ? "bg-emerald-100 text-emerald-700" : kind === "sale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"
+                        }`}>
+                          {kind === "produced" ? "إنتاج" : kind === "sale" ? "بيع" : "خام"}
+                        </span>
                         <span className="text-[10px] text-slate-400 tabular-nums-auto shrink-0">
                           {itemBalance(i).toLocaleString("en-US")} {i.unit}
                         </span>
@@ -256,7 +259,8 @@ export default function SalesProductsPage() {
                           </button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -288,6 +292,7 @@ export default function SalesProductsPage() {
             <div className="flex gap-2">
               {([
                 { k: "all", l: "الكل" },
+                { k: "sale", l: "منتجات البيع" },
                 { k: "produced", l: "المُنتَجة" },
                 { k: "raw", l: "الخام" },
               ] as const).map((t) => (
@@ -317,6 +322,7 @@ export default function SalesProductsPage() {
               ) : pickChoices.map((i) => {
                 const inSection = (i.salesSections ?? []).includes(pickFor.id);
                 const otherCount = (i.salesSections ?? []).filter((s) => s !== pickFor.id).length;
+                const kind = kindOf(i);
                 return (
                   <button key={i.id} type="button" onClick={() => toggleItemInSection(i, pickFor)}
                     className="w-full text-right px-3 py-2.5 hover:bg-slate-50 flex items-center gap-2.5">
@@ -328,8 +334,10 @@ export default function SalesProductsPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-800 truncate flex items-center gap-1.5">
                         {i.name}
-                        {i.productionRecipe?.length ? (
+                        {kind === "produced" ? (
                           <FlaskConical size={11} className="text-emerald-600 shrink-0" />
+                        ) : kind === "sale" ? (
+                          <Tag size={11} className="text-amber-600 shrink-0" />
                         ) : (
                           <Package size={11} className="text-slate-400 shrink-0" />
                         )}
