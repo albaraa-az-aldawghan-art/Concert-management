@@ -146,6 +146,9 @@ export async function svcAddOutgoing(
     contractId: string | null; contractName: string | null;
     channel: string | null;
     dispenseDate: string; createdBy: string;
+    /** الجدول اليومي للعقود يُسجِّل ما جرى فعلاً في الميدان، والمستودع
+     *  قد يتأخر توريده عنه — فيتجاوز فحص الرصيد هنا وحده دون بقية القنوات */
+    allowNegativeBalance?: boolean;
   }
 ) {
   /* الوجهة تُتحقَّق قبل فتح المعاملة — قراءات خارجية لا تصحّ داخلها */
@@ -160,7 +163,7 @@ export async function svcAddOutgoing(
     const item = snap.data() as ItemDoc;
 
     const balance = balanceOf(item);
-    if (d.quantity > balance) {
+    if (!d.allowNegativeBalance && d.quantity > balance) {
       throw new ApiError(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
     }
 
@@ -300,7 +303,7 @@ export async function svcSettleOutgoing(
    عُدِّل الرقم صعوداً ونزولاً عاد المخزون وقيمته إلى ما كانا عليه.
 
    لا يستدعيها شيء من المسارات القائمة: أُضيفت للجدول اليومي وحده.  */
-export async function svcAdjustOutgoingQty(db: Firestore, id: string, newQty: number) {
+export async function svcAdjustOutgoingQty(db: Firestore, id: string, newQty: number, allowNegativeBalance = false) {
   if (newQty < 0) throw new ApiError("الكمية لا تقبل قيمة سالبة");
   const entryRef = db.collection("cost_outgoing").doc(id);
 
@@ -327,7 +330,7 @@ export async function svcAdjustOutgoingQty(db: Firestore, id: string, newQty: nu
     let valueDelta: number; // ما يخرج من قيمة المخزون (+) أو يعود إليها (−)
     if (delta > 0) {
       const balance = balanceOf(item);
-      if (delta > balance + 1e-9) {
+      if (!allowNegativeBalance && delta > balance + 1e-9) {
         throw new ApiError(`الكمية المتوفرة من "${item.name}" غير كافية (المتوفر: ${balance} ${item.unit})`);
       }
       valueDelta = r2(avgOf(item) * delta);

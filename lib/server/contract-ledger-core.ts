@@ -207,6 +207,7 @@ export async function svcSaveContractDay(
         channel: "contracts",
         dispenseDate: d.date,
         createdBy: d.uid,
+        allowNegativeBalance: true,
       });
       outgoingId = created.id;
     } else if (outgoingId && p.supplied !== (old?.supplied ?? 0)) {
@@ -217,7 +218,7 @@ export async function svcSaveContractDay(
       } else {
         /* التالف يُصفَّر أولاً كي لا يمنع خفضَ الكمية دونه، ثم يُعاد ضبطه */
         await svcSetOutgoingDamage(db, outgoingId, { damagedQty: 0, reason: "", damageDate: d.date, createdBy: d.uid });
-        await svcAdjustOutgoingQty(db, outgoingId, p.supplied);
+        await svcAdjustOutgoingQty(db, outgoingId, p.supplied, true);
       }
     }
 
