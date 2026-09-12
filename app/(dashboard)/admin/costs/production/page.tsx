@@ -91,6 +91,8 @@ function CostsProductionPageInner() {
   const [units, setUnits] = useState<string[]>([]);
   const [creatingOutput, setCreatingOutput] = useState(false);
   const [newOutputUnit, setNewOutputUnit] = useState("");
+  /** منتج بيع (يُختار للعميل مباشرة) أم إنتاج وسيط (مكوّن يدخل في وصفة أخرى) */
+  const [newOutputKind, setNewOutputKind] = useState<"produced" | "sale">("produced");
   const [creatingInput, setCreatingInput] = useState(false);
   const [newInputUnit, setNewInputUnit] = useState("");
   const [labelTarget, setLabelTarget] = useState<
@@ -130,6 +132,7 @@ function CostsProductionPageInner() {
     setProdDate(new Date().toISOString().slice(0, 10));
     setExpiryDate("");
     setNewOutputUnit(units[0] ?? "");
+    setNewOutputKind("produced");
     setNotes("");
     setShowAdd(true);
   }
@@ -258,7 +261,7 @@ function CostsProductionPageInner() {
       const created = await createCostItemGenerated({
         name, unit: newOutputUnit,
         productionDate: prodDate || null, expiryDate: expiryDate || null,
-        createdBy: appUser.uid, kind: "produced",
+        createdBy: appUser.uid, kind: newOutputKind,
       });
       setItems((prev) => [...prev, created]);
       setOutput(created);
@@ -699,7 +702,14 @@ function CostsProductionPageInner() {
             {output ? (
               <div className="flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 rounded-xl px-3 py-2">
                 <div className="min-w-0">
-                  <p className="font-bold text-slate-800 text-sm truncate">{output.name}</p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="font-bold text-slate-800 text-sm truncate min-w-0">{output.name}</p>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                      kindOf(output) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(output) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                    }`}>
+                      {kindOf(output) === "produced" ? "إنتاج" : kindOf(output) === "sale" ? "منتج بيع" : "خام"}
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500">
                     <span className="font-mono">{output.id}</span> · الوحدة: {output.unit}
                     {output.productionRecipe?.length && !editTarget ? " · عُبّئت خلطته القياسية" : ""}
@@ -728,8 +738,10 @@ function CostsProductionPageInner() {
                     <button key={i.id} type="button" onClick={() => pickOutput(i)}
                       className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2">
                       <div className="min-w-0 flex items-center gap-1.5">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"}`}>
-                          {kindOf(i) === "produced" ? "منتج" : "خام"}
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                          kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(i) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                        }`}>
+                          {kindOf(i) === "produced" ? "إنتاج" : kindOf(i) === "sale" ? "بيع" : "خام"}
                         </span>
                         <div className="min-w-0">
                           <p className="text-sm text-slate-800 truncate">{i.name}</p>
@@ -764,6 +776,23 @@ function CostsProductionPageInner() {
                           onClick={createOutput} disabled={!newOutputUnit}>
                           إنشاء
                         </Button>
+                      </div>
+                      <div className="mt-2">
+                        <label className="text-[11px] text-slate-500 block mb-1">هل هذا الصنف منتج بيع أم إنتاج وسيط؟</label>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setNewOutputKind("produced")}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors ${
+                              newOutputKind === "produced" ? "border-violet-600 bg-violet-50 text-violet-700" : "border-slate-200 bg-white text-slate-600"
+                            }`}>
+                            إنتاج — يدخل في وصفة صنف آخر
+                          </button>
+                          <button type="button" onClick={() => setNewOutputKind("sale")}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors ${
+                              newOutputKind === "sale" ? "border-amber-600 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600"
+                            }`}>
+                            منتج بيع — يُختار للعميل مباشرة
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -916,8 +945,10 @@ function CostsProductionPageInner() {
                       <button key={i.id} type="button" onClick={() => addInput(i)}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1.5 min-w-0">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"}`}>
-                            {kindOf(i) === "produced" ? "منتج" : "خام"}
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                            kindOf(i) === "produced" ? "bg-violet-50 text-violet-700" : kindOf(i) === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                          }`}>
+                            {kindOf(i) === "produced" ? "إنتاج" : kindOf(i) === "sale" ? "بيع" : "خام"}
                           </span>
                           <span className="truncate">{i.name}</span>
                         </span>
