@@ -942,15 +942,19 @@ function CostsProductionPageInner() {
                       const bal = availableFor(l.barcode);
                       const n = parseFloat(l.qty) || 0;
                       const short = n > bal;
+                      const unitPrice = avgCostFor(l.barcode);
                       return (
                         <div key={l.barcode}
-                          className={`flex items-center gap-2 border rounded-xl px-3 py-2 ${short ? "border-red-200 bg-red-50" : "border-slate-200"}`}>
+                          className={`flex items-center gap-2 flex-wrap border rounded-xl px-3 py-2 ${short ? "border-red-200 bg-red-50" : "border-slate-200"}`}>
                           <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{l.itemName}</span>
                           <input type="number" min={0} step="0.001" value={l.qty}
                             onChange={(e) => setInputs((prev) => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
                             placeholder="0"
                             className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                           <span className="text-xs text-slate-500 shrink-0 w-10">{l.unit}</span>
+                          <span className="text-[10px] font-semibold text-[#1C2D50] shrink-0 tabular-nums-auto whitespace-nowrap" title={`${money(unitPrice)} ريال لكل ${l.unit}`}>
+                            {money(r2(unitPrice * n))} ريال
+                          </span>
                           <span className={`text-[10px] shrink-0 tabular-nums-auto ${short ? "text-red-600 font-semibold" : "text-slate-400"}`}>
                             {short ? `المتوفر ${bal}` : `متوفر ${bal}`}
                           </span>
@@ -971,6 +975,7 @@ function CostsProductionPageInner() {
                     </p>
                   ) : inputChoices.map((i) => {
                     const bal = availableFor(i.id);
+                    const unitPrice = avgCostFor(i.id);
                     return (
                       <button key={i.id} type="button" onClick={() => addInput(i)}
                         className="w-full text-right px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2">
@@ -982,8 +987,11 @@ function CostsProductionPageInner() {
                           </span>
                           <span className="truncate">{i.name}</span>
                         </span>
-                        <span className={`text-[10px] shrink-0 tabular-nums-auto ${bal <= 0 ? "text-red-600 font-semibold" : "text-slate-400"}`}>
-                          متوفر {bal.toLocaleString("en-US")} {i.unit}
+                        <span className="text-[10px] shrink-0 tabular-nums-auto text-left leading-tight">
+                          <span className="block font-semibold text-[#1C2D50]">{money(unitPrice)} ريال / {i.unit}</span>
+                          <span className={bal <= 0 ? "text-red-600 font-semibold" : "text-slate-400"}>
+                            متوفر {bal.toLocaleString("en-US")} {i.unit}
+                          </span>
                         </span>
                       </button>
                     );
@@ -1024,13 +1032,20 @@ function CostsProductionPageInner() {
                 </div>
               )}
 
-              {estimatedCost > 0 && (
-                <div className="flex justify-between px-3 py-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl text-sm">
-                  <span className="font-semibold text-[#1C2D50]">تكلفة الإنتاج</span>
-                  <span className="font-bold text-[#1C2D50] tabular-nums-auto">
-                    {money(estimatedCost)} ريال
-                    {outQty > 0 && <span className="text-xs font-normal"> · {money(unitCost)} لكل {output.unit}</span>}
-                  </span>
+              {parsedInputs.length > 0 && (
+                <div className="bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-3 py-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-[#1C2D50]">تكلفة الإنتاج</span>
+                    <span className="font-bold text-[#1C2D50] tabular-nums-auto">
+                      {money(estimatedCost)} ريال
+                      {outQty > 0 && <span className="text-xs font-normal"> · {money(unitCost)} لكل {output.unit}</span>}
+                    </span>
+                  </div>
+                  {estimatedCost === 0 && (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      صفر — لم يُسجَّل وارد (شراء) لهذه المواد بعد، فلا متوسط سعر تُحسب منه التكلفة.
+                    </p>
+                  )}
                 </div>
               )}
 
