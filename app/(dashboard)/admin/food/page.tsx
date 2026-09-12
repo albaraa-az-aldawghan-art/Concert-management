@@ -5,6 +5,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -14,14 +19,66 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { getCostItems } from "@/lib/firestore/costs";
 import {
   getSalesSections, addSalesSection, renameSalesSection, deleteSalesSection,
-  setItemSections, itemsOfSection,
+  setItemSections, setSectionItemOrder, itemsOfSection,
 } from "@/lib/firestore/sales";
 import { itemBalance, averageCost } from "@/lib/recipes";
 import { CostItem, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import {
   Plus, Trash2, Pencil, X, Search, Package, FlaskConical, Layers,
-  ChevronLeft, Barcode, Check, Info, Tag,
+  ChevronLeft, Barcode, Check, Info, Tag, GripVertical,
 } from "lucide-react";
+
+/** صف صنف قابل للسحب داخل قسمه — نفس منطق ترتيب الموارد */
+function SortableFoodItemRow({
+  item, canManage, canReorder, onRemove,
+}: {
+  item: CostItem;
+  canManage: boolean;
+  canReorder: boolean;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id, disabled: !canReorder });
+  const kind = kindOf(item);
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : undefined,
+        position: isDragging ? "relative" : undefined,
+      }}
+      className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5"
+    >
+      {canReorder && (
+        <button
+          {...attributes} {...listeners}
+          className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none shrink-0"
+          style={{ touchAction: "none" }}
+          aria-label="اسحب لإعادة الترتيب"
+        >
+          <GripVertical size={14} />
+        </button>
+      )}
+      <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{item.name}</span>
+      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${
+        kind === "produced" ? "bg-emerald-100 text-emerald-700" : kind === "sale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"
+      }`}>
+        {kind === "produced" ? "إنتاج" : kind === "sale" ? "بيع" : "خام"}
+      </span>
+      <span className="text-[10px] text-slate-400 tabular-nums-auto shrink-0">
+        {itemBalance(item).toLocaleString("en-US")} {item.unit}
+      </span>
+      {canManage && (
+        <button onClick={onRemove} className="text-slate-300 hover:text-red-500 transition-colors shrink-0" title="إخراج من القسم">
+          <X size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** وسم النوع كما تعرضه صفحة التكاليف — خام/مُصنَّع/بيع، بلا فلترة */
 function kindOf(i: CostItem): "raw" | "produced" | "sale" {
@@ -134,6 +191,30 @@ export default function SalesProductsPage() {
     }
   }
 
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  /** إعادة ترتيب أصناف قسم — يحدّد أولوية ظهورها في العقد والمطبخ
+     وقوائم اختيار أصناف الحفلة أينما اشتُقّت من هذا القسم */
+  async function handleSectionReorder(section: SalesSection, secItems: CostItem[], event: DragEndEvent) {
+    if (!canReorder) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = secItems.findIndex((i) => i.id === active.id);
+    const newIndex = secItems.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const order = arrayMove(secItems, oldIndex, newIndex).map((i) => i.id);
+    setSections((prev) => prev.map((s) => (s.id === section.id ? { ...s, itemOrder: order } : s)));
+    try {
+      await setSectionItemOrder(section.id, order);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر حفظ الترتيب", "error");
+      load();
+    }
+  }
+
   if (appUser && !isAdmin && !canView && !canAddSection && !canRename) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
@@ -213,7 +294,7 @@ export default function SalesProductsPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {channelSections.map((section) => {
-            const secItems = itemsOfSection(items, section.id);
+            const secItems = itemsOfSection(items, section.id, section.itemOrder);
             return (
               <Card key={section.id}>
                 <div className="flex items-start justify-between gap-2 mb-3">
@@ -238,30 +319,22 @@ export default function SalesProductsPage() {
                 {secItems.length === 0 ? (
                   <p className="text-xs text-slate-400 mb-3">لا توجد أصناف — أضِفها من التكاليف</p>
                 ) : (
-                  <div className="space-y-1 mb-3 max-h-52 overflow-y-auto">
-                    {secItems.map((i) => {
-                      const kind = kindOf(i);
-                      return (
-                      <div key={i.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5">
-                        <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{i.name}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${
-                          kind === "produced" ? "bg-emerald-100 text-emerald-700" : kind === "sale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"
-                        }`}>
-                          {kind === "produced" ? "إنتاج" : kind === "sale" ? "بيع" : "خام"}
-                        </span>
-                        <span className="text-[10px] text-slate-400 tabular-nums-auto shrink-0">
-                          {itemBalance(i).toLocaleString("en-US")} {i.unit}
-                        </span>
-                        {canManage && (
-                          <button onClick={() => toggleItemInSection(i, section)}
-                            className="text-slate-300 hover:text-red-500 transition-colors shrink-0" title="إخراج من القسم">
-                            <X size={13} />
-                          </button>
-                        )}
+                  <DndContext sensors={dndSensors} collisionDetection={closestCenter}
+                    onDragEnd={(e) => handleSectionReorder(section, secItems, e)}>
+                    <SortableContext items={secItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-1 mb-3 max-h-52 overflow-y-auto">
+                        {secItems.map((i) => (
+                          <SortableFoodItemRow
+                            key={i.id}
+                            item={i}
+                            canManage={canManage}
+                            canReorder={canReorder}
+                            onRemove={() => toggleItemInSection(i, section)}
+                          />
+                        ))}
                       </div>
-                      );
-                    })}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
 
                 {canManage && (

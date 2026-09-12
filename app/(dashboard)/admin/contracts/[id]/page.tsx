@@ -301,7 +301,8 @@ export default function ContractDetailPage() {
   function selectSection(sectionId: string) {
     setPickSection(sectionId);
     if (!sectionId) return;
-    const secItems = itemsOfSection(items, sectionId).filter((it) => termOf.has(it.id));
+    const sectionOrder = sections.find((s) => s.id === sectionId)?.itemOrder;
+    const secItems = itemsOfSection(items, sectionId, sectionOrder).filter((it) => termOf.has(it.id));
     if (secItems.length === 0) {
       showToast("لا صنف في هذا القسم من بنود العقد", "error");
       return;

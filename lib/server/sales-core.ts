@@ -92,6 +92,24 @@ export async function svcSetItemSections(db: Firestore, barcode: string, section
   await ref.update({ salesSections: unique });
 }
 
+/** ترتيب أصناف قسم بيع بالسحب والإفلات — يحدّد أولوية ظهورها في كل
+ *  مكان يُشتَق منه (العقد والمطبخ وقوائم اختيار أصناف الحفلة).
+ *  قراءتان لا أكثر مهما كان عدد الأصناف — لا يُتحقّق من كل صنف على حدة. */
+export async function svcSetSectionItemOrder(db: Firestore, sectionId: string, itemOrder: string[]) {
+  const secRef = db.collection("sales_sections").doc(sectionId);
+  if (!(await secRef.get()).exists) throw new ApiError("القسم غير موجود", 404);
+
+  const unique = [...new Set(itemOrder.filter(Boolean))];
+  if (unique.length > 0) {
+    const members = await db.collection("cost_items").where("salesSections", "array-contains", sectionId).get();
+    const memberIds = new Set(members.docs.map((d) => d.id));
+    for (const barcode of unique) {
+      if (!memberIds.has(barcode)) throw new ApiError("أحد الأصناف لا ينتمي لهذا القسم");
+    }
+  }
+  await secRef.update({ itemOrder: unique });
+}
+
 /* ── البكجات ── */
 
 interface PackageInput {

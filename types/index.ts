@@ -267,6 +267,9 @@ export interface SalesSection {
   channel: SalesChannel;
   name: string;
   order: number;
+  /** ترتيب أصناف هذا القسم بالسحب والإفلات — يحدّد أولوية ظهورها هنا
+   *  وفي كل مكان يُشتَق منه (العقد، المطبخ، قوائم اختيار أصناف الحفلة) */
+  itemOrder?: string[];
   createdAt: Timestamp;
   createdBy: string;
 }

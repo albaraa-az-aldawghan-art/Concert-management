@@ -8,12 +8,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems } from "@/lib/firestore/concerts";
 import { getConcertFood, getFoodCategories } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
+import { getSectionsOfChannel } from "@/lib/firestore/sales";
 import { getKitchenOrderByConcert, confirmKitchenOrder } from "@/lib/firestore/kitchen";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { thumbUrl } from "@/lib/cloudinary";
 import { generateElementPDF, downloadPdf, isMobileDevice } from "@/lib/pdf";
-import { Concert, ConcertItem, ConcertFood, FoodCategory, WarehouseItem, KitchenOrder } from "@/types";
+import { Concert, ConcertItem, ConcertFood, FoodCategory, WarehouseItem, KitchenOrder, SalesSection } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
 import { Printer, CheckCircle2, ChevronRight, UtensilsCrossed, Package } from "lucide-react";
 
@@ -28,6 +29,7 @@ export default function KitchenSheetPage() {
   const [items, setItems] = useState<ConcertItem[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [categories, setCategories] = useState<FoodCategory[]>([]);
+  const [sections, setSections] = useState<SalesSection[]>([]);
   const [order, setOrder] = useState<KitchenOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -64,13 +66,14 @@ export default function KitchenSheetPage() {
 
   useEffect(() => {
     async function load() {
-      const [c, f, it, wh, cats, ord] = await Promise.all([
+      const [c, f, it, wh, cats, ord, sec] = await Promise.all([
         getConcertById(id),
         getConcertFood(id),
         getConcertItems(id),
         getWarehouseItems(),
         getFoodCategories(),
         getKitchenOrderByConcert(id),
+        getSectionsOfChannel("concerts").catch(() => [] as SalesSection[]),
       ]);
       setConcert(c);
       setFood(f);
@@ -78,6 +81,7 @@ export default function KitchenSheetPage() {
       setWarehouseItems(wh);
       setCategories(cats);
       setOrder(ord);
+      setSections(sec);
       setLoading(false);
     }
     if (id) load();
@@ -115,6 +119,18 @@ export default function KitchenSheetPage() {
   for (const f of food) {
     if (!groups.has(f.categoryName)) groups.set(f.categoryName, []);
     groups.get(f.categoryName)!.push(f);
+  }
+  // ترتيب الأصناف داخل كل قسم بأولوية الظهور المحفوظة في منتجات البيع
+  const sectionOrderById = new Map(sections.map((s) => [s.id, s.itemOrder ?? []]));
+  for (const catFood of groups.values()) {
+    const order = sectionOrderById.get(catFood[0]?.categoryId ?? "") ?? [];
+    if (order.length === 0) continue;
+    const rank = new Map(order.map((barcode, i) => [barcode, i]));
+    catFood.sort((a, b) => {
+      const ra = a.costItemBarcode && rank.has(a.costItemBarcode) ? rank.get(a.costItemBarcode)! : Infinity;
+      const rb = b.costItemBarcode && rank.has(b.costItemBarcode) ? rank.get(b.costItemBarcode)! : Infinity;
+      return ra !== rb ? ra - rb : a.selectedOption.localeCompare(b.selectedOption, "ar");
+    });
   }
   const sortedGroups = [...groups.entries()].sort(
     (a, b) => (catOrder.get(a[0]) ?? 999) - (catOrder.get(b[0]) ?? 999)

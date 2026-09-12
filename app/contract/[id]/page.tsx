@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getConcertById, getConcertPayments, getConcertLogs } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
+import { getSectionsOfChannel } from "@/lib/firestore/sales";
 import { canvasToPdfBlob } from "@/lib/pdf";
-import { Concert, ConcertPayment, ConcertFood, ConcertLog, PaymentMethod } from "@/types";
+import { Concert, ConcertPayment, ConcertFood, ConcertLog, PaymentMethod, SalesSection } from "@/types";
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   card: "شبكة",
@@ -84,6 +85,7 @@ function fmtNum(n: number): string {
 
 interface FoodGroup {
   categoryName: string;
+  categoryId: string;
   items: string[];
   totalQty: number;
 }
@@ -114,6 +116,7 @@ export default function ContractPage() {
   const [concert, setConcert] = useState<Concert | null>(null);
   const [payments, setPayments] = useState<ConcertPayment[]>([]);
   const [foodItems, setFoodItems] = useState<ConcertFood[]>([]);
+  const [sections, setSections] = useState<SalesSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<ConcertLog[]>([]);
   const [sharing, setSharing] = useState(false);
@@ -122,16 +125,18 @@ export default function ContractPage() {
 
   useEffect(() => {
     async function load() {
-      const [c, p, f, l] = await Promise.all([
+      const [c, p, f, l, sec] = await Promise.all([
         getConcertById(id),
         getConcertPayments(id),
         getConcertFood(id),
         getConcertLogs(id),
+        getSectionsOfChannel("concerts").catch(() => [] as SalesSection[]),
       ]);
       setConcert(c);
       setPayments(p.sort((a, b) => a.createdAt.seconds - b.createdAt.seconds));
       setFoodItems(f);
       setLogs(l); // already sorted descending by createdAt
+      setSections(sec);
       setLoading(false);
       if (c?.clientName) {
         document.title = `الفريج - ${c.clientName}`;
@@ -192,16 +197,36 @@ export default function ContractPage() {
   const seen = new Map<string, FoodGroup>();
   // كمية كل صنف الحالية — لعرضها يمّه اسمه بلا مساس بمجموع القسم
   const foodQtyByKey = new Map<string, number>(); // "categoryName:::option"
+  // باركود كل صنف — لترتيب items داخل القسم بترتيبه المحفوظ في منتجات البيع
+  const foodBarcodeByKey = new Map<string, string | null>(); // "categoryName:::option"
   for (const food of foodItems) {
     if (!seen.has(food.categoryName)) {
-      const g: FoodGroup = { categoryName: food.categoryName, items: [], totalQty: 0 };
+      const g: FoodGroup = { categoryName: food.categoryName, categoryId: food.categoryId, items: [], totalQty: 0 };
       seen.set(food.categoryName, g);
       foodGroups.push(g);
     }
     const g = seen.get(food.categoryName)!;
     g.items.push(food.selectedOption);
     g.totalQty += food.quantity ?? 0;
-    foodQtyByKey.set(`${food.categoryName}:::${food.selectedOption}`, food.quantity ?? 0);
+    const key = `${food.categoryName}:::${food.selectedOption}`;
+    foodQtyByKey.set(key, food.quantity ?? 0);
+    foodBarcodeByKey.set(key, food.costItemBarcode ?? null);
+  }
+
+  // ترتيب الأصناف داخل كل قسم بأولوية الظهور المحفوظة في منتجات البيع —
+  // صنف بلا باركود أو غير مُرتَّب بعد يُلحَق بالنهاية أبجدياً
+  const sectionOrderById = new Map(sections.map((s) => [s.id, s.itemOrder ?? []]));
+  for (const g of foodGroups) {
+    const order = sectionOrderById.get(g.categoryId) ?? [];
+    if (order.length === 0) continue;
+    const rank = new Map(order.map((barcode, i) => [barcode, i]));
+    g.items.sort((a, b) => {
+      const ba = foodBarcodeByKey.get(`${g.categoryName}:::${a}`) ?? null;
+      const bb = foodBarcodeByKey.get(`${g.categoryName}:::${b}`) ?? null;
+      const ra = ba && rank.has(ba) ? rank.get(ba)! : Infinity;
+      const rb = bb && rank.has(bb) ? rank.get(bb)! : Infinity;
+      return ra !== rb ? ra - rb : a.localeCompare(b, "ar");
+    });
   }
 
   // ── Financial calculations ────────────────────────

@@ -39,11 +39,25 @@ export async function setItemSections(barcode: string, sectionIds: string[]): Pr
   await api.put(`/api/sales-sections/item/${encodeURIComponent(barcode)}`, { sectionIds });
 }
 
-/** أصناف التكاليف المعروضة للبيع تحت قسم معيّن */
-export function itemsOfSection(items: CostItem[], sectionId: string): CostItem[] {
-  return items
-    .filter((i) => (i.salesSections ?? []).includes(sectionId))
-    .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+/** ترتيب أصناف قسم بيع بالسحب والإفلات */
+export async function setSectionItemOrder(sectionId: string, itemOrder: string[]): Promise<void> {
+  await api.patch(`/api/sales-sections/${sectionId}/item-order`, { itemOrder });
+}
+
+/** أصناف التكاليف المعروضة للبيع تحت قسم معيّن — بترتيبه المحفوظ إن
+ *  وُجد (order)، وإلا أبجدياً؛ صنف أُضيف حديثاً ولم يُرتَّب بعد يُلحَق
+ *  بالنهاية لا يُقحَم عشوائياً وسط الترتيب اليدوي */
+export function itemsOfSection(items: CostItem[], sectionId: string, order?: string[]): CostItem[] {
+  const list = items.filter((i) => (i.salesSections ?? []).includes(sectionId));
+  if (!order || order.length === 0) {
+    return list.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }
+  const rank = new Map(order.map((barcode, i) => [barcode, i]));
+  return [...list].sort((a, b) => {
+    const ra = rank.has(a.id) ? rank.get(a.id)! : Infinity;
+    const rb = rank.has(b.id) ? rank.get(b.id)! : Infinity;
+    return ra !== rb ? ra - rb : a.name.localeCompare(b.name, "ar");
+  });
 }
 
 /* ── البكجات ── */

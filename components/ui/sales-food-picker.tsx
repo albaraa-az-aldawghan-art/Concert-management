@@ -81,7 +81,7 @@ export function SalesFoodPicker({
 
   const q = search.trim();
   const list = section
-    ? itemsOfSection(items, section.id).filter((i) => !q || i.name.includes(q) || i.id.includes(q))
+    ? itemsOfSection(items, section.id, section.itemOrder).filter((i) => !q || i.name.includes(q) || i.id.includes(q))
     : [];
 
   if (sections.length === 0) {
