@@ -241,9 +241,8 @@ export default function ContractDetailPage() {
   }, [data, date, terms]);
 
   /* ملء المسودّة من يوم مسجَّل، أو تعبئتها بكل بنود العقد ليوم جديد —
-     فلا يُضغَط + على كل صنف من جديد كل يوم. «المتبقي» يبدأ برصيد أول
-     اليوم نفسه لا صفراً، وإلا ظهر المباع كأن كل الرصيد بيع قبل أن
-     يلمس أحد رقماً.
+     فلا يُضغَط + على كل صنف من جديد كل يوم. خانات الإدخال الثلاث تبقى
+     فارغة تماماً لا صفراً — صفر جاهز يُظَنّ رقماً أُدخِل فعلاً.
      ينتظر اكتمال تحميل الشهر أولاً: قبل وصول البيانات لا يُعرف هل
      لهذا التاريخ يوم محفوظ، فيُظَنّ كل يوم جديداً وتُعبَّأ كل البنود —
      ثم يصل الشهر فيتّضح أن له يوماً محفوظاً، فيُستبدَل الكل بسطوره
@@ -260,15 +259,13 @@ export default function ContractDetailPage() {
       setCustody(String(day.custody ?? 0));
       setNotes(day.notes ?? "");
     } else {
-      setLines(orderedBarcodes.map((barcode) => ({
-        barcode, supplied: "", damaged: "0", remaining: String(openingMap.get(barcode) ?? 0),
-      })));
+      setLines(orderedBarcodes.map((barcode) => ({ barcode, supplied: "", damaged: "", remaining: "" })));
       setCollections({});
       setExpenses({});
       setNotes("");
       setCustody(String(contract?.ledger?.defaultCustody ?? 500));
     }
-  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, orderedBarcodes, openingMap]);
+  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, orderedBarcodes]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -303,7 +300,7 @@ export default function ContractDetailPage() {
 
   function addLine(barcode: string) {
     if (chosen.has(barcode)) return;
-    setLines((p) => [...p, { barcode, supplied: "", damaged: "0", remaining: "0" }]);
+    setLines((p) => [...p, { barcode, supplied: "", damaged: "", remaining: "" }]);
   }
   function setLine(i: number, patch: Partial<LineDraft>) {
     setLines((p) => p.map((l, k) => (k === i ? { ...l, ...patch } : l)));
@@ -548,13 +545,13 @@ export default function ContractDetailPage() {
                     <tr className="text-slate-500 border-b border-slate-100">
                       <th className="w-6" />
                       <th className="text-right font-medium py-2 px-2">الصنف</th>
-                      <th className="font-medium px-2">سعر البيع</th>
-                      <th className="font-medium px-2">رصيد أول اليوم</th>
-                      <th className="font-medium px-2">المورَّد</th>
-                      <th className="font-medium px-2">التالف</th>
-                      <th className="font-medium px-2">المتبقي</th>
-                      <th className="font-medium px-2">المباع</th>
-                      <th className="font-medium px-2">مبلغ البيع</th>
+                      <th className="text-center font-medium px-2">سعر البيع</th>
+                      <th className="text-center font-medium px-2">رصيد أول اليوم</th>
+                      <th className="text-center font-medium px-2">المورَّد</th>
+                      <th className="text-center font-medium px-2">التالف</th>
+                      <th className="text-center font-medium px-2">المتبقي</th>
+                      <th className="text-center font-medium px-2">المباع</th>
+                      <th className="text-center font-medium px-2">مبلغ البيع</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
