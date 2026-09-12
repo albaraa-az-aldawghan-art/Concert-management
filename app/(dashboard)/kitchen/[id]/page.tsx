@@ -220,7 +220,7 @@ export default function KitchenSheetPage() {
                       {catName}
                       <span className="opacity-75 font-medium"> ({catFood.reduce((s, f) => s + (f.quantity ?? 0), 0)})</span>
                     </span>
-                    {/* Items inline: "option ×qty ، option ×qty ، ..."
+                    {/* Items inline: "option (qty) ، option (qty) ، ..."
                         The separator lives OUTSIDE the nowrap span so the line
                         can wrap between items instead of overflowing off-page */}
                     <p className="text-[13px] text-slate-700 leading-relaxed mt-1 pr-0.5" style={{ wordBreak: "break-word" }}>
@@ -230,7 +230,7 @@ export default function KitchenSheetPage() {
                           <span className="whitespace-nowrap">
                             {f.selectedOption}
                             {f.quantity != null && f.quantity > 0 && (
-                              <b className="text-[#1C2D50] tabular-nums-auto"> ×{f.quantity}</b>
+                              <b className="text-[#1C2D50] tabular-nums-auto"> ({f.quantity})</b>
                             )}
                           </span>
                           {f.notes && <span className="text-[11px] text-slate-400"> ({f.notes})</span>}{" "}

@@ -190,6 +190,8 @@ export default function ContractPage() {
   // ── Food grouping ─────────────────────────────────
   const foodGroups: FoodGroup[] = [];
   const seen = new Map<string, FoodGroup>();
+  // كمية كل صنف الحالية — لعرضها يمّه اسمه بلا مساس بمجموع القسم
+  const foodQtyByKey = new Map<string, number>(); // "categoryName:::option"
   for (const food of foodItems) {
     if (!seen.has(food.categoryName)) {
       const g: FoodGroup = { categoryName: food.categoryName, items: [], totalQty: 0 };
@@ -199,6 +201,7 @@ export default function ContractPage() {
     const g = seen.get(food.categoryName)!;
     g.items.push(food.selectedOption);
     g.totalQty += food.quantity ?? 0;
+    foodQtyByKey.set(`${food.categoryName}:::${food.selectedOption}`, food.quantity ?? 0);
   }
 
   // ── Financial calculations ────────────────────────
@@ -895,10 +898,14 @@ export default function ContractPage() {
                                 optStyle.borderBottom = "1.5px solid currentColor";
                                 optStyle.paddingBottom = 1;
                               }
+                              const qty = foodQtyByKey.get(key) ?? 0;
                               return (
                                 <span key={j}>
                                   {j > 0 && "، "}
-                                  <span style={Object.keys(optStyle).length ? optStyle : undefined}>{opt}</span>
+                                  <span style={Object.keys(optStyle).length ? optStyle : undefined}>
+                                    {opt}
+                                    {qty > 0 && <span style={{ opacity: 0.75, fontWeight: 400 }}> ({qty})</span>}
+                                  </span>
                                 </span>
                               );
                             })}
