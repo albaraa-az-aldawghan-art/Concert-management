@@ -67,6 +67,7 @@ interface ContractDoc {
     defaultCustody?: number;
     sectionIds?: string[];
     departmentName?: string | null;
+    itemOrder?: string[];
   } | null;
 }
 
@@ -167,12 +168,9 @@ export async function svcSaveContractDay(
 
     const openingQty = opening.get(raw.barcode) ?? term.openingQty ?? 0;
     const available = r2(raw.supplied + openingQty);
-    if (r2(raw.damaged + raw.remaining) > available + 1e-9) {
-      throw new ApiError(
-        `"${term.itemName}": التالف والمتبقي (${r2(raw.damaged + raw.remaining)}) أكثر من المتاح ` +
-        `(${raw.supplied} مورَّد + ${openingQty} رصيد أول اليوم = ${available})`
-      );
-    }
+    /* التالف والمتبقي قد يتجاوزان المتاح أثناء التعبئة التدريجية لليوم —
+       لا يُرفض الحفظ لهذا، بل يُحسب «المباع» سالباً فيظهر الخطأ بصرياً
+       (تظليل أحمر) لا أن يمنع صاحب اليوم من حفظ ما أدخله حتى الآن. */
     /* التالف يُحسم من عملية صرف اليوم — فبلا توريد لا شيء يُحسم منه.
        الفحص هنا لا بعد فتح المعاملة: كان يقع بعد حذف عملية الصرف،
        فيُرفض الطلب وقد تغيّر المخزون فعلاً. */
@@ -381,7 +379,12 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
     }
   }
 
-  const items = [...byItem.values()];
+  const order = contract.ledger?.itemOrder ?? [];
+  const rank = new Map(order.map((b, i) => [b, i]));
+  const items = [...byItem.values()].sort((a, b) => {
+    const ra = rank.get(a.barcode) ?? order.length, rb = rank.get(b.barcode) ?? order.length;
+    return ra - rb;
+  });
   const sum = (f: (t: Record<string, number>) => number) => r2(days.reduce((s, d) => s + (f(d.totals ?? {}) || 0), 0));
   const expensesByLine = new Map<string, { label: string; kind: string; amount: number }>();
   for (const day of days) {
@@ -486,7 +489,7 @@ export async function svcSetLedgerConfig(
     departmentName: string | null;
   }
 ) {
-  const { ref } = await loadContract(db, contractId);
+  const { ref, data } = await loadContract(db, contractId);
   const keys = new Set<string>();
   for (const l of d.expenseLines) {
     if (!l.key || !l.label) throw new ApiError("بند المصروف يحتاج مفتاحاً واسماً");
@@ -508,8 +511,23 @@ export async function svcSetLedgerConfig(
       defaultCustody: r2(d.defaultCustody ?? 0),
       sectionIds: d.sectionIds,
       departmentName: d.departmentName,
+      itemOrder: data.ledger?.itemOrder ?? [],
     },
   });
+}
+
+/** ترتيب عرض بنود العقد — يُحفظ وحده كي لا يمسّ صلاحية «إعداد الجدول»
+ *  بقية الإعداد؛ من يسجّل اليوم يرتّب أصنافه بلا حاجة لصلاحية الإعداد. */
+export async function svcSetLedgerItemOrder(db: Firestore, contractId: string, itemOrder: string[]) {
+  const { ref, data } = await loadContract(db, contractId);
+  const known = new Set((data.terms ?? []).map((t) => t.barcode));
+  const seen = new Set<string>();
+  for (const b of itemOrder) {
+    if (!known.has(b)) throw new ApiError(`الصنف ${b} ليس من بنود هذا العقد`);
+    if (seen.has(b)) throw new ApiError("تكرّر صنف في الترتيب");
+    seen.add(b);
+  }
+  await ref.update({ "ledger.itemOrder": itemOrder });
 }
 
 /** أيام العقد تمنع حذفه: خلفها حركة مخزون مسجَّلة */

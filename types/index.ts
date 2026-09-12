@@ -323,6 +323,8 @@ export interface ContractLedgerConfig {
   sectionIds: string[];
   /** قسم المنصرف الذي تُنسب إليه عمليات هذا العقد */
   departmentName: string | null;
+  /** ترتيب عرض بنود العقد في الجدول اليومي — بالسحب والإفلات */
+  itemOrder?: string[];
 }
 
 export interface ContractDayLine {
@@ -583,10 +585,11 @@ export interface CostItem {
   order?: number;
   createdAt: Timestamp;
   createdBy: string;
-  /** وسم تنظيمي فقط — مادة خام تُشترى مباشرة أم منتج يُصنَّع داخلياً.
+  /** وسم تنظيمي فقط — مادة خام تُشترى مباشرة، أم منتج يُصنَّع داخلياً
+   *  (وسيط لا يُباع بذاته)، أم منتج بيع (المادة النهائية الجاهزة للبيع).
    *  لا يُخفي أي صنف من أي قائمة اختيار: بعض المُنتَجات تُستهلك بدورها
    *  كمكوّن داخل وصفة صنف آخر (خلطة وسط)، فالفلترة الصارمة تُفسد ذلك. */
-  kind?: "raw" | "produced";
+  kind?: "raw" | "produced" | "sale";
 }
 
 /** عملية إنتاج: تستهلك مواد خام وتُنتج كمية من صنف جاهز.

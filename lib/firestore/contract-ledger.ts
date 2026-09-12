@@ -59,6 +59,10 @@ export function setLedgerConfig(
   return api.patch(`/api/contracts/${contractId}/ledger-config`, d);
 }
 
+export function setLedgerItemOrder(contractId: string, itemOrder: string[]) {
+  return api.patch(`/api/contracts/${contractId}/ledger-item-order`, { itemOrder });
+}
+
 export function postMonthCollections(contractId: string, month: string) {
   return api.post<{ total: number }>(`/api/contracts/${contractId}/post-collections`, { month });
 }

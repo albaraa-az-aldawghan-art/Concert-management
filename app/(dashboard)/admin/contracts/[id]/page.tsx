@@ -7,6 +7,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
@@ -18,13 +23,13 @@ import { getContractById } from "@/lib/firestore/contracts";
 import { getCostItems } from "@/lib/firestore/costs";
 import { getSectionsOfChannel, itemsOfSection } from "@/lib/firestore/sales";
 import {
-  getContractMonth, saveContractDay, deleteContractDay, setLedgerConfig,
+  getContractMonth, saveContractDay, deleteContractDay, setLedgerConfig, setLedgerItemOrder,
   postMonthCollections, unpostMonthCollections, ContractMonth,
 } from "@/lib/firestore/contract-ledger";
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
-  Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2,
+  Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2, GripVertical,
 } from "lucide-react";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -54,6 +59,74 @@ const KIND_LABEL: Record<ContractExpenseKind, string> = {
 };
 
 interface LineDraft { barcode: string; supplied: string; damaged: string; remaining: string }
+
+interface ComputedRow extends LineDraft {
+  name: string; unit: string; price: number;
+  opening: number; available: number; sold: number; revenue: number; invalid: boolean;
+}
+
+/* صف يوم قابل للسحب — نفس منطق ترتيب الموارد */
+function DayLineRow({
+  row, editable, onChangeField, onDelete,
+}: {
+  row: ComputedRow;
+  editable: boolean;
+  onChangeField: (field: "supplied" | "damaged" | "remaining", value: string) => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: row.barcode, disabled: !editable });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : undefined,
+        position: isDragging ? "relative" : undefined,
+      }}
+      className={`border-b border-slate-50 bg-white ${row.invalid ? "bg-red-50" : ""}`}
+    >
+      <td className="px-1">
+        {editable && (
+          <button
+            {...attributes} {...listeners}
+            className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none"
+            style={{ touchAction: "none" }}
+            aria-label="اسحب لإعادة الترتيب"
+          >
+            <GripVertical size={14} />
+          </button>
+        )}
+      </td>
+      <td className="py-1.5 px-2 font-medium text-slate-700">{row.name}</td>
+      <td className="px-2 text-center tabular-nums-auto text-slate-500">{money(row.price)}</td>
+      <td className="px-2 text-center tabular-nums-auto text-slate-500">{int(row.opening)}</td>
+      {(["supplied", "damaged", "remaining"] as const).map((f) => (
+        <td key={f} className="px-1">
+          <input
+            type="number" min="0" inputMode="numeric"
+            value={row[f]}
+            disabled={!editable}
+            onChange={(e) => onChangeField(f, e.target.value)}
+            className="w-20 text-center tabular-nums-auto rounded-lg border border-slate-200 py-1 disabled:bg-slate-50 disabled:text-slate-400 focus:border-[#1C2D50] outline-none"
+          />
+        </td>
+      ))}
+      <td className={`px-2 text-center tabular-nums-auto font-bold ${row.invalid ? "text-red-600" : "text-slate-800"}`}>
+        {int(row.sold)}
+      </td>
+      <td className="px-2 text-center tabular-nums-auto font-bold text-[#1C2D50]">{money(row.revenue)}</td>
+      <td className="px-1">
+        {editable && (
+          <button onClick={onDelete} className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
+        )}
+      </td>
+    </tr>
+  );
+}
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,6 +164,11 @@ export default function ContractDetailPage() {
   const [notes, setNotes] = useState("");
   const [pickSection, setPickSection] = useState("");
   const [deleteDayTarget, setDeleteDayTarget] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   /* ── الإعداد ── */
   const [showConfig, setShowConfig] = useState(false);
@@ -136,7 +214,32 @@ export default function ContractDetailPage() {
     }
   }
 
-  /* ملء المسودّة من يوم مسجَّل، أو تفريغها ليوم جديد */
+  const terms = useMemo(() => contract?.terms ?? [], [contract?.terms]);
+  const termOf = useMemo(() => new Map(terms.map((t) => [t.barcode, t])), [terms]);
+
+  /* ترتيب بنود العقد — المحفوظ على العقد، وما لم يُحفَظ له ترتيب بعد
+     يتبع ترتيبها الأصلي في العقد */
+  const orderedBarcodes = useMemo(() => {
+    const saved = contract?.ledger?.itemOrder ?? [];
+    const known = new Set(terms.map((t) => t.barcode));
+    const ordered = saved.filter((b) => known.has(b));
+    const rest = terms.map((t) => t.barcode).filter((b) => !ordered.includes(b));
+    return [...ordered, ...rest];
+  }, [contract?.ledger?.itemOrder, terms]);
+
+  /* رصيد أول اليوم كما سيحسبه الخادم — من آخر يوم مسجَّل قبل التاريخ */
+  const openingMap = useMemo(() => {
+    const prev = (data?.days ?? []).filter((d) => d.date < date).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+    const m = new Map<string, number>();
+    for (const t of terms) m.set(t.barcode, t.openingQty ?? 0);
+    if (prev) for (const l of prev.lines) m.set(l.barcode, l.remaining);
+    return m;
+  }, [data, date, terms]);
+
+  /* ملء المسودّة من يوم مسجَّل، أو تعبئتها بكل بنود العقد ليوم جديد —
+     فلا يُضغَط + على كل صنف من جديد كل يوم. «المتبقي» يبدأ برصيد أول
+     اليوم نفسه لا صفراً، وإلا ظهر المباع كأن كل الرصيد بيع قبل أن
+     يلمس أحد رقماً. */
   useEffect(() => {
     const day = data?.days.find((d) => d.date === date);
     if (day) {
@@ -148,25 +251,15 @@ export default function ContractDetailPage() {
       setCustody(String(day.custody ?? 0));
       setNotes(day.notes ?? "");
     } else {
-      setLines([]);
+      setLines(orderedBarcodes.map((barcode) => ({
+        barcode, supplied: "", damaged: "0", remaining: String(openingMap.get(barcode) ?? 0),
+      })));
       setCollections({});
       setExpenses({});
       setNotes("");
       setCustody(String(contract?.ledger?.defaultCustody ?? 500));
     }
-  }, [date, data, contract?.ledger?.defaultCustody]);
-
-  const terms = contract?.terms ?? [];
-  const termOf = useMemo(() => new Map(terms.map((t) => [t.barcode, t])), [terms]);
-
-  /* رصيد أول اليوم كما سيحسبه الخادم — من آخر يوم مسجَّل قبل التاريخ */
-  const openingMap = useMemo(() => {
-    const prev = (data?.days ?? []).filter((d) => d.date < date).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-    const m = new Map<string, number>();
-    for (const t of terms) m.set(t.barcode, t.openingQty ?? 0);
-    if (prev) for (const l of prev.lines) m.set(l.barcode, l.remaining);
-    return m;
-  }, [data, date, terms]);
+  }, [date, data, contract?.ledger?.defaultCustody, orderedBarcodes, openingMap]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -207,10 +300,32 @@ export default function ContractDetailPage() {
     setLines((p) => p.map((l, k) => (k === i ? { ...l, ...patch } : l)));
   }
 
+  /* سحب وإفلات صفوف الجدول — يعيد ترتيبها محلياً فوراً، ثم يحفظ
+     الترتيب على العقد نفسه فيثبت لكل الأيام القادمة */
+  async function handleDragEnd(event: DragEndEvent) {
+    if (!editable) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = lines.findIndex((l) => l.barcode === active.id);
+    const newIndex = lines.findIndex((l) => l.barcode === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(lines, oldIndex, newIndex);
+    const order = reordered.map((l) => l.barcode);
+
+    setLines(reordered);
+    setContract((c) => (c ? { ...c, ledger: { ...(c.ledger ?? {
+      enabled: true, expenseLines: [], defaultCustody: 0, sectionIds: [], departmentName: null,
+    }), itemOrder: order } } : c));
+    try {
+      await setLedgerItemOrder(id, order);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "تعذّر حفظ الترتيب", "error");
+    }
+  }
+
   async function handleSaveDay() {
     if (lines.length === 0) { showToast("أضف صنفاً واحداً على الأقل", "error"); return; }
-    const bad = computed.rows.find((r) => r.invalid);
-    if (bad) { showToast(`"${bad.name}": التالف والمتبقي أكثر من المتاح`, "error"); return; }
     setSaving(true);
     try {
       await saveContractDay(id, {
@@ -413,57 +528,44 @@ export default function ContractDetailPage() {
           <p className="text-sm text-slate-400 text-center py-6">لا أصناف لهذا اليوم بعد</p>
         ) : (
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full text-xs min-w-[46rem]">
-              <thead>
-                <tr className="text-slate-500 border-b border-slate-100">
-                  <th className="text-right font-medium py-2 px-2">الصنف</th>
-                  <th className="font-medium px-2">سعر البيع</th>
-                  <th className="font-medium px-2">رصيد أول اليوم</th>
-                  <th className="font-medium px-2">المورَّد</th>
-                  <th className="font-medium px-2">التالف</th>
-                  <th className="font-medium px-2">المتبقي</th>
-                  <th className="font-medium px-2">المباع</th>
-                  <th className="font-medium px-2">مبلغ البيع</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {computed.rows.map((row, i) => (
-                  <tr key={row.barcode} className={`border-b border-slate-50 ${row.invalid ? "bg-red-50" : ""}`}>
-                    <td className="py-1.5 px-2 font-medium text-slate-700">{row.name}</td>
-                    <td className="px-2 text-center tabular-nums-auto text-slate-500">{money(row.price)}</td>
-                    <td className="px-2 text-center tabular-nums-auto text-slate-500">{int(row.opening)}</td>
-                    {(["supplied", "damaged", "remaining"] as const).map((f) => (
-                      <td key={f} className="px-1">
-                        <input
-                          type="number" min="0" inputMode="numeric"
-                          value={row[f]}
-                          disabled={!editable}
-                          onChange={(e) => setLine(i, { [f]: e.target.value })}
-                          className="w-20 text-center tabular-nums-auto rounded-lg border border-slate-200 py-1 disabled:bg-slate-50 disabled:text-slate-400 focus:border-[#1C2D50] outline-none"
-                        />
-                      </td>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={lines.map((l) => l.barcode)} strategy={verticalListSortingStrategy}>
+                <table className="w-full text-xs min-w-[46rem]">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-slate-100">
+                      <th className="w-6" />
+                      <th className="text-right font-medium py-2 px-2">الصنف</th>
+                      <th className="font-medium px-2">سعر البيع</th>
+                      <th className="font-medium px-2">رصيد أول اليوم</th>
+                      <th className="font-medium px-2">المورَّد</th>
+                      <th className="font-medium px-2">التالف</th>
+                      <th className="font-medium px-2">المتبقي</th>
+                      <th className="font-medium px-2">المباع</th>
+                      <th className="font-medium px-2">مبلغ البيع</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {computed.rows.map((row, i) => (
+                      <DayLineRow
+                        key={row.barcode}
+                        row={row}
+                        editable={editable}
+                        onChangeField={(f, v) => setLine(i, { [f]: v })}
+                        onDelete={() => setLines((p) => p.filter((_, k) => k !== i))}
+                      />
                     ))}
-                    <td className={`px-2 text-center tabular-nums-auto font-bold ${row.invalid ? "text-red-600" : "text-slate-800"}`}>
-                      {int(row.sold)}
-                    </td>
-                    <td className="px-2 text-center tabular-nums-auto font-bold text-[#1C2D50]">{money(row.revenue)}</td>
-                    <td className="px-1">
-                      {editable && (
-                        <button onClick={() => setLines((p) => p.filter((_, k) => k !== i))}
-                          className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="font-bold text-slate-800">
-                  <td className="py-2 px-2">الإجمالي</td>
-                  <td colSpan={6} />
-                  <td className="px-2 text-center tabular-nums-auto text-[#1C2D50]">{money(computed.sales)}</td>
-                  <td />
-                </tr>
-              </tbody>
-            </table>
+                    <tr className="font-bold text-slate-800">
+                      <td />
+                      <td className="py-2 px-2">الإجمالي</td>
+                      <td colSpan={6} />
+                      <td className="px-2 text-center tabular-nums-auto text-[#1C2D50]">{money(computed.sales)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </SortableContext>
+            </DndContext>
           </div>
         )}
 
