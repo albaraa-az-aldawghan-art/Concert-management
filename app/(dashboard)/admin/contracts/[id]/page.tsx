@@ -240,13 +240,12 @@ export default function ContractDetailPage() {
     return m;
   }, [data, date, terms]);
 
-  /* ملء المسودّة من يوم مسجَّل، أو تعبئتها بكل بنود العقد ليوم جديد —
-     فلا يُضغَط + على كل صنف من جديد كل يوم. خانات الإدخال الثلاث تبقى
-     فارغة تماماً لا صفراً — صفر جاهز يُظَنّ رقماً أُدخِل فعلاً.
+  /* ملء المسودّة من يوم مسجَّل، أو تفريغها ليوم جديد — يُعبَّأ الجديد
+     باختيار قسم من الصندوق تحت (يضيف كل أصنافه دفعة واحدة) لا تلقائياً،
+     فلا يظهر جدول ضخم قبل أن يطلبه أحد.
      ينتظر اكتمال تحميل الشهر أولاً: قبل وصول البيانات لا يُعرف هل
-     لهذا التاريخ يوم محفوظ، فيُظَنّ كل يوم جديداً وتُعبَّأ كل البنود —
-     ثم يصل الشهر فيتّضح أن له يوماً محفوظاً، فيُستبدَل الكل بسطوره
-     القليلة: وميض مربك من عشرات الأصناف إلى اثنين. */
+     لهذا التاريخ يوم محفوظ، فتُعرض حالة تحميل بدل يوم فارغ يُستبدَل
+     فجأة بسطوره الحقيقية. */
   useEffect(() => {
     if (monthLoading) return;
     const day = data?.days.find((d) => d.date === date);
@@ -259,13 +258,13 @@ export default function ContractDetailPage() {
       setCustody(String(day.custody ?? 0));
       setNotes(day.notes ?? "");
     } else {
-      setLines(orderedBarcodes.map((barcode) => ({ barcode, supplied: "", damaged: "", remaining: "" })));
+      setLines([]);
       setCollections({});
       setExpenses({});
       setNotes("");
       setCustody(String(contract?.ledger?.defaultCustody ?? 500));
     }
-  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, orderedBarcodes]);
+  }, [date, data, monthLoading, contract?.ledger?.defaultCustody]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -293,14 +292,32 @@ export default function ContractDetailPage() {
     return { rows, sales, collected, deducted, paidFromTill, expected, variance: r2(collected - deducted - expected) };
   }, [lines, termOf, openingMap, collections, expenses, expenseConfig]);
 
-  const sectionItems = pickSection ? itemsOfSection(items, pickSection) : [];
-  const chosen = new Set(lines.map((l) => l.barcode));
   const isPosted = data?.days.find((d) => d.date === date)?.postedPaymentIds?.length ? true : false;
   const editable = fx.edit && contract?.status === "active" && !isPosted;
 
-  function addLine(barcode: string) {
-    if (chosen.has(barcode)) return;
-    setLines((p) => [...p, { barcode, supplied: "", damaged: "", remaining: "" }]);
+  /* اختيار قسم يضيف كل أصنافه دفعة واحدة بترتيبها المحفوظ — بلا نقر
+     صنفاً صنفاً. لا يحذف شيئاً عند تفريغ الاختيار: أصناف أُضيفت وأُدخِلت
+     فيها أرقام لا تُفقَد بضغطة رجوع للقائمة. */
+  function selectSection(sectionId: string) {
+    setPickSection(sectionId);
+    if (!sectionId) return;
+    const secItems = itemsOfSection(items, sectionId).filter((it) => termOf.has(it.id));
+    if (secItems.length === 0) {
+      showToast("لا صنف في هذا القسم من بنود العقد", "error");
+      return;
+    }
+    setLines((prev) => {
+      const existing = new Set(prev.map((l) => l.barcode));
+      const merged = [
+        ...prev,
+        ...secItems.filter((it) => !existing.has(it.id)).map((it) => ({ barcode: it.id, supplied: "", damaged: "", remaining: "" })),
+      ];
+      const known = new Set(merged.map((l) => l.barcode));
+      const byBarcode = new Map(merged.map((l) => [l.barcode, l]));
+      const ordered = orderedBarcodes.filter((b) => known.has(b)).map((b) => byBarcode.get(b)!);
+      const rest = merged.filter((l) => !orderedBarcodes.includes(l.barcode));
+      return [...ordered, ...rest];
+    });
   }
   function setLine(i: number, patch: Partial<LineDraft>) {
     setLines((p) => p.map((l, k) => (k === i ? { ...l, ...patch } : l)));
@@ -495,37 +512,16 @@ export default function ContractDetailPage() {
           </div>
         )}
 
-        {/* الترتيب: القسم ← الصنف ← الكمية */}
+        {/* اختيار قسم يضيف كل أصنافه دفعة واحدة */}
         {editable && terms.length > 0 && (
-          <div className="bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl p-3 space-y-2.5">
-            <p className="text-[11px] font-semibold text-[#1C2D50]">اختر القسم ثم الصنف</p>
-            <Select value={pickSection} onChange={(e) => setPickSection(e.target.value)}>
+          <div className="bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl p-3 space-y-2">
+            <p className="text-[11px] font-semibold text-[#1C2D50]">اختر القسم فتُضاف كل أصنافه</p>
+            <Select value={pickSection} onChange={(e) => selectSection(e.target.value)}>
               <option value="">— القسم —</option>
               {sections
                 .filter((s) => !contract.ledger?.sectionIds?.length || contract.ledger.sectionIds.includes(s.id))
                 .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
-            {pickSection && (
-              <div className="flex flex-wrap gap-1.5">
-                {sectionItems.filter((it) => termOf.has(it.id)).map((it) => (
-                  <button
-                    key={it.id}
-                    onClick={() => addLine(it.id)}
-                    disabled={chosen.has(it.id)}
-                    className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                      chosen.has(it.id)
-                        ? "bg-slate-200 text-slate-400 border-slate-200 cursor-default"
-                        : "bg-white text-[#1C2D50] border-[#D4DCE8] hover:bg-[#1C2D50] hover:text-white"
-                    }`}
-                  >
-                    <Plus size={10} className="inline" /> {it.name}
-                  </button>
-                ))}
-                {sectionItems.filter((it) => termOf.has(it.id)).length === 0 && (
-                  <p className="text-[11px] text-slate-400">لا صنف في هذا القسم من بنود العقد</p>
-                )}
-              </div>
-            )}
           </div>
         )}
 
