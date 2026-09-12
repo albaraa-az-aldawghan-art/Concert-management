@@ -806,6 +806,41 @@ export async function svcCreateItem(
   return { id: barcode };
 }
 
+/** يُحدَّث اسم/وحدة الصنف أينما نُسخا وقت الإضافة — بنود العقود وأصناف
+ *  البكجات نسخة محفوظة (الكمية والسعر يبقيان كما اتُّفق)، فلا يُترك
+ *  فيها اسم قديم بعد إعادة تسمية الصنف من صفحة التكاليف. الأسعار
+ *  ورصيد أول اليوم وسجلات الأيام المحفوظة فعلاً لا تُمسّ — لقطة مالية
+ *  متعمَّدة لا تتغيّر بتغيّر الحاضر. */
+async function cascadeItemRename(db: Firestore, barcode: string, name: string, unit: string) {
+  const [contracts, packages] = await Promise.all([
+    db.collection("contracts").get(),
+    db.collection("packages").get(),
+  ]);
+
+  const batch = db.batch();
+  let writes = 0;
+
+  for (const doc of contracts.docs) {
+    const terms = (doc.data().terms ?? []) as { barcode: string; itemName: string; unit: string }[];
+    if (!terms.some((t) => t.barcode === barcode && (t.itemName !== name || t.unit !== unit))) continue;
+    batch.update(doc.ref, {
+      terms: terms.map((t) => (t.barcode === barcode ? { ...t, itemName: name, unit } : t)),
+    });
+    writes++;
+  }
+
+  for (const doc of packages.docs) {
+    const items = (doc.data().items ?? []) as { barcode: string; itemName: string; unit: string }[];
+    if (!items.some((it) => it.barcode === barcode && (it.itemName !== name || it.unit !== unit))) continue;
+    batch.update(doc.ref, {
+      items: items.map((it) => (it.barcode === barcode ? { ...it, itemName: name, unit } : it)),
+    });
+    writes++;
+  }
+
+  if (writes > 0) await batch.commit();
+}
+
 export async function svcUpdateItem(
   db: Firestore,
   barcode: string,
@@ -858,6 +893,12 @@ export async function svcUpdateItem(
     patch.sectionPrices = clean;
   }
   await ref.update(patch);
+
+  const nameChanged = d.name !== undefined && d.name !== item.name;
+  const unitChanged = d.unit !== undefined && d.unit !== item.unit;
+  if (nameChanged || unitChanged) {
+    await cascadeItemRename(db, barcode, d.name ?? item.name, d.unit ?? item.unit);
+  }
 }
 
 export async function svcDeleteItem(db: Firestore, barcode: string) {
