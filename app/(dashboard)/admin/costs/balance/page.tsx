@@ -19,7 +19,7 @@ type SortKey = "name" | "kind" | "in" | "out" | "balance" | "unit" | "price" | "
 
 interface Row {
   item: CostItem;
-  kind: "raw" | "produced";
+  kind: "raw" | "produced" | "sale";
   totalIn: number;
   totalOut: number;
   balance: number;
@@ -73,7 +73,7 @@ export default function CostsBalancePage() {
   const [items, setItems] = useState<CostItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"" | "raw" | "produced">("");
+  const [kindFilter, setKindFilter] = useState<"" | "raw" | "produced" | "sale">("");
   const [unitFilter, setUnitFilter] = useState("");
   const [ranges, setRanges] = useState(emptyRanges);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -234,11 +234,12 @@ export default function CostsBalancePage() {
                 <td className="px-4 py-2"></td>
                 <td className="px-4 py-2"></td>
                 <td className="px-4 py-2">
-                  <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "" | "raw" | "produced")}
+                  <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "" | "raw" | "produced" | "sale")}
                     className="w-full border border-slate-200 rounded-md px-1.5 py-1 text-[11px] bg-white">
                     <option value="">الكل</option>
                     <option value="raw">مادة خام</option>
                     <option value="produced">منتج مُصنَّع</option>
+                    <option value="sale">منتج بيع</option>
                   </select>
                 </td>
                 <td className="px-4 py-2">
@@ -282,10 +283,10 @@ export default function CostsBalancePage() {
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${
-                        r.kind === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"
+                        r.kind === "produced" ? "bg-violet-50 text-violet-700" : r.kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
                       }`}
                     >
-                      {r.kind === "produced" ? "منتج مُصنَّع" : "مادة خام"}
+                      {r.kind === "produced" ? "منتج مُصنَّع" : r.kind === "sale" ? "منتج بيع" : "مادة خام"}
                     </span>
                   </td>
                   <td className="px-4 py-3 tabular-nums-auto text-emerald-600 font-medium">{r.totalIn.toLocaleString("en-US")}</td>

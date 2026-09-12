@@ -679,7 +679,7 @@ export async function buildWarehouseWorkbook(db: Firestore): Promise<ExcelJS.Wor
 /* ═══ تصدير رصيد الأصناف (جرد لحظي — لا حركة زمنية، فورقة واحدة تكفي) ═══ */
 
 interface BalanceRow {
-  name: string; barcode: string; kind: "raw" | "produced"; unit: string;
+  name: string; barcode: string; kind: "raw" | "produced" | "sale"; unit: string;
   totalIn: number; totalOut: number; totalInValue: number;
 }
 
@@ -708,7 +708,9 @@ export async function buildBalanceWorkbook(db: Firestore, includeValue: boolean)
     return {
       name: (e.name as string) ?? "",
       barcode: d.id,
-      kind: e.kind === "raw" || e.kind === "produced" ? e.kind : ((e.productionRecipe as unknown[] | undefined)?.length ?? 0) > 0 ? "produced" : "raw",
+      kind: e.kind === "raw" || e.kind === "produced" || e.kind === "sale"
+        ? e.kind
+        : ((e.productionRecipe as unknown[] | undefined)?.length ?? 0) > 0 ? "produced" : "raw",
       unit: (e.unit as string) ?? "",
       totalIn: (e.totalIn as number) ?? 0,
       totalOut: (e.totalOut as number) ?? 0,
@@ -730,7 +732,7 @@ export async function buildBalanceWorkbook(db: Firestore, includeValue: boolean)
   const rows = items.map((it) => {
     const balance = it.totalIn - it.totalOut;
     const row: (string | number)[] = [
-      it.name, it.barcode, it.kind === "produced" ? "منتج مُصنَّع" : "مادة خام",
+      it.name, it.barcode, it.kind === "produced" ? "منتج مُصنَّع" : it.kind === "sale" ? "منتج بيع" : "مادة خام",
       it.totalIn, it.totalOut, balance, it.unit,
     ];
     if (includeValue) {

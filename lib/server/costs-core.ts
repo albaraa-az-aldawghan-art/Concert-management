@@ -758,11 +758,11 @@ export async function svcCreateItem(
   d: {
     name: string; unit: string; mode: "generate" | "supplier"; barcode?: string;
     productionDate: string | null; expiryDate: string | null; createdBy: string;
-    kind?: "raw" | "produced";
+    kind?: "raw" | "produced" | "sale";
   }
 ) {
-  if (d.kind !== undefined && d.kind !== "raw" && d.kind !== "produced") {
-    throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج");
+  if (d.kind !== undefined && d.kind !== "raw" && d.kind !== "produced" && d.kind !== "sale") {
+    throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج مُصنَّع أو منتج بيع");
   }
   const base = {
     name: d.name,
@@ -813,8 +813,8 @@ export async function svcUpdateItem(
     productionRecipe?: unknown;
     /** سعر البيع شامل الضريبة لكل قسم — معرّف القسم ← السعر */
     sectionPrices?: unknown;
-    /** وسم تنظيمي: مادة خام أم منتج مُصنَّع — لا يؤثر على أي فلترة */
-    kind?: "raw" | "produced";
+    /** وسم تنظيمي: مادة خام أم منتج مُصنَّع أم منتج بيع — لا يؤثر على أي فلترة */
+    kind?: "raw" | "produced" | "sale";
   }
 ) {
   const ref = db.collection("cost_items").doc(barcode);
@@ -835,7 +835,9 @@ export async function svcUpdateItem(
   if (d.expiryDate !== undefined) patch.expiryDate = d.expiryDate;
   if (d.productionRecipe !== undefined) patch.productionRecipe = d.productionRecipe;
   if (d.kind !== undefined) {
-    if (d.kind !== "raw" && d.kind !== "produced") throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج");
+    if (d.kind !== "raw" && d.kind !== "produced" && d.kind !== "sale") {
+      throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج مُصنَّع أو منتج بيع");
+    }
     patch.kind = d.kind;
   }
   if (d.sectionPrices !== undefined) {

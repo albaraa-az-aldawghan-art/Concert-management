@@ -13,7 +13,7 @@ import {
   getCostSettings,
   updateCostSettings,
 } from "@/lib/firestore/costs";
-import { getSalesSections } from "@/lib/firestore/sales";
+import { getSalesSections, setItemSections } from "@/lib/firestore/sales";
 import { getVatRate } from "@/lib/firestore/settings";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -76,10 +76,10 @@ function ItemRow({
       <td className="px-4 py-2.5">
         <span
           className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${
-            kind === "produced" ? "bg-violet-50 text-violet-700" : "bg-teal-50 text-teal-700"
+            kind === "produced" ? "bg-violet-50 text-violet-700" : kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
           }`}
         >
-          {kind === "produced" ? "منتج مُصنَّع" : "مادة خام"}
+          {kind === "produced" ? "منتج مُصنَّع" : kind === "sale" ? "منتج بيع" : "مادة خام"}
         </span>
       </td>
       <td className="px-4 py-2.5 text-sm text-slate-600 whitespace-nowrap">{item.unit}</td>
@@ -169,8 +169,11 @@ export default function AdminCostsPage() {
 
   const [form, setForm] = useState({
     name: "", unit: "", barcodeMode: "generate" as "generate" | "supplier", barcode: "",
-    productionDate: "", expiryDate: "", kind: "raw" as "raw" | "produced",
+    productionDate: "", expiryDate: "", kind: "raw" as "raw" | "produced" | "sale",
   });
+  /** أقسام البيع المختارة لصنف من نوع «منتج بيع» — تُضبط هنا لا فقط
+   *  من صفحة منتجات البيع، فيُسعَّر الصنف ويظهر للبيع من مكان تسجيله. */
+  const [saleSectionIds, setSaleSectionIds] = useState<string[]>([]);
   const [bulkNames, setBulkNames] = useState("");
   const [bulkUnit, setBulkUnit] = useState("");
 
@@ -199,6 +202,8 @@ export default function AdminCostsPage() {
       name: "", unit: settings.units[0] ?? "", barcodeMode: "generate", barcode: "",
       productionDate: "", expiryDate: "", kind: "raw",
     });
+    setSaleSectionIds([]);
+    setPriceInputs({});
     setShowAdd(true);
   }
 
@@ -209,6 +214,7 @@ export default function AdminCostsPage() {
       productionDate: item.productionDate ?? "", expiryDate: item.expiryDate ?? "",
       kind: item.kind ?? ((item.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw"),
     });
+    setSaleSectionIds(item.salesSections ?? []);
     const prices: Record<string, string> = {};
     for (const id of item.salesSections ?? []) {
       const p = item.sectionPrices?.[id];
@@ -226,27 +232,45 @@ export default function AdminCostsPage() {
       return;
     }
     const dates = { productionDate: form.productionDate || null, expiryDate: form.expiryDate || null };
+    // تسعير الأقسام المختارة فقط — قسم لا يُختار سعره لا يُرسَل
+    const sectionPricesOf = (ids: string[]) => {
+      const out: Record<string, number> = {};
+      for (const id of ids) {
+        const raw = priceInputs[id];
+        const n = raw ? parseFloat(raw) : NaN;
+        if (Number.isFinite(n) && n > 0) out[id] = n;
+      }
+      return out;
+    };
     setSaving(true);
     try {
       if (editTarget) {
-        const sectionPrices: Record<string, number> = {};
-        for (const id of editTarget.salesSections ?? []) {
-          const raw = priceInputs[id];
-          const n = raw ? parseFloat(raw) : NaN;
-          if (Number.isFinite(n) && n > 0) sectionPrices[id] = n;
-        }
-        await updateCostItem(editTarget.id, { name: form.name.trim(), unit: form.unit, ...dates, sectionPrices, kind: form.kind });
+        // الانضمام للأقسام أولاً: تسعير قسم لا يضمّ الصنف بعد يُرفَض على الخادم
+        await setItemSections(editTarget.id, saleSectionIds);
+        await updateCostItem(editTarget.id, {
+          name: form.name.trim(), unit: form.unit, ...dates,
+          sectionPrices: sectionPricesOf(saleSectionIds), kind: form.kind,
+        });
         showToast("تم تحديث الصنف");
         setEditTarget(null);
       } else if (form.barcodeMode === "supplier") {
         if (!form.barcode.trim()) { showToast("أدخل رقم الباركود", "error"); setSaving(false); return; }
+        const barcode = form.barcode.trim();
         await createCostItemFromSupplierBarcode({
-          name: form.name.trim(), unit: form.unit, barcode: form.barcode.trim(), ...dates, createdBy: appUser.uid, kind: form.kind,
+          name: form.name.trim(), unit: form.unit, barcode, ...dates, createdBy: appUser.uid, kind: form.kind,
         });
+        if (form.kind === "sale" && saleSectionIds.length > 0) {
+          await setItemSections(barcode, saleSectionIds);
+          await updateCostItem(barcode, { sectionPrices: sectionPricesOf(saleSectionIds) });
+        }
         showToast("تم تسجيل الصنف");
         setShowAdd(false);
       } else {
         const created = await createCostItemGenerated({ name: form.name.trim(), unit: form.unit, ...dates, createdBy: appUser.uid, kind: form.kind });
+        if (form.kind === "sale" && saleSectionIds.length > 0) {
+          await setItemSections(created.id, saleSectionIds);
+          await updateCostItem(created.id, { sectionPrices: sectionPricesOf(saleSectionIds) });
+        }
         showToast("تم تسجيل الصنف وتوليد باركوده");
         setShowAdd(false);
         setLabelTarget(created);
@@ -439,7 +463,14 @@ export default function AdminCostsPage() {
                 className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${form.kind === "produced" ? "border-violet-600 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-600"}`}>
                 منتج مُصنَّع
               </button>
+              <button type="button" onClick={() => setForm({ ...form, kind: "sale" })}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-colors ${form.kind === "sale" ? "border-amber-600 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-600"}`}>
+                منتج بيع
+              </button>
             </div>
+            {form.kind === "sale" && (
+              <p className="text-xs text-slate-500 mt-1.5">المادة النهائية الجاهزة للبيع — حدِّد قسمها وسعرها بالأسفل ليظهر في منتجات البيع.</p>
+            )}
           </div>
 
           <div>
@@ -483,42 +514,64 @@ export default function AdminCostsPage() {
             <p className="text-xs text-slate-500 flex items-center gap-1.5"><Barcode size={12} /> الباركود: <span className="font-mono">{editTarget.id}</span> (لا يمكن تغييره)</p>
           )}
 
-          {editTarget && (
+          {(form.kind === "sale" || saleSectionIds.length > 0) && (
             <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-1.5">أسعار البيع حسب القسم</label>
-              {(editTarget.salesSections ?? []).length === 0 ? (
+              <label className="text-sm font-semibold text-slate-700 block mb-1.5">أقسام البيع وأسعارها</label>
+              {sections.length === 0 ? (
                 <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
-                  لم يُضَم هذا الصنف لأي قسم بيع بعد — التسعير يحتاج ضمّه لقسم أولاً.
+                  لا توجد أقسام بيع بعد — أضِف قسماً من صفحة منتجات البيع أولاً.
                 </p>
               ) : (
-                <div className="space-y-2">
-                  {(editTarget.salesSections ?? []).map((id) => {
-                    const sec = sections.find((s) => s.id === id);
-                    const raw = priceInputs[id] ?? "";
-                    const gross = parseFloat(raw);
-                    const hasPrice = Number.isFinite(gross) && gross > 0;
-                    const net = hasPrice ? r2(gross / (1 + vatRate / 100)) : null;
-                    return (
-                      <div key={id} className="border border-slate-200 rounded-xl px-3 py-2.5">
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
-                          <span className="text-sm font-semibold text-slate-800 truncate">
-                            {sec?.name ?? "قسم محذوف"}
-                          </span>
-                          <input
-                            type="number" min={0} step="0.01" value={raw} placeholder="السعر شامل الضريبة"
-                            onChange={(e) => setPriceInputs((prev) => ({ ...prev, [id]: e.target.value }))}
-                            className="w-32 border border-slate-200 rounded-lg px-2.5 py-1 text-sm text-left tabular-nums-auto"
-                          />
-                        </div>
-                        {hasPrice && (
-                          <p className="text-[11px] text-slate-500 tabular-nums-auto">
-                            قبل الضريبة: {money(net!)} ريال · الضريبة ({vatRate}%): {money(r2(gross - net!))} ريال
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <>
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {sections.map((s) => {
+                      const active = saleSectionIds.includes(s.id);
+                      return (
+                        <button key={s.id} type="button"
+                          onClick={() => setSaleSectionIds((prev) => active ? prev.filter((id) => id !== s.id) : [...prev, s.id])}
+                          className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                            active ? "bg-amber-600 text-white border-amber-600" : "bg-white text-slate-600 border-slate-200 hover:border-amber-400"
+                          }`}>
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {saleSectionIds.length === 0 ? (
+                    <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
+                      اختر قسماً واحداً على الأقل ليظهر الصنف فيه ويُسعَّر.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {saleSectionIds.map((id) => {
+                        const sec = sections.find((s) => s.id === id);
+                        const raw = priceInputs[id] ?? "";
+                        const gross = parseFloat(raw);
+                        const hasPrice = Number.isFinite(gross) && gross > 0;
+                        const net = hasPrice ? r2(gross / (1 + vatRate / 100)) : null;
+                        return (
+                          <div key={id} className="border border-slate-200 rounded-xl px-3 py-2.5">
+                            <div className="flex items-center justify-between gap-3 mb-1.5">
+                              <span className="text-sm font-semibold text-slate-800 truncate">
+                                {sec?.name ?? "قسم محذوف"}
+                              </span>
+                              <input
+                                type="number" min={0} step="0.01" value={raw} placeholder="السعر شامل الضريبة"
+                                onChange={(e) => setPriceInputs((prev) => ({ ...prev, [id]: e.target.value }))}
+                                className="w-32 border border-slate-200 rounded-lg px-2.5 py-1 text-sm text-left tabular-nums-auto"
+                              />
+                            </div>
+                            {hasPrice && (
+                              <p className="text-[11px] text-slate-500 tabular-nums-auto">
+                                قبل الضريبة: {money(net!)} ريال · الضريبة ({vatRate}%): {money(r2(gross - net!))} ريال
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

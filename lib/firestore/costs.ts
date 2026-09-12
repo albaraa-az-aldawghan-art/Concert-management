@@ -80,7 +80,7 @@ export async function createCostItemGenerated(data: {
   productionDate?: string | null;
   expiryDate?: string | null;
   createdBy: string;
-  kind?: "raw" | "produced";
+  kind?: "raw" | "produced" | "sale";
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "generate",
@@ -102,7 +102,7 @@ export async function createCostItemFromSupplierBarcode(data: {
   productionDate?: string | null;
   expiryDate?: string | null;
   createdBy: string;
-  kind?: "raw" | "produced";
+  kind?: "raw" | "produced" | "sale";
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "supplier",
