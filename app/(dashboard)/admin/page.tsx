@@ -11,6 +11,7 @@ import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { STATUS_LABEL, normalizeStatus, statusLabel } from "@/lib/concert-status";
+import { isOverdueConcert, remainingAmount } from "@/lib/overdue-concerts";
 import {
   Users, Package, Music, AlertTriangle, ChevronLeft,
   TrendingUp, Wallet, Clock, CheckCircle2, CalendarDays, BarChart3,
@@ -57,15 +58,8 @@ export default function AdminDashboard() {
   const totalTransport  = concerts.reduce((s, c) => s + (c.transportCost ?? 0), 0);
   const collectionRate  = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
 
-  /* متأخرة = مضى على تاريخ الحفلة يوم كامل ولم يُحصَّل كامل المبلغ بعد —
-     تُستثنى الملغاة فلا مبلغ مستحق على حفلة لم تُقَم أصلاً */
-  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  const overdueConcerts = concerts.filter((c) =>
-    normalizeStatus(c.status) !== "cancelled" &&
-    (c.price ?? 0) - (c.deposit ?? 0) > 0 &&
-    c.date.toDate().getTime() < oneDayAgo
-  );
-  const overdueAmount = overdueConcerts.reduce((s, c) => s + ((c.price ?? 0) - (c.deposit ?? 0)), 0);
+  const overdueConcerts = concerts.filter((concert) => isOverdueConcert(concert));
+  const overdueAmount = overdueConcerts.reduce((s, c) => s + remainingAmount(c), 0);
 
   const recent = [...concerts].slice(0, 5);
 
@@ -105,7 +99,21 @@ export default function AdminDashboard() {
           { key: "overdue",   label: "المتأخرات من المدفوعات", value: overdueAmount, icon: <AlertTriangle size={20} />, color: "text-red-600", bg: "bg-red-50", suffix: "ريال", hint: `${overdueConcerts.length} حفلة` },
           { key: "costs",     label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: <BarChart3 size={20} />, color: "text-purple-600", bg: "bg-purple-50", suffix: "ريال" },
         ].filter((s) => feat("dashboard", s.key)).map((s) => (
-          <Card key={s.label}>
+          s.key === "overdue" ? (
+            <Link key={s.key} href="/admin/finances?filter=overdue" className="block">
+              <Card className="h-full hover:shadow-md hover:ring-1 hover:ring-red-200 transition-all cursor-pointer">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-3`}>
+                  {s.icon}
+                </div>
+                <p className="text-xs text-slate-500 mb-1">{s.label}</p>
+                <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("en-US")}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">{s.suffix}</p>
+                  <p className="text-xs font-semibold text-red-600">عرض المتأخر</p>
+                </div>
+              </Card>
+            </Link>
+          ) : <Card key={s.label}>
             <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-3`}>
               {s.icon}
             </div>
@@ -281,4 +289,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

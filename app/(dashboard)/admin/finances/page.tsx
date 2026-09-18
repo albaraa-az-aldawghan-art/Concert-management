@@ -3,6 +3,7 @@
 /* القائمة المالية: المحصَّل والمتبقي وتكاليف الحفلات، وضبط نسبة الضريبة. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
+import { isOverdueConcert } from "@/lib/overdue-concerts";
 import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -85,6 +87,8 @@ type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
   const { can, feat } = useAuth();
+  const searchParams = useSearchParams();
+  const requestedOverdue = searchParams.get("filter") === "overdue";
   /* كل رقم بحقله: دور قد يتابع الحفلات ولا يرى أسعارها */
   const ff = {
     total:     feat("finances", "f_total"),
@@ -99,6 +103,9 @@ export default function FinancesPage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // null يحترم الرابط القادم من لوحة التحكم، وبعد أول ضغط يصبح القرار للمستخدم.
+  const [overdueOverride, setOverdueOverride] = useState<boolean | null>(null);
+  const overdueOnly = overdueOverride ?? requestedOverdue;
   const [dateFilter,   setDateFilter]   = useState<DateFilter>("all");
   // الأساس تاريخ الحفلة نفسه لا تاريخ التسجيل — هذا ما يهمّ التخطيط
   const [dateField,    setDateField]    = useState<DateField>("date");
@@ -114,8 +121,6 @@ export default function FinancesPage() {
   useEffect(() => {
     getConcerts().then((data) => { setConcerts(data); setLoading(false); });
   }, []);
-
-  useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery, ranges]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -162,6 +167,7 @@ export default function FinancesPage() {
   const financial = dateFiltered.filter((c) => normalizeStatus(c.status) !== "cancelled");
   const filtered = financial
     .filter((c) => statusFilter === "all" || normalizeStatus(c.status) === statusFilter)
+    .filter((c) => !overdueOnly || isOverdueConcert(c, today))
     .filter(passesSearch)
     .filter((c) => {
       const m = metricsOf(c);
@@ -346,6 +352,17 @@ export default function FinancesPage() {
 
       {/* Status Filter — counts reflect current date filter */}
       <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setOverdueOverride(!overdueOnly)}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+            overdueOnly
+              ? "bg-red-600 text-white"
+              : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-100"
+          }`}
+        >
+          المتأخر
+          <span className="mr-1.5 text-xs opacity-70">({financial.filter((c) => isOverdueConcert(c, today)).length})</span>
+        </button>
         {/* الملغاة مستبعدة من القائمة المالية أصلاً، فلا شريحة لها */}
         {STATUS_FILTERS.filter((f) => f.key !== "cancelled").map((f) => {
           const count =
@@ -499,7 +516,7 @@ export default function FinancesPage() {
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
             <p>لا توجد حفلات تطابق الفلاتر المحددة</p>
             <button
-              onClick={() => { setStatusFilter("all"); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); clearRangeFilters(); }}
+              onClick={() => { setStatusFilter("all"); setOverdueOverride(false); setDateFilter("all"); setDateFrom(""); setDateTo(""); setSearchQuery(""); clearRangeFilters(); }}
               className="mt-2 text-sm text-[#1C2D50] hover:underline"
             >
               مسح جميع الفلاتر
@@ -537,6 +554,12 @@ export default function FinancesPage() {
                           <p className="text-slate-400">المتبقي</p>
                           <p className="font-bold text-orange-700">{remaining.toLocaleString("en-US")}</p>
                         </div>
+                        {isOverdueConcert(c, today) && (
+                          <div className="bg-red-50 rounded-lg px-2 py-1.5">
+                            <p className="text-slate-400">السداد</p>
+                            <p className="font-bold text-red-700">متأخر</p>
+                          </div>
+                        )}
                         <div className="bg-purple-50 rounded-lg px-2 py-1.5">
                           <p className="text-slate-400">القاعة + النقل</p>
                           <p className="font-bold text-purple-700">{(hall + (c.transportCost ?? 0)).toLocaleString("en-US")}</p>
@@ -578,6 +601,11 @@ export default function FinancesPage() {
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="مجموع التكاليف" sortKeyName="total" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المحصَّل" sortKeyName="collected" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="المتبقي" sortKeyName="remaining" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                    <th className="text-right text-xs text-slate-500 pb-3 px-3">
+                      <button onClick={() => setOverdueOverride(!overdueOnly)} className={`font-semibold transition-colors ${overdueOnly ? "text-red-700" : "hover:text-red-600"}`}>
+                        المتأخر
+                      </button>
+                    </th>
                   </tr>
                   {/* صف الفلاتر — تحت رؤوس الأعمدة مباشرة */}
                   <tr className="border-b-2 border-slate-200 bg-slate-50/70">
@@ -616,6 +644,7 @@ export default function FinancesPage() {
                       <RangeFilter min={ranges.remainingMin} max={ranges.remainingMax}
                         onMin={(v) => setRanges((r) => ({ ...r, remainingMin: v }))} onMax={(v) => setRanges((r) => ({ ...r, remainingMax: v }))} />
                     </td>
+                    <td className="py-2 px-3"></td>
                   </tr>
                 </thead>
                 <tbody>
@@ -653,6 +682,11 @@ export default function FinancesPage() {
                             {remaining.toLocaleString("en-US")}
                           </span>
                         </td>
+                        <td className="py-3.5 px-3">
+                          {isOverdueConcert(c, today) ? (
+                            <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">متأخر</span>
+                          ) : "—"}
+                        </td>
                       </tr>
                     );
                   })}
@@ -674,6 +708,7 @@ export default function FinancesPage() {
                     </td>
                     <td className="py-3 px-3 font-bold text-emerald-700">{totalCollected.toLocaleString("en-US")}</td>
                     <td className="py-3 px-3 font-bold text-orange-700">{totalRemaining.toLocaleString("en-US")}</td>
+                    <td className="py-3 px-3 text-red-700 font-bold">{financial.filter((c) => isOverdueConcert(c, today)).length}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -732,4 +767,3 @@ export default function FinancesPage() {
     </div>
   );
 }
-
