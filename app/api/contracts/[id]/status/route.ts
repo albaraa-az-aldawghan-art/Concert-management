@@ -2,7 +2,7 @@
 
 import { NextRequest } from "next/server";
 import { requireCaller, require_, handle, str, optStr, ApiError } from "@/lib/server/guard";
-import { svcCancelContract, svcCompleteContract } from "@/lib/server/contracts-core";
+import { svcCancelContract, svcCompleteContract, svcReopenContract } from "@/lib/server/contracts-core";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (action === "complete") {
       require_(caller, "contracts", "edit", "إتمام العقود");
       await svcCompleteContract(caller.db, id);
+      return;
+    }
+    if (action === "reopen") {
+      require_(caller, "contracts", "edit", "إعادة فتح العقود");
+      await svcReopenContract(caller.db, id);
       return;
     }
     throw new ApiError("إجراء غير معروف");

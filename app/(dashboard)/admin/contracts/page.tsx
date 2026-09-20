@@ -13,7 +13,7 @@ import { SearchBox } from "@/components/ui/list-filters";
 import { Actor } from "@/components/ui/actor";
 import {
   getContracts, addContract, updateContract, cancelContract,
-  completeContract, deleteContract, ContractDraft, termsTotal,
+  completeContract, reopenContract, deleteContract, ContractDraft, termsTotal,
 } from "@/lib/firestore/contracts";
 import { getCostItems, getCostOutgoing } from "@/lib/firestore/costs";
 import { getSectionsOfChannel, itemsOfSection } from "@/lib/firestore/sales";
@@ -21,7 +21,7 @@ import { averageCost } from "@/lib/recipes";
 import { Contract, CostItem, CostOutgoing, SalesSection } from "@/types";
 import {
   FileSignature, Plus, Trash2, Pencil, X, Check, Info, CalendarDays,
-  Search, Ban, CheckCircle2, TrendingUp, Table2,
+  Search, Ban, CheckCircle2, TrendingUp, Table2, RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -68,6 +68,7 @@ export default function ContractsPage() {
   const [cancelTarget, setCancelTarget] = useState<Contract | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Contract | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<Contract | null>(null);
 
   const [form, setForm] = useState({
     name: "", clientName: "", clientPhone: "",
@@ -185,6 +186,7 @@ export default function ContractsPage() {
       showToast(msg);
       setCancelTarget(null);
       setDeleteTarget(null);
+      setReopenTarget(null);
       load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
@@ -308,6 +310,12 @@ export default function ContractsPage() {
                       <button onClick={() => run(() => completeContract(c.id), "أُنهي العقد")}
                         className="p-1.5 text-slate-400 hover:text-emerald-600" title="إنهاء العقد">
                         <CheckCircle2 size={14} />
+                      </button>
+                    )}
+                    {canEdit && c.status === "completed" && (
+                      <button onClick={() => setReopenTarget(c)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600" title="إرجاع العقد إلى ساري">
+                        <RotateCcw size={14} />
                       </button>
                     )}
                     {canCancel && c.status !== "cancelled" && (
@@ -487,6 +495,16 @@ export default function ContractsPage() {
         title="حذف العقد"
         message={`سيُحذف عقد «${deleteTarget?.name}» ودفعاته. لا يمكن الحذف إن صُرفت عليه خامات — استعمل الإلغاء حينها.`}
         confirmLabel="حذف"
+        loading={saving}
+      />
+
+      <ConfirmModal
+        open={!!reopenTarget}
+        onClose={() => setReopenTarget(null)}
+        onConfirm={() => reopenTarget && run(() => reopenContract(reopenTarget.id), "أُعيد فتح العقد")}
+        title="إعادة فتح العقد"
+        message={`سيعود عقد «${reopenTarget?.name}» إلى حالة «ساري». لن تُحذف الدفعات أو الأيام أو تكاليف الخامات المسجلة.`}
+        confirmLabel="إعادة فتح العقد"
         loading={saving}
       />
     </div>

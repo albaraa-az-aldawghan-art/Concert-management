@@ -128,6 +128,19 @@ export async function svcCompleteContract(db: Firestore, id: string) {
   await ref.update({ status: "completed" });
 }
 
+/** يعيد العقد المنتهي إلى «ساري» من دون المساس بالدفعات أو الأيام أو التكاليف المسجلة. */
+export async function svcReopenContract(db: Firestore, id: string) {
+  const ref = db.collection("contracts").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError("العقد غير موجود", 404);
+
+  const status = snap.data()!.status;
+  if (status === "cancelled") throw new ApiError("لا يمكن إعادة فتح عقد ملغى");
+  if (status !== "completed") throw new ApiError("العقد ليس منتهياً");
+
+  await ref.update({ status: "active" });
+}
+
 /** حذف العقد يُمنع ما دام محمّلاً عليه صرف — وإلا ضاعت تكلفة مسجّلة */
 export async function svcDeleteContract(db: Firestore, id: string) {
   const used = await db.collection("cost_outgoing").where("contractId", "==", id).limit(1).get();

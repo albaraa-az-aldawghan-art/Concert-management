@@ -55,6 +55,10 @@ export async function completeContract(id: string): Promise<void> {
   await api.post(`/api/contracts/${id}/status`, { action: "complete" });
 }
 
+export async function reopenContract(id: string): Promise<void> {
+  await api.post(`/api/contracts/${id}/status`, { action: "reopen" });
+}
+
 export async function deleteContract(id: string): Promise<void> {
   await api.del(`/api/contracts/${id}`);
 }
