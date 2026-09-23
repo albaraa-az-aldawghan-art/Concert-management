@@ -8,6 +8,7 @@ import { getAllUsers } from "@/lib/firestore/users";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getConcerts } from "@/lib/firestore/concerts";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
+import { ActivityFeed } from "@/components/activity-feed";
 import { Card } from "@/components/ui/card";
 import { Concert } from "@/types";
 import { STATUS_LABEL, normalizeStatus, statusLabel } from "@/lib/concert-status";
@@ -286,6 +287,7 @@ export default function AdminDashboard() {
           ))}
         </div>
       </Card>}
+      <ActivityFeed />
     </div>
   );
 }

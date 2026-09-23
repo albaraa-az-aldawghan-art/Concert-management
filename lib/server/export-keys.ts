@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "crypto";
-import { Timestamp, Firestore } from "firebase-admin/firestore";
+import { Timestamp, Firestore, FieldValue } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { activityContext } from "@/lib/server/activity-context";
 
 /* ═══════════════════════════════════════════════════════════════
    مفاتيح الرابط الدائم.
@@ -69,10 +70,21 @@ export async function revokeExportKey(db: Firestore, id: string) {
 
 /** يتحقّق من مفتاح قادم في الرابط ويسجّل استعماله. يرمي إن كان
  *  غير موجود أو مُبطَلاً — بنفس الرسالة كي لا يُميَّز أحدهما عن الآخر. */
-export async function verifyExportKey(db: Firestore, key: string): Promise<void> {
+export async function verifyExportKey(db: Firestore, key: string, path = "/api/export"): Promise<void> {
   const snap = await db.collection(COLLECTION).where("keyHash", "==", hash(key)).limit(1).get();
   const doc = snap.docs[0];
   if (!doc || doc.data().revoked) throw new ApiError("رابط التصدير غير صالح أو مُبطَل", 401);
+
+  const context = activityContext.getStore();
+  if (context && !context.ref) {
+    const ref = db.collection("activity_logs").doc();
+    await ref.create({
+      actorId: `export-key:${doc.id}`, actorName: `رابط تصدير: ${String(doc.data().label ?? "").slice(0, 100)}`,
+      actorEmail: "", action: "تصدير بواسطة رابط دائم", path: path.split("?")[0],
+      targetId: doc.id, status: "pending", source: "server", createdAt: FieldValue.serverTimestamp(),
+    });
+    context.ref = ref;
+  }
 
   // تسجيل الاستعمال لا يمنع التصدير إن فشل
   await doc.ref

@@ -3,6 +3,9 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { PermissionPage } from "@/types";
 import { roleDocIdFor } from "@/lib/permissions";
 import type { Firestore } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import { activityContext, finishActivity } from "@/lib/server/activity-context";
+import { describeActivity, shouldAudit } from "@/lib/activity";
 
 /* ═══════════════════════════════════════════════════════════════
    حارس الطلبات — كل مسار في الـAPI يمرّ من هنا.
@@ -85,6 +88,30 @@ export async function requireCaller(
     return perms[page] !== undefined && perms[page] !== null;
   }
 
+  const context = activityContext.getStore();
+  const path = new URL(req.url).pathname;
+  if (context && !context.ref && shouldAudit(req.method, path)) {
+    const actor = userSnap.data()!;
+    const ref = db.collection("activity_logs").doc();
+    const segments = path.split("/").filter(Boolean);
+    const collections: Record<string, string> = { concerts: "concerts", contracts: "contracts", warehouse: "warehouse_items", packages: "packages", "sales-sections": "sales_sections" };
+    const targetId = typeof body?.targetUid === "string" ? body.targetUid : typeof body?.id === "string" ? body.id : collections[segments[1]] ? segments[2] ?? "" : "";
+    let action = describeActivity(req.method, path, body);
+    if (collections[segments[1]] && targetId && targetId !== "_") {
+      const target = await db.collection(collections[segments[1]]).doc(targetId).get();
+      const name = target.data()?.name ?? target.data()?.clientName;
+      if (typeof name === "string" && name.trim()) action += ` — ${name.slice(0, 120)}`;
+    } else if (req.method === "POST" && ["concerts", "contracts", "warehouse", "packages"].includes(segments[1]) && typeof body?.name === "string") {
+      action += ` — ${body.name.slice(0, 120)}`;
+    }
+    // Reserve a durable record before any business mutation takes place.
+    await ref.create({
+      actorId: uid, actorName: actor.name ?? "", actorEmail: actor.email ?? "",
+      action, path, targetId: targetId.slice(0, 150),
+      status: "pending", source: "server", createdAt: FieldValue.serverTimestamp(),
+    });
+    context.ref = ref;
+  }
   return { uid, role: user.role, db, feat, can, isAdmin };
 }
 
@@ -106,14 +133,35 @@ export function requireAdmin(caller: Caller, label: string) {
 
 /** يغلّف المسار: يحوّل الأخطاء إلى ردود JSON مفهومة بدل انهيار 500 */
 export async function handle(fn: () => Promise<unknown>): Promise<NextResponse> {
-  try {
-    const data = await fn();
-    return NextResponse.json(data ?? { ok: true });
-  } catch (err) {
-    const status = err instanceof ApiError ? err.status : 400;
-    const message = err instanceof Error ? err.message : "حدث خطأ غير متوقع";
-    return NextResponse.json({ error: message }, { status });
-  }
+  return activityContext.run({}, async () => {
+    try {
+      const data = await fn();
+      if (data && typeof data === "object" && "id" in data && typeof data.id === "string") {
+        await activityContext.getStore()?.ref?.update({ targetId: data.id }).catch(() => {});
+      }
+      await finishActivity("success");
+      return NextResponse.json(data ?? { ok: true });
+    } catch (err) {
+      await finishActivity("failed");
+      const status = err instanceof ApiError ? err.status : 400;
+      const message = err instanceof Error ? err.message : "حدث خطأ غير متوقع";
+      return NextResponse.json({ error: message }, { status });
+    }
+  });
+}
+
+/** Binary/download handlers preserve their original response and status. */
+export async function withActivityResponse(fn: () => Promise<Response>): Promise<Response> {
+  return activityContext.run({}, async () => {
+    try {
+      const response = await fn();
+      await finishActivity(response.ok ? "success" : "failed");
+      return response;
+    } catch (error) {
+      await finishActivity("failed");
+      throw error;
+    }
+  });
 }
 
 /* ── أدوات تحقّق من المدخلات ────────────────────────────────── */

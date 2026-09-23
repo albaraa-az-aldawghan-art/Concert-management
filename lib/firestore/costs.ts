@@ -36,9 +36,7 @@ export async function getCostSettings(): Promise<CostSettings> {
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     const seed: CostSettings = { units: DEFAULT_UNITS, departments: DEFAULT_DEPARTMENTS };
-    // من ليس لديه صلاحية manage_items لا يستطيع زرع المستند — يكتفي بالقيم
-    // الافتراضية في الذاكرة حتى يفتح أحد المدراء الصفحة فيُحفظ المستند فعلياً.
-    await setDoc(ref, seed).catch(() => {});
+    // Defaults stay in memory until explicitly saved through the audited API.
     return seed;
   }
   const data = snap.data() as Partial<CostSettings>;
@@ -49,7 +47,7 @@ export async function getCostSettings(): Promise<CostSettings> {
 }
 
 export async function updateCostSettings(data: CostSettings): Promise<void> {
-  await setDoc(doc(db, "cost_settings", "config"), data);
+  await api.put("/api/settings/costs", data);
 }
 
 /* الباركود الداخلي يُولَّد على الخادم الآن (lib/server/costs-core.ts)

@@ -51,18 +51,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow get:    if signedIn() && (uid() == userId || isAdmin() || pageOn('users') || pageOn('concerts') || pageOn('supervisor'));
       allow list:   if isAdmin() || pageOn('users') || pageOn('supervisor');
-      allow create: if isAdmin() || hasFeat('users', 'create');
-      allow update: if isAdmin() || hasFeat('users', 'edit');
-      allow delete: if isAdmin() || hasFeat('users', 'delete');
+      allow write: if false; // User management uses the authenticated, audited API.
     }
 
     // ── الأدوار المخصصة ────────────────────────────────────────
-    // الكتابة للمدير أو دور مُنح صراحةً «إدارة الأدوار والصلاحيات»
+    // الكتابة من الخادم مع التحقق من صلاحية الإجراء وتسجيله.
     match /custom_roles/{roleId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('users', 'roles_create')
-                             || hasFeat('users', 'roles_edit')
-                             || hasFeat('users', 'roles_delete');
+      allow write: if false;
     }
 
     // ── الحفلات ────────────────────────────────────────────────
@@ -92,10 +88,10 @@ service cloud.firestore {
     }
 
     // ── مسودات الحفلات ─────────────────────────────────────────
-    // لقطة عمل قيد الإدخال بلا التزام مالي — كتابة مباشرة من المتصفح
-    // كإعدادات التكاليف، لا حاجة لتحقّق خادم على بيانات لم تُعتمَد بعد.
+    // الحفظ والحذف من الخادم حتى تدخل المسودات في سجل النشاطات.
     match /concert_drafts/{draftId} {
-      allow read, write: if isAdmin() || pageOn('concerts');
+      allow read: if isAdmin() || pageOn('concerts');
+      allow write: if false;
     }
 
     // ── مواد الحفلات ───────────────────────────────────────────
@@ -158,7 +154,7 @@ service cloud.firestore {
       allow read:           if isAdmin() || isWarehouse() || isSupervisor() || pageOn('missing_items') || pageOn('concerts');
       // الإنشاء من الخادم (يتحقّق أن المفقود لا يتجاوز ما أُخذ للحفلة)
       allow create:         if false;
-      allow update, delete: if isAdmin() || hasFeat('missing_items', 'resolve');
+      allow update, delete: if false;
     }
 
     // ── طلبات المطبخ ───────────────────────────────────────────
@@ -212,8 +208,9 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
 
     // ── العدادات (ترقيم الحفلات تسلسلياً، وباركود التكاليف) ────
     match /counters/{counterId} {
-      allow read, write: if isAdmin() || hasFeat('concerts', 'create')
+      allow read: if isAdmin() || hasFeat('concerts', 'create')
                              || hasFeat('contracts', 'create') || hasFeat('costs', 'item_config');
+      allow write: if false;
     }
 
     // ── الإعدادات العامة (نسبة الضريبة…) ─────────────────────
@@ -224,16 +221,7 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
       // لكل مفتاح صلاحيته: من يملك الضريبة يعدّل vatRate وحده، ومن يملك
       // الميزات يعدّل features وحدها — فلا تُمنح صلاحية من الواجهة وتمنعها
       // القواعد بصمت، ولا يفتح مفتاحٌ واحد كل الإعدادات
-      allow write: if isAdmin() || (
-        resource == null ? false :
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(
-            (hasFeat('settings', 'vat')      ? ['vatRate']     : [])
-              .concat(hasFeat('settings', 'features') ? ['features']    : [])
-              .concat(hasFeat('settings', 'labels')   ? ['labels']      : [])
-              .concat(hasFeat('settings', 'idle')     ? ['idleMonths']  : [])
-          )
-      );
+      allow write: if false; // Authenticated, audited settings API only.
     }
 
     /* ── التكاليف — قراءة فقط من المتصفح ────────────────────────
@@ -276,7 +264,7 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
 
     match /cost_settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('costs', 'item_config');
+      allow write: if false;
     }
 
     // ── فواتير مصروفات الحفلة ─────────────────────────────────
@@ -289,10 +277,14 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
 
     match /expense_settings/{docId} {
       allow read:  if signedIn();
-      allow write: if isAdmin() || hasFeat('concerts', 'exp_add');
+      allow write: if false;
     }
 
     // ── رفض كل ما عدا ما ذُكر ──────────────────────────────────
+    // Global activity is only accessible through the authenticated server API.
+    match /activity_logs/{entryId} {
+      allow read, write: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

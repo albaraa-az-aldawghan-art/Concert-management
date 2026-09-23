@@ -2,14 +2,16 @@
 
 /* غلاف لوحة التحكم: الشريط الجانبي والترويسة وحماية الصفحات بالصلاحيات. */
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { ActivityFeed } from "@/components/activity-feed";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { appUser, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !appUser) {
@@ -35,7 +37,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="lg:mr-64 flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          {children}
+          {["/warehouse-manager", "/supervisor", "/employee", "/kitchen"].includes(pathname) && <div className="mt-6"><ActivityFeed /></div>}
+        </main>
       </div>
     </div>
   );

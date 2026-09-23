@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Browser } from "puppeteer-core";
+import { requireCaller, withActivityResponse } from "@/lib/server/guard";
+import { activityContext } from "@/lib/server/activity-context";
+import { getAdminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -40,7 +44,7 @@ async function launchBrowser(): Promise<Browser> {
   });
 }
 
-export async function GET(
+async function download(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -48,6 +52,15 @@ export async function GET(
 
   try {
     const { id } = await params;
+    if (req.headers.has("authorization")) await requireCaller(req);
+    else {
+      const ref = getAdminDb().collection("activity_logs").doc();
+      await ref.create({ actorId: "anonymous", actorName: "زائر غير مسجل", actorEmail: "",
+        action: "تصدير عقد PDF", path: req.nextUrl.pathname, targetId: id,
+        status: "pending", source: "server", createdAt: FieldValue.serverTimestamp() });
+      const context = activityContext.getStore();
+      if (context) context.ref = ref;
+    }
     const host  = req.headers.get("host") ?? "localhost:3000";
     const proto = req.headers.get("x-forwarded-proto") ?? "http";
     const contractUrl = `${proto}://${host}/contract/${id}`;
@@ -114,4 +127,8 @@ export async function GET(
   } finally {
     if (browser) await browser.close();
   }
+}
+
+export async function GET(...args: Parameters<typeof download>) {
+  return withActivityResponse(() => download(...args));
 }

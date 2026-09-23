@@ -1,3 +1,4 @@
+import { api } from "@/lib/api";
 /* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
 
 import {
@@ -5,12 +6,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { CustomRole } from "@/types";
@@ -31,27 +26,17 @@ export async function getCustomRoleById(id: string): Promise<CustomRole | null> 
 export async function addCustomRole(
   data: Omit<CustomRole, "id" | "createdAt">
 ): Promise<CustomRole> {
-  const ref = await addDoc(collection(db, "custom_roles"), {
-    ...data,
-    createdAt: Timestamp.now(),
-  });
-  const snap = await getDoc(ref);
-  return { id: ref.id, ...snap.data() } as CustomRole;
+  const { id } = await api.post<{ id: string }>("/api/roles", { data });
+  const snap = await getDoc(doc(db, "custom_roles", id));
+  return { id, ...snap.data() } as CustomRole;
 }
 
 export async function updateCustomRole(id: string, data: Partial<CustomRole>) {
-  await updateDoc(doc(db, "custom_roles", id), data as Record<string, unknown>);
+  await api.post("/api/roles", { id, data });
 }
 
 // Deleting a role that users still hold would strand them with zero access —
 // refuse and tell the admin who is blocking.
 export async function deleteCustomRole(id: string): Promise<void> {
-  const usersSnap = await getDocs(
-    query(collection(db, "users"), where("customRoleId", "==", id))
-  );
-  if (!usersSnap.empty) {
-    const names = usersSnap.docs.map((d) => d.data().name).join("، ");
-    throw new Error(`لا يمكن حذف الدور — مرتبط بالمستخدمين: ${names}`);
-  }
-  await deleteDoc(doc(db, "custom_roles", id));
+  await api.del(`/api/roles?id=${encodeURIComponent(id)}`);
 }

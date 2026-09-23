@@ -450,9 +450,7 @@ function NewConcertPageInner() {
         {
           form, hallCostType, hallCostValue, hallCostDate, hallCostRecipient,
           location, itemCheck, foodCheck, foodMetaLite, paymentEntries,
-        },
-        appUser.uid,
-        appUser.name ?? ""
+        }
       );
       setDraftId(id);
       showToast("حُفظت المسودة — تقدر ترجع لها من صفحة المسودات");

@@ -1,3 +1,4 @@
+import { api } from "@/lib/api";
 /* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
 
 import {
@@ -47,10 +48,13 @@ export async function createUser(
 }
 
 export async function signIn(email: string, password: string) {
-  return signInWithEmailAndPassword(auth, email, password);
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  await api.post("/api/session", { action: "signin" }).catch(() => {});
+  return result;
 }
 
 export async function signOut() {
+  await api.post("/api/session", { action: "signout" }).catch(() => {});
   return firebaseSignOut(auth);
 }
 

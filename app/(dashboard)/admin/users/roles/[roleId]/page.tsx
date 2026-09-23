@@ -209,7 +209,7 @@ export default function RoleEditorPage() {
           </div>
         </div>
 
-        {totalGranted === 0 && (
+        {Object.keys(perms).length === 0 && (
           <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
             <AlertTriangle size={15} className="shrink-0" />
             هذا الدور لا يفتح أي صفحة — من يحمله يسجّل دخوله ولا يرى شيئاً
@@ -249,7 +249,7 @@ export default function RoleEditorPage() {
                         : "bg-[#EEF1F7] text-[#1C2D50]"
                     }`}
                   >
-                    {on ? `${n}/${all}` : "—"}
+                    {on ? (all === 0 ? "عرض" : `${n}/${all}`) : "—"}
                   </span>
                 </button>
               );

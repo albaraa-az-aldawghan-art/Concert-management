@@ -48,6 +48,7 @@ interface NavItem {
 
 const adminNav: NavItem[] = [
   { label: "لوحة التحكم",   href: "/admin",                       icon: <LayoutDashboard size={17} /> },
+  { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} /> },
   { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
   /* الحفلات قسم كامل: كل ما يخدم تنفيذ الحفلة تحته، فلا يتنقّل المستخدم
      بين رؤوس متفرّقة ليُنهي حفلة واحدة */
@@ -400,7 +401,10 @@ export function Sidebar() {
       : navByRole[appUser?.role ?? "employee"] ?? [];
 
   // الميزات الموقوفة تُحذف من التنقّل، والمسمّيات تُطبَّق على الأقسام
-  const visibleNav = applySystemNav(navItems, settings.features, settings.labels);
+  const activityNav = can("activity") && !navItems.some((item) => item.href === "/admin/activity")
+    ? [...navItems, { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} /> }]
+    : navItems;
+  const visibleNav = applySystemNav(activityNav, settings.features, settings.labels);
 
   async function handleSignOut() {
     await signOut();

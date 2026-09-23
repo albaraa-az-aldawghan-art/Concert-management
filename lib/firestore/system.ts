@@ -1,4 +1,5 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { api } from "@/lib/api";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -77,13 +78,13 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 }
 
 export async function updateSystemFeatures(features: SystemFeatures): Promise<void> {
-  await setDoc(doc(db, "settings", "global"), { features }, { merge: true });
+  await api.put("/api/settings/global", { features });
 }
 
 export async function updateSystemLabels(labels: SystemLabels): Promise<void> {
-  await setDoc(doc(db, "settings", "global"), { labels }, { merge: true });
+  await api.put("/api/settings/global", { labels });
 }
 
 export async function updateIdleMonths(idleMonths: number): Promise<void> {
-  await setDoc(doc(db, "settings", "global"), { idleMonths }, { merge: true });
+  await api.put("/api/settings/global", { idleMonths });
 }

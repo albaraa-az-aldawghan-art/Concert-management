@@ -1,3 +1,4 @@
+import { withActivityResponse } from "@/lib/server/guard";
 /* تنزيل قالب منصرف المطعم — لا "تصدير" بالمعنى المعتاد، بل جزء من
    آلية تسجيل المنصرف نفسها: نفس صلاحية التسجيل تفتحه لا صلاحية تصدير
    منفصلة. */
@@ -9,7 +10,7 @@ import { buildRestaurantTemplateWorkbook } from "@/lib/server/export-core";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
+async function download(req: NextRequest) {
   try {
     const caller = await requireCaller(req);
     require_(caller, "costs", "out_add", "تسجيل المنصرف");
@@ -28,4 +29,8 @@ export async function GET(req: NextRequest) {
     const status = err instanceof ApiError ? err.status : 400;
     return NextResponse.json({ error: err instanceof Error ? err.message : "تعذّر التصدير" }, { status });
   }
+}
+
+export async function GET(...args: Parameters<typeof download>) {
+  return withActivityResponse(() => download(...args));
 }

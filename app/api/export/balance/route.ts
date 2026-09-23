@@ -1,3 +1,4 @@
+import { withActivityResponse } from "@/lib/server/guard";
 /* تصدير رصيد الأصناف: جرد لحظي — ورقة واحدة بلا بُعد زمني (لا "سنة" هنا). */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import { buildBalanceWorkbook } from "@/lib/server/export-core";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
+async function download(req: NextRequest) {
   try {
     const key = new URL(req.url).searchParams.get("key");
     let includeValue: boolean;
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (key) {
       // رابط دائم: لا يُنشئه إلا مدير أصلاً، فالقيمة تُضمّ معه دائماً
       db = getAdminDb();
-      await verifyExportKey(db, key);
+      await verifyExportKey(db, key, req.nextUrl.pathname);
       includeValue = true;
     } else {
       const caller = await requireCaller(req);
@@ -42,4 +43,8 @@ export async function GET(req: NextRequest) {
     const status = err instanceof ApiError ? err.status : 400;
     return NextResponse.json({ error: err instanceof Error ? err.message : "تعذّر التصدير" }, { status });
   }
+}
+
+export async function GET(...args: Parameters<typeof download>) {
+  return withActivityResponse(() => download(...args));
 }

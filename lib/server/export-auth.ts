@@ -16,7 +16,7 @@ export async function authorizeExport(
   const key = new URL(req.url).searchParams.get("key");
   if (key) {
     const db = getAdminDb();
-    await verifyExportKey(db, key);
+    await verifyExportKey(db, key, req.nextUrl.pathname);
     return db;
   }
   const caller = await requireCaller(req);

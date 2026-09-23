@@ -1,3 +1,4 @@
+import { withActivityResponse } from "@/lib/server/guard";
 /* تصدير شهر من الجدول اليومي بتخطيط ورقة الإكسل الأصلية. */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { buildContractMonthWorkbook } from "@/lib/server/contract-ledger-export"
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function download(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const caller = await requireCaller(req);
     require_(caller, "contracts", "ledger_export", "تصدير الجدول اليومي");
@@ -30,4 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const status = err instanceof ApiError ? err.status : 400;
     return NextResponse.json({ error: err instanceof Error ? err.message : "تعذّر التصدير" }, { status });
   }
+}
+
+export async function GET(...args: Parameters<typeof download>) {
+  return withActivityResponse(() => download(...args));
 }

@@ -7,6 +7,7 @@ export type UserRole = "admin" | "warehouse_manager" | "supervisor" | "employee"
 export type PermissionLevel = "view" | "manage";
 
 export type PermissionPage =
+  | "activity"
   | "dashboard"
   | "finances"
   | "concerts"

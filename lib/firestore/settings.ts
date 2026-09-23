@@ -1,6 +1,7 @@
+import { api } from "@/lib/api";
 /* طبقة الوصول للبيانات: القراءات تتم من المتصفح، والكتابات تُنادي الخادم. */
 
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function getVatRate(): Promise<number> {
@@ -10,5 +11,5 @@ export async function getVatRate(): Promise<number> {
 }
 
 export async function updateVatRate(rate: number): Promise<void> {
-  await setDoc(doc(db, "settings", "global"), { vatRate: rate }, { merge: true });
+  await api.put("/api/settings/global", { vatRate: rate });
 }

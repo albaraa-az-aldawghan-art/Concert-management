@@ -35,6 +35,7 @@ export const PERMISSION_PAGES: FlatPageDef[] = PERMISSION_CATALOG.map((p) => ({
 /* ── ربط المسار بالصفحة ──────────────────────────────────────
    الترتيب مهم: الأخصّ أولاً، و/admin المجرّد أخيراً. */
 export function pageKeyFromPath(pathname: string): PermissionPage | null {
+  if (pathname.startsWith("/admin/activity")) return "activity";
   if (pathname.startsWith("/admin/finances")) return "finances";
   if (pathname.startsWith("/admin/packages")) return "packages";
   if (pathname.startsWith("/admin/concerts")) return "concerts";

@@ -1,9 +1,8 @@
-/* مسودات الحفلات: بيانات مؤقتة قيد الإدخال — كتابة مباشرة من المتصفح
-   بلا مرور بالخادم، فلا التزام مالي ولا قيد محاسبي يحتاج تحققاً هناك،
-   تماماً كإعدادات التكاليف (cost_settings). */
+import { api } from "@/lib/api";
+/* مسودات الحفلات: القراءات من المتصفح والحفظ من الخادم لتوثيق النشاط. */
 
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, orderBy, query, Timestamp,
+  collection, doc, getDoc, getDocs, orderBy, query,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ConcertDraft } from "@/types";
@@ -24,24 +23,12 @@ export async function getConcertDraft(id: string): Promise<ConcertDraft | null> 
 /** يُنشئ مسودة جديدة إن لم يُمرَّر معرّف، أو يُحدّث القائمة إن مُرِّر */
 export async function saveConcertDraft(
   id: string | null,
-  data: DraftPayload,
-  createdBy: string,
-  createdByName: string
+  data: DraftPayload
 ): Promise<string> {
-  if (id) {
-    await updateDoc(doc(db, "concert_drafts", id), { ...data, updatedAt: Timestamp.now() });
-    return id;
-  }
-  const ref = await addDoc(collection(db, "concert_drafts"), {
-    ...data,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-    createdBy,
-    createdByName,
-  });
-  return ref.id;
+  const result = await api.post<{ id: string }>("/api/drafts", { id, data });
+  return result.id;
 }
 
 export async function deleteConcertDraft(id: string): Promise<void> {
-  await deleteDoc(doc(db, "concert_drafts", id));
+  await api.del(`/api/drafts?id=${encodeURIComponent(id)}`);
 }

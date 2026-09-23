@@ -8,6 +8,8 @@ import { getUserById } from "@/lib/firestore/users";
 import { getCustomRoleById } from "@/lib/firestore/roles";
 import { canAccess, canFeature, firstAllowedPath, roleDocIdFor } from "@/lib/permissions";
 import { AppUser, CustomRole, PermissionPage } from "@/types";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface AuthContextValue {
   firebaseUser: User | null;
@@ -36,6 +38,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [customRole, setCustomRole] = useState<CustomRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const roleId = appUser ? roleDocIdFor(appUser) : null;
+
+  // A role's visibility changes immediately when its permissions are revoked.
+  useEffect(() => {
+    if (!roleId) return;
+    return onSnapshot(doc(db, "custom_roles", roleId), (snapshot) => {
+      setCustomRole(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as CustomRole : null);
+    }, () => setCustomRole(null));
+  }, [roleId]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

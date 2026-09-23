@@ -1,3 +1,4 @@
+import { withActivityResponse } from "@/lib/server/guard";
 /* تصدير التكاليف: حركات كل شهر وأرصدة نهايته، وورقة ملخص للسنة. */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,7 +9,7 @@ import { ApiError } from "@/lib/server/guard";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function GET(req: NextRequest) {
+async function download(req: NextRequest) {
   try {
     const db = await authorizeExport(req, "costs", "التكاليف");
     const year = yearFrom(req);
@@ -28,4 +29,8 @@ export async function GET(req: NextRequest) {
     const status = err instanceof ApiError ? err.status : 400;
     return NextResponse.json({ error: err instanceof Error ? err.message : "تعذّر التصدير" }, { status });
   }
+}
+
+export async function GET(...args: Parameters<typeof download>) {
+  return withActivityResponse(() => download(...args));
 }

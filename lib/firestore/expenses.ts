@@ -40,7 +40,7 @@ export async function getExpenseSettings(): Promise<ExpenseSettings> {
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     const seed: ExpenseSettings = { types: DEFAULT_TYPES };
-    await setDoc(ref, seed).catch(() => {});
+
     return seed;
   }
   const data = snap.data() as Partial<ExpenseSettings>;
@@ -48,7 +48,7 @@ export async function getExpenseSettings(): Promise<ExpenseSettings> {
 }
 
 export async function updateExpenseSettings(data: ExpenseSettings): Promise<void> {
-  await setDoc(doc(db, "expense_settings", "config"), data);
+  await api.put("/api/settings/expenses", data);
 }
 
 export async function getAllExpenses(): Promise<ConcertExpense[]> {
