@@ -1,0 +1,53 @@
+.table {
+  table-layout: fixed;
+  width: 100%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding-inline: 4px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.table th button {
+  width: 100%;
+  white-space: normal;
+  text-align: right;
+  gap: 2px;
+}
+
+.table th button svg {
+  flex-shrink: 0;
+}
+
+/* Stacking the two range inputs keeps each numeric column narrow and usable. */
+.table thead td > div {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table thead input {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 2px;
+  appearance: textfield;
+}
+
+.table thead input::-webkit-inner-spin-button,
+.table thead input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.table thead td > div > span {
+  display: none;
+}
+
+.table tbody td > span,
+.table tfoot td > span {
+  padding-inline: 2px;
+  font-size: inherit;
+}

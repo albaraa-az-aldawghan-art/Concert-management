@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { isOverdueConcert } from "@/lib/overdue-concerts";
+import styles from "./finances.module.css";
 import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -585,7 +586,14 @@ export default function FinancesPage() {
 
             {/* Desktop Table */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className={styles.table}>
+                <colgroup>
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "7%" }} />
+                  {Array.from({ length: 8 }, (_, index) => <col key={index} style={{ width: "8.25%" }} />)}
+                  <col style={{ width: "6%" }} />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="العميل" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
