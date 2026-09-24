@@ -4,7 +4,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getConcerts, deleteConcert } from "@/lib/firestore/concerts";
+import { getCachedConcerts, getConcerts, deleteConcert } from "@/lib/firestore/concerts";
+import { loadCachedThenFresh } from "@/lib/cached-first";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,18 @@ export default function AdminConcertsPage() {
   const [sortDir, setSortDir]         = useState<"asc" | "desc">("asc");
   const [page, setPage]               = useState(1);
 
-  useEffect(() => { loadConcerts(); }, []);
+  useEffect(() => {
+    let active = true;
+    void loadConcerts({
+      onCached: (data) => {
+        if (!active) return;
+        setConcerts(data);
+        setLoading(false);
+      },
+      active: () => active,
+    });
+    return () => { active = false; };
+  }, []);
   useEffect(() => { setPage(1); }, [statusFilter, dateFilter, dateField, dateFrom, dateTo, searchQuery, venueFilter, teamRange]);
 
   function toggleSort(key: SortKey) {
@@ -98,11 +110,27 @@ export default function AdminConcertsPage() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  async function loadConcerts() {
+  async function loadConcerts(options?: { onCached?: (data: Concert[]) => void; active?: () => boolean }) {
+    const isActive = options?.active ?? (() => true);
     setLoading(true);
-    const data = await getConcerts();
-    setConcerts(data);
-    setLoading(false);
+    try {
+      await loadCachedThenFresh({
+        readCached: getCachedConcerts,
+        readFresh: getConcerts,
+        hasCachedValue: (data) => data.length > 0,
+        onValue: (data, source) => {
+          if (!isActive()) return;
+          setConcerts(data);
+          if (source === "cache") options?.onCached?.(data);
+        },
+      });
+    } catch (err) {
+      if (isActive()) {
+        showToast(err instanceof Error ? err.message : "تعذّر تحميل الحفلات", "error");
+      }
+    } finally {
+      if (isActive()) setLoading(false);
+    }
   }
 
   async function handleDelete() {
@@ -183,14 +211,6 @@ export default function AdminConcertsPage() {
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
   const paginated  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -355,7 +375,13 @@ export default function AdminConcertsPage() {
           )}
         </div>
 
-        {filtered.length === 0 ? (
+        {loading && concerts.length === 0 ? (
+          <div className="space-y-3 py-2" aria-label="جارٍ تحميل الحفلات">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="h-20 sm:h-14 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-10 text-slate-400">
             <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
             <p>لا توجد حفلات تطابق الفلاتر المحددة</p>

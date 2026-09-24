@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDocsFromCache,
   getDoc,
   addDoc,
   updateDoc,
@@ -31,10 +32,18 @@ export async function createConcert(
 }
 
 export async function getConcerts(): Promise<Concert[]> {
-  const snap = await getDocs(
-    query(collection(db, "concerts"), orderBy("createdAt", "desc"))
-  );
+  const snap = await getDocs(concertsListQuery());
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Concert));
+}
+
+/** النسخة المحلية تُعرض أولاً، ثم تحدّث الصفحة من الخادم في الخلفية. */
+export async function getCachedConcerts(): Promise<Concert[]> {
+  const snap = await getDocsFromCache(concertsListQuery());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Concert));
+}
+
+function concertsListQuery() {
+  return query(collection(db, "concerts"), orderBy("createdAt", "desc"));
 }
 
 /** الحفلات القادمة فقط (من الأمس فصاعداً) — تُستعمل لحساب المرتبط
