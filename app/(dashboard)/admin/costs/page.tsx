@@ -49,6 +49,7 @@ type SortKey = "name" | "kind" | "unit" | "balance";
 
 function ItemRow({
   item,
+  sections,
   canEdit,
   canDelete,
   canLabel,
@@ -57,8 +58,11 @@ function ItemRow({
   onDelete,
   onLabel,
   onQuickKind,
+  onQuickSections,
+  isSectionsSaving,
 }: {
   item: CostItem;
+  sections: SalesSection[];
   canEdit: boolean;
   canDelete: boolean;
   /** طباعة الملصق صلاحية مستقلة — الملصق يخرج من المستودع ويُلصق على بضاعة */
@@ -70,11 +74,21 @@ function ItemRow({
   onLabel: (i: CostItem) => void;
   /** تغيير النوع من القائمة مباشرة — بلا فتح نافذة التعديل، لسرعة تصنيف عدد كبير من الأصناف */
   onQuickKind: (i: CostItem, kind: "raw" | "produced" | "sale") => void;
+  onQuickSections: (i: CostItem, sectionIds: string[]) => Promise<void>;
+  isSectionsSaving: boolean;
 }) {
   const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
   const expired = !!item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10);
   const kind = kindOf(item);
   const kindClass = kind === "produced" ? "bg-violet-50 text-violet-700" : kind === "sale" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700";
+  const selectedSectionIds = item.salesSections ?? [];
+  const selectedSections = sections.filter((section) => selectedSectionIds.includes(section.id));
+  const channelLabel = { restaurant: "المطعم", concerts: "الحفلات", contracts: "التعاقدات" } as const;
+  const channelClass = {
+    restaurant: "bg-emerald-50 text-emerald-700",
+    concerts: "bg-orange-50 text-orange-700",
+    contracts: "bg-blue-50 text-blue-700",
+  } as const;
   return (
     <tr className="border-b border-slate-100 last:border-0 bg-white">
       <td className="px-4 py-2.5 min-w-[10rem]">
@@ -98,6 +112,72 @@ function ItemRow({
           <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${kindClass}`}>
             {kind === "produced" ? "منتج مُصنَّع" : kind === "sale" ? "منتج بيع" : "مادة خام"}
           </span>
+        )}
+      </td>
+      <td className="px-4 py-2.5 min-w-[12rem]">
+        {canEdit ? (
+          <details className="relative group">
+            <summary className="list-none cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:border-slate-300 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                <span className="flex flex-1 flex-wrap gap-1">
+                  {selectedSections.length === 0 ? (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">خام</span>
+                  ) : selectedSections.map((section) => (
+                    <span key={section.id} className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${channelClass[section.channel]}`}>
+                      {channelLabel[section.channel]} · {section.name}
+                    </span>
+                  ))}
+                </span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">⌄</span>
+              </span>
+            </summary>
+            <div className="absolute z-30 mt-1 end-0 w-72 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+              <button
+                type="button"
+                onClick={() => void onQuickSections(item, [])}
+                disabled={isSectionsSaving}
+                className={`w-full text-right rounded-lg px-3 py-2 text-xs font-medium ${selectedSections.length === 0 ? "bg-slate-100 text-slate-800" : "text-slate-600 hover:bg-slate-50"}`}
+              >
+                خام (غير مضاف في منتجات البيع)
+              </button>
+              {(["restaurant", "concerts", "contracts"] as const).map((channel) => {
+                const channelSections = sections.filter((section) => section.channel === channel);
+                if (channelSections.length === 0) return null;
+                return (
+                  <div key={channel} className="mt-2 border-t border-slate-100 pt-2">
+                    <p className="px-2 pb-1 text-[10px] font-bold text-slate-400">{channelLabel[channel]}</p>
+                    {channelSections.map((section) => {
+                      const checked = selectedSectionIds.includes(section.id);
+                      return (
+                        <label key={section.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isSectionsSaving}
+                            onChange={() => void onQuickSections(item, checked
+                              ? selectedSectionIds.filter((id) => id !== section.id)
+                              : [...selectedSectionIds, section.id])}
+                            className="accent-[#1C2D50]"
+                          />
+                          <span>{section.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        ) : selectedSections.length === 0 ? (
+          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">خام</span>
+        ) : (
+          <div className="flex max-w-xs flex-wrap gap-1">
+            {selectedSections.map((section) => (
+              <span key={section.id} className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${channelClass[section.channel]}`}>
+                {channelLabel[section.channel]} · {section.name}
+              </span>
+            ))}
+          </div>
         )}
       </td>
       <td className="px-4 py-2.5 text-sm text-slate-600 whitespace-nowrap">{item.unit}</td>
@@ -180,6 +260,7 @@ export default function AdminCostsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [savingSectionItems, setSavingSectionItems] = useState<Set<string>>(() => new Set());
 
   const [showAdd, setShowAdd] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -234,6 +315,31 @@ export default function AdminCostsPage() {
     } catch (err) {
       setItems(prev);
       showToast(err instanceof Error ? err.message : "تعذّر تحديث النوع", "error");
+    }
+  }
+
+  /** تعديل أقسام البيع مباشرة من الجدول مع تحديث فوري وإرجاع القيمة عند فشل الحفظ. */
+  async function quickSetSections(item: CostItem, sectionIds: string[]) {
+    if (savingSectionItems.has(item.id)) return;
+    const previousIds = item.salesSections ?? [];
+    setSavingSectionItems((current) => new Set(current).add(item.id));
+    setItems((current) => current.map((entry) => entry.id === item.id
+      ? { ...entry, salesSections: sectionIds }
+      : entry));
+    try {
+      await setItemSections(item.id, sectionIds);
+      showToast(sectionIds.length === 0 ? "تم تصنيف الصنف خام" : "تم تحديث قسم الصنف");
+    } catch (err) {
+      setItems((current) => current.map((entry) => entry.id === item.id
+        ? { ...entry, salesSections: previousIds }
+        : entry));
+      showToast(err instanceof Error ? err.message : "تعذّر تحديث قسم الصنف", "error");
+    } finally {
+      setSavingSectionItems((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
     }
   }
 
@@ -484,6 +590,7 @@ export default function AdminCostsPage() {
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
                   <th className="px-4 py-2.5"><SortHeader label="الاسم" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5"><SortHeader label="النوع" sortKeyName="kind" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  <th className="px-4 py-2.5 font-semibold">القسم</th>
                   <th className="px-4 py-2.5"><SortHeader label="الوحدة" sortKeyName="unit" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5"><SortHeader label="الرصيد" sortKeyName="balance" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5 font-semibold">الباركود</th>
@@ -502,6 +609,7 @@ export default function AdminCostsPage() {
                       <option value="sale">منتج بيع</option>
                     </select>
                   </td>
+                  <td className="px-4 py-2"></td>
                   <td className="px-4 py-2">
                     <select value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}
                       className="w-full border border-slate-200 rounded-md px-1.5 py-1 text-[11px] bg-white">
@@ -523,6 +631,7 @@ export default function AdminCostsPage() {
                   <ItemRow
                     key={item.id}
                     item={item}
+                    sections={sections}
                     canEdit={canEditItem}
                     canDelete={canDeleteItem}
                     canLabel={canLabel}
@@ -531,6 +640,8 @@ export default function AdminCostsPage() {
                     onDelete={setDeleteTarget}
                     onLabel={setLabelTarget}
                     onQuickKind={quickSetKind}
+                    onQuickSections={quickSetSections}
+                    isSectionsSaving={savingSectionItems.has(item.id)}
                   />
                 ))}
               </tbody>
