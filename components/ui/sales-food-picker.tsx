@@ -3,7 +3,7 @@
 /* اختيار أصناف الأكل للحفلة من هيكل منتجات البيع: أقسام قناة الحفلات،
    وتحت كل قسم أصنافها القادمة من التكاليف — بأرصدتها وتكلفتها. */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CostItem, SalesSection, ConcertPackage } from "@/types";
 import { itemBalance, averageCost } from "@/lib/recipes";
 import { itemsOfSection } from "@/lib/firestore/sales";
@@ -56,6 +56,8 @@ export function SalesFoodPicker({
   const [search, setSearch] = useState("");
   const [newItemUnit, setNewItemUnit] = useState("");
   const [creatingItem, setCreatingItem] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const createInFlight = useRef(false);
 
   const canCreateItem = !!units && !!createdBy && !!onItemCreated;
 
@@ -66,15 +68,22 @@ export function SalesFoodPicker({
 
   async function createItem() {
     const name = search.trim();
-    if (!name || !newItemUnit || !createdBy || !section) return;
+    if (!name || !newItemUnit || !createdBy || !section || createInFlight.current) return;
+    createInFlight.current = true;
     setCreatingItem(true);
+    setCreateError("");
     try {
-      const created = await createCostItemGenerated({ name, unit: newItemUnit, createdBy, kind: "produced" });
+      const created = await createCostItemGenerated({
+        name, unit: newItemUnit, createdBy, kind: "produced", salesSectionIds: [section.id],
+      });
       onItemCreated?.(created);
       onToggle(section.id, section.name, created);
       setSearch("");
       setNewItemUnit("");
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "تعذّر إنشاء الصنف وربطه بالقسم");
     } finally {
+      createInFlight.current = false;
       setCreatingItem(false);
     }
   }
@@ -126,7 +135,7 @@ export function SalesFoodPicker({
             ([k, v]) => v.checked && k.startsWith(`${s.id}:::`)
           ).length;
           return (
-            <button key={s.id} type="button" onClick={() => setActiveSection(s.id)}
+            <button key={s.id} type="button" disabled={creatingItem} onClick={() => { setActiveSection(s.id); setCreateError(""); }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 section?.id === s.id
                   ? "bg-orange-500 text-white"
@@ -148,7 +157,7 @@ export function SalesFoodPicker({
       {/* بحث داخل القسم */}
       <div className="relative">
         <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+        <input type="text" value={search} disabled={creatingItem} onChange={(e) => { setSearch(e.target.value); setCreateError(""); }}
           placeholder="ابحث في أصناف القسم..."
           className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300" />
       </div>
@@ -158,7 +167,7 @@ export function SalesFoodPicker({
         <div className="border border-dashed border-emerald-300 bg-emerald-50 rounded-xl p-3">
           <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
             <Barcode size={13} />
-            صنف جديد؟ أنشئه هنا ويُولَّد له باركود داخلي — سيحتاج خلطة قبل إنتاجه فعلياً
+            سيُحفظ الصنف في قسم «{section?.name}» ويظهر عند إنشاء حفلات أخرى — سيحتاج خلطة قبل إنتاجه فعلياً
           </p>
           <div className="flex gap-2 items-end">
             <div className="flex-1 min-w-0">
@@ -167,7 +176,7 @@ export function SalesFoodPicker({
             </div>
             <div className="w-28 shrink-0">
               <label className="text-[11px] text-slate-500 block mb-1">الوحدة</label>
-              <select value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)}
+              <select value={newItemUnit} disabled={creatingItem} onChange={(e) => setNewItemUnit(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
                 <option value="" disabled>اختر</option>
                 {(units ?? []).map((u) => <option key={u} value={u}>{u}</option>)}
@@ -178,6 +187,7 @@ export function SalesFoodPicker({
               {creatingItem ? "..." : "إنشاء"}
             </button>
           </div>
+          {createError && <p role="alert" className="text-xs text-red-600 mt-2">{createError}</p>}
         </div>
       )}
 

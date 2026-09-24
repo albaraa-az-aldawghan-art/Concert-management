@@ -14,6 +14,25 @@ import { OutgoingChannel } from "@/types";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** مفتاح مقارنة الاسم: يوحّد فروق العربية غير المؤثرة والمسافات وعلامات الترقيم. */
+export function costItemNameKey(name: string): string {
+  return name.normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي")
+    .replace(/ة/g, "ه").replace(/[()\-_/.,،]/g, " ")
+    .replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+async function assertUniqueItemName(db: Firestore, name: string, exceptBarcode?: string) {
+  const key = costItemNameKey(name);
+  const snap = await db.collection("cost_items").select("name").get();
+  const duplicate = snap.docs.find((doc) => doc.id !== exceptBarcode && costItemNameKey(doc.data().name ?? "") === key);
+  if (duplicate) {
+    throw new ApiError(`الصنف «${duplicate.data().name}» مسجّل مسبقاً بالباركود ${duplicate.id} — استخدم الصنف الموجود`);
+  }
+  return key;
+}
+
 interface ItemDoc {
   name: string;
   unit: string;
@@ -762,13 +781,28 @@ export async function svcCreateItem(
     name: string; unit: string; mode: "generate" | "supplier"; barcode?: string;
     productionDate: string | null; expiryDate: string | null; createdBy: string;
     kind?: "raw" | "produced" | "sale";
+    salesSectionIds?: string[];
   }
 ) {
   if (d.kind !== undefined && d.kind !== "raw" && d.kind !== "produced" && d.kind !== "sale") {
     throw new ApiError("نوع الصنف يجب أن يكون مادة خام أو منتج مُصنَّع أو منتج بيع");
   }
+  const nameKey = await assertUniqueItemName(db, d.name);
+  const sectionIds = [...new Set(d.salesSectionIds ?? [])];
+  if (sectionIds.some((id) => typeof id !== "string" || !id.trim() || id.includes("/"))) {
+    throw new ApiError("قسم البيع غير صالح");
+  }
+  // Read membership targets in the same transaction as creation: no orphan item on failure.
+  const validateSections = async (tx: FirebaseFirestore.Transaction) => {
+    for (const id of sectionIds) {
+      if (!(await tx.get(db.collection("sales_sections").doc(id))).exists) {
+        throw new ApiError("قسم البيع لم يعد موجوداً — أعد تحميل الأقسام");
+      }
+    }
+  };
   const base = {
     name: d.name,
+    nameKey,
     unit: d.unit,
     totalIn: 0,
     totalOut: 0,
@@ -778,6 +812,7 @@ export async function svcCreateItem(
     createdAt: Timestamp.now(),
     createdBy: d.createdBy,
     ...(d.kind !== undefined ? { kind: d.kind } : {}),
+    ...(sectionIds.length ? { salesSections: sectionIds } : {}),
   };
 
   if (d.mode === "supplier") {
@@ -786,6 +821,7 @@ export async function svcCreateItem(
     const ref = db.collection("cost_items").doc(code);
     await db.runTransaction(async (tx) => {
       if ((await tx.get(ref)).exists) throw new ApiError("هذا الباركود مسجّل مسبقاً لصنف آخر");
+      await validateSections(tx);
       tx.set(ref, { ...base, barcodeSource: "supplier" });
     });
     return { id: code };
@@ -800,6 +836,7 @@ export async function svcCreateItem(
     barcode = "FRJ" + String(next).padStart(6, "0");
     const ref = db.collection("cost_items").doc(barcode);
     if ((await tx.get(ref)).exists) throw new ApiError("تعارض في توليد الباركود، حاول مرة أخرى");
+    await validateSections(tx);
     tx.set(counterRef, { lastNumber: next });
     tx.set(ref, { ...base, barcodeSource: "generated" });
   });
@@ -859,6 +896,9 @@ export async function svcUpdateItem(
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("الصنف غير موجود", 404);
   const item = snap.data() as ItemDoc & { salesSections?: string[] };
+  const nextNameKey = d.name !== undefined
+    ? await assertUniqueItemName(db, d.name, barcode)
+    : undefined;
 
   // الوحدة تُقفل بعد أول وارد: تغييرها يجعل كل وصفة خاطئة بصمت
   if (d.unit && (item.totalIn ?? 0) > 0 && item.unit !== d.unit) {
@@ -867,7 +907,10 @@ export async function svcUpdateItem(
     );
   }
   const patch: Record<string, unknown> = {};
-  if (d.name !== undefined) patch.name = d.name;
+  if (d.name !== undefined) {
+    patch.name = d.name;
+    patch.nameKey = nextNameKey;
+  }
   if (d.unit !== undefined) patch.unit = d.unit;
   if (d.productionDate !== undefined) patch.productionDate = d.productionDate;
   if (d.expiryDate !== undefined) patch.expiryDate = d.expiryDate;

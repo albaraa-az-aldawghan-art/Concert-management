@@ -79,9 +79,11 @@ export async function createCostItemGenerated(data: {
   expiryDate?: string | null;
   createdBy: string;
   kind?: "raw" | "produced" | "sale";
+  salesSectionIds?: string[];
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "generate",
+    salesSectionIds: data.salesSectionIds,
     name: data.name,
     unit: data.unit,
     productionDate: data.productionDate ?? null,
