@@ -1,5 +1,7 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { productContractPrice } from "@/lib/contract-pricing";
+import type { ContractType, ContractTerm, CostItem } from "@/types";
 
 /* ═══════════════════════════════════════════════════════════════
    التعاقدات على الخادم.
@@ -17,21 +19,36 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 interface TermInput { barcode: string; quantity: number; unitPrice: number }
 
 /** يبني البنود من الباركودات: الأسماء والوحدات من المصدر لا من العميل */
-async function buildTerms(db: Firestore, terms: TermInput[]) {
+async function buildTerms(db: Firestore, terms: TermInput[], type?: ContractType, sectionId?: string | null, saved: ContractTerm[] = []) {
   const out = [];
   let total = 0;
+  const seen = new Set<string>();
   for (const t of terms) {
+    if (seen.has(t.barcode)) throw new ApiError("لا يمكن تكرار الصنف في بنود العقد");
+    seen.add(t.barcode);
+    if (!Number.isFinite(t.quantity) || t.quantity <= 0) throw new ApiError("كمية البند يجب أن تكون أكبر من صفر");
     const snap = await db.collection("cost_items").doc(t.barcode).get();
     if (!snap.exists) throw new ApiError(`صنف غير مسجّل في التكاليف: ${t.barcode}`);
     const x = snap.data()!;
-    const line = r2(t.quantity * t.unitPrice);
+    const previous = saved.find((term) => term.barcode === t.barcode);
+    let unitPrice = t.unitPrice;
+    if (type) {
+      try {
+        unitPrice = previous?.unitPrice ?? productContractPrice(x as CostItem, type, sectionId);
+      } catch (error) {
+        throw new ApiError(`${x.name ?? t.barcode}: ${(error as Error).message}`);
+      }
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new ApiError("سعر البند غير صالح");
+    const line = r2(t.quantity * unitPrice);
     total += line;
     out.push({
+      ...(previous ?? {}),
       barcode: t.barcode,
       itemName: (x.name as string) ?? "",
       unit: (x.unit as string) ?? "",
       quantity: t.quantity,
-      unitPrice: t.unitPrice,
+      unitPrice,
       total: line,
     });
   }
@@ -44,11 +61,21 @@ export async function svcCreateContract(
     name: string; clientName: string | null; clientPhone: string | null;
     startDate: string; endDate: string; vatRate: number | null;
     totalValue: number | null; terms: TermInput[]; notes: string | null; createdBy: string;
+    contractType: ContractType; priceSectionId?: string | null;
   }
 ) {
   if (d.endDate < d.startDate) throw new ApiError("تاريخ نهاية العقد قبل بدايته");
 
-  const built = await buildTerms(db, d.terms);
+  if (d.contractType !== "collected" && d.contractType !== "paid") throw new ApiError("اختر نوع العقد: محصّل أو مدفوع");
+  let priceSectionName: string | null = null;
+  const priceSectionId = d.contractType === "paid" ? d.priceSectionId : null;
+  if (d.contractType === "paid") {
+    if (!priceSectionId) throw new ApiError("اختر قسم سعر البيع");
+    const section = await db.collection("sales_sections").doc(priceSectionId).get();
+    if (!section.exists || section.data()!.channel !== "contracts") throw new ApiError("قسم السعر يجب أن يكون من التعاقدات والمدارس");
+    priceSectionName = section.data()!.name;
+  }
+  const built = await buildTerms(db, d.terms, d.contractType, priceSectionId);
   const counterRef = db.collection("counters").doc("contracts");
   const ref = db.collection("contracts").doc();
   let contractNumber = 1;
@@ -59,6 +86,9 @@ export async function svcCreateContract(
     tx.set(counterRef, { lastNumber: contractNumber });
     tx.set(ref, {
       contractNumber,
+      contractType: d.contractType,
+      priceSectionId: priceSectionId ?? null,
+      priceSectionName,
       name: d.name,
       clientName: d.clientName,
       clientPhone: d.clientPhone,
@@ -92,17 +122,23 @@ export async function svcUpdateContract(
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("العقد غير موجود", 404);
 
+  const current = snap.data()!;
+  if ((d.contractType !== undefined && d.contractType !== current.contractType) ||
+      (d.priceSectionId !== undefined && d.priceSectionId !== (current.priceSectionId ?? null))) {
+    throw new ApiError("نوع العقد وقسم السعر ثابتان بعد الإنشاء للحفاظ على الحسابات المسجلة");
+  }
+
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(d)) if (EDITABLE.has(k)) patch[k] = v;
 
-  if (patch.startDate && patch.endDate && (patch.endDate as string) < (patch.startDate as string)) {
+  if ((patch.endDate ?? current.endDate) < (patch.startDate ?? current.startDate)) {
     throw new ApiError("تاريخ نهاية العقد قبل بدايته");
   }
   if (terms) {
-    const built = await buildTerms(db, terms);
+    const built = await buildTerms(db, terms, current.contractType, current.priceSectionId, current.terms);
     patch.terms = built.terms;
     // القيمة تتبع البنود ما لم تُكتب صراحةً في نفس الطلب
-    if (patch.totalValue === undefined) patch.totalValue = built.total;
+    if (patch.totalValue == null || patch.totalValue === 0) patch.totalValue = built.total;
   }
   if (Object.keys(patch).length === 0) throw new ApiError("لا يوجد ما يُعدَّل");
   await ref.update(patch);

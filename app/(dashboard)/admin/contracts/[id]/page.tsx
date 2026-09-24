@@ -1,5 +1,7 @@
 "use client";
 
+import { contractPriceLabel, contractPricingDescription } from "@/lib/contract-pricing";
+
 /* تفاصيل العقد وجدوله اليومي: دفتر تشغيل المقصف.
    ثلاثة أرقام تُدخَل لكل صنف — المورَّد والتالف والمتبقي — وما عداها
    يحسبه الخادم. الشاشة تُظهر الحساب قبل الحفظ كي يُرى الخطأ لا ليُكتشف. */
@@ -271,6 +273,8 @@ export default function ContractDetailPage() {
   const computed = useMemo(() => {
     const rows = lines.map((l) => {
       const t = termOf.get(l.barcode);
+      const savedLine = data?.days.find((d) => d.date === date)?.lines.find((s) => s.barcode === l.barcode);
+      const price = savedLine?.salePrice ?? t?.unitPrice ?? 0;
       const opening = openingMap.get(l.barcode) ?? 0;
       const available = r2(num(l.supplied) + opening);
       const sold = r2(available - num(l.remaining) - num(l.damaged));
@@ -278,9 +282,9 @@ export default function ContractDetailPage() {
         ...l,
         name: t?.itemName ?? l.barcode,
         unit: t?.unit ?? "",
-        price: t?.unitPrice ?? 0,
+        price,
         opening, available, sold,
-        revenue: r2(sold * (t?.unitPrice ?? 0)),
+        revenue: r2(sold * price),
         invalid: sold < 0,
       };
     });
@@ -290,7 +294,7 @@ export default function ContractDetailPage() {
     const paidFromTill = r2(expenseConfig.filter((e) => e.kind === "from_till").reduce((s, e) => s + num(expenses[e.key] ?? ""), 0));
     const expected = r2(sales - paidFromTill);
     return { rows, sales, collected, deducted, paidFromTill, expected, variance: r2(collected - deducted - expected) };
-  }, [lines, termOf, openingMap, collections, expenses, expenseConfig]);
+  }, [lines, termOf, openingMap, collections, expenses, expenseConfig, data, date]);
 
   const isPosted = data?.days.find((d) => d.date === date)?.postedPaymentIds?.length ? true : false;
   const editable = fx.edit && contract?.status === "active" && !isPosted;
@@ -428,6 +432,7 @@ export default function ContractDetailPage() {
           <p className="text-xs text-slate-500 mt-0.5 tabular-nums-auto flex items-center gap-1.5">
             <CalendarDays size={11} /> {contract.startDate} ← {contract.endDate}
           </p>
+          <p className="text-xs text-slate-500 mt-1">{contractPricingDescription(contract)}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {fx.config && (
@@ -542,7 +547,7 @@ export default function ContractDetailPage() {
                     <tr className="text-slate-500 border-b border-slate-100">
                       <th className="w-6" />
                       <th className="text-right font-medium py-2 px-2">الصنف</th>
-                      <th className="text-center font-medium px-2">سعر البيع</th>
+                      <th className="text-center font-medium px-2">{contractPriceLabel(contract.contractType)}</th>
                       <th className="text-center font-medium px-2">رصيد أول اليوم</th>
                       <th className="text-center font-medium px-2">المورَّد</th>
                       <th className="text-center font-medium px-2">التالف</th>
@@ -678,7 +683,7 @@ export default function ContractDetailPage() {
               <thead>
                 <tr>
                   <th className="sticky right-0 bg-[#1C2D50] text-white px-2 py-1.5 text-right z-10 min-w-[9rem]">الاسم</th>
-                  <th className="bg-[#1C2D50] text-white px-2 py-1.5">سعر البيع</th>
+                  <th className="bg-[#1C2D50] text-white px-2 py-1.5">{contractPriceLabel(contract.contractType)}</th>
                   {data.days.map((d) => (
                     <th key={d.date} colSpan={5} className="bg-[#EEF1F7] text-[#1C2D50] px-2 py-1.5 border-s border-white tabular-nums-auto">
                       {d.date.slice(5)}

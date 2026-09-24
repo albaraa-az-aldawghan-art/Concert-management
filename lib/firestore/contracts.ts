@@ -27,6 +27,8 @@ export async function getContractPayments(contractId: string): Promise<ContractP
 }
 
 export interface ContractDraft {
+  contractType?: Contract["contractType"];
+  priceSectionId?: string | null;
   name: string;
   clientName: string | null;
   clientPhone: string | null;

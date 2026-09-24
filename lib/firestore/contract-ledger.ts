@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { ContractDay, ContractExpenseKind } from "@/types";
+import type { ContractDay, ContractExpenseKind, ContractType } from "@/types";
 
 /* نداءات الجدول اليومي — كلها تمرّ بالخادم: أرقامه مشتقّة وحركته
    تمسّ المخزون، فلا يُكتب منها شيء مباشرةً في قاعدة البيانات. */
@@ -13,6 +13,8 @@ export interface MonthItemRow {
 export interface ContractMonth {
   month: string;
   contractName: string;
+  contractType?: ContractType | null;
+  priceSectionName?: string | null;
   days: ContractDay[];
   items: MonthItemRow[];
   expenseLines: { key: string; label: string; kind: string; amount: number }[];

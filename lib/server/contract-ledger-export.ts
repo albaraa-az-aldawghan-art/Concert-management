@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Firestore } from "firebase-admin/firestore";
 import { svcContractMonth } from "@/lib/server/contract-ledger-core";
+import { contractPriceLabel, CONTRACT_TYPE_LABELS } from "@/lib/contract-pricing";
 
 /* ═══════════════════════════════════════════════════════════════
    تصدير شهر العقد بتخطيط ورقة الإكسل الأصلية حرفياً:
@@ -37,10 +38,11 @@ export async function buildContractMonthWorkbook(db: Firestore, contractId: stri
   /* ── الترويسة: صف ٣ اليوم · صف ٤ التاريخ · صف ٥ أسماء الأعمدة ── */
   ws.getCell(2, 2).value = m.contractName;
   ws.getCell(2, 2).font = { bold: true, size: 13, color: { argb: NAVY } };
+  ws.getCell(1, 2).value = m.contractType ? `${CONTRACT_TYPE_LABELS[m.contractType]}${m.priceSectionName ? ` · ${m.priceSectionName}` : ""}` : "عقد سابق — أسعار محفوظة";
 
   FIXED.forEach((h, i) => {
     const c = ws.getCell(5, i + 1);
-    c.value = h;
+    c.value = i === 2 ? contractPriceLabel(m.contractType) : h;
     c.font = { bold: true, color: { argb: "FFFFFFFF" } };
     c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
     c.alignment = { horizontal: "center", vertical: "middle", wrapText: true };

@@ -2,7 +2,7 @@ import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcAdjustOutgoingQty, svcSetOutgoingDamage, svcDeleteOutgoing } from "@/lib/server/costs-core";
 import { svcAddContractPayment, svcDeleteContractPayment } from "@/lib/server/contracts-core";
-import type { ContractExpenseKind } from "@/types";
+import type { ContractExpenseKind, ContractType } from "@/types";
 
 /* ═══════════════════════════════════════════════════════════════
    الجدول اليومي للعقد — دفتر تشغيل المقصف.
@@ -59,6 +59,8 @@ interface StoredLine {
 
 interface ContractDoc {
   name: string;
+  contractType?: ContractType;
+  priceSectionName?: string | null;
   status: string;
   terms?: { barcode: string; itemName: string; unit: string; unitPrice: number; openingQty?: number; category?: string | null }[];
   ledger?: {
@@ -236,13 +238,13 @@ export async function svcSaveContractDay(
       barcode: p.barcode,
       itemName: p.term.itemName,
       unit: p.term.unit,
-      salePrice: p.term.unitPrice ?? 0,
+      salePrice: old?.salePrice ?? p.term.unitPrice ?? 0,
       supplied: p.supplied,
       damaged: p.damaged,
       remaining: p.remaining,
       openingQty: p.openingQty,
       sold: p.sold,
-      revenue: r2(p.sold * (p.term.unitPrice ?? 0)),
+      revenue: r2(p.sold * (old?.salePrice ?? p.term.unitPrice ?? 0)),
       outgoingId,
       cost: r2((costSnap?.data()?.totalCost as number) ?? 0),
     });
@@ -402,6 +404,8 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
   return {
     month,
     contractName: contract.name,
+    contractType: contract.contractType ?? null,
+    priceSectionName: contract.priceSectionName ?? null,
     days,
     items,
     expenseLines: [...expensesByLine].map(([key, v]) => ({ key, ...v })),

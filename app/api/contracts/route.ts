@@ -3,6 +3,7 @@
 import { NextRequest } from "next/server";
 import { requireCaller, require_, handle, str, optStr, num, dateStr } from "@/lib/server/guard";
 import { svcCreateContract } from "@/lib/server/contracts-core";
+import type { ContractType } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export async function POST(req: NextRequest) {
     const caller = await requireCaller(req, body);
     require_(caller, "contracts", "create", "إنشاء العقود");
     return svcCreateContract(caller.db, {
+      contractType: body.contractType as ContractType,
+      priceSectionId: optStr(body.priceSectionId),
       name: str(body.name, "اسم الجهة", { max: 120 }),
       clientName: optStr(body.clientName),
       clientPhone: optStr(body.clientPhone, 20),

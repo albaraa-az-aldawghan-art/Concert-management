@@ -287,6 +287,7 @@ export interface SalesSection {
    المصروفة له كما تُحمَّل على الحفلة — فتُعرف ربحيته بنفس الطريقة. */
 
 export type ContractStatus = "active" | "completed" | "cancelled";
+export type ContractType = "collected" | "paid";
 
 export interface ContractTerm {
   /** باركود صنف التكاليف — البند منتج بيع لا نص حر */
@@ -342,7 +343,7 @@ export interface ContractDayLine {
   barcode: string;
   itemName: string;
   unit: string;
-  /** سعر البيع وقت التسجيل — لقطة، فتغيير البند لاحقاً لا يعيد كتابة التاريخ */
+  /** سعر العقد وقت التسجيل: تكلفة للمحصّل أو بيع للمدفوع — لقطة ثابتة. */
   salePrice: number;
   /* ── المُدخَل ── */
   supplied: number;
@@ -389,6 +390,10 @@ export interface ContractDay {
 
 export interface Contract {
   id: string;
+  /** Absent for legacy contracts, whose manually agreed prices are preserved. */
+  contractType?: ContractType;
+  priceSectionId?: string | null;
+  priceSectionName?: string | null;
   contractNumber: number | null;
   /** اسم الجهة المتعاقدة */
   name: string;

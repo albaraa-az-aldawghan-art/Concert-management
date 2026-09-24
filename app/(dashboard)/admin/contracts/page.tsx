@@ -7,21 +7,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
+import { Input, Textarea, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { SearchBox } from "@/components/ui/list-filters";
 import { Actor } from "@/components/ui/actor";
 import {
   getContracts, addContract, updateContract, cancelContract,
-  completeContract, reopenContract, deleteContract, ContractDraft, termsTotal,
+  completeContract, reopenContract, deleteContract, ContractDraft,
 } from "@/lib/firestore/contracts";
 import { getCostItems, getCostOutgoing } from "@/lib/firestore/costs";
-import { getSectionsOfChannel, itemsOfSection } from "@/lib/firestore/sales";
+import { getSectionsOfChannel } from "@/lib/firestore/sales";
 import { averageCost } from "@/lib/recipes";
-import { Contract, CostItem, CostOutgoing, SalesSection } from "@/types";
+import { Contract, ContractType, CostItem, CostOutgoing, SalesSection } from "@/types";
+import { productContractPrice, contractPriceLabel, contractPricingDescription } from "@/lib/contract-pricing";
 import {
   FileSignature, Plus, Trash2, Pencil, X, Check, Info, CalendarDays,
-  Search, Ban, CheckCircle2, TrendingUp, Table2, RotateCcw,
+  Search, Ban, CheckCircle2, Table2, RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -76,6 +77,8 @@ export default function ContractsPage() {
   });
   const [terms, setTerms] = useState<TermDraft[]>([]);
   const [termSearch, setTermSearch] = useState("");
+  const [contractType, setContractType] = useState<ContractType | "">("");
+  const [priceSectionId, setPriceSectionId] = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -96,8 +99,19 @@ export default function ContractsPage() {
 
   /** أصناف قناة التعاقدات وحدها — البنود منها لا من كل التكاليف */
   const contractItems = items.filter((i) =>
-    sections.some((s) => (i.salesSections ?? []).includes(s.id))
+    sections.some((s) => (i.salesSections ?? []).includes(s.id)) &&
+    (contractType !== "paid" || (i.salesSections ?? []).includes(priceSectionId))
   );
+
+  function sourcePrice(barcode: string): { price?: number; error?: string } {
+    const saved = editTarget?.terms.find((t) => t.barcode === barcode);
+    if (saved) return { price: saved.unitPrice };
+    if (!contractType) return { error: "اختر نوع العقد أولاً" };
+    const item = items.find((i) => i.id === barcode);
+    if (!item) return { error: "الصنف غير موجود" };
+    try { return { price: productContractPrice(item, contractType, priceSectionId) }; }
+    catch (error) { return { error: (error as Error).message }; }
+  }
 
   /** ما صُرف فعلاً على كل عقد — التكلفة الحقيقية لا المقدّرة */
   const costByContract = new Map<string, number>();
@@ -108,6 +122,8 @@ export default function ContractsPage() {
 
   function openAdd() {
     setEditTarget(null);
+    setContractType("");
+    setPriceSectionId("");
     const today = new Date().toISOString().slice(0, 10);
     setForm({ name: "", clientName: "", clientPhone: "", startDate: today, endDate: "", totalValue: "", vatRate: "15", notes: "" });
     setTerms([]);
@@ -117,6 +133,8 @@ export default function ContractsPage() {
 
   function openEdit(c: Contract) {
     setEditTarget(c);
+    setContractType(c.contractType ?? "");
+    setPriceSectionId(c.priceSectionId ?? "");
     setForm({
       name: c.name, clientName: c.clientName ?? "", clientPhone: c.clientPhone ?? "",
       startDate: c.startDate, endDate: c.endDate,
@@ -131,12 +149,12 @@ export default function ContractsPage() {
     setTerms((prev) =>
       prev.some((t) => t.barcode === barcode)
         ? prev.filter((t) => t.barcode !== barcode)
-        : [...prev, { barcode, quantity: "1", unitPrice: "" }]
+        : [...prev, { barcode, quantity: "1", unitPrice: contractType ? String(sourcePrice(barcode).price ?? "") : "" }]
     );
   }
 
   const draftTotal = r2(
-    terms.reduce((s, t) => s + (parseFloat(t.quantity) || 0) * (parseFloat(t.unitPrice) || 0), 0)
+    terms.reduce((s, t) => s + r2((parseFloat(t.quantity) || 0) * (parseFloat(t.unitPrice) || 0)), 0)
   );
   const draftCost = r2(
     terms.reduce((s, t) => {
@@ -146,13 +164,23 @@ export default function ContractsPage() {
   );
 
   async function handleSave() {
+    if (!editTarget && !contractType) { showToast("اختر نوع العقد", "error"); return; }
+    if (contractType === "paid" && !priceSectionId) { showToast("اختر قسم سعر البيع", "error"); return; }
+    if (terms.some((t) => !Number.isFinite(Number(t.quantity)) || Number(t.quantity) <= 0)) {
+      showToast("أدخل كمية أكبر من صفر لكل بند", "error"); return;
+    }
+    if (contractType) {
+      const invalid = terms.find((t) => sourcePrice(t.barcode).error);
+      if (invalid) { showToast(sourcePrice(invalid.barcode).error!, "error"); return; }
+    }
     const draft: ContractDraft = {
+      ...(contractType ? { contractType, priceSectionId: contractType === "paid" ? priceSectionId : null } : {}),
       name: form.name.trim(),
       clientName: form.clientName.trim() || null,
       clientPhone: form.clientPhone.trim() || null,
       startDate: form.startDate,
       endDate: form.endDate,
-      vatRate: parseFloat(form.vatRate) || 15,
+      vatRate: form.vatRate === "" ? 15 : Number(form.vatRate),
       totalValue: form.totalValue ? parseFloat(form.totalValue) : null,
       terms: terms
         .map((t) => ({
@@ -292,6 +320,7 @@ export default function ContractsPage() {
                       {c.startDate} ← {c.endDate}
                       {fc.client && c.clientName && ` · ${c.clientName}`}
                     </p>
+                    <p className="text-xs text-slate-500 mt-1">{contractPricingDescription(c)}</p>
                     {fc.actor && <Actor uid={c.createdBy} className="mt-0.5" />}
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -367,6 +396,31 @@ export default function ContractsPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)}
         title={editTarget ? `تعديل العقد: ${editTarget.name}` : "عقد جديد"} size="xl">
         <div className="space-y-4">
+          <fieldset className="rounded-xl border border-slate-200 p-3 space-y-3" disabled={!!editTarget}>
+            <legend className="px-1 text-sm font-semibold">نوع العقد *</legend>
+            <div className="grid grid-cols-2 gap-3">
+              {([ ["collected", "محصّل", "الأصناف بسعر التكلفة"], ["paid", "مدفوع", "الأصناف بسعر البيع حسب القسم"] ] as const).map(([value, label, hint]) => (
+                <label key={value} className={`rounded-lg border p-3 cursor-pointer ${contractType === value ? "border-[#1C2D50] bg-[#EEF1F7]" : "border-slate-200"}`}>
+                  <input type="radio" name="contractType" value={value} checked={contractType === value}
+                    onChange={() => { setContractType(value); setPriceSectionId(""); setTerms([]); }} className="me-2" />
+                  <span className="font-semibold text-sm">{label}</span>
+                  <span className="block text-xs text-slate-500 mt-1">{hint}</span>
+                </label>
+              ))}
+            </div>
+            {contractType === "paid" && <Select label="قسم سعر البيع" required value={priceSectionId}
+              onChange={(e) => { setPriceSectionId(e.target.value); setTerms([]); }}>
+              <option value="">اختر القسم</option>
+              {sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+              {editTarget?.priceSectionId && !sections.some((s) => s.id === editTarget.priceSectionId) &&
+                <option value={editTarget.priceSectionId}>{editTarget.priceSectionName ?? "القسم المحفوظ"}</option>}
+            </Select>}
+          </fieldset>
+          <p className="text-xs text-slate-500">
+            {editTarget ? "نوع العقد وقسم السعر ثابتان بعد الإنشاء. أسعار البنود السابقة محفوظة، والبنود الجديدة تأخذ السعر الحالي."
+              : "السعر يُجلب تلقائياً ويُحفظ للعقد ويُستخدم في الجدول اليومي. تغيير النوع أو القسم يعيد اختيار البنود."}
+            {editTarget && !contractType && " هذا عقد سابق يحتفظ بأسعاره اليدوية."}
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="اسم الجهة" required value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: معهد أرامكو" />
@@ -406,6 +460,7 @@ export default function ContractsPage() {
                       <span className="text-[11px] text-slate-500 w-9 shrink-0">{item?.unit}</span>
                       <span className="text-[11px] text-slate-400 shrink-0">×</span>
                       <input type="number" min={0} step="0.01" value={t.unitPrice} placeholder="السعر"
+                        readOnly={!!contractType} aria-label={contractPriceLabel(contractType || undefined)}
                         onChange={(e) => setTerms((p) => p.map((x) => x.barcode === t.barcode ? { ...x, unitPrice: e.target.value } : x))}
                         className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                       <span className="text-xs font-bold text-[#1C2D50] w-20 text-left tabular-nums-auto shrink-0">
@@ -431,13 +486,19 @@ export default function ContractsPage() {
               {termChoices.length === 0 ? (
                 <p className="text-xs text-slate-400 p-4 text-center">
                   {contractItems.length === 0
-                    ? "لا توجد أصناف تحت «التعاقدات والمدارس» — حدّدها من منتجات البيع"
+                    ? contractType === "paid" && !priceSectionId
+                      ? "اختر قسم سعر البيع لعرض أصنافه"
+                      : contractType === "paid"
+                        ? "لا توجد أصناف مرتبطة بالقسم المختار — حدّدها من منتجات البيع"
+                        : "لا توجد أصناف تحت «التعاقدات والمدارس» — حدّدها من منتجات البيع"
                     : "لا توجد نتائج مطابقة"}
                 </p>
               ) : termChoices.map((i) => {
                 const on = terms.some((t) => t.barcode === i.id);
+                const source = sourcePrice(i.id);
                 return (
                   <button key={i.id} type="button" onClick={() => toggleTerm(i.id)}
+                    disabled={!on && (!editTarget && !contractType || !!contractType && !!source.error)}
                     className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center gap-2.5">
                     <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
                       on ? "bg-[#1C2D50] border-[#1C2D50]" : "border-slate-300"
@@ -445,8 +506,8 @@ export default function ContractsPage() {
                       {on && <Check size={11} className="text-white" />}
                     </span>
                     <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{i.name}</span>
-                    <span className="text-[11px] text-slate-400 tabular-nums-auto shrink-0">
-                      تكلفته {money(averageCost(i))} / {i.unit}
+                    <span className="text-[11px] text-slate-500 tabular-nums-auto shrink-0 max-w-[50%]">
+                      {contractType ? source.error ?? `${contractPriceLabel(contractType)} ${money(source.price ?? 0)} / ${i.unit}` : `تكلفته ${money(averageCost(i))} / ${i.unit}`}
                     </span>
                   </button>
                 );
