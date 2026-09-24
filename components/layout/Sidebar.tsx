@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 import { signOut } from "@/lib/firestore/users";
 import { cn } from "@/lib/utils";
 import { pageKeyFromPath } from "@/lib/permissions";
@@ -388,6 +389,7 @@ function filterNavForCustomRole(
 }
 
 export function Sidebar() {
+  const { request } = useNavigationGuard();
   const { appUser, customRole, can, feat } = useAuth();
   const { settings } = useSystem();
   const pathname    = usePathname();
@@ -407,8 +409,10 @@ export function Sidebar() {
   const visibleNav = applySystemNav(activityNav, settings.features, settings.labels);
 
   async function handleSignOut() {
-    await signOut();
-    router.push("/login");
+    request(async () => {
+      await signOut();
+      router.push("/login");
+    });
   }
 
   const noOp = () => {};

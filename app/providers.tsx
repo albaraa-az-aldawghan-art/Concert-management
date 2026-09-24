@@ -7,6 +7,7 @@ import { SystemProvider } from "@/contexts/SystemContext";
 import { ToastProvider } from "@/components/ui/toast";
 import { ActorsProvider } from "@/components/ui/actor";
 import { ActivityTracker } from "@/components/activity-tracker";
+import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -14,7 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ActivityTracker />
       <SystemProvider>
         <ActorsProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider><NavigationGuardProvider>{children}</NavigationGuardProvider></ToastProvider>
         </ActorsProvider>
       </SystemProvider>
     </AuthProvider>

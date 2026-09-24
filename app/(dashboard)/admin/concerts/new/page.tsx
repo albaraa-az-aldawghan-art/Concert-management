@@ -1,10 +1,12 @@
 ﻿"use client";
 
 /* إنشاء حفلة: البيانات والموقع والمواد وأصناف الأكل والدفعات في صفحة واحدة، مع عرض المتوفر من الخامات وتكلفتها التقديرية. */
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
+import { draftSnapshot } from "@/lib/draft-snapshot";
 import { createConcert, addConcertItem, addConcertPaymentRecord, setConcertInvoice, getUpcomingConcerts } from "@/lib/firestore/concerts";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUsersByRole } from "@/lib/firestore/users";
@@ -58,6 +60,11 @@ interface Location { lat: number; lng: number; address: string; }
 
 interface CheckState { checked: boolean; quantity: string; }
 
+const EMPTY_PAYMENT_FORM = {
+  method: "card" as PaymentMethod, amount: "", date: "", cardType: "visa" as "visa" | "mada",
+  receiverName: "", bankName: "", senderName: "",
+};
+
 /* ── Checklist checkbox component ── */
 function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
   return (
@@ -80,6 +87,7 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
 function NewConcertPageInner() {
   const { appUser, feat } = useAuth();
   const router = useRouter();
+  const { register, request, leave } = useNavigationGuard();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   // Creating a concert requires the explicit "create" capability
@@ -90,6 +98,9 @@ function NewConcertPageInner() {
   const [employees, setEmployees] = useState<AppUser[]>([]);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const saveLock = useRef(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [location, setLocation] = useState<Location | null>(null);
   const [vatRate, setVatRate] = useState<number>(15);
@@ -130,17 +141,28 @@ function NewConcertPageInner() {
   const [allOutgoing, setAllOutgoing] = useState<CostOutgoing[]>([]);
 
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
-  const [paymentForm, setPaymentForm] = useState({
-    method: "card" as PaymentMethod,
-    amount: "",
-    date: "",
-    cardType: "visa" as "visa" | "mada",
-    receiverName: "",
-    bankName: "",
-    senderName: "",
-  });
+  const [paymentForm, setPaymentForm] = useState(EMPTY_PAYMENT_FORM);
   /* فاتورة الحفلة — واحدة للحفلة كلها لا لكل دفعة */
   const [invoice, setInvoice] = useState<InvoiceState>({ hasInvoice: null, invoiceNumber: "" });
+  const foodMetaLite = Object.fromEntries(Object.entries(foodMeta).map(([key, value]) => [key, {
+    sectionId: value.sectionId, sectionName: value.sectionName, barcode: value.item.id,
+  }]));
+  const draftPayload = {
+    form, hallCostType, hallCostValue, hallCostDate, hallCostRecipient,
+    location, itemCheck, foodCheck, foodMetaLite, paymentEntries, paymentForm, invoice, activeItemType,
+  };
+  const snapshot = draftSnapshot(draftPayload);
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
+  const dirty = !initialLoading && snapshot !== savedSnapshot;
+
+  useLayoutEffect(() => register({
+    dirty, busy: saving || savingDraft, hasDraft: !!draftId,
+    save: handleSaveDraft,
+    discard: async () => {
+      if (draftId) await deleteConcertDraft(draftId);
+      setDraftId(null);
+    },
+  }));
 
   useEffect(() => {
     async function load() {
@@ -196,13 +218,32 @@ function NewConcertPageInner() {
           }
           setFoodMeta(meta);
           setPaymentEntries(draft.paymentEntries);
+          const restoredPayment = draft.paymentForm ?? EMPTY_PAYMENT_FORM;
+          const restoredInvoice = draft.invoice ?? { hasInvoice: null, invoiceNumber: "" };
+          const restoredType = draft.activeItemType ?? "";
+          setPaymentForm(restoredPayment);
+          setInvoice(restoredInvoice);
+          setActiveItemType(restoredType);
+          setSavedSnapshot(draftSnapshot({
+            form: draft.form, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
+            hallCostDate: draft.hallCostDate, hallCostRecipient: draft.hallCostRecipient,
+            location: draft.location, itemCheck: draft.itemCheck, foodCheck: draft.foodCheck,
+            foodMetaLite: Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, {
+              sectionId: value.sectionId, sectionName: value.sectionName, barcode: value.item.id,
+            }])), paymentEntries: draft.paymentEntries, paymentForm: restoredPayment,
+            invoice: restoredInvoice, activeItemType: restoredType,
+          }));
           setDraftId(draft.id);
         } else {
+          setLoadError(true);
           showToast("تعذّر العثور على المسودة — رُبما حُذفت", "error");
         }
       }
     }
-    load();
+    load().catch(() => {
+      setLoadError(true);
+      showToast("تعذّر تحميل بيانات الحفلة. أعد فتح الصفحة.", "error");
+    }).finally(() => setInitialLoading(false));
   }, []);
 
   /* ── Item helpers ── */
@@ -336,7 +377,7 @@ function NewConcertPageInner() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!appUser) return;
+    if (!appUser || saveLock.current) return;
 
     const selectedItems = buildSelectedItems();
     const selectedFood  = buildSelectedFood();
@@ -344,6 +385,7 @@ function NewConcertPageInner() {
     if (!form.clientName.trim())      { showToast("يرجى إدخال اسم العميل", "error"); return; }
     if (!form.clientPhone.trim())     { showToast("يرجى إدخال رقم جوال العميل", "error"); return; }
     if (!form.date)                   { showToast("يرجى تحديد تاريخ الحفلة", "error"); return; }
+    saveLock.current = true;
     setSaving(true);
     try {
       const depositTotal = paymentEntries.reduce((sum, p) => sum + p.amount, 0);
@@ -427,10 +469,11 @@ function NewConcertPageInner() {
       if (draftId) await deleteConcertDraft(draftId).catch(() => {});
 
       showToast("تم إنشاء الحفلة بنجاح");
-      router.push("/admin/concerts");
+      leave(() => router.push("/admin/concerts"));
     } catch {
       showToast("حدث خطأ أثناء إنشاء الحفلة", "error");
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   }
@@ -438,25 +481,23 @@ function NewConcertPageInner() {
   /* حفظ كل ما أُدخل حتى الآن كمسودة — بلا أي تحقق، فالغرض تحديداً
      ألّا يُفقد عمل غير مكتمل. تُحدَّث نفس المسودة إن كنا قد فتحناها. */
   async function handleSaveDraft() {
-    if (!appUser) return;
+    if (!appUser || saveLock.current) return false;
+    saveLock.current = true;
     setSavingDraft(true);
     try {
-      const foodMetaLite: Record<string, { sectionId: string; sectionName: string; barcode: string }> = {};
-      for (const [k, m] of Object.entries(foodMeta)) {
-        foodMetaLite[k] = { sectionId: m.sectionId, sectionName: m.sectionName, barcode: m.item.id };
-      }
       const id = await saveConcertDraft(
         draftId,
-        {
-          form, hallCostType, hallCostValue, hallCostDate, hallCostRecipient,
-          location, itemCheck, foodCheck, foodMetaLite, paymentEntries,
-        }
+        draftPayload
       );
       setDraftId(id);
+      setSavedSnapshot(snapshot);
       showToast("حُفظت المسودة — تقدر ترجع لها من صفحة المسودات");
+      return true;
     } catch {
       showToast("تعذّر حفظ المسودة", "error");
+      return false;
     } finally {
+      saveLock.current = false;
       setSavingDraft(false);
     }
   }
@@ -524,6 +565,9 @@ function NewConcertPageInner() {
     );
   }
 
+  if (initialLoading) return <p role="status" className="py-12 text-center text-slate-500">جارٍ تحميل بيانات الحفلة…</p>;
+  if (loadError) return <div className="py-12 text-center space-y-3"><p role="alert">تعذّر تحميل بيانات الحفلة. أعد فتح الصفحة للمحاولة مجددًا.</p><Link href="/admin/concerts">العودة إلى الحفلات</Link></div>;
+
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -549,7 +593,7 @@ function NewConcertPageInner() {
         noValidate
         className="space-y-5"
       >
-
+        <fieldset disabled={saving || savingDraft} className="min-w-0 space-y-5 disabled:pointer-events-none">
         {/* ── Basic Info ── */}
         <Card>
           <h3 className="font-bold text-slate-700 mb-4">معلومات العميل</h3>
@@ -1046,12 +1090,13 @@ function NewConcertPageInner() {
 
         {/* ── Submit ── */}
         <div className="flex flex-wrap gap-3 justify-end">
-          <Button variant="secondary" type="button" onClick={() => router.back()}>إلغاء</Button>
-          <Button variant="outline" type="button" loading={savingDraft} onClick={handleSaveDraft}>
+          <Button variant="secondary" type="button" onClick={() => request(() => router.back())}>إلغاء</Button>
+          <Button variant="outline" type="button" loading={savingDraft} disabled={saving} onClick={() => void handleSaveDraft()}>
             <Save size={15} /> حفظ في المسودة
           </Button>
           <Button type="submit" loading={saving} size="lg">إنشاء الحفلة</Button>
         </div>
+        </fieldset>
       </form>
     </div>
   );

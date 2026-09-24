@@ -251,10 +251,25 @@ test("settings mutation respects field permission and is audited", async () => {
 
 test("draft saves use verified creator and never copy spoofed ownership", async () => {
   records.set("custom_roles/reader", { permissions: { concerts: [] } });
-  const response = await saveDraft(request("/api/drafts", "worker", "POST", { data: { form: {}, createdBy: "admin", createdByName: "forged" } }));
+  const unfinished = {
+    method: "bank_transfer", amount: "1250", date: "2026-09-24",
+    cardType: "visa", receiverName: "", bankName: "الراجحي", senderName: "محمد",
+  };
+  const response = await saveDraft(request("/api/drafts", "worker", "POST", {
+    data: {
+      form: { clientName: "حفلة اختبار" }, paymentForm: unfinished,
+      invoice: { hasInvoice: true, invoiceNumber: "INV-19" }, activeItemType: "external",
+      createdBy: "admin", createdByName: "forged",
+    },
+  }));
   assert.equal(response.status, 200);
   const { id } = await response.json();
-  assert.equal(records.get(`concert_drafts/${id}`)?.createdBy, "worker");
+  const saved = records.get(`concert_drafts/${id}`);
+  assert.equal(saved?.createdBy, "worker");
+  assert.deepEqual(saved?.paymentForm, unfinished);
+  assert.deepEqual(saved?.invoice, { hasInvoice: true, invoiceNumber: "INV-19" });
+  assert.equal(saved?.activeItemType, "external");
+  assert.equal(saved?.createdByName, "موظف");
   assert.equal(logs()[0].targetId, id);
 });
 

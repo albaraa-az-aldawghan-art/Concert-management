@@ -196,6 +196,13 @@ export interface ConcertDraft {
     cardType: "visa" | "mada" | null; receiverName: string | null;
     bankName: string | null; senderName: string | null;
   }[];
+  /** Raw unfinished payment input is preserved without posting a payment. */
+  paymentForm?: {
+    method: PaymentMethod; amount: string; date: string;
+    cardType: "visa" | "mada"; receiverName: string; bankName: string; senderName: string;
+  };
+  invoice?: { hasInvoice: boolean | null; invoiceNumber: string };
+  activeItemType?: "" | "internal" | "external";
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy: string;
