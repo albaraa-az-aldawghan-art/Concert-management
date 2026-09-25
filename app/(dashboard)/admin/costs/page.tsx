@@ -3,7 +3,6 @@
 /* أصناف التكاليف: التسجيل وتوليد الباركود وطباعة الملصقات والوحدات والأقسام. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { CostSectionTabs } from "@/components/costs/CostSectionTabs";
 import {
   getCostItems,
   createCostItemGenerated,
@@ -231,7 +230,7 @@ function ItemRow({
   );
 }
 
-export default function AdminCostsPage() {
+export function CostItemsPanel() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
@@ -531,10 +530,9 @@ export default function AdminCostsPage() {
 
   return (
     <div className="space-y-5">
-      <CostSectionTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">أصناف التكاليف</h2>
+          <h2 className="text-xl font-bold text-slate-800">جميع منتجات التكاليف</h2>
           <p className="text-sm text-slate-500">
             {sorted.length === items.length ? `${items.length} صنف مسجّل` : `${sorted.length} من ${items.length} صنف`}
           </p>
@@ -570,7 +568,7 @@ export default function AdminCostsPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <div className="max-w-xs flex-1">
-          <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالاسم أو الباركود..." />
+          <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالمنتج أو الباركود..." />
         </div>
         <ClearFiltersButton show={hasActiveFilters} onClear={clearFilters} />
       </div>
@@ -590,7 +588,7 @@ export default function AdminCostsPage() {
             <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
-                  <th className="px-4 py-2.5"><SortHeader label="الاسم" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+                  <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5"><SortHeader label="النوع" sortKeyName="kind" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
                   <th className="px-4 py-2.5 font-semibold">القسم</th>
                   <th className="px-4 py-2.5"><SortHeader label="الوحدة" sortKeyName="unit" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>
@@ -656,7 +654,7 @@ export default function AdminCostsPage() {
       {/* Add / Edit */}
       <Modal open={showAdd || !!editTarget} onClose={() => { setShowAdd(false); setEditTarget(null); }} title={editTarget ? "تعديل الصنف" : "تسجيل صنف جديد"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="اسم الصنف" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: لحم بقر بدون عظم" />
+          <Input label="اسم المنتج" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثال: لحم بقر بدون عظم" />
           <Select label="الوحدة (ثابتة لهذا الصنف دائماً)" required value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
             <option value="" disabled>اختر الوحدة</option>
             {settings.units.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -890,4 +888,8 @@ export default function AdminCostsPage() {
       />
     </div>
   );
+}
+
+export default function AdminCostsPage() {
+  return <CostItemsPanel />;
 }

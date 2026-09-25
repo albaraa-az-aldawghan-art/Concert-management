@@ -80,7 +80,7 @@ const adminNav: NavItem[] = [
     section: "التكاليف",
     children: [
       { label: "المواد الخام", href: "/admin/costs/raw", icon: <Package size={15} /> },
-      { label: "الوصفات القياسية", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
+      { label: "المنتجات والوصفات القياسية", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
       { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
     ],

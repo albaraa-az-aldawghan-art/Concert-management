@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
-import { CostSectionTabs } from "@/components/costs/CostSectionTabs";
+import { CostItemsPanel } from "../page";
 import {
   getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
   updateProductionRecipe, createCostItemGenerated, updateCostItem, getCostSettings,
@@ -478,10 +478,9 @@ function CostsProductionPageInner() {
 
   return (
     <div className="space-y-5">
-      <CostSectionTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">الوصفات القياسية والإنتاج</h2>
+          <h2 className="text-xl font-bold text-slate-800">المنتجات والوصفات القياسية</h2>
           <p className="text-sm text-slate-500">{productions.length} عملية إنتاج مسجّلة</p>
         </div>
         {canRecord && (
@@ -536,7 +535,7 @@ function CostsProductionPageInner() {
                 <table className="data-table w-full text-sm">
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
-                      <th className="px-4 py-2.5"><SortHeader label="المُنتَج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
+                      <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
                       <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5"></th>
@@ -611,6 +610,8 @@ function CostsProductionPageInner() {
         </Card>
       )}
 
+      <CostItemsPanel />
+
       <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف المُنتَج أو المواد الخام..." />
       <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الإنتاج" matchedCount={filtered.length} unitLabel="عملية" />
 
@@ -628,7 +629,7 @@ function CostsProductionPageInner() {
           <table className="data-table w-full text-sm">
             <thead>
               <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
-                <th className="px-4 py-3 font-semibold">المُنتَج</th>
+                <th className="px-4 py-3 font-semibold">المنتج</th>
                 {fp.inputs && <th className="px-4 py-3 font-semibold">المدخلات</th>}
                 {fp.inputs && <th className="px-4 py-3 font-semibold">تكلفة الوحدة</th>}
                 {fp.inputs && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
@@ -794,7 +795,7 @@ function CostsProductionPageInner() {
                       </p>
                       <div className="flex gap-2 items-end">
                         <div className="flex-1 min-w-0">
-                          <label className="text-[11px] text-slate-500 block mb-1">الاسم</label>
+                          <label className="text-[11px] text-slate-500 block mb-1">المنتج</label>
                           <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm truncate">{oq}</div>
                         </div>
                         <div className="w-28 shrink-0">
@@ -1007,7 +1008,7 @@ function CostsProductionPageInner() {
                     </p>
                     <div className="flex gap-2 items-end">
                       <div className="flex-1 min-w-0">
-                        <label className="text-[11px] text-slate-500 block mb-1">الاسم</label>
+                        <label className="text-[11px] text-slate-500 block mb-1">المادة الخام</label>
                         <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm truncate">{iq}</div>
                       </div>
                       <div className="w-28 shrink-0">
