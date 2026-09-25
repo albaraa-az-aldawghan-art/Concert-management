@@ -94,7 +94,6 @@ function CostsProductionPageInner() {
   >(null);
   const [notes, setNotes] = useState("");
   /* الوصفات القياسية القابلة للإنتاج — لوحة منفصلة عن سجل العمليات فعلياً */
-  const [showRecipes, setShowRecipes] = useState(true);
   const [recipeSearch, setRecipeSearch] = useState("");
   const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing" | "raw" | "sale">("");
   const [recipeTypeFilter, setRecipeTypeFilter] = useState("");
@@ -525,11 +524,7 @@ function CostsProductionPageInner() {
 
       {allRecipeItems.length > 0 && (
         <Card className="p-0 overflow-hidden bg-white">
-          <button
-            type="button"
-            onClick={() => setShowRecipes((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right hover:bg-slate-100 transition-colors"
-          >
+          <div className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right">
             <FlaskConical size={16} className="text-slate-500 shrink-0" />
             <span className="font-bold text-slate-700 text-sm">المنتجات والوصفات القياسية</span>
             <span className="text-xs text-slate-500">
@@ -537,11 +532,9 @@ function CostsProductionPageInner() {
               <b className={readyCount > 0 ? "text-slate-700" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
               {needsRecipeCount > 0 && <b className="text-red-600"> · {needsRecipeCount} يحتاج خلطة</b>}
             </span>
-            <span className="mr-auto text-slate-400 text-xs">{showRecipes ? "إخفاء" : "عرض"}</span>
-          </button>
+          </div>
 
-          {showRecipes && (
-            <div className="border-t border-slate-200">
+          <div className="border-t border-slate-200">
               <div className="p-3 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center gap-2">
                 <div className="max-w-xs flex-1">
                   <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
@@ -685,8 +678,7 @@ function CostsProductionPageInner() {
               </div>
               )}
               {recipeItems.length > 0 && <div className="border-t border-slate-100 px-4 py-3"><Pagination page={safeRecipePage} totalPages={recipeTotalPages} onChange={setRecipePage} /></div>}
-            </div>
-          )}
+          </div>
         </Card>
       )}
 
