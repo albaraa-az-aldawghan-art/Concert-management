@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
+import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import {
   updateCostSettings,
 } from "@/lib/firestore/costs";
 import { CostIncoming, CostItem, CostOutgoing, CostProduction, CostSettings } from "@/types";
-import { FolderPlus, History, Package, PackagePlus, Plus } from "lucide-react";
+import { FileSpreadsheet, FolderPlus, History, Package, PackagePlus, Plus } from "lucide-react";
 
 type Movement = { id: string; date: string; kind: string; quantity: number; note: string };
 const emptyItem = { name: "", unit: "", category: "" };
@@ -34,6 +35,7 @@ export default function RawMaterialsPage() {
   const canEditItem = isAdmin || feat("costs", "item_edit");
   const canConfig = isAdmin || feat("costs", "item_config");
   const canIncoming = isAdmin || feat("costs", "in_add");
+  const canExport = isAdmin || feat("costs", "export");
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [incoming, setIncoming] = useState<CostIncoming[]>([]);
@@ -42,6 +44,7 @@ export default function RawMaterialsPage() {
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [], rawCategories: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCategory, setShowCategory] = useState(false);
@@ -58,6 +61,20 @@ export default function RawMaterialsPage() {
       ]);
       setItems(i); setIncoming(inc); setOutgoing(out); setProductions(prod); setSettings(config);
     } finally { setLoading(false); }
+  }
+
+  async function exportRawMaterials() {
+    setExporting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const response = await fetch("/api/export/cost-items?scope=raw", { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) { const json = await response.json().catch(() => null); throw new Error(json?.error ?? "تعذّر التصدير"); }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = "المواد الخام.xlsx"; link.click(); URL.revokeObjectURL(url);
+      showToast("تم تصدير المواد الخام");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error"); }
+    finally { setExporting(false); }
   }
 
   useEffect(() => {
@@ -146,6 +163,7 @@ export default function RawMaterialsPage() {
       <PageHeader title="المواد الخام" eyebrow="التكاليف" icon={Package}
         description="تنظيم الخامات حسب الأقسام، وتسجيل الوارد ومراجعة حركة كل مادة من مكان واحد"
         actions={<div className="flex gap-2 flex-wrap">
+          {canExport && <Button variant="outline" loading={exporting} onClick={exportRawMaterials}><FileSpreadsheet size={16} /> تصدير إكسل</Button>}
           {canConfig && <Button variant="outline" onClick={() => setShowCategory(true)}><FolderPlus size={16} /> إضافة قسم</Button>}
           {canAddItem && <Button onClick={() => { setItemForm({ ...emptyItem, category: categoryFilter }); setShowItem(true); }}><Plus size={16} /> إضافة مادة خام</Button>}
           {canIncoming && <Link href="/admin/costs/incoming"><Button><PackagePlus size={16} /> فاتورة شراء جديدة</Button></Link>}

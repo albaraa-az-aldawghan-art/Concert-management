@@ -10,6 +10,7 @@ import {
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
+import { auth } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import { SearchBox, Pagination, SortHeader, ClearFiltersButton } from "@/compone
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
-import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil } from "lucide-react";
+import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil, FileSpreadsheet } from "lucide-react";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const RECIPE_PAGE_SIZE = 50;
@@ -58,6 +59,22 @@ function CostsProductionPageInner() {
   const canEditEntry = isAdmin || feat("costs", "prod_edit");
   const canRecipe = isAdmin || feat("costs", "prod_recipe");
   const canLabel = isAdmin || feat("costs", "prod_label");
+  const canExport = isAdmin || feat("costs", "export");
+  const [exporting, setExporting] = useState<"products" | "recipes" | null>(null);
+
+  async function exportSheet(scope: "products" | "recipes") {
+    setExporting(scope);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const response = await fetch(`/api/export/cost-items?scope=${scope}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) { const json = await response.json().catch(() => null); throw new Error(json?.error ?? "تعذّر التصدير"); }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = scope === "products" ? "المنتجات.xlsx" : "الوصفات القياسية.xlsx"; link.click(); URL.revokeObjectURL(url);
+      showToast(scope === "products" ? "تم تصدير المنتجات" : "تم تصدير الوصفات القياسية");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error"); }
+    finally { setExporting(null); }
+  }
   const canDelete = isAdmin || feat("costs", "prod_delete");
   const fp = {
     inputs: isAdmin || feat("costs", "prf_inputs"),
@@ -543,9 +560,10 @@ function CostsProductionPageInner() {
           <h2 className="text-xl font-bold text-slate-800">المنتجات والوصفات القياسية</h2>
           <p className="text-sm text-slate-500">{productions.length} عملية إنتاج مسجّلة</p>
         </div>
-        {canRecord && (
-          <Button onClick={openAdd}><Plus size={16} /> تسجيل إنتاج</Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canExport && <><Button variant="outline" loading={exporting === "products"} onClick={() => exportSheet("products")}><FileSpreadsheet size={16} /> تصدير المنتجات</Button><Button variant="outline" loading={exporting === "recipes"} onClick={() => exportSheet("recipes")}><FileSpreadsheet size={16} /> تصدير الوصفات</Button></>}
+          {canRecord && <Button onClick={openAdd}><Plus size={16} /> تسجيل إنتاج</Button>}
+        </div>
       </div>
 
       <div className="flex items-start gap-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-4 py-3 text-xs text-[#1C2D50] leading-relaxed">
