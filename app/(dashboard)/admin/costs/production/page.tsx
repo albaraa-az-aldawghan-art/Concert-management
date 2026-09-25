@@ -98,6 +98,7 @@ function CostsProductionPageInner() {
   const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing" | "raw" | "sale">("");
   const [recipeTypeFilter, setRecipeTypeFilter] = useState("");
   const [recipeSectionFilter, setRecipeSectionFilter] = useState("");
+  const [recipeMainSectionFilter, setRecipeMainSectionFilter] = useState("");
   const [recipeUnitFilter, setRecipeUnitFilter] = useState("");
   const [recipeBarcodeFilter, setRecipeBarcodeFilter] = useState("");
   const [recipeBalanceFilter, setRecipeBalanceFilter] = useState("");
@@ -109,7 +110,7 @@ function CostsProductionPageInner() {
   const [recipePage, setRecipePage] = useState(1);
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { setRecipePage(1); }, [recipeSearch, recipeStatusFilter, recipeTypeFilter, recipeSectionFilter, recipeUnitFilter, recipeBarcodeFilter, recipeBalanceFilter, recipeOperationFilter, recipeMinimumFilter, recipeIngredientFilter]);
+  useEffect(() => { setRecipePage(1); }, [recipeSearch, recipeStatusFilter, recipeTypeFilter, recipeSectionFilter, recipeMainSectionFilter, recipeUnitFilter, recipeBarcodeFilter, recipeBalanceFilter, recipeOperationFilter, recipeMinimumFilter, recipeIngredientFilter]);
 
   async function load() {
     const [i, p, st, sec] = await Promise.all([
@@ -458,6 +459,9 @@ function CostsProductionPageInner() {
     .filter((r) => !recipeStatusFilter || recipeStatus(r) === recipeStatusFilter)
     .filter((r) => !recipeTypeFilter || (r.item.kind ?? "raw") === recipeTypeFilter)
     .filter((r) => !recipeSectionFilter || (r.item.salesSections ?? []).includes(recipeSectionFilter) || r.item.rawCategory === recipeSectionFilter)
+    .filter((r) => !recipeMainSectionFilter || (recipeMainSectionFilter === "manufactured"
+      ? r.item.kind === "produced"
+      : (r.item.salesSections ?? []).some((id) => sections.find((section) => section.id === id)?.channel === recipeMainSectionFilter)))
     .filter((r) => !recipeUnitFilter || r.item.unit === recipeUnitFilter)
     .filter((r) => !recipeBarcodeFilter.trim() || r.item.id.includes(recipeBarcodeFilter.trim()))
     .filter((r) => recipeBalanceFilter === "" || ((r.item.totalIn ?? 0) - (r.item.totalOut ?? 0)) <= Number(recipeBalanceFilter))
@@ -466,6 +470,18 @@ function CostsProductionPageInner() {
     .filter((r) => !recipeOperationFilter || (recipeOperationFilter === "yes" ? productions.some((p) => p.outputBarcode === r.item.id) : !productions.some((p) => p.outputBarcode === r.item.id)));
 
   const recipeUnits = [...new Set(items.map((item) => item.unit))].sort((a, b) => a.localeCompare(b, "ar"));
+  const mainSections: { value: SalesChannel | "manufactured"; label: string }[] = [
+    { value: "restaurant", label: "المطعم" },
+    { value: "contracts", label: "التعاقدات" },
+    { value: "concerts", label: "الحفلات" },
+    { value: "manufactured", label: "منتجات مُصنّعة" },
+  ];
+
+  function mainSectionOf(item: CostItem): SalesChannel | "manufactured" | "" {
+    if (item.kind === "produced") return "manufactured";
+    const sectionId = (item.salesSections ?? [])[0];
+    return sections.find((section) => section.id === sectionId)?.channel ?? "";
+  }
 
   async function confirmItemChange(item: CostItem, field: "kind" | "salesSections", value: string) {
     const label = field === "kind" ? "نوع المنتج" : "قسم المنتج";
@@ -476,6 +492,19 @@ function CostsProductionPageInner() {
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));
       showToast(`تم تحديث ${label}`);
     } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حفظ التغيير", "error"); }
+  }
+
+  async function confirmMainSectionChange(item: CostItem, value: SalesChannel | "manufactured" | "") {
+    const label = mainSections.find((section) => section.value === value)?.label ?? "بلا قسم";
+    if (!window.confirm(`هل أنت موافق على تغيير القسم الأساسي للمنتج «${item.name}» إلى «${label}»؟ سيتم مسح القسم الفرعي السابق.`)) return;
+    const patch = value === "manufactured"
+      ? { kind: "produced" as const, salesSections: [] as string[] }
+      : { kind: "sale" as const, salesSections: [] as string[] };
+    try {
+      await updateCostItem(item.id, patch);
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));
+      showToast("تم تحديث القسم الأساسي");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث القسم الأساسي", "error"); }
   }
 
   async function saveMinimumStock(item: CostItem, value: string) {
@@ -560,7 +589,8 @@ function CostsProductionPageInner() {
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
                       <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5 font-semibold">النوع</th>
-                      <th className="px-4 py-2.5 font-semibold">القسم</th>
+                      <th className="px-4 py-2.5 font-semibold">القسم الأساسي</th>
+                      <th className="px-4 py-2.5 font-semibold">القسم الفرعي</th>
                       <th className="px-4 py-2.5 font-semibold">الوحدة</th>
                       <th className="px-4 py-2.5 font-semibold">الرصيد</th>
                       <th className="px-4 py-2.5 font-semibold">الحد الأدنى</th>
@@ -573,7 +603,8 @@ function CostsProductionPageInner() {
                     <tr className="border-b border-slate-100 bg-slate-50/70">
                       <td className="px-2 py-2"><input value={recipeSearch} onChange={(e) => setRecipeSearch(e.target.value)} placeholder="بحث..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
                       <td className="px-2 py-2"><select value={recipeTypeFilter} onChange={(e) => setRecipeTypeFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
-                      <td className="px-2 py-2"><select value={recipeSectionFilter} onChange={(e) => setRecipeSectionFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
+                      <td className="px-2 py-2"><select value={recipeMainSectionFilter} onChange={(e) => { setRecipeMainSectionFilter(e.target.value); setRecipeSectionFilter(""); }} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></td>
+                      <td className="px-2 py-2"><select value={recipeSectionFilter} onChange={(e) => setRecipeSectionFilter(e.target.value)} disabled={!recipeMainSectionFilter || recipeMainSectionFilter === "manufactured"} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white disabled:bg-slate-100"><option value="">الكل</option>{sections.filter((section) => !recipeMainSectionFilter || section.channel === recipeMainSectionFilter).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
                       <td className="px-2 py-2"><select value={recipeUnitFilter} onChange={(e) => setRecipeUnitFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{recipeUnits.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                       <td className="px-2 py-2"><input type="number" min="0" value={recipeBalanceFilter} onChange={(e) => setRecipeBalanceFilter(e.target.value)} placeholder="≤ الرصيد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
                       <td className="px-2 py-2"><input type="number" min="0" value={recipeMinimumFilter} onChange={(e) => setRecipeMinimumFilter(e.target.value)} placeholder="≥ الحد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
@@ -591,7 +622,8 @@ function CostsProductionPageInner() {
                           <p className="font-semibold text-slate-600">{item.name}</p>
                         </td>
                         <td className="px-4 py-2.5"><select value={item.kind ?? "raw"} onChange={(e) => confirmItemChange(item, "kind", e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
-                        <td className="px-4 py-2.5"><select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} className="max-w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">{item.rawCategory || "بلا قسم"}</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
+                        <td className="px-4 py-2.5"><select value={mainSectionOf(item)} onChange={(e) => confirmMainSectionChange(item, e.target.value as SalesChannel | "manufactured" | "")} className="min-w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">بلا قسم</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></td>
+                        <td className="px-4 py-2.5">{mainSectionOf(item) === "manufactured" ? <span className="text-xs text-slate-400">—</span> : <select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} disabled={!mainSectionOf(item)} className="max-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-100"><option value="">اختر القسم الفرعي</option>{sections.filter((section) => section.channel === mainSectionOf(item)).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select>}</td>
                         <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
                         <td className="px-4 py-2.5 font-semibold tabular-nums-auto">{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
                         <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={item.minimumStock ?? 0} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
