@@ -10,18 +10,16 @@ import {
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
-import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
+import { SearchBox, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
 import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil } from "lucide-react";
 
-const PAGE_SIZE = 10;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 interface InputLine { barcode: string; itemName: string; unit: string; qty: string; }
@@ -62,16 +60,11 @@ function CostsProductionPageInner() {
   const canDelete = isAdmin || feat("costs", "prod_delete");
   const fp = {
     inputs: isAdmin || feat("costs", "prf_inputs"),
-    actor:  isAdmin || feat("costs", "prf_actor"),
   };
 
   const [items, setItems] = useState<CostItem[]>([]);
   const [productions, setProductions] = useState<CostProduction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
-  const [dateF, setDateF] = useState<DateFilterState>(emptyDateFilter);
-  const [page, setPage] = useState(1);
 
   const [showAdd, setShowAdd] = useState(false);
   /** غير null أثناء تعديل عملية قائمة — الصنف المُنتَج يبقى ثابتاً حينها */
@@ -106,11 +99,9 @@ function CostsProductionPageInner() {
   const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
   const [recipeSortDir, setRecipeSortDir] = useState<"asc" | "desc">("asc");
 
-  useEffect(() => { setPage(1); }, [search, dateF]);
   useEffect(() => { load(); }, []);
 
   async function load() {
-    setLoading(true);
     const [i, p, st, sec] = await Promise.all([
       getCostItems(),
       getCostProductions().catch(() => [] as CostProduction[]),
@@ -121,7 +112,6 @@ function CostsProductionPageInner() {
     setProductions(p);
     setUnits(st.units);
     setSections(sec);
-    setLoading(false);
   }
 
   function openAdd() {
@@ -415,14 +405,6 @@ function CostsProductionPageInner() {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 
-  const q = search.trim();
-  const filtered = productions
-    .filter((p) => matchesDate(p.productionDate ?? p.createdAt, dateF))
-    .filter((p) => !q || p.outputName.includes(q) || p.inputs.some((i) => i.itemName.includes(q)));
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
   // القائمتان تعرضان كل الأصناف افتراضياً، والبحث يضيّقها — لا يُشترط
   // أن يتذكّر المستخدم الاسم قبل أن يرى ما لديه
   // وسم تنظيمي فقط لا يُخفي أي صنف — منتج قد يُستهلك بدوره كمكوّن في وصفة أخرى
@@ -545,6 +527,7 @@ function CostsProductionPageInner() {
                       {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
                       <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5 font-semibold">الباركود</th>
+                      <th className="px-4 py-2.5 font-semibold">عمليات الإنتاج</th>
                       <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>
@@ -596,6 +579,27 @@ function CostsProductionPageInner() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{item.id}</td>
+                        <td className="px-4 py-2.5 min-w-[190px]">
+                          {(() => {
+                            const itemProductions = productions.filter((p) => p.outputBarcode === item.id);
+                            const latest = itemProductions[0];
+                            if (!latest) return <span className="text-xs text-slate-400">لا توجد عملية إنتاج</span>;
+                            return (
+                              <div className="space-y-1.5">
+                                <div className="text-xs text-slate-600 tabular-nums-auto">
+                                  <span className="font-semibold text-slate-800">{latest.outputQty.toLocaleString("en-US")} {latest.outputUnit}</span>
+                                  <span className="text-slate-400"> · {fmtDate(latest.productionDate)}</span>
+                                  {itemProductions.length > 1 && <span className="block text-[10px] text-slate-400">{itemProductions.length} عمليات مسجلة</span>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {canLabel && <button onClick={() => setLabelTarget({ id: latest.outputBarcode, name: latest.outputName, productionDate: latest.productionDate, expiryDate: latest.expiryDate ?? null })} className="text-slate-400 hover:text-[#1C2D50]" title="طباعة ملصق آخر دفعة"><Printer size={13} /></button>}
+                                  {canEditEntry && <button onClick={() => openEdit(latest)} className="text-slate-400 hover:text-[#1C2D50]" title="تعديل آخر عملية"><Pencil size={13} /></button>}
+                                  {canDelete && <button onClick={() => setDeleteTarget(latest)} className="text-slate-400 hover:text-red-500" title="حذف آخر عملية"><Trash2 size={13} /></button>}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1.5 justify-end">
                             {canRecipe && (item.kind ?? "raw") !== "raw" && (
@@ -624,99 +628,6 @@ function CostsProductionPageInner() {
           )}
         </Card>
       )}
-
-      <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف المُنتَج أو المواد الخام..." />
-      <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الإنتاج" matchedCount={filtered.length} unitLabel="عملية" />
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-        </div>
-      ) : paginated.length === 0 ? (
-        <Card className="flex flex-col items-center py-12 text-slate-400">
-          <FlaskConical size={40} className="mb-3 opacity-40" />
-          <p>لا توجد عمليات إنتاج مطابقة</p>
-        </Card>
-      ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="data-table w-full text-sm">
-            <thead>
-              <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
-                <th className="px-4 py-3 font-semibold">المنتج</th>
-                {fp.inputs && <th className="px-4 py-3 font-semibold">المدخلات</th>}
-                {fp.inputs && <th className="px-4 py-3 font-semibold">تكلفة الوحدة</th>}
-                {fp.inputs && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
-                <th className="px-4 py-3 font-semibold">التاريخ</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.map((p) => (
-                <tr key={p.id} className="border-b border-slate-50 last:border-none align-top">
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-800">{p.outputName}</p>
-                    <p className="text-xs text-slate-500 tabular-nums-auto mt-0.5">
-                      {p.outputQty.toLocaleString("en-US")} {p.outputUnit}
-                    </p>
-                    {p.notes && <p className="text-xs text-slate-400 mt-0.5">{p.notes}</p>}
-                  </td>
-                  {fp.inputs && (
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {p.inputs.map((i) => (
-                          <span key={i.barcode} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
-                            {i.itemName} {i.qty.toLocaleString("en-US")} {i.unit}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  )}
-                  {fp.inputs && (
-                    <td className="px-4 py-3 tabular-nums-auto text-slate-600">{money(p.unitCost)} ريال</td>
-                  )}
-                  {fp.inputs && (
-                    <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{money(p.totalCost)} ريال</td>
-                  )}
-                  <td className="px-4 py-3 tabular-nums-auto text-slate-500">
-                    {fmtDate(p.productionDate)}
-                    {p.expiryDate && <span className="block text-amber-600">← {fmtDate(p.expiryDate)}</span>}
-                    {fp.actor && <Actor uid={p.createdBy} className="block mt-0.5" showIcon={false} />}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {canLabel && (
-                        /* إعادة طباعة ملصق هذه الدفعة بتاريخيها هي، لا بتاريخ آخر دفعة */
-                        <button
-                          onClick={() => setLabelTarget({
-                            id: p.outputBarcode, name: p.outputName,
-                            productionDate: p.productionDate, expiryDate: p.expiryDate ?? null,
-                          })}
-                          className="text-slate-400 hover:text-[#1C2D50] transition-colors"
-                          title="طباعة ملصق هذه الدفعة"
-                        >
-                          <Printer size={14} />
-                        </button>
-                      )}
-                      {canEditEntry && (
-                        <button onClick={() => openEdit(p)} className="text-slate-400 hover:text-[#1C2D50] transition-colors" title="تعديل">
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setDeleteTarget(p)} className="text-slate-400 hover:text-red-500 transition-colors" title="حذف">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
 
       {/* تسجيل إنتاج */}
       <Modal open={showAdd} onClose={closeModal} title={editTarget ? "تعديل عملية إنتاج" : "تسجيل إنتاج"} size="lg">
