@@ -9,7 +9,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ kind
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError("بيانات غير صحيحة");
     if (kind === "costs" || kind === "expenses") {
       require_(caller, kind === "costs" ? "costs" : "concerts", kind === "costs" ? "item_config" : "exp_add", "تعديل الإعدادات");
-      const fields = kind === "costs" ? ["units", "departments"] : ["types"];
+      const fields = kind === "costs" ? ["units", "departments", "rawCategories"] : ["types"];
       for (const key of Object.keys(body)) if (!fields.includes(key)) throw new ApiError("حقل غير مسموح");
       for (const value of Object.values(body)) if (!Array.isArray(value) || value.length > 500) throw new ApiError("قائمة غير صحيحة");
       await caller.db.collection(kind === "costs" ? "cost_settings" : "expense_settings").doc("config").set(body);

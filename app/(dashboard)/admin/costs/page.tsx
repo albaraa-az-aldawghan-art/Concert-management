@@ -3,6 +3,7 @@
 /* أصناف التكاليف: التسجيل وتوليد الباركود وطباعة الملصقات والوحدات والأقسام. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { CostSectionTabs } from "@/components/costs/CostSectionTabs";
 import {
   getCostItems,
   createCostItemGenerated,
@@ -530,6 +531,7 @@ export default function AdminCostsPage() {
 
   return (
     <div className="space-y-5">
+      <CostSectionTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800">أصناف التكاليف</h2>

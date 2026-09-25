@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       createdBy: caller.uid,
       salesSectionIds: body.salesSectionIds?.map((id: unknown) => str(id, "قسم البيع")),
       kind: body.kind === "raw" || body.kind === "produced" || body.kind === "sale" ? body.kind : undefined,
+      rawCategory: body.rawCategory ? str(body.rawCategory, "قسم المادة الخام", { max: 100 }) : null,
     });
   });
 }

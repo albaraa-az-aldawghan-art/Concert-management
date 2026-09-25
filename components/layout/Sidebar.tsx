@@ -32,7 +32,6 @@ import {
   UserRound,
   ChevronDown,
   Barcode,
-  PackagePlus,
   PackageMinus,
   Scale,
   TrendingUp,
@@ -79,10 +78,18 @@ const adminNav: NavItem[] = [
     section: "الموارد والمخزون",
     children: [
       { label: "طلبات الموارد", href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
-      { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
-      { label: "الإنتاج", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
-      { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
+    ],
+  },
+  {
+    label: "التكاليف",
+    href: "/admin/costs/dashboard",
+    icon: <Barcode size={17} />,
+    section: "التكاليف",
+    children: [
+      { label: "المواد الخام", href: "/admin/costs/raw", icon: <Package size={15} /> },
+      { label: "الوصفات القياسية", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
+      { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
     ],
   },
   {
@@ -92,7 +99,6 @@ const adminNav: NavItem[] = [
     section: "المالية",
     children: [
       { label: "ربحية الحفلات", href: "/admin/profitability", icon: <TrendingUp size={15} /> },
-      { label: "التكاليف", href: "/admin/costs", icon: <Barcode size={15} /> },
       { label: "الخسائر", href: "/admin/missing-items", icon: <AlertTriangle size={15} /> },
       { label: "التالف", href: "/admin/costs/damage", icon: <AlertTriangle size={15} /> },
     ],
@@ -219,7 +225,8 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                 pathname.startsWith(item.href)
               );
 
-            const childActive = item.children?.some((c) => pathname.startsWith(c.href)) ?? false;
+            const childActive = (item.children?.some((c) => pathname.startsWith(c.href)) ?? false) ||
+              (item.href === "/admin/costs/dashboard" && pathname.startsWith("/admin/costs"));
             const isOpen = openGroups[item.href] ?? childActive;
 
             return (

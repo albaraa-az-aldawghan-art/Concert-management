@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
+import { CostSectionTabs } from "@/components/costs/CostSectionTabs";
 import {
   getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
   updateProductionRecipe, createCostItemGenerated, updateCostItem, getCostSettings,
@@ -100,7 +101,7 @@ function CostsProductionPageInner() {
   >(null);
   const [notes, setNotes] = useState("");
   /* الوصفات القياسية القابلة للإنتاج — لوحة منفصلة عن سجل العمليات فعلياً */
-  const [showRecipes, setShowRecipes] = useState(false);
+  const [showRecipes, setShowRecipes] = useState(true);
   const [recipeSearch, setRecipeSearch] = useState("");
   const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing">("");
   const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
@@ -477,9 +478,10 @@ function CostsProductionPageInner() {
 
   return (
     <div className="space-y-5">
+      <CostSectionTabs />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">الإنتاج (الخلطات)</h2>
+          <h2 className="text-xl font-bold text-slate-800">الوصفات القياسية والإنتاج</h2>
           <p className="text-sm text-slate-500">{productions.length} عملية إنتاج مسجّلة</p>
         </div>
         {canRecord && (

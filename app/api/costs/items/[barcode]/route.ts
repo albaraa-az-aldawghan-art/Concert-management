@@ -24,6 +24,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
       productionRecipe: body.productionRecipe,
       sectionPrices: body.sectionPrices,
       kind: body.kind === "raw" || body.kind === "produced" || body.kind === "sale" ? body.kind : undefined,
+      rawCategory: body.rawCategory !== undefined
+        ? (body.rawCategory ? str(body.rawCategory, "قسم المادة الخام", { max: 100 }) : null)
+        : undefined,
     });
   });
 }

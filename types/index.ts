@@ -606,6 +606,8 @@ export interface CostItem {
    *  لا يُخفي أي صنف من أي قائمة اختيار: بعض المُنتَجات تُستهلك بدورها
    *  كمكوّن داخل وصفة صنف آخر (خلطة وسط)، فالفلترة الصارمة تُفسد ذلك. */
   kind?: "raw" | "produced" | "sale";
+  /** تصنيف المادة الخام داخل صفحة المواد الخام، مستقل عن أقسام الصرف والبيع. */
+  rawCategory?: string | null;
 }
 
 /** عملية إنتاج: تستهلك مواد خام وتُنتج كمية من صنف جاهز.
@@ -745,4 +747,5 @@ export interface CostDepartment {
 export interface CostSettings {
   units: string[];
   departments: CostDepartment[];
+  rawCategories?: string[];
 }

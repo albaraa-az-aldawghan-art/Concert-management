@@ -781,6 +781,7 @@ export async function svcCreateItem(
     name: string; unit: string; mode: "generate" | "supplier"; barcode?: string;
     productionDate: string | null; expiryDate: string | null; createdBy: string;
     kind?: "raw" | "produced" | "sale";
+    rawCategory?: string | null;
     salesSectionIds?: string[];
   }
 ) {
@@ -812,6 +813,7 @@ export async function svcCreateItem(
     createdAt: Timestamp.now(),
     createdBy: d.createdBy,
     ...(d.kind !== undefined ? { kind: d.kind } : {}),
+    ...(d.rawCategory ? { rawCategory: d.rawCategory } : {}),
     ...(sectionIds.length ? { salesSections: sectionIds } : {}),
   };
 
@@ -890,6 +892,7 @@ export async function svcUpdateItem(
     sectionPrices?: unknown;
     /** وسم تنظيمي: مادة خام أم منتج مُصنَّع أم منتج بيع — لا يؤثر على أي فلترة */
     kind?: "raw" | "produced" | "sale";
+    rawCategory?: string | null;
   }
 ) {
   const ref = db.collection("cost_items").doc(barcode);
@@ -921,6 +924,7 @@ export async function svcUpdateItem(
     }
     patch.kind = d.kind;
   }
+  if (d.rawCategory !== undefined) patch.rawCategory = d.rawCategory;
   if (d.sectionPrices !== undefined) {
     if (typeof d.sectionPrices !== "object" || d.sectionPrices === null || Array.isArray(d.sectionPrices)) {
       throw new ApiError("صيغة الأسعار غير صحيحة");

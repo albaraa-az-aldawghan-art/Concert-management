@@ -35,7 +35,7 @@ export async function getCostSettings(): Promise<CostSettings> {
   const ref = doc(db, "cost_settings", "config");
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    const seed: CostSettings = { units: DEFAULT_UNITS, departments: DEFAULT_DEPARTMENTS };
+    const seed: CostSettings = { units: DEFAULT_UNITS, departments: DEFAULT_DEPARTMENTS, rawCategories: [] };
     // Defaults stay in memory until explicitly saved through the audited API.
     return seed;
   }
@@ -43,6 +43,7 @@ export async function getCostSettings(): Promise<CostSettings> {
   return {
     units: data.units ?? DEFAULT_UNITS,
     departments: data.departments ?? DEFAULT_DEPARTMENTS,
+    rawCategories: data.rawCategories ?? [],
   };
 }
 
@@ -79,6 +80,7 @@ export async function createCostItemGenerated(data: {
   expiryDate?: string | null;
   createdBy: string;
   kind?: "raw" | "produced" | "sale";
+  rawCategory?: string | null;
   salesSectionIds?: string[];
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
@@ -89,6 +91,7 @@ export async function createCostItemGenerated(data: {
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
     kind: data.kind,
+    rawCategory: data.rawCategory ?? null,
   });
   const snap = await getDoc(doc(db, "cost_items", id));
   return { id, ...(snap.data() as Omit<CostItem, "id">) };
@@ -103,6 +106,7 @@ export async function createCostItemFromSupplierBarcode(data: {
   expiryDate?: string | null;
   createdBy: string;
   kind?: "raw" | "produced" | "sale";
+  rawCategory?: string | null;
 }): Promise<CostItem> {
   const { id } = await api.post<{ id: string }>("/api/costs/items", {
     mode: "supplier",
@@ -112,6 +116,7 @@ export async function createCostItemFromSupplierBarcode(data: {
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
     kind: data.kind,
+    rawCategory: data.rawCategory ?? null,
   });
   const snap = await getDoc(doc(db, "cost_items", id));
   return { id, ...(snap.data() as Omit<CostItem, "id">) };
@@ -132,7 +137,7 @@ export async function bulkCreateCostItems(
 
 export async function updateCostItem(
   barcode: string,
-  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind">>
+  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind" | "rawCategory">>
 ): Promise<void> {
   await api.patch(`/api/costs/items/${encodeURIComponent(barcode)}`, data);
 }
