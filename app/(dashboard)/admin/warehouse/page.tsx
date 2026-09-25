@@ -172,6 +172,7 @@ export default function AdminWarehousePage() {
   };
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<WarehouseItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WarehouseItem | null>(null);
@@ -235,10 +236,17 @@ export default function AdminWarehousePage() {
 
   async function loadItems() {
     setLoading(true);
-    const [data, savedCategories] = await Promise.all([getWarehouseItems(), getWarehouseCategories()]);
-    setItems(data);
-    setCategories(savedCategories);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const [data, savedCategories] = await Promise.all([getWarehouseItems(), getWarehouseCategories()]);
+      setItems(data);
+      setCategories(savedCategories);
+    } catch (err) {
+      setLoadError(true);
+      showToast(err instanceof Error ? err.message : "تعذّر تحميل الموارد", "error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openEdit(item: WarehouseItem) {
@@ -517,6 +525,12 @@ export default function AdminWarehousePage() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
         </div>
+      ) : loadError ? (
+        <Card className="flex flex-col items-center gap-3 py-12 text-slate-500">
+          <Package size={40} className="text-red-300" />
+          <p>تعذّر تحميل الموارد</p>
+          <Button type="button" variant="outline" onClick={loadItems}>إعادة المحاولة</Button>
+        </Card>
       ) : filtered.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />

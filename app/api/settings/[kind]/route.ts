@@ -1,5 +1,16 @@
 import { NextRequest } from "next/server";
-import { ApiError, handle, requireCaller, require_, num, str } from "@/lib/server/guard";
+import { ApiError, handle, requireCaller, require_, requirePage, num, str } from "@/lib/server/guard";
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
+  return handle(async () => {
+    const caller = await requireCaller(req);
+    const { kind } = await params;
+    if (kind !== "warehouse") throw new ApiError("إعدادات غير معروفة", 404);
+    requirePage(caller, "warehouse", "عرض إعدادات الموارد");
+    const snap = await caller.db.collection("warehouse_settings").doc("config").get();
+    return snap.exists ? snap.data() : { categories: [] };
+  });
+}
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
   return handle(async () => {

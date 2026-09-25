@@ -18,8 +18,8 @@ import { api } from "@/lib/api";
 import { WarehouseItem } from "@/types";
 
 export async function getWarehouseCategories(): Promise<string[]> {
-  const snap = await getDoc(doc(db, "warehouse_settings", "config"));
-  return snap.exists() && Array.isArray(snap.data().categories) ? snap.data().categories : [];
+  const data = await api.get<{ categories?: unknown }>("/api/settings/warehouse");
+  return Array.isArray(data.categories) ? data.categories.filter((value): value is string => typeof value === "string") : [];
 }
 
 export async function updateWarehouseCategories(categories: string[]): Promise<void> {
