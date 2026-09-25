@@ -14,13 +14,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { SearchBox, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
+import { SearchBox, Pagination, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
 import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil } from "lucide-react";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const RECIPE_PAGE_SIZE = 50;
 
 interface InputLine { barcode: string; itemName: string; unit: string; qty: string; }
 
@@ -98,8 +99,10 @@ function CostsProductionPageInner() {
   const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing" | "raw" | "sale">("");
   const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
   const [recipeSortDir, setRecipeSortDir] = useState<"asc" | "desc">("asc");
+  const [recipePage, setRecipePage] = useState(1);
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setRecipePage(1); }, [recipeSearch, recipeStatusFilter]);
 
   async function load() {
     const [i, p, st, sec] = await Promise.all([
@@ -452,6 +455,9 @@ function CostsProductionPageInner() {
     const cmp = av.localeCompare(bv, "ar");
     return recipeSortDir === "asc" ? cmp : -cmp;
   }) : recipeFiltered;
+  const recipeTotalPages = Math.max(1, Math.ceil(recipeItems.length / RECIPE_PAGE_SIZE));
+  const safeRecipePage = Math.min(recipePage, recipeTotalPages);
+  const paginatedRecipeItems = recipeItems.slice((safeRecipePage - 1) * RECIPE_PAGE_SIZE, safeRecipePage * RECIPE_PAGE_SIZE);
 
   function toggleRecipeSort(key: "name" | "status") {
     if (recipeSortKey === key) setRecipeSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -479,7 +485,7 @@ function CostsProductionPageInner() {
       </div>
 
       {allRecipeItems.length > 0 && (
-        <Card className="p-0 overflow-hidden bg-slate-50 border-slate-200">
+        <Card className="p-0 overflow-hidden bg-white">
           <button
             type="button"
             onClick={() => setShowRecipes((v) => !v)}
@@ -515,10 +521,10 @@ function CostsProductionPageInner() {
               {recipeItems.length === 0 ? (
                 <p className="text-center text-sm text-slate-400 py-8">لا توجد نتائج مطابقة</p>
               ) : (
-              <div className="max-h-[460px] overflow-y-auto overflow-x-auto">
+              <div className="overflow-x-auto">
                 <table className="data-table w-full text-sm">
                   <thead>
-                    <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
+                    <tr className="text-right text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
                       <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5 font-semibold">النوع</th>
                       <th className="px-4 py-2.5 font-semibold">القسم</th>
@@ -532,7 +538,7 @@ function CostsProductionPageInner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {recipeItems.map(({ item, maxQty, ready, shortageName }) => (
+                    {paginatedRecipeItems.map(({ item, maxQty, ready, shortageName }) => (
                       <tr key={item.id} className="border-b border-slate-200 last:border-none align-top">
                         <td className="px-4 py-2.5">
                           <p className="font-semibold text-slate-600">{item.name}</p>
@@ -624,6 +630,7 @@ function CostsProductionPageInner() {
                 </table>
               </div>
               )}
+              {recipeItems.length > 0 && <div className="border-t border-slate-100 px-4 py-3"><Pagination page={safeRecipePage} totalPages={recipeTotalPages} onChange={setRecipePage} /></div>}
             </div>
           )}
         </Card>
