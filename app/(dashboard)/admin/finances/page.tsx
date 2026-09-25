@@ -6,14 +6,16 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcerts } from "@/lib/firestore/concerts";
+import { getContracts } from "@/lib/firestore/contracts";
+import { getCostOutgoing } from "@/lib/firestore/costs";
 import { Card } from "@/components/ui/card";
-import { Concert } from "@/types";
+import { Concert, Contract, CostOutgoing } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { isOverdueConcert } from "@/lib/overdue-concerts";
 import styles from "./finances.module.css";
-import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt } from "lucide-react";
+import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt, UtensilsCrossed, FileText, Landmark } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -102,6 +104,8 @@ export default function FinancesPage() {
     costs:     feat("finances", "f_costs"),
   };
   const [concerts, setConcerts] = useState<Concert[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   // null يحترم الرابط القادم من لوحة التحكم، وبعد أول ضغط يصبح القرار للمستخدم.
@@ -120,7 +124,16 @@ export default function FinancesPage() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    getConcerts().then((data) => { setConcerts(data); setLoading(false); });
+    Promise.all([
+      getConcerts(),
+      getContracts().catch(() => [] as Contract[]),
+      getCostOutgoing().catch(() => [] as CostOutgoing[]),
+    ]).then(([concertData, contractData, outgoingData]) => {
+      setConcerts(concertData);
+      setContracts(contractData);
+      setOutgoing(outgoingData);
+      setLoading(false);
+    });
   }, []);
 
   function toggleSort(key: SortKey) {
@@ -145,6 +158,17 @@ export default function FinancesPage() {
       if (dateTo   && d > dateTo)   return false;
       return true;
     }
+    return true;
+  }
+
+  function passesDateValue(value: string): boolean {
+    if (dateFilter === "all") return true;
+    if (!value) return false;
+    if (dateFilter === "today") return value === today;
+    if (dateFilter === "week") return value >= weekStart && value <= weekEnd;
+    if (dateFilter === "month") return value >= monthStart && value <= monthEnd;
+    if (dateFrom && value < dateFrom) return false;
+    if (dateTo && value > dateTo) return false;
     return true;
   }
 
@@ -216,6 +240,44 @@ export default function FinancesPage() {
   const totalAllCosts  = totalHall + totalTransport + totalExternal + totalLabor + totalOther;
   const netRevenue     = totalRevenue - totalAllCosts;
   const rate           = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0;
+
+  /* لوحة الموقع الموحّدة: الإيرادات قبل الضريبة تقابل التكلفة قبل الضريبة. */
+  const dashboardConcerts = financial;
+  const concertIds = new Set(dashboardConcerts.map((c) => c.id));
+  const concertRawCost = outgoing
+    .filter((o) => o.channel === "concerts" && !!o.concertId && concertIds.has(o.concertId))
+    .reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
+  const concertNetRevenue = dashboardConcerts.reduce((sum, c) => sum + ((c.price ?? 0) / (1 + (c.vatRate ?? 15) / 100)), 0);
+  const concertCosts = dashboardConcerts.reduce((sum, c) => sum + metricsOf(c).total, 0) + concertRawCost;
+  const concertCollected = dashboardConcerts.reduce((sum, c) => sum + (c.deposit ?? 0), 0);
+
+  const dashboardContracts = contracts.filter((c) => {
+    if (c.status === "cancelled") return false;
+    const date = dateField === "createdAt" ? toLocalDateStr(c.createdAt) : c.startDate;
+    return passesDateValue(date);
+  });
+  const contractIds = new Set(dashboardContracts.map((c) => c.id));
+  const contractRevenue = dashboardContracts.reduce((sum, c) => sum + ((c.totalValue ?? 0) / (1 + (c.vatRate ?? 15) / 100)), 0);
+  const contractCosts = outgoing
+    .filter((o) => o.channel === "contracts" && !!o.contractId && contractIds.has(o.contractId))
+    .reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
+  const contractCollected = dashboardContracts.reduce((sum, c) => sum + (c.paid ?? 0), 0);
+
+  const restaurantRows = outgoing.filter((o) => {
+    if (o.channel !== "restaurant") return false;
+    const date = dateField === "createdAt" ? toLocalDateStr(o.createdAt) : o.dispenseDate;
+    return passesDateValue(date);
+  });
+  const restaurantCosts = restaurantRows.reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
+  const divisions = [
+    { name: "الحفلات", href: "/admin/profitability", icon: BarChart3, revenue: concertNetRevenue, costs: concertCosts, collected: concertCollected, note: `${dashboardConcerts.length} حفلة` },
+    { name: "المطعم", href: "/admin/restaurant", icon: UtensilsCrossed, revenue: 0, costs: restaurantCosts, collected: 0, note: `${restaurantRows.length} عملية صرف · الإيرادات غير مسجلة` },
+    { name: "التعاقدات", href: "/admin/contracts", icon: FileText, revenue: contractRevenue, costs: contractCosts, collected: contractCollected, note: `${dashboardContracts.length} عقد` },
+  ].map((division) => ({ ...division, profit: division.revenue - division.costs }));
+  const siteRevenue = divisions.reduce((sum, division) => sum + division.revenue, 0);
+  const siteCosts = divisions.reduce((sum, division) => sum + division.costs, 0);
+  const siteProfit = siteRevenue - siteCosts;
+  const siteCollected = divisions.reduce((sum, division) => sum + division.collected, 0);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -388,6 +450,47 @@ export default function FinancesPage() {
       </div>
 
       {/* Summary Cards */}
+      {can("finances") && <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Landmark size={19} className="text-[#1C2D50]" /> اللوحة المالية الشاملة</h3>
+            <p className="text-xs text-slate-500 mt-1">أرقام ما قبل الضريبة حسب الفترة المحددة أعلاه</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "إجمالي الإيرادات", value: siteRevenue, color: "text-[#1C2D50]" },
+            { label: "إجمالي التكاليف", value: siteCosts, color: "text-orange-700" },
+            { label: siteProfit >= 0 ? "صافي الربح" : "صافي الخسارة", value: Math.abs(siteProfit), color: siteProfit >= 0 ? "text-emerald-700" : "text-red-700" },
+            { label: "إجمالي المحصّل", value: siteCollected, color: "text-blue-700" },
+          ].map((item) => <Card key={item.label}>
+            <p className="text-xs text-slate-500 mb-2">{item.label}</p>
+            <p className={`text-xl sm:text-2xl font-bold ${item.color}`}>{item.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
+            <p className="text-xs text-slate-400">ريال</p>
+          </Card>)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {divisions.map((division) => {
+            const Icon = division.icon;
+            const margin = division.revenue > 0 ? Math.round((division.profit / division.revenue) * 100) : null;
+            return <Link key={division.name} href={division.href} className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-[#1C2D50]/30 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2"><span className="w-9 h-9 rounded-xl bg-[#EEF1F7] flex items-center justify-center"><Icon size={18} className="text-[#1C2D50]" /></span><strong className="text-slate-800">{division.name}</strong></div>
+                <ChevronLeft size={16} className="text-slate-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-slate-400">الإيرادات</p><p className="font-bold text-[#1C2D50]">{division.revenue.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
+                <div><p className="text-xs text-slate-400">التكاليف</p><p className="font-bold text-orange-700">{division.costs.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
+                <div><p className="text-xs text-slate-400">المحصّل</p><p className="font-bold text-blue-700">{division.collected.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
+                <div><p className="text-xs text-slate-400">{division.profit >= 0 ? "الربح" : "الخسارة"}{margin != null ? ` (${margin}%)` : ""}</p><p className={`font-bold ${division.profit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{Math.abs(division.profit).toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-4 pt-3 border-t border-slate-100">{division.note}</p>
+            </Link>;
+          })}
+        </div>
+      </section>}
+
+      <div className="flex items-center gap-2 pt-2"><BarChart3 size={18} className="text-emerald-600" /><h3 className="text-lg font-bold text-slate-800">تفاصيل مالية الحفلات</h3></div>
       {can("finances") && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center gap-3 mb-2">

@@ -172,7 +172,7 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
     /* التعاقدات ودفعاتها: تُقرأ بصلاحية الصفحة، وتُكتب من الخادم الذي
        يبني بنودها من التكاليف ويشتقّ المدفوع من دفعاتها. */
     match /contracts/{contractId} {
-      allow read:  if isAdmin() || pageOn('contracts') || pageOn('profitability');
+      allow read:  if isAdmin() || pageOn('contracts') || pageOn('profitability') || pageOn('finances');
       allow write: if false;
     }
 
@@ -253,7 +253,7 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
     }
 
     match /cost_outgoing/{entryId} {
-      allow read:  if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability');
+      allow read:  if isAdmin() || pageOn('costs') || pageOn('concerts') || pageOn('profitability') || pageOn('finances');
       allow write: if false;
     }
 
