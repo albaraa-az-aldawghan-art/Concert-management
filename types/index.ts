@@ -204,6 +204,10 @@ export interface ConcertDraft {
   };
   invoice?: { hasInvoice: boolean | null; invoiceNumber: string };
   activeItemType?: "" | "internal" | "external";
+  initialExpenses?: {
+    type: string; description: string; amount: string; vatIncluded: boolean;
+    invoiceDate: string; supplierName: string;
+  }[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy: string;

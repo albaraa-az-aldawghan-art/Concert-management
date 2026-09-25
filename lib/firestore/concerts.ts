@@ -20,7 +20,9 @@ import { api } from "@/lib/api";
 import { Concert, ConcertItem, ConcertPayment, ConcertLog } from "@/types";
 
 export async function createConcert(
-  data: Omit<Concert, "id" | "concertNumber" | "createdAt" | "deliveryApproved" | "deliveryApprovedBy" | "deliveryApprovedAt" | "returnApproved" | "returnApprovedBy" | "returnApprovedAt" | "supervisorDeliveredToWarehouse" | "supervisorDeliveredToWarehouseAt" | "warehouseReturnConfirmed" | "warehouseReturnConfirmedBy" | "warehouseReturnConfirmedAt" | "isPaid" | "paidAt" | "paidBy">
+  data: Omit<Concert, "id" | "concertNumber" | "createdAt" | "deliveryApproved" | "deliveryApprovedBy" | "deliveryApprovedAt" | "returnApproved" | "returnApprovedBy" | "returnApprovedAt" | "supervisorDeliveredToWarehouse" | "supervisorDeliveredToWarehouseAt" | "warehouseReturnConfirmed" | "warehouseReturnConfirmedBy" | "warehouseReturnConfirmedAt" | "isPaid" | "paidAt" | "paidBy"> & {
+    initialExpenses?: { type: string; description: string; amount: number; vatIncluded: boolean; invoiceDate: string; supplierName: string }[];
+  }
 ): Promise<Concert> {
   // الرقم التسلسلي والعلامات التشغيلية تُكتب على الخادم
   const { id } = await api.post<{ id: string; concertNumber: number }>("/api/concerts", {

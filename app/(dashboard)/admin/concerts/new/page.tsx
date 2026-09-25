@@ -26,7 +26,7 @@ import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/li
 import { getCostItems, getCostOutgoingForConcerts, getCostSettings } from "@/lib/firestore/costs";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
-import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound, FileEdit, Save } from "lucide-react";
+import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound, FileEdit, Save, Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const LocationPickerDynamic = dynamic(
@@ -42,6 +42,11 @@ interface PaymentEntry {
   receiverName: string | null;
   bankName: string | null;
   senderName: string | null;
+}
+
+interface InitialExpense {
+  type: string; description: string; amount: string; vatIncluded: boolean;
+  invoiceDate: string; supplierName: string;
 }
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -121,6 +126,7 @@ function NewConcertPageInner() {
   const [hallCostValue, setHallCostValue] = useState("");
   const [hallCostDate, setHallCostDate] = useState("");
   const [hallCostRecipient, setHallCostRecipient] = useState("");
+  const [initialExpenses, setInitialExpenses] = useState<InitialExpense[]>([]);
 
   /* ── Items checklist ── */
   const [activeItemType, setActiveItemType] = useState<"" | "internal" | "external">("");
@@ -149,7 +155,7 @@ function NewConcertPageInner() {
   }]));
   const draftPayload = {
     form, hallCostType, hallCostValue, hallCostDate, hallCostRecipient,
-    location, itemCheck, foodCheck, foodMetaLite, paymentEntries, paymentForm, invoice, activeItemType,
+    location, itemCheck, foodCheck, foodMetaLite, paymentEntries, paymentForm, invoice, activeItemType, initialExpenses,
   };
   const snapshot = draftSnapshot(draftPayload);
   const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
@@ -224,6 +230,7 @@ function NewConcertPageInner() {
           setPaymentForm(restoredPayment);
           setInvoice(restoredInvoice);
           setActiveItemType(restoredType);
+          setInitialExpenses(draft.initialExpenses ?? []);
           setSavedSnapshot(draftSnapshot({
             form: draft.form, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
             hallCostDate: draft.hallCostDate, hallCostRecipient: draft.hallCostRecipient,
@@ -231,7 +238,7 @@ function NewConcertPageInner() {
             foodMetaLite: Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, {
               sectionId: value.sectionId, sectionName: value.sectionName, barcode: value.item.id,
             }])), paymentEntries: draft.paymentEntries, paymentForm: restoredPayment,
-            invoice: restoredInvoice, activeItemType: restoredType,
+            invoice: restoredInvoice, activeItemType: restoredType, initialExpenses: draft.initialExpenses ?? [],
           }));
           setDraftId(draft.id);
         } else {
@@ -375,6 +382,17 @@ function NewConcertPageInner() {
     }));
   }
 
+  function addInitialExpense() {
+    setInitialExpenses((current) => [...current, {
+      type: "مصاريف أخرى", description: "", amount: "", vatIncluded: false,
+      invoiceDate: form.date ? form.date.slice(0, 10) : new Date().toISOString().slice(0, 10), supplierName: "",
+    }]);
+  }
+
+  function updateInitialExpense(index: number, patch: Partial<InitialExpense>) {
+    setInitialExpenses((current) => current.map((expense, i) => i === index ? { ...expense, ...patch } : expense));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!appUser || saveLock.current) return;
@@ -419,6 +437,9 @@ function NewConcertPageInner() {
         externalItemsCost,
         status: depositTotal > 0 ? "confirmed" : "planned",
         createdBy: appUser.uid,
+        initialExpenses: initialExpenses.filter((expense) => Number(expense.amount) > 0).map((expense) => ({
+          ...expense, amount: Number(expense.amount),
+        })),
       });
 
       // تسلسلياً: كل إضافة معاملة تقرأ نفس مستند الحفلة، والتوازي هنا
@@ -693,11 +714,31 @@ function NewConcertPageInner() {
               )}
             </div>
 
-            {/* النقل والعمالة صارا فواتير تُضاف على الحفلة بعد تأكيدها،
-                فلا يُدخَلان هنا لأن الحفلة تُنشأ غير مؤكدة */}
-            <div className="border border-dashed border-slate-200 rounded-xl p-4 text-xs text-slate-400 leading-relaxed">
-              مصاريف النقل والعمالة وغيرها تُضاف كفواتير من صفحة الحفلة بعد تأكيدها،
-              فيُحفظ لكل فاتورة مبلغها وتاريخها ومورّدها.
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="text-sm font-bold text-slate-700">مصاريف أخرى</p><p className="text-xs text-slate-400">تُحتسب فور تسجيل الحفلة حتى لو كانت غير مؤكدة</p></div>
+                <Button type="button" size="sm" variant="outline" onClick={addInitialExpense}><Plus size={14} /> إضافة مصروف</Button>
+              </div>
+              {initialExpenses.length === 0 ? <p className="rounded-xl bg-slate-50 py-5 text-center text-xs text-slate-400">لا توجد مصاريف إضافية</p> : (
+                <div className="space-y-3">
+                  {initialExpenses.map((expense, index) => <div key={index} className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Input label="نوع المصروف" required value={expense.type} onChange={(e) => updateInitialExpense(index, { type: e.target.value })} />
+                      <Input label="المبلغ" type="number" min={0} step="0.01" required value={expense.amount} onChange={(e) => updateInitialExpense(index, { amount: e.target.value })} />
+                      <Input label="تاريخ المصروف" type="date" value={expense.invoiceDate} onChange={(e) => updateInitialExpense(index, { invoiceDate: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input label="المورد (اختياري)" value={expense.supplierName} onChange={(e) => updateInitialExpense(index, { supplierName: e.target.value })} />
+                      <Input label="البيان (اختياري)" value={expense.description} onChange={(e) => updateInitialExpense(index, { description: e.target.value })} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={expense.vatIncluded} onChange={(e) => updateInitialExpense(index, { vatIncluded: e.target.checked })} /> المبلغ شامل الضريبة</label>
+                      <button type="button" onClick={() => setInitialExpenses((current) => current.filter((_, i) => i !== index))} className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><Trash2 size={14} /> حذف</button>
+                    </div>
+                  </div>)}
+                  <div className="flex items-center justify-between rounded-xl bg-[#EEF1F7] px-4 py-3 text-sm"><span className="font-semibold text-slate-600">إجمالي المصاريف</span><strong className="text-[#1C2D50]">{initialExpenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0).toLocaleString("en-US")} ريال</strong></div>
+                </div>
+              )}
             </div>
           </div>
         </Card>

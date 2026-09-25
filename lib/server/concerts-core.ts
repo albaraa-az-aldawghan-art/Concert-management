@@ -35,6 +35,11 @@ function toTimestamp(v: unknown): Timestamp | null {
 export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>, uid: string) {
   const counterRef = db.collection("counters").doc("concerts");
   const concertRef = db.collection("concerts").doc();
+  const initialExpenses = Array.isArray(d.initialExpenses) ? d.initialExpenses as {
+    type?: unknown; description?: unknown; amount?: unknown; vatIncluded?: unknown;
+    invoiceDate?: unknown; supplierName?: unknown;
+  }[] : [];
+  const expenseRefs = initialExpenses.map(() => db.collection("concert_expenses").doc());
   let concertNumber = 1;
 
   await db.runTransaction(async (tx) => {
@@ -45,8 +50,10 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
     const date = toTimestamp(d.date);
     if (!date) throw new ApiError("تاريخ الحفلة غير صحيح");
 
+    const { initialExpenses: _initialExpenses, ...concertData } = d;
+    let otherExpensesCost = 0;
     tx.set(concertRef, {
-      ...d,
+      ...concertData,
       date,
       concertNumber,
       // كل حفلة تبدأ من الصفر التشغيلي مهما أرسل العميل
@@ -72,6 +79,27 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       createdAt: Timestamp.now(),
       createdBy: uid,
     });
+    initialExpenses.forEach((expense, index) => {
+      const amount = Number(expense.amount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new ApiError("مبلغ المصروف يجب أن يكون أكبر من صفر");
+      const vatIncluded = expense.vatIncluded === true;
+      const vatRate = Number(d.vatRate) || 15;
+      otherExpensesCost += vatIncluded ? r2(amount / (1 + vatRate / 100)) : amount;
+      tx.set(expenseRefs[index], {
+        concertId: concertRef.id,
+        concertNumber,
+        clientName: d.clientName ?? null,
+        type: typeof expense.type === "string" && expense.type.trim() ? expense.type.trim() : "مصاريف أخرى",
+        description: typeof expense.description === "string" && expense.description.trim() ? expense.description.trim() : null,
+        amount: r2(amount),
+        vatIncluded,
+        invoiceDate: typeof expense.invoiceDate === "string" ? expense.invoiceDate : "",
+        supplierName: typeof expense.supplierName === "string" && expense.supplierName.trim() ? expense.supplierName.trim() : null,
+        createdAt: Timestamp.now(),
+        createdBy: uid,
+      });
+    });
+    if (otherExpensesCost > 0) tx.update(concertRef, { otherExpensesCost: r2(otherExpensesCost) });
   });
   return { id: concertRef.id, concertNumber };
 }
@@ -149,6 +177,12 @@ export async function svcCancelConcert(
   }
 
   await svcReleaseConcertStock(db, id); // الملغاة لا تحجز موارد
+  const expenseSnap = await db.collection("concert_expenses").where("concertId", "==", id).get();
+  if (!expenseSnap.empty) {
+    const batch = db.batch();
+    expenseSnap.docs.forEach((expense) => batch.delete(expense.ref));
+    await batch.commit();
+  }
   await ref.update({
     status: "cancelled",
     cancelledAt: Timestamp.now(),
@@ -156,6 +190,9 @@ export async function svcCancelConcert(
     refundAmount: d.refundAmount || null,
     refundDate: d.refundDate || null,
     refundMethod: d.refundMethod || null,
+    transportCost: null,
+    laborCost: null,
+    otherExpensesCost: null,
   });
   await syncDispenseRequest(db, id, "system"); // الطلب المعلّق يُحذف مع الإلغاء
 }
