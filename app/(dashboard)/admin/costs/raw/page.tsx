@@ -112,6 +112,17 @@ export default function RawMaterialsPage() {
     } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث القسم", "error"); }
   }
 
+  async function changeKind(item: CostItem, kind: "raw" | "produced" | "sale") {
+    if (kind === (item.kind ?? "raw")) return;
+    const label = kind === "raw" ? "مادة خام" : kind === "produced" ? "منتج مُصنَّع" : "منتج بيع";
+    if (!window.confirm(`هل أنت موافق على تغيير نوع «${item.name}» إلى «${label}»؟ سينتقل الصنف إلى الصفحة المناسبة.`)) return;
+    try {
+      await updateCostItem(item.id, { kind });
+      setItems((current) => current.map((i) => i.id === item.id ? { ...i, kind } : i));
+      showToast(kind === "raw" ? "تم تحديث النوع" : "تم نقل الصنف إلى المنتجات والوصفات القياسية");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث النوع", "error"); }
+  }
+
   async function saveMinimumStock(item: CostItem, value: string) {
     const minimumStock = Math.max(0, Number(value) || 0);
     if (minimumStock === (item.minimumStock ?? 0)) return;
@@ -153,7 +164,7 @@ export default function RawMaterialsPage() {
           <div className="flex items-center justify-between"><h2 className="font-bold text-slate-800">{group.name}</h2><span className="text-xs text-slate-400">{group.items.length} مادة</span></div>
           {group.items.length === 0 ? <Card className="py-8 text-center text-sm text-slate-400">القسم فارغ — أضف مادة خام إليه</Card> : (
             <div className="data-table-shell"><table className="data-table"><thead><tr>
-              <th>المادة</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
+              <th>المادة</th><th>النوع</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
             </tr></thead><tbody>{group.items.map((item) => {
               const bal = (item.totalIn ?? 0) - (item.totalOut ?? 0);
               const avg = bal > 0 ? (item.totalInValue ?? 0) / bal : 0;
@@ -161,6 +172,7 @@ export default function RawMaterialsPage() {
               const suppliers = [...new Set(incoming.filter((e) => e.itemBarcode === item.id && e.supplierName).map((e) => e.supplierName))];
               return <tr key={item.id}>
                 <td><p className="font-semibold text-slate-800">{item.name}</p><p className="text-[11px] text-slate-400 font-mono">{item.id}</p></td>
+                <td><select value={item.kind ?? "raw"} onChange={(e) => changeKind(item, e.target.value as "raw" | "produced" | "sale")} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
                 <td>{canEditItem ? <select value={item.rawCategory ?? ""} onChange={(e) => changeCategory(item, e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</select> : (item.rawCategory ?? "غير مصنّف")}</td>
                 <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
                 <td>{item.unit}</td><td className={`font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && bal <= (item.minimumStock ?? 0) ? "text-red-600" : ""}`}>{bal.toLocaleString("en-US")}</td>

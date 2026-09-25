@@ -440,6 +440,7 @@ function CostsProductionPageInner() {
   // جدول موحّد: كل أصناف التكاليف تظهر مرة واحدة، والمنتج هو الاسم الثابت
   // للعمود الأول. الوصفة والحالة معلومات إضافية للمنتجات المصنّعة.
   const allRecipeItems = items
+    .filter((i) => (i.kind ?? "raw") !== "raw")
     .map((i) => ({ item: i, ...producibility(i) }))
     .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
   const readyCount = allRecipeItems.filter((r) => r.item.kind === "produced" && r.ready).length;
