@@ -350,7 +350,7 @@ export default function ContractPage() {
       // PDF sized exactly to content — image fills it completely, zero white space
       const blob = await canvasToPdfBlob(canvas);
 
-      return { blob, filename: `عقد-${concert!.clientName}.pdf` };
+      return { blob, filename: `اتفاقية-${concert!.clientName}.pdf` };
     } finally {
       // Always restore viewport and styles, even if capture fails
       el.style.width = savedW;

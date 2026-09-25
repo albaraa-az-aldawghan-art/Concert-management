@@ -7,8 +7,9 @@ export function Card({ className, children, ...props }: React.HTMLAttributes<HTM
   return (
     <div
       className={cn(
-        "bg-white rounded-2xl border border-slate-100 p-4 sm:p-5",
-        "shadow-[0_1px_2px_rgba(16,24,40,0.04),0_2px_8px_rgba(16,24,40,0.05)]",
+        "bg-white/95 rounded-[1.25rem] border border-slate-200/80 p-4 sm:p-5",
+        "shadow-[0_1px_2px_rgba(15,23,42,0.03),0_8px_24px_rgba(15,23,42,0.055)]",
+        "transition-[box-shadow,border-color,transform] duration-200",
         className
       )}
       {...props}

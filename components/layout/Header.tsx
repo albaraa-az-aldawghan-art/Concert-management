@@ -3,6 +3,7 @@
 /* ترويسة الصفحة: اسم المستخدم والتاريخ والخروج. */
 import React from "react";
 import { usePathname } from "next/navigation";
+import { CalendarDays } from "lucide-react";
 
 const pageTitles: Record<string, string> = {
   "/admin": "لوحة التحكم",
@@ -44,7 +45,7 @@ export function Header() {
 
   const getTitle = () => {
     if (pageTitles[pathname]) return pageTitles[pathname];
-    if (pathname.includes("/contracts/")) return "تفاصيل العقد";
+    if (pathname.includes("/contracts/")) return "تفاصيل التعاقد";
     if (pathname.includes("/users/roles/")) return "تعديل الدور والصلاحيات";
     if (pathname.includes("/users/")) return "ملف الموظف";
     if (pathname.includes("/warehouse-manager/orders/")) return "كشف طلب الموارد";
@@ -56,13 +57,19 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 xl:px-8 py-3 flex items-center justify-between sticky top-0 z-30">
-      <div className="lg:hidden w-10" />
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold text-slate-400 hidden sm:block">نظام الفريج الداخلي</p>
-        <h1 className="text-sm sm:text-base font-bold text-slate-800 truncate">{getTitle()}</h1>
+    <header className="app-header px-4 sm:px-6 xl:px-8 flex items-center justify-between sticky top-0 z-30">
+      <div className="lg:hidden w-11" />
+      <div className="min-w-0 flex items-center gap-3">
+        <div className="hidden sm:flex w-9 h-9 rounded-xl bg-[#EEF1F7] text-[#1C2D50] items-center justify-center border border-[#D4DCE8]">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-[#3A5490] hidden sm:block mb-0.5">الفريج / نظام الإدارة</p>
+          <h1 className="text-sm sm:text-lg font-extrabold text-slate-900 truncate">{getTitle()}</h1>
+        </div>
       </div>
-      <div className="text-xs text-slate-500 hidden sm:flex items-center rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5 tabular-nums-auto">
+      <div className="text-xs font-semibold text-slate-600 hidden sm:flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3.5 py-2 shadow-sm tabular-nums-auto">
+        <CalendarDays size={14} className="text-[#1C2D50]" />
         {(() => {
           const d = new Date();
           const weekday = d.toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long" });

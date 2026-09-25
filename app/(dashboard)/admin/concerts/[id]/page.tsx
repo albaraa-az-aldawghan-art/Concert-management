@@ -1205,7 +1205,7 @@ export default function AdminConcertDetailPage() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
             >
               <XCircle size={15} />
-              إلغاء العقد
+              إلغاء الحفلة
             </button>
           )}
         </div>
@@ -2969,10 +2969,10 @@ export default function AdminConcertDetailPage() {
       </Modal>
 
       {/* Cancel Concert Modal */}
-      <Modal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="إلغاء العقد">
+      <Modal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="إلغاء الحفلة">
         <div className="space-y-4">
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-            سيتم تغيير حالة الحفلة إلى "ملغاة" ولن تُحسب في القوائم المالية.
+            سيتم تغيير حالة الحفلة إلى &quot;ملغاة&quot; ولن تُحسب في القوائم المالية.
           </div>
 
           {/* ما صُرف على الحفلة لا يُترك معلّقاً: لكل عملية قرار ملزم —

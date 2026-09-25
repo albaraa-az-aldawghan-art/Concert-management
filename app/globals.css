@@ -102,12 +102,99 @@ html {
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at 85% 0%, rgba(212, 220, 232, 0.45), transparent 28rem),
+    var(--background);
   color: var(--foreground);
   min-height: 100vh;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ── Balanced administrative shell ── */
+.app-sidebar {
+  background:
+    radial-gradient(circle at 30% 0%, rgba(58, 84, 144, 0.34), transparent 20rem),
+    linear-gradient(180deg, #142642 0%, #111d35 72%, #0d172a 100%);
+  color: #fff;
+}
+.sidebar-logo {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.72);
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+}
+.sidebar-section-label {
+  margin: 0.9rem 0.75rem 0.35rem;
+  color: #8293ad;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.sidebar-section-label:first-child { margin-top: 0; }
+.sidebar-nav-item { color: #cbd6e6; }
+.sidebar-nav-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.sidebar-nav-icon { color: #91a3bd; transition: color var(--dur-fast) ease; }
+.sidebar-nav-item:hover .sidebar-nav-icon { color: #d7b56f; }
+.sidebar-nav-item-active {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.055));
+  box-shadow: inset -3px 0 0 #c9973f, 0 8px 22px rgba(5,12,24,0.14);
+}
+.sidebar-nav-item-active .sidebar-nav-icon { color: #e4c37d; }
+.sidebar-sub-item { color: #aebdd1; }
+.sidebar-sub-item:hover { color: #fff; background: rgba(255,255,255,0.07); }
+.sidebar-sub-item-active { color: #fff; background: rgba(255,255,255,0.1); }
+.app-header {
+  min-height: 4.25rem;
+  border-bottom: 1px solid rgba(226,232,240,0.9);
+  background: rgba(255,255,255,0.88);
+  box-shadow: 0 1px 0 rgba(15,23,42,0.02), 0 8px 28px rgba(15,23,42,0.035);
+  backdrop-filter: blur(16px);
+}
+
+.main-section-card {
+  position: relative;
+  min-height: 9.25rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.main-section-card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -2.5rem;
+  bottom: -3.5rem;
+  width: 9rem;
+  height: 9rem;
+  border-radius: 9999px;
+  background: rgba(28,45,80,0.045);
+}
+.main-section-card:hover {
+  border-color: #b8c4d8;
+  box-shadow: var(--shadow-raise);
+  transform: translateY(-2px);
+}
+.main-section-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  color: #1c2d50;
+  background: linear-gradient(145deg, #f8fafc, #e8edf5);
+  border: 1px solid #d4dce8;
+}
+.main-section-card-featured .main-section-icon {
+  color: #6f4d0b;
+  background: linear-gradient(145deg, #fff9eb, #f4dfb3);
+  border-color: #ecd29a;
 }
 
 /* ── Shared application layout ── */

@@ -17,7 +17,8 @@ import { STATUS_LABEL, normalizeStatus, statusLabel } from "@/lib/concert-status
 import { isOverdueConcert, remainingAmount } from "@/lib/overdue-concerts";
 import {
   Users, Package, Music, AlertTriangle, ChevronLeft,
-  TrendingUp, Wallet, Clock, CheckCircle2, CalendarDays, BarChart3, LayoutDashboard,
+  TrendingUp, Wallet, Clock, CalendarDays, BarChart3, LayoutDashboard,
+  UtensilsCrossed, FileSignature,
 } from "lucide-react";
 
 function calcHallCost(c: Concert): number {
@@ -27,7 +28,7 @@ function calcHallCost(c: Concert): number {
 }
 
 export default function AdminDashboard() {
-  const { feat } = useAuth();
+  const { feat, can } = useAuth();
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [usersCount, setUsersCount] = useState(0);
   const [itemsCount, setItemsCount] = useState(0);
@@ -84,13 +85,78 @@ export default function AdminDashboard() {
   return (
     <PageShell>
       <PageHeader
-        title="نظرة عامة على النظام"
+        title="صباح الخير، هذه نظرة عامة على العمل"
         eyebrow="لوحة التحكم"
-        description={`${concerts.length} حفلة مسجّلة · الأرقام تتحدث تلقائياً من سجلات النظام`}
+        description="الأقسام الرئيسية والمتابعات المالية والتشغيلية في مكان واحد"
         icon={LayoutDashboard}
       />
 
-      {/* Financial Summary — each card is its own permission feature */}
+      {/* الأقسام الرئيسية الثلاثة مستقلة وواضحة؛ خدمات كل قسم تظهر داخله. */}
+      <section className="space-y-3">
+        <div className="section-heading">
+          <div>
+            <h2 className="section-title">الأقسام الرئيسية</h2>
+            <p className="section-description">ابدأ من مجال العمل، ثم انتقل إلى أدواته وتفاصيله.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          {[
+            {
+              label: "المطعم",
+              description: "إدارة حركة المطعم اليومية ومنتجات البيع والإنتاج بترتيبها الخاص.",
+              href: "/admin/restaurant",
+              permission: "restaurant" as const,
+              icon: UtensilsCrossed,
+              hint: "فتح إدارة المطعم",
+            },
+            {
+              label: "التعاقدات",
+              description: "إدارة أقسام التعاقدات مثل نتي، والأصناف والكميات وتسجيل الأيام.",
+              href: "/admin/contracts",
+              permission: "contracts" as const,
+              icon: FileSignature,
+              hint: "فتح التعاقدات",
+            },
+            {
+              label: "الحفلات",
+              description: "الحفلات واتفاقيات العملاء والمطبخ والموارد والمشرفون في مسار واحد.",
+              href: "/admin/concerts",
+              permission: "concerts" as const,
+              icon: Music,
+              hint: `${concerts.length.toLocaleString("en-US")} حفلة مسجّلة`,
+              featured: true,
+            },
+          ].filter((section) => can(section.permission)).map((section) => {
+            const Icon = section.icon;
+            return (
+              <Link key={section.href} href={section.href} className="group block">
+                <Card className={`main-section-card h-full ${section.featured ? "main-section-card-featured" : ""}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="main-section-icon"><Icon size={21} /></div>
+                    <ChevronLeft size={18} className="text-slate-300 transition-transform group-hover:-translate-x-1 group-hover:text-[#1C2D50]" />
+                  </div>
+                  <h3 className="mt-4 text-base font-extrabold text-slate-900">{section.label}</h3>
+                  <p className="mt-1.5 text-xs leading-6 text-slate-500">{section.description}</p>
+                  <p className="mt-3 text-[11px] font-bold text-[#3A5490]">{section.hint}</p>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* الملخص المالي مركزي، بينما تفاصيل الربحية تبقى داخل نشاطها. */}
+      <div className="section-heading">
+        <div>
+          <h2 className="section-title">الملخص المالي</h2>
+          <p className="section-description">إجماليات موحّدة للمتابعة السريعة، مع التفاصيل الكاملة في القائمة المالية.</p>
+        </div>
+        {can("finances") && (
+          <Link href="/admin/finances" className="text-xs font-bold text-[#1C2D50] hover:underline inline-flex items-center gap-1">
+            فتح القائمة المالية <ChevronLeft size={13} />
+          </Link>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
           { key: "rev",       label: "إجمالي الإيرادات", value: totalRevenue, icon: TrendingUp, tone: "navy" as const, suffix: "ريال" },

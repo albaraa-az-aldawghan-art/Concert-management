@@ -20,15 +20,15 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]";
+    "inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.97]";
 
   const variants = {
-    primary:   "bg-[#1C2D50] hover:bg-[#263C6E] text-[#D4DCE8] focus:ring-[#1C2D50] shadow-sm hover:shadow-md",
-    secondary: "bg-slate-100 hover:bg-slate-200 text-slate-700 focus:ring-slate-400",
-    danger:    "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm",
-    success:   "bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500 shadow-sm",
-    ghost:     "hover:bg-slate-100 text-slate-600 focus:ring-slate-400",
-    outline:   "border-2 border-[#1C2D50] text-[#1C2D50] hover:bg-[#F4F6FA] focus:ring-[#1C2D50]",
+    primary:   "bg-gradient-to-l from-[#1C2D50] to-[#294476] hover:from-[#162544] hover:to-[#223963] text-white focus:ring-[#1C2D50] shadow-[0_6px_16px_rgba(28,45,80,0.22)] hover:shadow-[0_8px_22px_rgba(28,45,80,0.30)]",
+    secondary: "bg-slate-100 hover:bg-slate-200 text-slate-700 focus:ring-slate-400 border border-slate-200",
+    danger:    "bg-gradient-to-l from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white focus:ring-red-500 shadow-[0_6px_16px_rgba(220,38,38,0.18)]",
+    success:   "bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white focus:ring-emerald-500 shadow-[0_6px_16px_rgba(5,150,105,0.18)]",
+    ghost:     "hover:bg-[#EEF1F7] text-slate-600 hover:text-[#1C2D50] focus:ring-slate-400",
+    outline:   "border border-[#B8C4D8] bg-white text-[#1C2D50] hover:bg-[#EEF1F7] hover:border-[#1C2D50] focus:ring-[#1C2D50] shadow-sm",
   };
 
   const sizes = {

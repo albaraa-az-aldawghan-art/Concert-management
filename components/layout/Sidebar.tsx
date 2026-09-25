@@ -14,7 +14,6 @@ import { useSystem } from "@/contexts/SystemContext";
 import { applySystemNav } from "@/lib/nav";
 import {
   LayoutDashboard,
-  Users,
   Package,
   Music,
   AlertTriangle,
@@ -44,19 +43,21 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  section?: string;
   children?: NavItem[];
 }
 
 const adminNav: NavItem[] = [
-  { label: "لوحة التحكم",   href: "/admin",                       icon: <LayoutDashboard size={17} /> },
-  { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} /> },
-  { label: "القائمة المالية", href: "/admin/finances",              icon: <BarChart3 size={17} /> },
+  { label: "لوحة التحكم", href: "/admin", icon: <LayoutDashboard size={17} />, section: "نظرة عامة" },
+  { label: "المطعم", href: "/admin/restaurant", icon: <UtensilsCrossed size={17} />, section: "الأقسام الرئيسية" },
+  { label: "التعاقدات", href: "/admin/contracts", icon: <FileSignature size={17} />, section: "الأقسام الرئيسية" },
   /* الحفلات قسم كامل: كل ما يخدم تنفيذ الحفلة تحته، فلا يتنقّل المستخدم
      بين رؤوس متفرّقة ليُنهي حفلة واحدة */
   {
     label: "الحفلات",
     href: "/admin/concerts",
     icon: <Music size={17} />,
+    section: "الأقسام الرئيسية",
     children: [
       { label: "الموارد",        href: "/admin/warehouse",          icon: <Package size={15} /> },
       { label: "طلبات الموارد",  href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
@@ -67,18 +68,18 @@ const adminNav: NavItem[] = [
       { label: "المفقودات",      href: "/admin/missing-items",      icon: <AlertTriangle size={15} /> },
     ],
   },
-  /* المطعم والتعاقدات: قناتا بيع مستقلتان لكل منهما تكاليفها */
-  { label: "المطعم",     href: "/admin/restaurant", icon: <UtensilsCrossed size={17} /> },
-  { label: "التعاقدات",  href: "/admin/contracts",  icon: <FileSignature size={17} /> },
+  { label: "القائمة المالية", href: "/admin/finances", icon: <BarChart3 size={17} />, section: "المالية" },
   {
     label: "منتجات البيع",
     href: "/admin/food",
     icon: <UtensilsCrossed size={17} />,
+    section: "التشغيل والمساندة",
   },
   {
     label: "التكاليف",
     href: "/admin/costs",
     icon: <Barcode size={17} />,
+    section: "التشغيل والمساندة",
     children: [
       { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
       { label: "الإنتاج", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
@@ -88,11 +89,13 @@ const adminNav: NavItem[] = [
     ],
   },
   /* الموظفون: من هم، وما دور كلٍّ منهم — ولكل موظف مسار خاص به */
-  { label: "الموظفون", href: "/admin/users", icon: <UserRound size={17} /> },
+  { label: "الموظفون", href: "/admin/users", icon: <UserRound size={17} />, section: "الإدارة" },
+  { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} />, section: "الإدارة" },
   {
     label: "الإعدادات",
     href: "/settings",
     icon: <Settings size={17} />,
+    section: "الإدارة",
     children: [
       { label: "مركز التحكم", href: "/admin/control", icon: <SlidersHorizontal size={15} /> },
     ],
@@ -158,42 +161,34 @@ interface SidebarContentProps {
 function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSignOut }: SidebarContentProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   return (
-    <div className="flex flex-col h-full" style={{ background: "#111D35" }}>
+    <div className="app-sidebar flex flex-col h-full">
 
       {/* ── Logo / Brand ── */}
-      <div className="px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(176,189,201,0.12)" }}>
+      <div className="px-4 pt-5 pb-4">
         <div className="flex items-center gap-3">
-          {/* Logo image */}
-          <div
-            className="shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
-            style={{ width: 44, height: 44, background: "#1C2D50" }}
-          >
+          <div className="sidebar-logo">
             <img
               src="/logo.jpg"
               alt="الفريج"
-              style={{ width: 44, height: 44, objectFit: "cover", display: "block" }}
+              className="h-full w-full object-cover"
             />
           </div>
           <div className="min-w-0">
-            <p className="font-bold leading-tight text-sm" style={{ color: "#D4DCE8" }}>الفريج</p>
-            <p className="text-xs mt-0.5" style={{ color: "#6B7E99" }}>إدارة الفعاليات</p>
+            <p className="font-extrabold leading-tight text-[17px] text-white">الفريج</p>
+            <p className="text-[11px] mt-1 text-slate-300">نظام الإدارة الداخلي</p>
           </div>
         </div>
       </div>
 
       {/* ── User Info ── */}
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(176,189,201,0.12)" }}>
+      <div className="mx-3 mb-2 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-inner">
         <div className="flex items-center gap-3">
-          {/* Avatar with initials */}
-          <div
-            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-            style={{ background: "linear-gradient(135deg, #1C2D50, #263C6E)", color: "#D4DCE8" }}
-          >
+          <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-extrabold bg-white text-[#162544] shadow-md">
             {appUser?.name?.charAt(0)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate" style={{ color: "#D4DCE8" }}>{appUser?.name}</p>
-            <p className="text-xs truncate" style={{ color: "#6B7E99" }}>
+            <p className="text-sm font-bold truncate text-white">{appUser?.name}</p>
+            <p className="text-[11px] truncate text-slate-300 mt-0.5">
               {roleLabel ?? roleLabels[appUser?.role ?? ""]}
             </p>
           </div>
@@ -201,9 +196,10 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
       </div>
 
       {/* ── Navigation ── */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <ul className="space-y-0.5">
-          {navItems.map((item) => {
+      <nav className="flex-1 px-3 py-3 overflow-y-auto">
+        <p className="px-3 pb-2 text-[10px] font-bold tracking-wide text-slate-400">القائمة الرئيسية</p>
+        <ul className="space-y-1">
+          {navItems.map((item, index) => {
             const isActive =
               pathname === item.href ||
               (
@@ -218,41 +214,21 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
             const isOpen = openGroups[item.href] ?? childActive;
 
             return (
-              <li key={item.href}>
+              <React.Fragment key={item.href}>
+                {item.section && (index === 0 || navItems[index - 1]?.section !== item.section) && (
+                  <li className="sidebar-section-label" aria-hidden="true">{item.section}</li>
+                )}
+              <li>
                 <div className="flex items-center">
                   <Link
                     href={item.href}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 relative flex-1",
-                      isActive
-                        ? "nav-active-glow"
-                        : ""
+                      "sidebar-nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 relative flex-1",
+                      isActive && "sidebar-nav-item-active"
                     )}
-                    style={
-                      isActive
-                        ? {
-                            background: "rgba(28,45,80,0.9)",
-                            color: "#D4DCE8",
-                          }
-                        : {
-                            color: "#6B7E99",
-                          }
-                    }
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
-                        (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        (e.currentTarget as HTMLElement).style.background = "transparent";
-                        (e.currentTarget as HTMLElement).style.color = "#6B7E99";
-                      }
-                    }}
                   >
-                    <span style={{ color: isActive ? "#B0BDC9" : "#4A607C" }}>
+                    <span className="sidebar-nav-icon">
                       {item.icon}
                     </span>
                     {item.label}
@@ -260,8 +236,7 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                     {/* Active indicator dot */}
                     {isActive && !item.children && (
                       <span
-                        className="mr-auto w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ background: "#B0BDC9" }}
+                        className="mr-auto w-1.5 h-1.5 rounded-full shrink-0 bg-current opacity-70"
                       />
                     )}
                   </Link>
@@ -270,8 +245,7 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                       onClick={() =>
                         setOpenGroups((prev) => ({ ...prev, [item.href]: !isOpen }))
                       }
-                      className="p-2 rounded-lg transition-transform"
-                      style={{ color: "#4A607C", transform: isOpen ? "rotate(180deg)" : undefined }}
+                      className={cn("p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all", isOpen && "rotate-180")}
                       aria-label={isOpen ? "طي القائمة" : "فتح القائمة"}
                     >
                       <ChevronDown size={15} />
@@ -281,7 +255,7 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
 
                 {/* Sub-items */}
                 {item.children && isOpen && (
-                  <ul className="mt-0.5 mb-1 mr-5 pr-3 space-y-0.5" style={{ borderRight: "1px solid rgba(176,189,201,0.15)" }}>
+                  <ul className="mt-1 mb-2 mr-5 pr-3 space-y-1 border-r border-white/10">
                     {item.children.map((child) => {
                       const childIsActive = pathname.startsWith(child.href);
                       return (
@@ -289,31 +263,17 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                           <Link
                             href={child.href}
                             onClick={onClose}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150"
-                            style={
-                              childIsActive
-                                ? { background: "rgba(28,45,80,0.9)", color: "#D4DCE8" }
-                                : { color: "#6B7E99" }
-                            }
-                            onMouseEnter={(e) => {
-                              if (!childIsActive) {
-                                (e.currentTarget as HTMLElement).style.background = "rgba(28,45,80,0.45)";
-                                (e.currentTarget as HTMLElement).style.color = "#B0BDC9";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!childIsActive) {
-                                (e.currentTarget as HTMLElement).style.background = "transparent";
-                                (e.currentTarget as HTMLElement).style.color = "#6B7E99";
-                              }
-                            }}
+                            className={cn(
+                              "sidebar-sub-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150",
+                              childIsActive && "sidebar-sub-item-active"
+                            )}
                           >
-                            <span style={{ color: childIsActive ? "#B0BDC9" : "#4A607C" }}>
+                            <span className="opacity-80">
                               {child.icon}
                             </span>
                             {child.label}
                             {childIsActive && (
-                              <span className="mr-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#B0BDC9" }} />
+                              <span className="mr-auto w-1.5 h-1.5 rounded-full shrink-0 bg-white" />
                             )}
                           </Link>
                         </li>
@@ -322,25 +282,17 @@ function SidebarContent({ appUser, roleLabel, pathname, navItems, onClose, onSig
                   </ul>
                 )}
               </li>
+              </React.Fragment>
             );
           })}
         </ul>
       </nav>
 
       {/* ── Logout ── */}
-      <div className="px-3 py-4" style={{ borderTop: "1px solid rgba(176,189,201,0.12)" }}>
+      <div className="px-3 py-4 border-t border-white/10">
         <button
           onClick={onSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
-          style={{ color: "#6B7E99" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(220,38,38,0.12)";
-            (e.currentTarget as HTMLElement).style.color = "#F87171";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "transparent";
-            (e.currentTarget as HTMLElement).style.color = "#6B7E99";
-          }}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-red-200 hover:bg-red-500/10 transition-all duration-150"
         >
           <LogOut size={17} />
           تسجيل الخروج
@@ -380,9 +332,9 @@ function filterNavForCustomRole(
     const visible = page === null ? true : feature ? can(page) && feat(page, feature) : can(page);
 
     if (visible) {
-      result.push(children && children.length > 0 ? { ...item, children } : { label: item.label, href: item.href, icon: item.icon });
+      result.push(children && children.length > 0 ? { ...item, children } : { label: item.label, href: item.href, icon: item.icon, section: item.section });
     } else if (children && children.length > 0) {
-      result.push(...children);
+      result.push(...children.map((child) => ({ ...child, section: item.section })));
     }
   }
   return result;
@@ -404,7 +356,7 @@ export function Sidebar() {
 
   // الميزات الموقوفة تُحذف من التنقّل، والمسمّيات تُطبَّق على الأقسام
   const activityNav = can("activity") && !navItems.some((item) => item.href === "/admin/activity")
-    ? [...navItems, { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} /> }]
+    ? [...navItems, { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} />, section: "الإدارة" }]
     : navItems;
   const visibleNav = applySystemNav(activityNav, settings.features, settings.labels);
 
@@ -421,8 +373,7 @@ export function Sidebar() {
     <>
       {/* Desktop Sidebar */}
       <aside
-        className="hidden lg:flex flex-col w-64 h-full fixed top-0 right-0 bottom-0 z-40"
-        style={{ background: "#111D35" }}
+        className="hidden lg:flex flex-col w-72 h-full fixed top-0 right-0 bottom-0 z-40 shadow-2xl shadow-slate-950/15"
       >
         <SidebarContent
           appUser={appUser}
@@ -437,8 +388,7 @@ export function Sidebar() {
       {/* Mobile Hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl shadow-lg active:scale-95 transition-transform"
-        style={{ background: "#1C2D50", color: "#D4DCE8" }}
+        className="lg:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl shadow-lg active:scale-95 transition-transform bg-[#1C2D50] text-white"
         aria-label="فتح القائمة"
       >
         <Menu size={20} />
@@ -455,12 +405,10 @@ export function Sidebar() {
           {/* RTL: drawer sits on the right and slides in from the right edge */}
           <aside
             className="relative w-[19rem] max-w-[85vw] h-full ml-auto shadow-2xl anim-drawer-in"
-            style={{ background: "#111D35" }}
           >
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 left-4 z-10 p-2 rounded-lg transition-colors active:bg-white/10"
-              style={{ color: "#6B7E99" }}
+              className="absolute top-4 left-4 z-10 p-2 rounded-lg text-slate-300 transition-colors active:bg-white/10"
               aria-label="إغلاق القائمة"
             >
               <X size={20} />
