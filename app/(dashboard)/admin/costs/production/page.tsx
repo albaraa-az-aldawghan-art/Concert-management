@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
-import { CostItemsPanel } from "../page";
 import {
   getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
   updateProductionRecipe, createCostItemGenerated, updateCostItem, getCostSettings,
@@ -103,7 +102,7 @@ function CostsProductionPageInner() {
   /* الوصفات القياسية القابلة للإنتاج — لوحة منفصلة عن سجل العمليات فعلياً */
   const [showRecipes, setShowRecipes] = useState(true);
   const [recipeSearch, setRecipeSearch] = useState("");
-  const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing">("");
+  const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing" | "raw" | "sale">("");
   const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
   const [recipeSortDir, setRecipeSortDir] = useState<"asc" | "desc">("asc");
 
@@ -446,18 +445,19 @@ function CostsProductionPageInner() {
      نفسها يعتمد على القائمة الكاملة لا المفلترة بالبحث — وإلا اختفت
      اللوحة بحقل بحثها معاً متى بحثت عن شيء بلا نتيجة، فتعلق بلا طريقة
      لمسح البحث والرجوع. */
-  // كل صنف له وصفة فعلاً، أو مُصنَّف "منتج" صراحةً بانتظار وصفته أول مرة
-  // (مثل صنف أكل أُنشئ للتو من صفحة الحفلة) — لا يُغرق اللوحة بمواد
-  // خام حقيقية بلا وصفة، فتلك لم تُصنَّف "منتج" أصلاً
+  // جدول موحّد: كل أصناف التكاليف تظهر مرة واحدة، والمنتج هو الاسم الثابت
+  // للعمود الأول. الوصفة والحالة معلومات إضافية للمنتجات المصنّعة.
   const allRecipeItems = items
-    .filter((i) => (i.productionRecipe?.length ?? 0) > 0 || i.kind === "produced")
     .map((i) => ({ item: i, ...producibility(i) }))
     .sort((a, b) => (a.ready === b.ready ? a.item.name.localeCompare(b.item.name, "ar") : a.ready ? -1 : 1));
-  const readyCount = allRecipeItems.filter((r) => r.ready).length;
-  const needsRecipeCount = allRecipeItems.filter((r) => (r.item.productionRecipe?.length ?? 0) === 0).length;
+  const readyCount = allRecipeItems.filter((r) => r.item.kind === "produced" && r.ready).length;
+  const needsRecipeCount = allRecipeItems.filter((r) => r.item.kind === "produced" && (r.item.productionRecipe?.length ?? 0) === 0).length;
 
-  const recipeStatus = (r: (typeof allRecipeItems)[number]): "ready" | "short" | "missing" =>
-    (r.item.productionRecipe?.length ?? 0) === 0 ? "missing" : r.ready ? "ready" : "short";
+  const recipeStatus = (r: (typeof allRecipeItems)[number]): "ready" | "short" | "missing" | "raw" | "sale" => {
+    if ((r.item.kind ?? "raw") === "raw") return "raw";
+    if (r.item.kind === "sale" && (r.item.productionRecipe?.length ?? 0) === 0) return "sale";
+    return (r.item.productionRecipe?.length ?? 0) === 0 ? "missing" : r.ready ? "ready" : "short";
+  };
 
   const rq = recipeSearch.trim();
   const recipeFiltered = allRecipeItems
@@ -504,9 +504,9 @@ function CostsProductionPageInner() {
             className="w-full flex items-center gap-2.5 px-4 py-3.5 text-right hover:bg-slate-100 transition-colors"
           >
             <FlaskConical size={16} className="text-slate-500 shrink-0" />
-            <span className="font-bold text-slate-700 text-sm">الوصفات القياسية</span>
+            <span className="font-bold text-slate-700 text-sm">المنتجات والوصفات القياسية</span>
             <span className="text-xs text-slate-500">
-              {allRecipeItems.length} صنف مُنتَج —{" "}
+              {allRecipeItems.length} منتج —{" "}
               <b className={readyCount > 0 ? "text-slate-700" : "text-slate-500"}>{readyCount} قابل للإنتاج الآن</b>
               {needsRecipeCount > 0 && <b className="text-red-600"> · {needsRecipeCount} يحتاج خلطة</b>}
             </span>
@@ -519,12 +519,14 @@ function CostsProductionPageInner() {
                 <div className="max-w-xs flex-1">
                   <SearchBox value={recipeSearch} onChange={setRecipeSearch} placeholder="ابحث عن خلطة أو منتج..." />
                 </div>
-                <select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing")}
+                <select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing" | "raw" | "sale")}
                   className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1C2D50]">
                   <option value="">كل الحالات</option>
                   <option value="ready">جاهز للإنتاج</option>
                   <option value="short">غير متوفر</option>
                   <option value="missing">يحتاج خلطة</option>
+                  <option value="raw">مادة خام</option>
+                  <option value="sale">منتج بيع مباشر</option>
                 </select>
                 <ClearFiltersButton show={!!recipeStatusFilter} onClear={() => setRecipeStatusFilter("")} />
               </div>
@@ -536,8 +538,13 @@ function CostsProductionPageInner() {
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-100">
                       <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
+                      <th className="px-4 py-2.5 font-semibold">النوع</th>
+                      <th className="px-4 py-2.5 font-semibold">القسم</th>
+                      <th className="px-4 py-2.5 font-semibold">الوحدة</th>
+                      <th className="px-4 py-2.5 font-semibold">الرصيد</th>
                       {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
                       <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
+                      <th className="px-4 py-2.5 font-semibold">الباركود</th>
                       <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>
@@ -546,13 +553,16 @@ function CostsProductionPageInner() {
                       <tr key={item.id} className="border-b border-slate-200 last:border-none align-top">
                         <td className="px-4 py-2.5">
                           <p className="font-semibold text-slate-600">{item.name}</p>
-                          <p className="text-xs text-slate-400">{item.unit}</p>
                         </td>
+                        <td className="px-4 py-2.5 text-xs text-slate-600">{{ raw: "مادة خام", produced: "منتج مُصنَّع", sale: "منتج بيع" }[item.kind ?? "raw"]}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-500">{(item.salesSections ?? []).map((id) => sections.find((s) => s.id === id)?.name).filter(Boolean).join("، ") || item.rawCategory || "—"}</td>
+                        <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
+                        <td className="px-4 py-2.5 font-semibold tabular-nums-auto">{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
                         {fp.inputs && (
                           <td className="px-4 py-2.5">
                             <div className="flex flex-wrap gap-1 max-w-xs">
                               {(item.productionRecipe ?? []).length === 0 ? (
-                                <span className="text-[11px] text-slate-400">لم تُضَف مكوّنات بعد</span>
+                                <span className="text-[11px] text-slate-400">{(item.kind ?? "raw") === "raw" ? "لا تحتاج وصفة" : item.kind === "sale" ? "بيع مباشر" : "لم تُضَف مكوّنات بعد"}</span>
                               ) : (
                                 (item.productionRecipe ?? []).map((l) => (
                                   <span key={l.barcode} className="text-[11px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full tabular-nums-auto whitespace-nowrap">
@@ -564,7 +574,11 @@ function CostsProductionPageInner() {
                           </td>
                         )}
                         <td className="px-4 py-2.5 tabular-nums-auto">
-                          {(item.productionRecipe ?? []).length === 0 ? (
+                          {recipeStatus({ item, maxQty, ready, shortageName }) === "raw" ? (
+                            <span className="text-slate-500">مادة خام</span>
+                          ) : recipeStatus({ item, maxQty, ready, shortageName }) === "sale" ? (
+                            <span className="text-amber-700">منتج بيع مباشر</span>
+                          ) : (item.productionRecipe ?? []).length === 0 ? (
                             <span className="inline-flex items-center gap-1.5 text-red-600 font-semibold">
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                               يحتاج خلطة
@@ -581,9 +595,10 @@ function CostsProductionPageInner() {
                             </span>
                           )}
                         </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{item.id}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1.5 justify-end">
-                            {canRecipe && (
+                            {canRecipe && (item.kind ?? "raw") !== "raw" && (
                               <button
                                 onClick={() => openAddWithRecipe(item)}
                                 className="text-slate-400 hover:text-[#1C2D50] transition-colors p-1"
@@ -609,8 +624,6 @@ function CostsProductionPageInner() {
           )}
         </Card>
       )}
-
-      <CostItemsPanel />
 
       <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالصنف المُنتَج أو المواد الخام..." />
       <DateFilterBar value={dateF} onChange={setDateF} title="فلتر بتاريخ الإنتاج" matchedCount={filtered.length} unitLabel="عملية" />
