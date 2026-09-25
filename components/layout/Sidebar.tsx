@@ -57,6 +57,8 @@ const adminNav: NavItem[] = [
       { label: "المطبخ",         href: "/kitchen",                  icon: <ChefHat size={15} /> },
       { label: "المشرفون",       href: "/supervisor/concerts",      icon: <UserCog size={15} /> },
       { label: "المفقودات",      href: "/admin/missing-items",      icon: <AlertTriangle size={15} /> },
+      { label: "الموارد",        href: "/admin/warehouse",          icon: <Package size={15} /> },
+      { label: "طلبات الموارد",  href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
     ],
   },
   { label: "المطعم", href: "/admin/restaurant", icon: <UtensilsCrossed size={17} />, section: "الأقسام الرئيسية" },
@@ -69,15 +71,6 @@ const adminNav: NavItem[] = [
     children: [
       { label: "منتجات البيع", href: "/admin/food", icon: <UtensilsCrossed size={15} /> },
       { label: "البكجات", href: "/admin/packages", icon: <Boxes size={15} /> },
-    ],
-  },
-  {
-    label: "الموارد والمخزون",
-    href: "/admin/warehouse",
-    icon: <Package size={17} />,
-    section: "الموارد والمخزون",
-    children: [
-      { label: "طلبات الموارد", href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
     ],
   },
   {
