@@ -1,7 +1,7 @@
 /* مسار خادم (API): يتحقّق من الهوية والصلاحية ثم ينفّذ العملية على قاعدة البيانات. */
 
 import { NextRequest } from "next/server";
-import { requireCaller, require_, handle, str, dateStr } from "@/lib/server/guard";
+import { requireCaller, require_, handle, str, dateStr, num } from "@/lib/server/guard";
 import { svcUpdateItem, svcDeleteItem } from "@/lib/server/costs-core";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
       kind: body.kind === "raw" || body.kind === "produced" || body.kind === "sale" ? body.kind : undefined,
       rawCategory: body.rawCategory !== undefined
         ? (body.rawCategory ? str(body.rawCategory, "قسم المادة الخام", { max: 100 }) : null)
+        : undefined,
+      salesSections: Array.isArray(body.salesSections)
+        ? body.salesSections.map((id: unknown) => str(id, "قسم البيع"))
+        : undefined,
+      minimumStock: body.minimumStock !== undefined
+        ? num(body.minimumStock, "الحد الأدنى", { min: 0 })
         : undefined,
     });
   });

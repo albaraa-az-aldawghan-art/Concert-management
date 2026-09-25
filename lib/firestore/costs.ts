@@ -137,7 +137,7 @@ export async function bulkCreateCostItems(
 
 export async function updateCostItem(
   barcode: string,
-  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind" | "rawCategory">>
+  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind" | "rawCategory" | "salesSections" | "minimumStock">>
 ): Promise<void> {
   await api.patch(`/api/costs/items/${encodeURIComponent(barcode)}`, data);
 }

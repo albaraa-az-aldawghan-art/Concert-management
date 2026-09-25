@@ -949,6 +949,8 @@ export async function svcUpdateItem(
     /** وسم تنظيمي: مادة خام أم منتج مُصنَّع أم منتج بيع — لا يؤثر على أي فلترة */
     kind?: "raw" | "produced" | "sale";
     rawCategory?: string | null;
+    salesSections?: string[];
+    minimumStock?: number;
   }
 ) {
   const ref = db.collection("cost_items").doc(barcode);
@@ -981,6 +983,19 @@ export async function svcUpdateItem(
     patch.kind = d.kind;
   }
   if (d.rawCategory !== undefined) patch.rawCategory = d.rawCategory;
+  if (d.minimumStock !== undefined) {
+    if (!Number.isFinite(d.minimumStock) || d.minimumStock < 0) throw new ApiError("الحد الأدنى يجب أن يكون صفراً أو أكثر");
+    patch.minimumStock = r2(d.minimumStock);
+  }
+  if (d.salesSections !== undefined) {
+    const clean = [...new Set(d.salesSections.filter((id) => typeof id === "string" && id.trim()))];
+    if (clean.length) {
+      const refs = clean.map((id) => db.collection("sales_sections").doc(id));
+      const snaps = await Promise.all(refs.map((sectionRef) => sectionRef.get()));
+      if (snaps.some((sectionSnap) => !sectionSnap.exists)) throw new ApiError("قسم البيع المحدد غير موجود");
+    }
+    patch.salesSections = clean;
+  }
   if (d.sectionPrices !== undefined) {
     if (typeof d.sectionPrices !== "object" || d.sectionPrices === null || Array.isArray(d.sectionPrices)) {
       throw new ApiError("صيغة الأسعار غير صحيحة");

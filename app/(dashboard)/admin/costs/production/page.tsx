@@ -97,12 +97,20 @@ function CostsProductionPageInner() {
   const [showRecipes, setShowRecipes] = useState(true);
   const [recipeSearch, setRecipeSearch] = useState("");
   const [recipeStatusFilter, setRecipeStatusFilter] = useState<"" | "ready" | "short" | "missing" | "raw" | "sale">("");
+  const [recipeTypeFilter, setRecipeTypeFilter] = useState("");
+  const [recipeSectionFilter, setRecipeSectionFilter] = useState("");
+  const [recipeUnitFilter, setRecipeUnitFilter] = useState("");
+  const [recipeBarcodeFilter, setRecipeBarcodeFilter] = useState("");
+  const [recipeBalanceFilter, setRecipeBalanceFilter] = useState("");
+  const [recipeOperationFilter, setRecipeOperationFilter] = useState("");
+  const [recipeMinimumFilter, setRecipeMinimumFilter] = useState("");
+  const [recipeIngredientFilter, setRecipeIngredientFilter] = useState("");
   const [recipeSortKey, setRecipeSortKey] = useState<"name" | "status" | null>(null);
   const [recipeSortDir, setRecipeSortDir] = useState<"asc" | "desc">("asc");
   const [recipePage, setRecipePage] = useState(1);
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { setRecipePage(1); }, [recipeSearch, recipeStatusFilter]);
+  useEffect(() => { setRecipePage(1); }, [recipeSearch, recipeStatusFilter, recipeTypeFilter, recipeSectionFilter, recipeUnitFilter, recipeBarcodeFilter, recipeBalanceFilter, recipeOperationFilter, recipeMinimumFilter, recipeIngredientFilter]);
 
   async function load() {
     const [i, p, st, sec] = await Promise.all([
@@ -446,8 +454,39 @@ function CostsProductionPageInner() {
 
   const rq = recipeSearch.trim();
   const recipeFiltered = allRecipeItems
-    .filter((r) => !rq || r.item.name.includes(rq))
-    .filter((r) => !recipeStatusFilter || recipeStatus(r) === recipeStatusFilter);
+    .filter((r) => !rq || r.item.name.includes(rq) || r.item.id.includes(rq))
+    .filter((r) => !recipeStatusFilter || recipeStatus(r) === recipeStatusFilter)
+    .filter((r) => !recipeTypeFilter || (r.item.kind ?? "raw") === recipeTypeFilter)
+    .filter((r) => !recipeSectionFilter || (r.item.salesSections ?? []).includes(recipeSectionFilter) || r.item.rawCategory === recipeSectionFilter)
+    .filter((r) => !recipeUnitFilter || r.item.unit === recipeUnitFilter)
+    .filter((r) => !recipeBarcodeFilter.trim() || r.item.id.includes(recipeBarcodeFilter.trim()))
+    .filter((r) => recipeBalanceFilter === "" || ((r.item.totalIn ?? 0) - (r.item.totalOut ?? 0)) <= Number(recipeBalanceFilter))
+    .filter((r) => recipeMinimumFilter === "" || (r.item.minimumStock ?? 0) >= Number(recipeMinimumFilter))
+    .filter((r) => !recipeIngredientFilter.trim() || (r.item.productionRecipe ?? []).some((line) => line.itemName.includes(recipeIngredientFilter.trim())))
+    .filter((r) => !recipeOperationFilter || (recipeOperationFilter === "yes" ? productions.some((p) => p.outputBarcode === r.item.id) : !productions.some((p) => p.outputBarcode === r.item.id)));
+
+  const recipeUnits = [...new Set(items.map((item) => item.unit))].sort((a, b) => a.localeCompare(b, "ar"));
+
+  async function confirmItemChange(item: CostItem, field: "kind" | "salesSections", value: string) {
+    const label = field === "kind" ? "نوع المنتج" : "قسم المنتج";
+    if (!window.confirm(`هل أنت موافق على تغيير ${label} للمنتج «${item.name}»؟`)) return;
+    try {
+      const patch = field === "kind" ? { kind: value as "raw" | "produced" | "sale" } : { salesSections: value ? [value] : [] };
+      await updateCostItem(item.id, patch);
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));
+      showToast(`تم تحديث ${label}`);
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حفظ التغيير", "error"); }
+  }
+
+  async function saveMinimumStock(item: CostItem, value: string) {
+    const minimumStock = Math.max(0, Number(value) || 0);
+    if (minimumStock === (item.minimumStock ?? 0)) return;
+    try {
+      await updateCostItem(item.id, { minimumStock });
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, minimumStock } : entry));
+      showToast("تم حفظ الحد الأدنى");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حفظ الحد الأدنى", "error"); }
+  }
 
   const recipeItems = recipeSortKey ? [...recipeFiltered].sort((a, b) => {
     const av = recipeSortKey === "name" ? a.item.name : recipeStatus(a);
@@ -530,11 +569,25 @@ function CostsProductionPageInner() {
                       <th className="px-4 py-2.5 font-semibold">القسم</th>
                       <th className="px-4 py-2.5 font-semibold">الوحدة</th>
                       <th className="px-4 py-2.5 font-semibold">الرصيد</th>
+                      <th className="px-4 py-2.5 font-semibold">الحد الأدنى</th>
                       {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
                       <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
                       <th className="px-4 py-2.5 font-semibold">الباركود</th>
                       <th className="px-4 py-2.5 font-semibold">عمليات الإنتاج</th>
                       <th className="px-4 py-2.5"></th>
+                    </tr>
+                    <tr className="border-b border-slate-100 bg-slate-50/70">
+                      <td className="px-2 py-2"><input value={recipeSearch} onChange={(e) => setRecipeSearch(e.target.value)} placeholder="بحث..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
+                      <td className="px-2 py-2"><select value={recipeTypeFilter} onChange={(e) => setRecipeTypeFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
+                      <td className="px-2 py-2"><select value={recipeSectionFilter} onChange={(e) => setRecipeSectionFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
+                      <td className="px-2 py-2"><select value={recipeUnitFilter} onChange={(e) => setRecipeUnitFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{recipeUnits.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
+                      <td className="px-2 py-2"><input type="number" min="0" value={recipeBalanceFilter} onChange={(e) => setRecipeBalanceFilter(e.target.value)} placeholder="≤ الرصيد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
+                      <td className="px-2 py-2"><input type="number" min="0" value={recipeMinimumFilter} onChange={(e) => setRecipeMinimumFilter(e.target.value)} placeholder="≥ الحد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
+                      {fp.inputs && <td className="px-2 py-2"><input value={recipeIngredientFilter} onChange={(e) => setRecipeIngredientFilter(e.target.value)} placeholder="مكوّن..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>}
+                      <td className="px-2 py-2"><select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing" | "raw" | "sale")} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="ready">جاهز</option><option value="short">غير متوفر</option><option value="missing">يحتاج خلطة</option><option value="raw">خام</option><option value="sale">بيع مباشر</option></select></td>
+                      <td className="px-2 py-2"><input value={recipeBarcodeFilter} onChange={(e) => setRecipeBarcodeFilter(e.target.value)} placeholder="باركود..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
+                      <td className="px-2 py-2"><select value={recipeOperationFilter} onChange={(e) => setRecipeOperationFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="yes">لها عمليات</option><option value="no">بلا عمليات</option></select></td>
+                      <td></td>
                     </tr>
                   </thead>
                   <tbody>
@@ -543,10 +596,11 @@ function CostsProductionPageInner() {
                         <td className="px-4 py-2.5">
                           <p className="font-semibold text-slate-600">{item.name}</p>
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-slate-600">{{ raw: "مادة خام", produced: "منتج مُصنَّع", sale: "منتج بيع" }[item.kind ?? "raw"]}</td>
-                        <td className="px-4 py-2.5 text-xs text-slate-500">{(item.salesSections ?? []).map((id) => sections.find((s) => s.id === id)?.name).filter(Boolean).join("، ") || item.rawCategory || "—"}</td>
+                        <td className="px-4 py-2.5"><select value={item.kind ?? "raw"} onChange={(e) => confirmItemChange(item, "kind", e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
+                        <td className="px-4 py-2.5"><select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} className="max-w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">{item.rawCategory || "بلا قسم"}</option>{sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
                         <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
                         <td className="px-4 py-2.5 font-semibold tabular-nums-auto">{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
+                        <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={item.minimumStock ?? 0} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
                         {fp.inputs && (
                           <td className="px-4 py-2.5">
                             <div className="flex flex-wrap gap-1 max-w-xs">

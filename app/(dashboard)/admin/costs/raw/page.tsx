@@ -112,6 +112,16 @@ export default function RawMaterialsPage() {
     } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث القسم", "error"); }
   }
 
+  async function saveMinimumStock(item: CostItem, value: string) {
+    const minimumStock = Math.max(0, Number(value) || 0);
+    if (minimumStock === (item.minimumStock ?? 0)) return;
+    try {
+      await updateCostItem(item.id, { minimumStock });
+      setItems((current) => current.map((i) => i.id === item.id ? { ...i, minimumStock } : i));
+      showToast("تم حفظ الحد الأدنى للمادة");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حفظ الحد الأدنى", "error"); }
+  }
+
   const movements: Movement[] = movementItem ? [
     ...incoming.filter((e) => e.itemBarcode === movementItem.id).map((e) => ({ id: `i-${e.id}`, date: e.invoiceDate, kind: "وارد", quantity: e.quantity, note: e.supplierName || "—" })),
     ...outgoing.filter((e) => e.itemBarcode === movementItem.id).map((e) => ({ id: `o-${e.id}`, date: e.dispenseDate, kind: "منصرف", quantity: -e.quantity, note: e.departmentName || e.concertName || "—" })),
@@ -143,7 +153,7 @@ export default function RawMaterialsPage() {
           <div className="flex items-center justify-between"><h2 className="font-bold text-slate-800">{group.name}</h2><span className="text-xs text-slate-400">{group.items.length} مادة</span></div>
           {group.items.length === 0 ? <Card className="py-8 text-center text-sm text-slate-400">القسم فارغ — أضف مادة خام إليه</Card> : (
             <div className="data-table-shell"><table className="data-table"><thead><tr>
-              <th>المادة</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
+              <th>المادة</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
             </tr></thead><tbody>{group.items.map((item) => {
               const bal = (item.totalIn ?? 0) - (item.totalOut ?? 0);
               const avg = bal > 0 ? (item.totalInValue ?? 0) / bal : 0;
@@ -153,7 +163,8 @@ export default function RawMaterialsPage() {
                 <td><p className="font-semibold text-slate-800">{item.name}</p><p className="text-[11px] text-slate-400 font-mono">{item.id}</p></td>
                 <td>{canEditItem ? <select value={item.rawCategory ?? ""} onChange={(e) => changeCategory(item, e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</select> : (item.rawCategory ?? "غير مصنّف")}</td>
                 <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
-                <td>{item.unit}</td><td className="font-semibold tabular-nums-auto">{bal.toLocaleString("en-US")}</td>
+                <td>{item.unit}</td><td className={`font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && bal <= (item.minimumStock ?? 0) ? "text-red-600" : ""}`}>{bal.toLocaleString("en-US")}</td>
+                <td><input type="number" min="0" step="0.01" defaultValue={item.minimumStock ?? 0} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
                 <td className="tabular-nums-auto">{avg.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="tabular-nums-auto">{(item.totalInValue ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="text-slate-500 tabular-nums-auto">{last?.invoiceDate ?? "—"}</td>
@@ -181,6 +192,7 @@ export default function RawMaterialsPage() {
       </Modal>
 
       <Modal open={!!movementItem} onClose={() => setMovementItem(null)} title={`حركة المادة — ${movementItem?.name ?? ""}`} size="lg">
+        {movementItem && <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"><span className="text-slate-500">الحد الأدنى:</span> <strong className="mr-1 tabular-nums-auto">{(movementItem.minimumStock ?? 0).toLocaleString("en-US")} {movementItem.unit}</strong></div>}
         {movements.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">لا توجد حركة مسجلة لهذه المادة</p> : <div className="data-table-shell"><table className="data-table"><thead><tr><th>التاريخ</th><th>الحركة</th><th>الكمية</th><th>البيان</th></tr></thead><tbody>{movements.map((m) => <tr key={m.id}><td>{m.date}</td><td>{m.kind}</td><td className={m.quantity >= 0 ? "text-emerald-700" : "text-red-700"}>{m.quantity > 0 ? "+" : ""}{m.quantity.toLocaleString("en-US")}</td><td>{m.note}</td></tr>)}</tbody></table></div>}
       </Modal>
     </PageShell>

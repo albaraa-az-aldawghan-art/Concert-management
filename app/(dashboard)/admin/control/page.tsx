@@ -228,6 +228,7 @@ export default function ControlCenterPage() {
 
   const noPriceCost = costItems.filter((i) => (i.totalIn ?? 0) > 0 && !(i.totalInValue ?? 0));
   const negativeBalance = costItems.filter((i) => itemBalance(i) < 0);
+  const lowStock = costItems.filter((i) => (i.minimumStock ?? 0) > 0 && itemBalance(i) <= (i.minimumStock ?? 0));
   const expired = costItems.filter((i) => i.expiryDate && i.expiryDate < today && itemBalance(i) > 0);
   const noPriceExternal = whItems.filter((i) => i.type === "external" && !i.pricePerUnit);
   const orphanOutgoing = outgoing.filter((o) => !o.concertId && o.manualConcertName);
@@ -248,7 +249,7 @@ export default function ControlCenterPage() {
   });
 
   const issues =
-    noPriceCost.length + negativeBalance.length + expired.length + noPriceExternal.length +
+    noPriceCost.length + negativeBalance.length + lowStock.length + expired.length + noPriceExternal.length +
     orphanOutgoing.length + noSupervisor.length + noPrice.length + undispensed.length;
 
   return (
@@ -501,6 +502,9 @@ export default function ControlCenterPage() {
               <Check count={negativeBalance.length} unit="صنف" href="/admin/costs/balance"
                 title="أرصدة سالبة"
                 why="صُرف أكثر مما ورد — إما وارد لم يُسجَّل أو صرف مكرّر" />
+              <Check count={lowStock.length} unit="صنف" href="/admin/costs/production"
+                title="منتجات وصلت إلى الحد الأدنى"
+                why="الرصيد الحالي يساوي الحد الأدنى المحدد أو أقل — يلزم الشراء أو الإنتاج" />
               <Check count={expired.length} unit="صنف" href="/admin/costs/damage"
                 title="أصناف انتهت صلاحيتها وما زال لها رصيد"
                 why="إما أن تُسجَّل تالفاً أو يُصحَّح تاريخها — وإلا ظهرت متاحة للصرف" />
