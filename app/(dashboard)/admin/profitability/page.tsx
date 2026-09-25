@@ -13,7 +13,7 @@ import { Modal } from "@/components/ui/modal";
 import { Concert, CostOutgoing, ConcertExpense, CostDamage } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, compareDateValues } from "@/components/ui/list-filters";
 import { TrendingUp, ChevronLeft, AlertTriangle, Info, XCircle } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -162,9 +162,11 @@ function ProfitabilityPageInner() {
   }
 
   const inScope = concerts.filter((c) => matchesDate(c.date, dateF)).filter(passesSearch);
-  const activeRows = inScope.filter((c) => normalizeStatus(c.status) !== "cancelled").map(buildRow);
+  const activeRows = inScope.filter((c) => normalizeStatus(c.status) !== "cancelled").map(buildRow)
+    .sort((a, b) => compareDateValues(a.concert.date, b.concert.date));
   // الملغاة تكاليفها حقيقية — تُعرض منفصلة ولا تُدفن كما تفعل القائمة المالية
-  const cancelledRows = inScope.filter((c) => normalizeStatus(c.status) === "cancelled").map(buildRow);
+  const cancelledRows = inScope.filter((c) => normalizeStatus(c.status) === "cancelled").map(buildRow)
+    .sort((a, b) => compareDateValues(a.concert.date, b.concert.date));
 
   const sum = (rows: Row[], f: (r: Row) => number) => rows.reduce((s, r) => s + f(r), 0);
   const tGross = sum(activeRows, (r) => r.gross);
@@ -267,7 +269,7 @@ function ProfitabilityPageInner() {
 
       {/* الجدول */}
       <Card className="overflow-x-auto p-0">
-        <table className="w-full text-sm whitespace-nowrap">
+        <table className="data-table w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
               <th className="px-3 py-3 font-semibold">العميل</th>
@@ -329,7 +331,7 @@ function ProfitabilityPageInner() {
             تكاليفها صُرفت فعلاً ولا تظهر في القائمة المالية — الخسارة = التكاليف + المبلغ المسترد
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
+            <table className="data-table w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                   <th className="px-3 py-2 font-semibold">العميل</th>

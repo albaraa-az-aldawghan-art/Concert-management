@@ -585,7 +585,7 @@ export default function AdminCostsPage() {
       ) : (
         <>
           <Card className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
                   <th className="px-4 py-2.5"><SortHeader label="الاسم" sortKeyName="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>

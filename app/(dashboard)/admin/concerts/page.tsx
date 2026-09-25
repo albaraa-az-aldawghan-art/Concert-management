@@ -462,7 +462,7 @@ export default function AdminConcertsPage() {
 
             {/* Desktop Table */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="data-table w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="text-right text-xs text-slate-500 pb-3 px-3"><SortHeader label="#" sortKeyName="number" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></th>

@@ -168,7 +168,7 @@ function CostsDamagePageInner() {
         </Card>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+          <table className="data-table w-full text-sm">
             <thead>
               <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                 <th className="px-4 py-3 font-semibold">الصنف</th>

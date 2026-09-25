@@ -11,6 +11,8 @@ import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { SearchBox, DateFilterBar, Pagination, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { EmptyState, LoadingState, PageHeader, StatCard } from "@/components/ui/page";
+import { DataTable, TableShell } from "@/components/ui/table";
 import { STATUS_FILTERS, STATUS_LABEL, ConcertStatus4 } from "@/lib/concert-status";
 import {
   Package, Plus, Trash2, Pencil, AlertTriangle, CheckCircle2, Barcode,
@@ -384,8 +386,8 @@ export default function DesignSystemPage() {
           </Spec>
 
           <Spec title="الجدول" hint="رأس خفيف وصفوف مفصولة بخط باهت. الجدول ينزلق داخل حاويته ولا تنزلق الصفحة معه.">
-            <div className="overflow-x-auto -m-1 p-1">
-              <table className="w-full text-sm">
+            <TableShell>
+              <DataTable>
                 <thead>
                   <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                     <th className="px-4 py-3 font-semibold">الصنف</th>
@@ -407,19 +409,14 @@ export default function DesignSystemPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </DataTable>
+            </TableShell>
           </Spec>
 
           <Spec title="الحالات الفارغة والتحميل" hint="الفراغ يُشرح ويُقترح له فعل، ولا يُترك بياضاً.">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="border border-slate-200 rounded-2xl flex flex-col items-center py-10 text-slate-400">
-                <Package size={40} className="mb-3 opacity-40" />
-                <p className="text-sm">لا توجد أصناف مطابقة</p>
-              </div>
-              <div className="border border-slate-200 rounded-2xl flex justify-center items-center py-10">
-                <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-              </div>
+              <div className="border border-slate-200 rounded-2xl"><EmptyState icon={Package} title="لا توجد أصناف مطابقة" description="غيّر البحث أو امسح الفلاتر." /></div>
+              <div className="border border-slate-200 rounded-2xl"><LoadingState /></div>
             </div>
           </Spec>
         </Section>
@@ -429,29 +426,17 @@ export default function DesignSystemPage() {
           subtitle="تركيبات ثابتة تُنسخ كما هي بدل ابتكار شكل جديد في كل صفحة">
 
           <Spec title="ترويسة الصفحة" hint="عنوان + سطر يعدّ ما في الصفحة + زر الفعل الأساسي في الطرف المقابل.">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-dashed border-slate-200 rounded-xl p-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">الوارد</h2>
-                <p className="text-sm text-slate-500">7 عمليات وارد مسجّلة</p>
-              </div>
-              <Button><Plus size={16} /> تسجيل وارد جديد</Button>
+            <div className="border border-dashed border-slate-200 rounded-xl p-3">
+              <PageHeader title="الوارد" description="7 عمليات وارد مسجّلة" icon={Package}
+                actions={<Button><Plus size={16} /> تسجيل وارد جديد</Button>} />
             </div>
           </Spec>
 
           <Spec title="بطاقات المجاميع" hint="ثلاث بطاقات كحدّ أقصى في الصف، والرقم أكبر من تسميته دائماً.">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Card className="bg-red-50 border-red-100">
-                <p className="text-xs text-red-600 font-semibold flex items-center gap-1.5"><AlertTriangle size={13} /> إجمالي التالف</p>
-                <p className="text-lg font-bold text-red-700 tabular-nums-auto mt-1">66.00 ريال</p>
-              </Card>
-              <Card>
-                <p className="text-xs text-slate-500 font-semibold">المحصَّل</p>
-                <p className="text-lg font-bold text-slate-700 tabular-nums-auto mt-1">8,000.00 ريال</p>
-              </Card>
-              <Card>
-                <p className="text-xs text-slate-500 font-semibold">الربح</p>
-                <p className="text-lg font-bold text-emerald-700 tabular-nums-auto mt-1">6,984.87 ريال</p>
-              </Card>
+              <StatCard label="إجمالي التالف" value="66.00" suffix="ريال" icon={AlertTriangle} tone="danger" />
+              <StatCard label="المحصَّل" value="8,000.00" suffix="ريال" tone="neutral" />
+              <StatCard label="الربح" value="6,984.87" suffix="ريال" icon={CheckCircle2} tone="success" />
             </div>
           </Spec>
 

@@ -8,10 +8,11 @@ import { getConcertsBySupervisor, getConcerts } from "@/lib/firestore/concerts";
 import { getUsersByRole } from "@/lib/firestore/users";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
+import { EmptyState, LoadingState, PageHeader, PageShell } from "@/components/ui/page";
 import { Concert, AppUser } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, normalizeStatus } from "@/lib/concert-status";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, compareDateValues } from "@/components/ui/list-filters";
 import { Music, Calendar, MapPin, UserCog, UserRound, UsersRound } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -75,7 +76,7 @@ export default function SupervisorConcertsPage() {
         (c.clientName ?? "").toLowerCase().includes(q) ||
         (c.venueName ?? "").toLowerCase().includes(q) ||
         (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ)))
-  );
+  ).sort((a, b) => compareDateValues(a.date, b.date));
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -93,11 +94,9 @@ export default function SupervisorConcertsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "حفلات المشرفين" : "حفلاتي"}</h2>
-        <p className="text-sm text-slate-500">{concerts.length} حفلة{isAdmin ? " — صلاحيات المشرف الكاملة" : ""}</p>
-      </div>
+    <PageShell>
+      <PageHeader title={isAdmin ? "حفلات المشرفين" : "حفلاتي"} icon={UserCog}
+        description={`${concerts.length} حفلة${isAdmin ? " · عرض وإدارة جميع المشرفين" : ""}`} />
 
       <SearchBox
         value={search}
@@ -173,11 +172,9 @@ export default function SupervisorConcertsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" /></div>
+        <LoadingState label="جارٍ تحميل حفلات المشرفين..." />
       ) : filtered.length === 0 ? (
-        <Card className="flex flex-col items-center py-12 text-slate-400">
-          <Music size={40} className="mb-3 opacity-40" /><p>لا توجد حفلات</p>
-        </Card>
+        <Card><EmptyState icon={Music} title="لا توجد حفلات" description="غيّر البحث أو الفلاتر المستخدمة." /></Card>
       ) : (
         <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -214,6 +211,6 @@ export default function SupervisorConcertsPage() {
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

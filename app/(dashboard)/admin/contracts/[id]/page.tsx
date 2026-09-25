@@ -542,7 +542,7 @@ export default function ContractDetailPage() {
           <div className="overflow-x-auto -mx-1 px-1">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={lines.map((l) => l.barcode)} strategy={verticalListSortingStrategy}>
-                <table className="w-full text-xs min-w-[46rem]">
+                <table className="data-table w-full text-xs min-w-[46rem]">
                   <thead>
                     <tr className="text-slate-500 border-b border-slate-100">
                       <th className="w-6" />
@@ -679,7 +679,7 @@ export default function ContractDetailPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="text-[11px] border-collapse">
+            <table className="data-table text-[11px] border-collapse">
               <thead>
                 <tr>
                   <th className="sticky right-0 bg-[#1C2D50] text-white px-2 py-1.5 text-right z-10 min-w-[9rem]">الاسم</th>

@@ -33,13 +33,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!appUser) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[var(--canvas)]">
       <Sidebar />
       <div className="lg:mr-64 flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          {children}
-          {["/warehouse-manager", "/supervisor", "/employee", "/kitchen"].includes(pathname) && <div className="mt-6"><ActivityFeed /></div>}
+        <main className="flex-1 px-3 py-4 sm:px-6 sm:py-6 xl:px-8 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto w-full max-w-[1600px]">
+            {children}
+            {["/warehouse-manager", "/supervisor", "/employee", "/kitchen"].includes(pathname) && <div className="mt-6"><ActivityFeed /></div>}
+          </div>
         </main>
       </div>
     </div>

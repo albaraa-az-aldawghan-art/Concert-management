@@ -586,7 +586,7 @@ export default function FinancesPage() {
 
             {/* Desktop Table */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className={styles.table}>
+              <table className={`data-table ${styles.table}`}>
                 <colgroup>
                   <col style={{ width: "11%" }} />
                   <col style={{ width: "10%" }} />

@@ -9,9 +9,10 @@ import { getConcerts, confirmWarehouseReturn } from "@/lib/firestore/concerts";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyState, LoadingState, PageHeader, PageShell } from "@/components/ui/page";
 import { KitchenOrder, Concert } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, compareDateValues } from "@/components/ui/list-filters";
 import { Package, Printer, CheckCircle2, Clock, PackageCheck, Check } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -102,7 +103,7 @@ export default function WarehouseOrdersPage() {
         o.clientName.toLowerCase().includes(q) ||
         (o.venueName ?? "").toLowerCase().includes(q) ||
         String(o.concertNumber).padStart(3, "0").includes(numQ))
-  );
+  ).sort((a, b) => compareDateValues(a.concertDate, b.concertDate));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -189,14 +190,9 @@ export default function WarehouseOrdersPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">الموارد — الطلبات والمرتجعات</h2>
-        <p className="text-sm text-slate-500">
-          {pending.length} بانتظار الاستلام · {received.length} مستلمة
-          {pendingReturn.length > 0 && ` · ${pendingReturn.length} مرتجع بانتظار التأكيد`}
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader title="الموارد — الطلبات والمرتجعات" icon={Package}
+        description={`${pending.length} بانتظار الاستلام · ${received.length} مستلمة${pendingReturn.length > 0 ? ` · ${pendingReturn.length} مرتجع بانتظار التأكيد` : ""}`} />
 
       {/* مواد راجعة من الحفلات بانتظار تأكيد الاستلام — يختفي القسم إذا لم يوجد شيء */}
       {pendingReturn.length > 0 && (
@@ -266,14 +262,10 @@ export default function WarehouseOrdersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-        </div>
+        <LoadingState label="جارٍ تحميل طلبات الموارد..." />
       ) : filtered.length === 0 ? (
-        <Card className="flex flex-col items-center py-12 text-slate-400">
-          <Package size={40} className="mb-3 opacity-40" />
-          <p>{orders.length === 0 ? "لم تُرسل أي حفلات للموارد بعد" : "لا توجد نتائج مطابقة"}</p>
-        </Card>
+        <Card><EmptyState icon={Package} title={orders.length === 0 ? "لم تُرسل أي حفلات للموارد بعد" : "لا توجد نتائج مطابقة"}
+          description={orders.length > 0 ? "غيّر البحث أو فلتر التاريخ والحالة." : undefined} /></Card>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -282,6 +274,6 @@ export default function WarehouseOrdersPage() {
           <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

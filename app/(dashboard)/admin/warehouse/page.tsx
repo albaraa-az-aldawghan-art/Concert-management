@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* الموارد: المواد الداخلية والخارجية بأعدادها وأسعارها وصورها وترتيبها. */
 import { useEffect, useState } from "react";
@@ -525,7 +525,7 @@ export default function AdminWarehousePage() {
           <Card className="p-0 overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-                <table className="w-full text-sm">
+                <table className="data-table w-full text-sm">
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
                       <th className="px-3 py-2.5 w-8"></th>

@@ -446,7 +446,7 @@ export default function StaffProfilePage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-xs text-slate-400 border-b border-slate-100">
                   <th className="text-right font-medium py-2">المادة</th>

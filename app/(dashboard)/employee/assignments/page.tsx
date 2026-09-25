@@ -8,9 +8,10 @@ import { getConcertsByEmployee, getConcerts, getConcertItems } from "@/lib/fires
 import { getConcertFood } from "@/lib/firestore/food";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
+import { EmptyState, LoadingState, PageHeader, PageShell } from "@/components/ui/page";
 import { Concert } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, tsToDateStr } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, tsToDateStr, compareDateValues } from "@/components/ui/list-filters";
 import { Package, UtensilsCrossed, Music, CalendarDays, Clock, MapPin, ChevronLeft, UsersRound } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -74,11 +75,7 @@ export default function EmployeeAssignmentsPage() {
   }, [appUser]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-      </div>
-    );
+    return <LoadingState label="جارٍ تحميل حفلات الموظفين..." />;
   }
 
   if (appUser && !pageAllowed) {
@@ -99,18 +96,16 @@ export default function EmployeeAssignmentsPage() {
       (c.venueName ?? "").toLowerCase().includes(q) ||
       (c.concertNumber != null && String(c.concertNumber).padStart(3, "0").includes(numQ))
     );
-  });
+  }).sort((a, b) => compareDateValues(a.concert.date, b.concert.date));
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">{isAdmin ? "حفلات الموظفين" : "حفلاتي"}</h2>
-        <p className="text-sm text-slate-500">{filtered.length} حفلة — اضغط على الحفلة لعرض تفاصيلها</p>
-      </div>
+    <PageShell>
+      <PageHeader title={isAdmin ? "حفلات الموظفين" : "حفلاتي"} icon={UsersRound}
+        description={`${filtered.length} حفلة · افتح الحفلة لعرض المواد والطعام والتفاصيل`} />
 
       <SearchBox
         value={search}
@@ -142,10 +137,8 @@ export default function EmployeeAssignmentsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card className="flex flex-col items-center py-12 text-slate-400">
-          <Music size={40} className="mb-3 opacity-40" />
-          <p>{summaries.length === 0 ? "لا توجد حفلات مسندة إليك" : "لا توجد نتائج مطابقة"}</p>
-        </Card>
+        <Card><EmptyState icon={Music} title={summaries.length === 0 ? "لا توجد حفلات مسندة إليك" : "لا توجد نتائج مطابقة"}
+          description={summaries.length > 0 ? "غيّر البحث أو فلتر التاريخ." : undefined} /></Card>
       ) : (
         <>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -202,6 +195,6 @@ export default function EmployeeAssignmentsPage() {
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

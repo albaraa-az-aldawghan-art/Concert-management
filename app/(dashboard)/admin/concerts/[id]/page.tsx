@@ -1960,7 +1960,7 @@ export default function AdminConcertDetailPage() {
           <p className="text-sm text-slate-400">لم تتم إضافة أي أصناف أكل لهذه الحفلة</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                   <th className="py-2 px-2 font-semibold">القسم</th>
@@ -2037,7 +2037,7 @@ export default function AdminConcertDetailPage() {
             )}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                   {ff.expType && <th className="py-2 px-2 font-semibold">النوع</th>}
@@ -2109,7 +2109,7 @@ export default function AdminConcertDetailPage() {
             </p>
           ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="text-right text-xs text-slate-500 border-b border-slate-100">
                   <th className="py-2 px-2 font-semibold">الصنف</th>

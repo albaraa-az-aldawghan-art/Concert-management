@@ -2,6 +2,10 @@
 
 /* أدوات القوائم المشتركة: بحث وفلتر تاريخ وترقيم صفحات وفلترة/فرز الأعمدة. */
 import { Search, CalendarDays, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
+import { compareEventDates, eventDateString } from "@/lib/event-date";
+
+export const tsToDateStr = eventDateString;
+export const compareDateValues = compareEventDates;
 
 /* ═══════════════════════════════════════════════════════════════
    Shared list controls — the same design language as the concerts
@@ -19,17 +23,6 @@ export const emptyDateFilter: DateFilterState = { mode: "all", from: "", to: "" 
 
 function localStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-export function tsToDateStr(val: unknown): string {
-  if (!val) return "";
-  if (typeof val === "string") return val.substring(0, 10);
-  const obj = val as Record<string, unknown>;
-  if (typeof obj.toDate === "function")
-    return localStr((obj as { toDate: () => Date }).toDate());
-  if (typeof obj.seconds === "number")
-    return localStr(new Date((obj as { seconds: number }).seconds * 1000));
-  return "";
 }
 
 function weekBounds(): [string, string] {
@@ -86,15 +79,17 @@ export function SearchBox({
       <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       <input
         type="text"
+        aria-label={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full border border-slate-200 rounded-xl pr-9 pl-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
+        className="w-full min-h-11 border border-slate-200 rounded-xl pr-9 pl-11 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#EEF1F7] focus:border-[#1C2D50] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.03)]"
       />
       {value && (
         <button
           onClick={() => onChange("")}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none"
+          aria-label="مسح البحث"
+          className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-lg leading-none"
         >
           ×
         </button>

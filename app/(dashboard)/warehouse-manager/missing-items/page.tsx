@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* المفقودات كما يراها مسؤول الموارد. */
 import { useEffect, useState } from "react";
@@ -49,7 +49,7 @@ export default function WarehouseManagerMissingPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-right py-2 px-3 font-semibold text-slate-500">الحفلة</th>

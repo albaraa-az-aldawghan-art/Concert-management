@@ -10,12 +10,14 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { getAllMissingItems } from "@/lib/firestore/missing-items";
 import { ActivityFeed } from "@/components/activity-feed";
 import { Card } from "@/components/ui/card";
+import { LoadingState, PageHeader, PageShell, StatCard } from "@/components/ui/page";
+import { tsToDateStr } from "@/components/ui/list-filters";
 import { Concert } from "@/types";
 import { STATUS_LABEL, normalizeStatus, statusLabel } from "@/lib/concert-status";
 import { isOverdueConcert, remainingAmount } from "@/lib/overdue-concerts";
 import {
   Users, Package, Music, AlertTriangle, ChevronLeft,
-  TrendingUp, Wallet, Clock, CheckCircle2, CalendarDays, BarChart3,
+  TrendingUp, Wallet, Clock, CheckCircle2, CalendarDays, BarChart3, LayoutDashboard,
 } from "lucide-react";
 
 function calcHallCost(c: Concert): number {
@@ -62,69 +64,49 @@ export default function AdminDashboard() {
   const overdueConcerts = concerts.filter((concert) => isOverdueConcert(concert));
   const overdueAmount = overdueConcerts.reduce((s, c) => s + remainingAmount(c), 0);
 
-  const recent = [...concerts].slice(0, 5);
+  // لوحة التشغيل تعرض أقرب الحفلات زمنياً أولاً، ثم الحفلات الماضية من الأحدث.
+  const today = new Date().toISOString().slice(0, 10);
+  const recent = [...concerts]
+    .sort((a, b) => {
+      const ad = tsToDateStr(a.date);
+      const bd = tsToDateStr(b.date);
+      const aPast = ad !== "" && ad < today;
+      const bPast = bd !== "" && bd < today;
+      if (aPast !== bPast) return aPast ? 1 : -1;
+      return aPast ? bd.localeCompare(ad) : ad.localeCompare(bd);
+    })
+    .slice(0, 5);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="w-8 h-8 rounded-full border-4 border-[#1C2D50] border-t-transparent animate-spin" />
-      </div>
-    );
+    return <LoadingState label="جارٍ تجهيز لوحة التحكم..." />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div
-        className="rounded-2xl p-6 text-white relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #080E1C 0%, #111D35 50%, #1C2D50 100%)" }}
-      >
-        {/* Subtle logo watermark */}
-        <div
-          className="absolute -left-8 -top-8 opacity-[0.07] pointer-events-none"
-          style={{ width: 160, height: 160 }}
-        >
-          <img src="/logo.jpg" alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        </div>
-        <p className="text-sm mb-1" style={{ color: "#6B7E99" }}>لوحة التحكم</p>
-        <h2 className="text-2xl font-bold" style={{ color: "#D4DCE8" }}>نظرة عامة على النظام</h2>
-        <p className="text-sm mt-1" style={{ color: "#6B7E99" }}>{concerts.length} حفلة مسجّلة</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="نظرة عامة على النظام"
+        eyebrow="لوحة التحكم"
+        description={`${concerts.length} حفلة مسجّلة · الأرقام تتحدث تلقائياً من سجلات النظام`}
+        icon={LayoutDashboard}
+      />
 
       {/* Financial Summary — each card is its own permission feature */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { key: "rev",       label: "إجمالي الإيرادات", value: totalRevenue, icon: <TrendingUp size={20} />, color: "text-[#1C2D50]", bg: "bg-[#EEF1F7]", suffix: "ريال" },
-          { key: "collected", label: "إجمالي المحصَّل", value: totalCollected, icon: <Wallet size={20} />, color: "text-emerald-600", bg: "bg-emerald-50", suffix: "ريال" },
-          { key: "remaining", label: "إجمالي المتبقي", value: totalRemaining, icon: <Clock size={20} />, color: "text-orange-600", bg: "bg-orange-50", suffix: "ريال" },
-          { key: "overdue",   label: "المتأخرات من المدفوعات", value: overdueAmount, icon: <AlertTriangle size={20} />, color: "text-red-600", bg: "bg-red-50", suffix: "ريال", hint: `${overdueConcerts.length} حفلة` },
-          { key: "costs",     label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: <BarChart3 size={20} />, color: "text-purple-600", bg: "bg-purple-50", suffix: "ريال" },
+          { key: "rev",       label: "إجمالي الإيرادات", value: totalRevenue, icon: TrendingUp, tone: "navy" as const, suffix: "ريال" },
+          { key: "collected", label: "إجمالي المحصَّل", value: totalCollected, icon: Wallet, tone: "success" as const, suffix: "ريال" },
+          { key: "remaining", label: "إجمالي المتبقي", value: totalRemaining, icon: Clock, tone: "warning" as const, suffix: "ريال" },
+          { key: "overdue",   label: "المتأخرات من المدفوعات", value: overdueAmount, icon: AlertTriangle, tone: "danger" as const, suffix: "ريال", hint: `${overdueConcerts.length} حفلة` },
+          { key: "costs",     label: "مصاريف القاعات والنقل", value: totalHall + totalTransport, icon: BarChart3, tone: "neutral" as const, suffix: "ريال" },
         ].filter((s) => feat("dashboard", s.key)).map((s) => (
           s.key === "overdue" ? (
             <Link key={s.key} href="/admin/finances?filter=overdue" className="block">
-              <Card className="h-full hover:shadow-md hover:ring-1 hover:ring-red-200 transition-all cursor-pointer">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-3`}>
-                  {s.icon}
-                </div>
-                <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-                <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("en-US")}</p>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-400">{s.suffix}</p>
-                  <p className="text-xs font-semibold text-red-600">عرض المتأخر</p>
-                </div>
-              </Card>
+              <StatCard className="h-full hover:ring-1 hover:ring-red-200" label={s.label}
+                value={s.value.toLocaleString("en-US")} icon={s.icon} tone={s.tone}
+                suffix={s.suffix} hint={`${s.hint} · عرض التفاصيل`} />
             </Link>
-          ) : <Card key={s.label}>
-            <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-3`}>
-              {s.icon}
-            </div>
-            <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-            <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString("en-US")}</p>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-400">{s.suffix}</p>
-              {s.hint && <p className="text-xs text-slate-400">{s.hint}</p>}
-            </div>
-          </Card>
+          ) : <StatCard key={s.label} label={s.label} value={s.value.toLocaleString("en-US")}
+            icon={s.icon} tone={s.tone} suffix={s.suffix} hint={s.hint} />
         ))}
       </div>
 
@@ -288,6 +270,6 @@ export default function AdminDashboard() {
         </div>
       </Card>}
       <ActivityFeed />
-    </div>
+    </PageShell>
   );
 }
