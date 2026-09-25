@@ -49,43 +49,52 @@ interface NavItem {
 
 const adminNav: NavItem[] = [
   { label: "لوحة التحكم", href: "/admin", icon: <LayoutDashboard size={17} />, section: "نظرة عامة" },
-  { label: "المطعم", href: "/admin/restaurant", icon: <UtensilsCrossed size={17} />, section: "الأقسام الرئيسية" },
-  { label: "التعاقدات", href: "/admin/contracts", icon: <FileSignature size={17} />, section: "الأقسام الرئيسية" },
-  /* الحفلات قسم كامل: كل ما يخدم تنفيذ الحفلة تحته، فلا يتنقّل المستخدم
-     بين رؤوس متفرّقة ليُنهي حفلة واحدة */
   {
     label: "الحفلات",
     href: "/admin/concerts",
     icon: <Music size={17} />,
     section: "الأقسام الرئيسية",
     children: [
-      { label: "الموارد",        href: "/admin/warehouse",          icon: <Package size={15} /> },
-      { label: "طلبات الموارد",  href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
-      { label: "البكجات",        href: "/admin/packages",           icon: <Boxes size={15} /> },
       { label: "المطبخ",         href: "/kitchen",                  icon: <ChefHat size={15} /> },
-      { label: "ربحية الحفلات",  href: "/admin/profitability",      icon: <TrendingUp size={15} /> },
       { label: "المشرفون",       href: "/supervisor/concerts",      icon: <UserCog size={15} /> },
       { label: "المفقودات",      href: "/admin/missing-items",      icon: <AlertTriangle size={15} /> },
     ],
   },
-  { label: "القائمة المالية", href: "/admin/finances", icon: <BarChart3 size={17} />, section: "المالية" },
+  { label: "المطعم", href: "/admin/restaurant", icon: <UtensilsCrossed size={17} />, section: "الأقسام الرئيسية" },
+  { label: "التعاقدات", href: "/admin/contracts", icon: <FileSignature size={17} />, section: "الأقسام الرئيسية" },
   {
-    label: "منتجات البيع",
+    label: "المنتجات والبكجات",
     href: "/admin/food",
-    icon: <UtensilsCrossed size={17} />,
-    section: "التشغيل والمساندة",
+    icon: <Boxes size={17} />,
+    section: "المنتجات والبكجات",
+    children: [
+      { label: "منتجات البيع", href: "/admin/food", icon: <UtensilsCrossed size={15} /> },
+      { label: "البكجات", href: "/admin/packages", icon: <Boxes size={15} /> },
+    ],
   },
   {
-    label: "التكاليف",
-    href: "/admin/costs",
-    icon: <Barcode size={17} />,
-    section: "التشغيل والمساندة",
+    label: "الموارد والمخزون",
+    href: "/admin/warehouse",
+    icon: <Package size={17} />,
+    section: "الموارد والمخزون",
     children: [
+      { label: "طلبات الموارد", href: "/warehouse-manager/orders", icon: <Truck size={15} /> },
       { label: "الوارد", href: "/admin/costs/incoming", icon: <PackagePlus size={15} /> },
       { label: "الإنتاج", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
-      { label: "التالف", href: "/admin/costs/damage", icon: <AlertTriangle size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
+    ],
+  },
+  {
+    label: "المالية",
+    href: "/admin/finances",
+    icon: <BarChart3 size={17} />,
+    section: "المالية",
+    children: [
+      { label: "ربحية الحفلات", href: "/admin/profitability", icon: <TrendingUp size={15} /> },
+      { label: "التكاليف", href: "/admin/costs", icon: <Barcode size={15} /> },
+      { label: "الخسائر", href: "/admin/missing-items", icon: <AlertTriangle size={15} /> },
+      { label: "التالف", href: "/admin/costs/damage", icon: <AlertTriangle size={15} /> },
     ],
   },
   /* الموظفون: من هم، وما دور كلٍّ منهم — ولكل موظف مسار خاص به */
