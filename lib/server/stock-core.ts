@@ -278,7 +278,7 @@ export async function svcUndoWarehouseReturn(db: Firestore, concertId: string, u
 
 export async function svcAddWarehouseItem(
   db: Firestore,
-  d: { name: string; totalCount: number; type: "internal" | "external"; pricePerUnit: number | null; imageUrl: string | null }
+  d: { name: string; totalCount: number; type: "internal" | "external"; category: string | null; pricePerUnit: number | null; imageUrl: string | null }
 ) {
   const ref = db.collection("warehouse_items").doc();
   await ref.set({
@@ -294,7 +294,7 @@ export async function svcAddWarehouseItem(
 export async function svcUpdateWarehouseItem(
   db: Firestore,
   id: string,
-  d: { name?: string; totalCount?: number; type?: string; pricePerUnit?: number | null; imageUrl?: string | null; order?: number }
+  d: { name?: string; totalCount?: number; type?: string; category?: string | null; pricePerUnit?: number | null; imageUrl?: string | null; order?: number }
 ) {
   const ref = db.collection("warehouse_items").doc(id);
   await db.runTransaction(async (tx) => {

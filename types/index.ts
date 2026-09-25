@@ -75,6 +75,7 @@ export interface WarehouseItem {
   totalCount: number;
   availableCount: number;
   type: "internal" | "external";
+  category?: string | null;
   pricePerUnit?: number | null;
   imageUrl?: string | null;
   order?: number;

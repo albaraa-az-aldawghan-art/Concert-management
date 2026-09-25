@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/contexts/AuthContext";
-import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem, updateWarehouseItemsOrder } from "@/lib/firestore/warehouse";
+import { getWarehouseItems, addWarehouseItem, updateWarehouseItem, deleteWarehouseItem, updateWarehouseItemsOrder, getWarehouseCategories, updateWarehouseCategories } from "@/lib/firestore/warehouse";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
 import { uploadImage, thumbUrl } from "@/lib/cloudinary";
 import { auth } from "@/lib/firebase";
-import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search, FileSpreadsheet } from "lucide-react";
+import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search, FileSpreadsheet, FolderPlus } from "lucide-react";
 
 /* ── صف قابل للسحب داخل الجدول — نفس منطق الترتيب السابق على البطاقات ── */
 function SortableItemRow({
@@ -98,6 +98,7 @@ function SortableItemRow({
         )}
       </td>
       <td className="px-3 py-2 font-semibold text-slate-800 text-sm min-w-[10rem]">{item.name}</td>
+      <td className="px-3 py-2 text-sm text-slate-500">{item.category || "غير مصنّف"}</td>
       <td className="px-3 py-2">
         <span
           className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${
@@ -176,14 +177,17 @@ export default function AdminWarehousePage() {
   const [deleteTarget, setDeleteTarget] = useState<WarehouseItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [filterType, setFilterType] = useState("");
   const [search, setSearch] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [showCategories, setShowCategories] = useState(false);
+  const [categoryInput, setCategoryInput] = useState("");
 
   const [form, setForm] = useState({
     name: "",
     totalCount: "",
     availableCount: "",
     type: "internal" as "internal" | "external",
+    category: "",
     pricePerUnit: "",
   });
   // Image state: existing URL (edit mode) + newly picked file with local preview
@@ -231,8 +235,9 @@ export default function AdminWarehousePage() {
 
   async function loadItems() {
     setLoading(true);
-    const data = await getWarehouseItems();
+    const [data, savedCategories] = await Promise.all([getWarehouseItems(), getWarehouseCategories()]);
     setItems(data);
+    setCategories(savedCategories);
     setLoading(false);
   }
 
@@ -243,6 +248,7 @@ export default function AdminWarehousePage() {
       totalCount: String(item.totalCount),
       availableCount: String(item.availableCount),
       type: item.type,
+      category: item.category ?? "",
       pricePerUnit: String(item.pricePerUnit ?? ""),
     });
     pickImage(null);
@@ -275,6 +281,7 @@ export default function AdminWarehousePage() {
           totalCount: total,
           availableCount: available,
           type: form.type,
+          category: form.category || null,
           pricePerUnit,
           imageUrl: finalImageUrl,
         });
@@ -286,13 +293,14 @@ export default function AdminWarehousePage() {
           totalCount: total,
           availableCount: available,
           type: form.type,
+          category: form.category || null,
           pricePerUnit,
           imageUrl: finalImageUrl,
         });
         showToast("تم إضافة المادة بنجاح");
         setShowAdd(false);
       }
-      setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" });
+      setForm({ name: "", totalCount: "", availableCount: "", type: "internal", category: "", pricePerUnit: "" });
       resetImage();
       loadItems();
     } catch (err) {
@@ -347,13 +355,19 @@ export default function AdminWarehousePage() {
   }
 
   const q = search.trim();
-  const filtered = items.filter(
-    (i) => (!filterType || i.type === filterType) && (!q || i.name.includes(q))
-  );
-  const internalCount = items.filter((i) => i.type === "internal").length;
-  const externalCount = items.filter((i) => i.type === "external").length;
+  const filtered = items.filter((i) => !q || i.name.includes(q) || (i.category ?? "").includes(q));
   // Dragging is only meaningful on the unfiltered global list
-  const canReorder = canReorderPerm && filterType === "" && q === "";
+  const canReorder = canReorderPerm && q === "";
+
+  async function addCategory() {
+    const name = categoryInput.trim();
+    if (!name || categories.includes(name)) return;
+    const next = [...categories, name];
+    setSaving(true);
+    try { await updateWarehouseCategories(next); setCategories(next); setCategoryInput(""); showToast("تمت إضافة قسم الموارد"); }
+    catch (err) { showToast(err instanceof Error ? err.message : "تعذّرت إضافة القسم", "error"); }
+    finally { setSaving(false); }
+  }
 
   function renderForm(isEdit: boolean) {
     const shownImage = imagePreview ?? imageUrl;
@@ -414,6 +428,15 @@ export default function AdminWarehousePage() {
             required />
         </div>
         <Select
+          label="القسم"
+          value={form.category}
+          onChange={(e) => setForm({ ...form, category: e.target.value })}
+          required
+        >
+          <option value="" disabled>اختر قسم المادة</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </Select>
+        <Select
           label="النوع"
           value={form.type}
           onChange={(e) => setForm({ ...form, type: e.target.value as "internal" | "external" })}
@@ -454,7 +477,7 @@ export default function AdminWarehousePage() {
         <div>
           <h2 className="text-xl font-bold text-slate-800">الموارد</h2>
           <p className="text-sm text-slate-500">
-            {internalCount} داخلي · {externalCount} خارجي
+            {items.length} مادة في {categories.length} قسم
           </p>
         </div>
         <div className="flex gap-2">
@@ -465,7 +488,10 @@ export default function AdminWarehousePage() {
             </Button>
           )}
           {canAdd && (
-            <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
+            <Button variant="outline" onClick={() => setShowCategories(true)}><FolderPlus size={16} /> إدارة الأقسام</Button>
+          )}
+          {canAdd && (
+            <Button onClick={() => { setForm({ name: "", totalCount: "", availableCount: "", type: "internal", category: "", pricePerUnit: "" }); resetImage(); setShowAdd(true); }}>
               <Plus size={16} />
               إضافة مادة
             </Button>
@@ -473,7 +499,7 @@ export default function AdminWarehousePage() {
         </div>
       </div>
 
-      {/* Search + Filter */}
+      {/* البحث فقط: الداخلي والخارجي يظهران معاً بلا تبويب أو فلتر */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1 sm:max-w-xs">
           <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -484,21 +510,6 @@ export default function AdminWarehousePage() {
             placeholder="ابحث باسم المادة..."
             className="w-full border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
           />
-        </div>
-        <div className="flex gap-2">
-          {["", "internal", "external"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                filterType === t
-                  ? "bg-[#1C2D50] text-white"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              {t === "" ? "الكل" : t === "internal" ? "داخلي" : "خارجي"}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -519,9 +530,6 @@ export default function AdminWarehousePage() {
               اسحب المواد لإعادة الترتيب — الترتيب يظهر في كل القوائم
             </p>
           )}
-          {filterType !== "" && canEdit && (
-            <p className="text-xs text-slate-400">اختر «الكل» لتتمكن من إعادة الترتيب بالسحب</p>
-          )}
           <Card className="p-0 overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
@@ -531,6 +539,7 @@ export default function AdminWarehousePage() {
                       <th className="px-3 py-2.5 w-8"></th>
                       <th className="px-3 py-2.5 w-14"></th>
                       <th className="px-3 py-2.5 font-semibold">الاسم</th>
+                      <th className="px-3 py-2.5 font-semibold">القسم</th>
                       <th className="px-3 py-2.5 font-semibold">النوع</th>
                       <th className="px-3 py-2.5 font-semibold text-center">الإجمالي</th>
                       {fw.available && (
@@ -574,6 +583,13 @@ export default function AdminWarehousePage() {
       {/* Edit Modal */}
       <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="تعديل المادة">
         {renderForm(true)}
+      </Modal>
+
+      <Modal open={showCategories} onClose={() => setShowCategories(false)} title="أقسام الموارد">
+        <div className="space-y-4">
+          <div className="flex gap-2"><Input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} placeholder="اسم قسم جديد..." /><Button type="button" onClick={addCategory} loading={saving}><Plus size={15} /> إضافة</Button></div>
+          <div className="flex flex-wrap gap-2">{categories.length ? categories.map((c) => <span key={c} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700">{c}</span>) : <p className="text-sm text-slate-400">لا توجد أقسام بعد</p>}</div>
+        </div>
       </Modal>
 
       {/* Delete Confirm */}

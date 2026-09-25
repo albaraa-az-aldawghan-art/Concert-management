@@ -1050,7 +1050,8 @@ export default function AdminConcertDetailPage() {
     expenseStatus === "planned" ? "تُضاف بعد تأكيد الحفلة"
     : expenseStatus === "cancelled" ? "الحفلة ملغاة"
     : "لا صلاحية للإضافة";
-  const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0);
+  const externalResourceExpense = concert.externalItemsCost ?? 0;
+  const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0) + externalResourceExpense;
 
   /* أصناف الأكل بترتيب القسم كما هو معرَّف في الإعدادات، ثم اسم الصنف داخل القسم */
   const foodCatOrder = new Map(sections.map((c, i) => [c.name, c.order ?? i]));
@@ -2023,12 +2024,12 @@ export default function AdminConcertDetailPage() {
       </Card>
 
       {/* فواتير مصاريف الحفلة */}
-      {fx.expView && expenses.length > 0 && (
+      {fx.expView && (expenses.length > 0 || externalResourceExpense > 0) && (
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Receipt size={16} className="text-[#1C2D50]" />
-              مصاريف الحفلة ({expenses.length})
+              مصاريف الحفلة ({expenses.length + (externalResourceExpense > 0 ? 1 : 0)})
             </h3>
             {ff.expAmount && (
               <span className="font-bold text-[#1C2D50] tabular-nums-auto">
@@ -2049,6 +2050,16 @@ export default function AdminConcertDetailPage() {
                 </tr>
               </thead>
               <tbody>
+                {externalResourceExpense > 0 && (
+                  <tr className="border-b border-slate-50 bg-amber-50/40">
+                    {ff.expType && <td className="py-2 px-2 font-medium text-slate-800">استئجار موارد خارجية</td>}
+                    {ff.expSupplier && <td className="py-2 px-2 text-slate-500 text-xs">مشتق تلقائيًا من الموارد الخارجية المسجلة للحفلة</td>}
+                    {ff.expDate && <td className="py-2 px-2 text-slate-400">—</td>}
+                    {ff.expAmount && <td className="py-2 px-2 tabular-nums-auto font-semibold text-[#1C2D50]">{externalResourceExpense.toLocaleString("en-US")} ريال</td>}
+                    {ff.expActor && <td className="py-2 px-2 text-xs text-slate-400">تلقائي</td>}
+                    {fx.expDelete && <td className="py-2 px-2"></td>}
+                  </tr>
+                )}
                 {expenses.map((e) => (
                   <tr key={e.id} className="border-b border-slate-50 last:border-none">
                     {ff.expType && <td className="py-2 px-2 font-medium text-slate-800">{e.type}</td>}

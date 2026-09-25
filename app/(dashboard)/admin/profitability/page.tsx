@@ -127,12 +127,14 @@ function ProfitabilityPageInner() {
     const hall = calcHallCost(c);
     const rawMaterials = rawByConcert.get(c.id) ?? 0;
     const externalItems = c.externalItemsCost ?? 0;
-    const expenseTotal = (expByConcert.get(c.id) ?? []).reduce(
+    const recordedExpenses = (expByConcert.get(c.id) ?? []).reduce(
       (s, e) => s + expenseNetAmount(e, vatRate),
       0
     );
+    // إيجار الموارد الخارجية يظهر ضمن مصاريف الحفلة، لا كبند تكلفة مستقل.
+    const expenseTotal = recordedExpenses + externalItems;
 
-    const totalCosts = hall + rawMaterials + externalItems + expenseTotal;
+    const totalCosts = hall + rawMaterials + expenseTotal;
     const profit = net - totalCosts;
     return {
       concert: c,
@@ -279,7 +281,6 @@ function ProfitabilityPageInner() {
               <th className="px-3 py-3 font-semibold">المتبقي</th>
               <th className="px-3 py-3 font-semibold">القاعة</th>
               <th className="px-3 py-3 font-semibold">خامات</th>
-              <th className="px-3 py-3 font-semibold">موارد مستأجرة</th>
               <th className="px-3 py-3 font-semibold">مصروفات</th>
               <th className="px-3 py-3 font-semibold">إجمالي التكاليف</th>
               <th className="px-3 py-3 font-semibold">الربح</th>
@@ -288,7 +289,7 @@ function ProfitabilityPageInner() {
           </thead>
           <tbody>
             {paginated.length === 0 ? (
-              <tr><td colSpan={12} className="text-center text-slate-400 py-10">لا توجد حفلات مطابقة</td></tr>
+              <tr><td colSpan={11} className="text-center text-slate-400 py-10">لا توجد حفلات مطابقة</td></tr>
             ) : paginated.map((r) => (
               <tr key={r.concert.id} className="border-b border-slate-50 last:border-none hover:bg-slate-50 cursor-pointer"
                 onClick={() => setDetail(r)}>
@@ -304,7 +305,6 @@ function ProfitabilityPageInner() {
                 <td className="px-3 py-3 tabular-nums-auto text-orange-600">{r.remaining > 0 ? money(r.remaining) : "—"}</td>
                 <td className="px-3 py-3 tabular-nums-auto text-slate-600">{r.hall > 0 ? money(r.hall) : "—"}</td>
                 <td className="px-3 py-3 tabular-nums-auto text-slate-600">{r.rawMaterials > 0 ? money(r.rawMaterials) : "—"}</td>
-                <td className="px-3 py-3 tabular-nums-auto text-slate-600">{r.externalItems > 0 ? money(r.externalItems) : "—"}</td>
                 <td className="px-3 py-3 tabular-nums-auto text-slate-600">{r.expenses > 0 ? money(r.expenses) : "—"}</td>
                 <td className="px-3 py-3 tabular-nums-auto font-semibold text-red-600">{r.totalCosts > 0 ? money(r.totalCosts) : "—"}</td>
                 <td className={`px-3 py-3 tabular-nums-auto font-bold ${r.profit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
@@ -380,8 +380,8 @@ function ProfitabilityPageInner() {
               {[
                 ["تكلفة القاعة", detail.hall],
                 ["خامات الوارد", detail.rawMaterials],
-                ["مواد الموارد المستأجرة", detail.externalItems],
-                ["فواتير المصروفات", detail.expenses],
+                ["مصاريف الحفلة", detail.expenses],
+                ["منها: استئجار موارد خارجية", detail.externalItems],
               ].map(([l, v]) => (
                 <div key={l as string} className="flex justify-between px-3 py-2 border-t border-slate-100 text-sm">
                   <span className="text-slate-600">{l as string}</span>

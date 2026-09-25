@@ -17,6 +17,15 @@ import { db } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { WarehouseItem } from "@/types";
 
+export async function getWarehouseCategories(): Promise<string[]> {
+  const snap = await getDoc(doc(db, "warehouse_settings", "config"));
+  return snap.exists() && Array.isArray(snap.data().categories) ? snap.data().categories : [];
+}
+
+export async function updateWarehouseCategories(categories: string[]): Promise<void> {
+  await api.put("/api/settings/warehouse", { categories });
+}
+
 export async function addWarehouseItem(
   data: Omit<WarehouseItem, "id" | "createdAt">
 ): Promise<WarehouseItem> {

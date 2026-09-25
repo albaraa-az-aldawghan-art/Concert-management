@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
       name: str(body.name, "اسم المادة"),
       totalCount: num(body.totalCount, "العدد", { min: 0 }),
       type: body.type === "internal" ? "internal" : "external",
+      category: optStr(body.category, 100),
       pricePerUnit: body.pricePerUnit != null ? num(body.pricePerUnit, "السعر", { min: 0 }) : null,
       imageUrl: optStr(body.imageUrl, 500),
     });

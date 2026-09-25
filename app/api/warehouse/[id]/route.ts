@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireCaller, require_, handle, num } from "@/lib/server/guard";
+import { requireCaller, require_, handle, num, optStr } from "@/lib/server/guard";
 import { svcUpdateWarehouseItem, svcDeleteWarehouseItem } from "@/lib/server/stock-core";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       name: body.name,
       totalCount: body.totalCount != null ? num(body.totalCount, "العدد", { min: 0 }) : undefined,
       type: body.type,
+      category: body.category !== undefined ? optStr(body.category, 100) : undefined,
       pricePerUnit: body.pricePerUnit,
       imageUrl: body.imageUrl,
       order: body.order,

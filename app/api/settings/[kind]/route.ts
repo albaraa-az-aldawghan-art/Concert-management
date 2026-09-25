@@ -7,12 +7,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ kind
     const caller = await requireCaller(req, body);
     const { kind } = await params;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError("بيانات غير صحيحة");
-    if (kind === "costs" || kind === "expenses") {
-      require_(caller, kind === "costs" ? "costs" : "concerts", kind === "costs" ? "item_config" : "exp_add", "تعديل الإعدادات");
-      const fields = kind === "costs" ? ["units", "departments", "rawCategories"] : ["types"];
+    if (kind === "costs" || kind === "expenses" || kind === "warehouse") {
+      require_(caller, kind === "costs" ? "costs" : kind === "warehouse" ? "warehouse" : "concerts", kind === "costs" ? "item_config" : kind === "warehouse" ? "edit" : "exp_add", "تعديل الإعدادات");
+      const fields = kind === "costs" ? ["units", "departments", "rawCategories"] : kind === "warehouse" ? ["categories"] : ["types"];
       for (const key of Object.keys(body)) if (!fields.includes(key)) throw new ApiError("حقل غير مسموح");
       for (const value of Object.values(body)) if (!Array.isArray(value) || value.length > 500) throw new ApiError("قائمة غير صحيحة");
-      await caller.db.collection(kind === "costs" ? "cost_settings" : "expense_settings").doc("config").set(body);
+      await caller.db.collection(kind === "costs" ? "cost_settings" : kind === "warehouse" ? "warehouse_settings" : "expense_settings").doc("config").set(body);
     } else if (kind === "global") {
       const features: Record<string, string> = { vatRate: "vat", features: "features", labels: "labels", idleMonths: "idle" };
       if (!Object.keys(body).length) throw new ApiError("لا توجد تغييرات");
