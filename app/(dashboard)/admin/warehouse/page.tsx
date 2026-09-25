@@ -38,6 +38,8 @@ function SortableItemRow({
   canReorder,
   showPrice,
   showAvailable,
+  categories,
+  onCategoryChange,
   onEdit,
   onDelete,
 }: {
@@ -47,6 +49,8 @@ function SortableItemRow({
   canReorder: boolean;
   showPrice: boolean;
   showAvailable: boolean;
+  categories: string[];
+  onCategoryChange: (item: WarehouseItem, category: string) => void;
   onEdit: (item: WarehouseItem) => void;
   onDelete: (item: WarehouseItem) => void;
 }) {
@@ -98,7 +102,12 @@ function SortableItemRow({
         )}
       </td>
       <td className="px-3 py-2 font-semibold text-slate-800 text-sm min-w-[10rem]">{item.name}</td>
-      <td className="px-3 py-2 text-sm text-slate-500">{item.category || "غير مصنّف"}</td>
+      <td className="px-3 py-2 text-sm text-slate-500 min-w-[10rem]">
+        {canEdit ? <select value={item.category ?? ""} onChange={(e) => onCategoryChange(item, e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1C2D50]">
+          <option value="">غير مصنّف</option>
+          {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+        </select> : item.category || "غير مصنّف"}
+      </td>
       <td className="px-3 py-2">
         <span
           className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${
@@ -182,6 +191,13 @@ export default function AdminWarehousePage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [showCategories, setShowCategories] = useState(false);
   const [categoryInput, setCategoryInput] = useState("");
+  const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
+  const [pendingCategoryChange, setPendingCategoryChange] = useState<{ item: WarehouseItem; category: string } | null>(null);
+  const [categoryDeleteTarget, setCategoryDeleteTarget] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    name: "", category: "", type: "", totalMin: "", totalMax: "",
+    availableMin: "", availableMax: "", usedMin: "", usedMax: "", priceMin: "", priceMax: "",
+  });
 
   const [form, setForm] = useState({
     name: "",
@@ -362,10 +378,25 @@ export default function AdminWarehousePage() {
     }
   }
 
-  const q = search.trim();
-  const filtered = items.filter((i) => !q || i.name.includes(q) || (i.category ?? "").includes(q));
+  const q = search.trim().toLowerCase();
+  const numberInRange = (value: number, min: string, max: string) =>
+    (!min || value >= Number(min)) && (!max || value <= Number(max));
+  const filtered = items.filter((i) => {
+    const used = i.totalCount - i.availableCount;
+    if (q && !i.name.toLowerCase().includes(q) && !(i.category ?? "").toLowerCase().includes(q)) return false;
+    if (filters.name && !i.name.toLowerCase().includes(filters.name.trim().toLowerCase())) return false;
+    if (filters.category === "__none" && i.category) return false;
+    if (filters.category && filters.category !== "__none" && i.category !== filters.category) return false;
+    if (filters.type && i.type !== filters.type) return false;
+    if (!numberInRange(i.totalCount, filters.totalMin, filters.totalMax)) return false;
+    if (!numberInRange(i.availableCount, filters.availableMin, filters.availableMax)) return false;
+    if (!numberInRange(used, filters.usedMin, filters.usedMax)) return false;
+    if (!numberInRange(i.pricePerUnit ?? 0, filters.priceMin, filters.priceMax)) return false;
+    return true;
+  });
   // Dragging is only meaningful on the unfiltered global list
-  const canReorder = canReorderPerm && q === "";
+  const hasColumnFilters = Object.values(filters).some(Boolean);
+  const canReorder = canReorderPerm && q === "" && !hasColumnFilters;
 
   async function addCategory() {
     const name = categoryInput.trim();
@@ -374,6 +405,50 @@ export default function AdminWarehousePage() {
     setSaving(true);
     try { await updateWarehouseCategories(next); setCategories(next); setCategoryInput(""); showToast("تمت إضافة قسم الموارد"); }
     catch (err) { showToast(err instanceof Error ? err.message : "تعذّرت إضافة القسم", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function confirmCategoryChange() {
+    if (!pendingCategoryChange) return;
+    setSaving(true);
+    try {
+      await updateWarehouseItem(pendingCategoryChange.item.id, { category: pendingCategoryChange.category || null });
+      setItems((current) => current.map((item) => item.id === pendingCategoryChange.item.id ? { ...item, category: pendingCategoryChange.category || null } : item));
+      showToast("تم تحديث قسم المادة");
+      setPendingCategoryChange(null);
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث القسم", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function renameCategory(oldName: string) {
+    const newName = (categoryNames[oldName] ?? oldName).trim();
+    if (!newName || newName === oldName) return;
+    if (categories.includes(newName)) { showToast("اسم القسم موجود مسبقاً", "error"); return; }
+    setSaving(true);
+    try {
+      await Promise.all(items.filter((item) => item.category === oldName).map((item) => updateWarehouseItem(item.id, { category: newName })));
+      const next = categories.map((category) => category === oldName ? newName : category);
+      await updateWarehouseCategories(next);
+      setCategories(next);
+      setItems((current) => current.map((item) => item.category === oldName ? { ...item, category: newName } : item));
+      setCategoryNames((current) => { const nextNames = { ...current }; delete nextNames[oldName]; return nextNames; });
+      showToast("تم تعديل اسم القسم");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تعديل القسم", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function deleteCategory() {
+    if (!categoryDeleteTarget) return;
+    setSaving(true);
+    try {
+      await Promise.all(items.filter((item) => item.category === categoryDeleteTarget).map((item) => updateWarehouseItem(item.id, { category: null })));
+      const next = categories.filter((category) => category !== categoryDeleteTarget);
+      await updateWarehouseCategories(next);
+      setCategories(next);
+      setItems((current) => current.map((item) => item.category === categoryDeleteTarget ? { ...item, category: null } : item));
+      setCategoryDeleteTarget(null);
+      showToast("تم حذف القسم ونقل مواده إلى غير مصنّف");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حذف القسم", "error"); }
     finally { setSaving(false); }
   }
 
@@ -495,7 +570,7 @@ export default function AdminWarehousePage() {
               تصدير إكسل
             </Button>
           )}
-          {canAdd && (
+          {(canAdd || canEdit) && (
             <Button variant="outline" onClick={() => setShowCategories(true)}><FolderPlus size={16} /> إدارة الأقسام</Button>
           )}
           {canAdd && (
@@ -531,10 +606,10 @@ export default function AdminWarehousePage() {
           <p>تعذّر تحميل الموارد</p>
           <Button type="button" variant="outline" onClick={loadItems}>إعادة المحاولة</Button>
         </Card>
-      ) : filtered.length === 0 ? (
+      ) : items.length === 0 ? (
         <Card className="flex flex-col items-center py-12 text-slate-400">
           <Package size={40} className="mb-3 opacity-40" />
-          <p>{q ? "لا توجد نتائج مطابقة للبحث" : "لا توجد مواد في الموارد"}</p>
+          <p>لا توجد مواد في الموارد</p>
         </Card>
       ) : (
         <>
@@ -566,6 +641,20 @@ export default function AdminWarehousePage() {
                       {fw.available && <th className="px-3 py-2.5 font-semibold">التوفر</th>}
                       <th className="px-3 py-2.5"></th>
                     </tr>
+                    <tr className="border-b border-slate-200 bg-white align-top">
+                      <th></th><th></th>
+                      <th className="px-2 py-2"><input value={filters.name} onChange={(e) => setFilters({ ...filters, name: e.target.value })} placeholder="بحث بالاسم..." className="w-full min-w-32 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /></th>
+                      <th className="px-2 py-2"><select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="w-full min-w-32 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"><option value="">كل الأقسام</option><option value="__none">غير مصنّف</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
+                      <th className="px-2 py-2"><select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })} className="w-full min-w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"><option value="">كل الأنواع</option><option value="internal">داخلي</option><option value="external">خارجي</option></select></th>
+                      <th className="px-2 py-2"><div className="flex gap-1"><input type="number" min={0} value={filters.totalMin} onChange={(e) => setFilters({ ...filters, totalMin: e.target.value })} placeholder="من" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /><input type="number" min={0} value={filters.totalMax} onChange={(e) => setFilters({ ...filters, totalMax: e.target.value })} placeholder="إلى" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /></div></th>
+                      {fw.available && <>
+                        <th className="px-2 py-2"><div className="flex gap-1"><input type="number" min={0} value={filters.availableMin} onChange={(e) => setFilters({ ...filters, availableMin: e.target.value })} placeholder="من" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /><input type="number" min={0} value={filters.availableMax} onChange={(e) => setFilters({ ...filters, availableMax: e.target.value })} placeholder="إلى" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /></div></th>
+                        <th className="px-2 py-2"><div className="flex gap-1"><input type="number" min={0} value={filters.usedMin} onChange={(e) => setFilters({ ...filters, usedMin: e.target.value })} placeholder="من" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /><input type="number" min={0} value={filters.usedMax} onChange={(e) => setFilters({ ...filters, usedMax: e.target.value })} placeholder="إلى" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /></div></th>
+                      </>}
+                      {fw.price && <th className="px-2 py-2"><div className="flex gap-1"><input type="number" min={0} value={filters.priceMin} onChange={(e) => setFilters({ ...filters, priceMin: e.target.value })} placeholder="من" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /><input type="number" min={0} value={filters.priceMax} onChange={(e) => setFilters({ ...filters, priceMax: e.target.value })} placeholder="إلى" className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs" /></div></th>}
+                      {fw.available && <th></th>}
+                      <th className="px-2 py-2"><button type="button" onClick={() => { setSearch(""); setFilters({ name: "", category: "", type: "", totalMin: "", totalMax: "", availableMin: "", availableMax: "", usedMin: "", usedMax: "", priceMin: "", priceMax: "" }); }} className="text-xs font-semibold text-slate-500 hover:text-red-600 whitespace-nowrap">مسح الفلاتر</button></th>
+                    </tr>
                   </thead>
                   <tbody>
                     {filtered.map((item) => (
@@ -577,10 +666,13 @@ export default function AdminWarehousePage() {
                         canReorder={canReorder}
                         showPrice={fw.price}
                         showAvailable={fw.available}
+                        categories={categories}
+                        onCategoryChange={(target, category) => setPendingCategoryChange({ item: target, category })}
                         onEdit={openEdit}
                         onDelete={setDeleteTarget}
                       />
                     ))}
+                    {filtered.length === 0 && <tr><td colSpan={6 + (fw.available ? 3 : 0) + (fw.price ? 1 : 0)} className="py-10 text-center text-sm text-slate-400">لا توجد نتائج مطابقة للفلاتر</td></tr>}
                   </tbody>
                 </table>
               </SortableContext>
@@ -602,9 +694,17 @@ export default function AdminWarehousePage() {
       <Modal open={showCategories} onClose={() => setShowCategories(false)} title="أقسام الموارد">
         <div className="space-y-4">
           <div className="flex gap-2"><Input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} placeholder="اسم قسم جديد..." /><Button type="button" onClick={addCategory} loading={saving}><Plus size={15} /> إضافة</Button></div>
-          <div className="flex flex-wrap gap-2">{categories.length ? categories.map((c) => <span key={c} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700">{c}</span>) : <p className="text-sm text-slate-400">لا توجد أقسام بعد</p>}</div>
+          <div className="space-y-2">{categories.length ? categories.map((category) => <div key={category} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+            <input value={categoryNames[category] ?? category} onChange={(e) => setCategoryNames({ ...categoryNames, [category]: e.target.value })} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
+            <Button type="button" size="sm" variant="outline" onClick={() => renameCategory(category)} disabled={saving || (categoryNames[category] ?? category).trim() === category}>حفظ</Button>
+            <button type="button" onClick={() => setCategoryDeleteTarget(category)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
+          </div>) : <p className="text-sm text-slate-400">لا توجد أقسام بعد</p>}</div>
         </div>
       </Modal>
+
+      <ConfirmModal open={!!pendingCategoryChange} onClose={() => setPendingCategoryChange(null)} onConfirm={confirmCategoryChange} title="تغيير قسم المادة" message={`هل تريد نقل «${pendingCategoryChange?.item.name ?? ""}» إلى قسم «${pendingCategoryChange?.category || "غير مصنّف"}»؟`} confirmLabel="نعم، تغيير القسم" loading={saving} />
+
+      <ConfirmModal open={!!categoryDeleteTarget} onClose={() => setCategoryDeleteTarget(null)} onConfirm={deleteCategory} title="حذف قسم الموارد" message={`سيتم حذف قسم «${categoryDeleteTarget ?? ""}» ونقل المواد التابعة له إلى «غير مصنّف». هل تريد المتابعة؟`} confirmLabel="حذف القسم" loading={saving} />
 
       {/* Delete Confirm */}
       <ConfirmModal
