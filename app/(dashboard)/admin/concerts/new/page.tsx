@@ -20,10 +20,11 @@ import { Input, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ConcertInvoiceFields, InvoiceState } from "@/components/ui/payment-invoice-fields";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
-import { WarehouseItem, AppUser, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing, SalesSection, ConcertPackage } from "@/types";
+import { WarehouseItem, AppUser, PaymentMethod, CostItem, Concert, ConcertFood, CostOutgoing, SalesSection, ConcertPackage, ExpenseType } from "@/types";
 import { normalizeStatus } from "@/lib/concert-status";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
 import { getCostItems, getCostOutgoingForConcerts, getCostSettings } from "@/lib/firestore/costs";
+import { getExpenseSettings } from "@/lib/firestore/expenses";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Timestamp } from "firebase/firestore";
 import { Package, UtensilsCrossed, Banknote, CreditCard, Landmark, MapPin, Building2, Search, UsersRound, FileEdit, Save, Plus, Trash2 } from "lucide-react";
@@ -127,6 +128,7 @@ function NewConcertPageInner() {
   const [hallCostDate, setHallCostDate] = useState("");
   const [hallCostRecipient, setHallCostRecipient] = useState("");
   const [initialExpenses, setInitialExpenses] = useState<InitialExpense[]>([]);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
 
   /* ── Items checklist ── */
   const [activeItemType, setActiveItemType] = useState<"" | "internal" | "external">("");
@@ -172,7 +174,7 @@ function NewConcertPageInner() {
 
   useEffect(() => {
     async function load() {
-      const [items, sups, emps, foodCats, vat, costs, cons, pkgs, settings] = await Promise.all([
+      const [items, sups, emps, foodCats, vat, costs, cons, pkgs, settings, expenseSettings] = await Promise.all([
         getWarehouseItems(),
         getUsersByRole("supervisor"),
         getUsersByRole("employee"),
@@ -182,6 +184,7 @@ function NewConcertPageInner() {
         getUpcomingConcerts().catch(() => [] as Concert[]),
         getPackages().catch(() => [] as ConcertPackage[]),
         getCostSettings().catch(() => ({ units: [], departments: [] })),
+        getExpenseSettings().catch(() => ({ types: [{ name: "أخرى", kind: "other" as const }] })),
       ]);
       // أصناف الأكل والمنصرف تُقرأ للحفلات القادمة وحدها لا للأرشيف كله
       const upIds = cons
@@ -202,6 +205,7 @@ function NewConcertPageInner() {
       setAllOutgoing(out);
       setPackages(pkgs);
       setCostUnits(settings.units);
+      setExpenseTypes(expenseSettings.types);
 
       // استئناف مسودة محفوظة — تُبنى المدخلات من أحدث بيانات التكاليف
       // المحمَّلة للتو، لا من لقطة مجمَّدة قد تشير لأصناف تغيّرت أسماؤها
@@ -384,7 +388,7 @@ function NewConcertPageInner() {
 
   function addInitialExpense() {
     setInitialExpenses((current) => [...current, {
-      type: "مصاريف أخرى", description: "", amount: "", vatIncluded: false,
+      type: expenseTypes[0]?.name ?? "أخرى", description: "", amount: "", vatIncluded: false,
       invoiceDate: form.date ? form.date.slice(0, 10) : new Date().toISOString().slice(0, 10), supplierName: "",
     }]);
   }
@@ -716,14 +720,16 @@ function NewConcertPageInner() {
 
             <div className="rounded-xl border border-slate-200 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div><p className="text-sm font-bold text-slate-700">مصاريف أخرى</p><p className="text-xs text-slate-400">تُحتسب فور تسجيل الحفلة حتى لو كانت غير مؤكدة</p></div>
+                <div><p className="text-sm font-bold text-slate-700">مصاريف الحفلة</p><p className="text-xs text-slate-400">اختر نوع المصروف، ويُحتسب فور تسجيل الحفلة حتى لو كانت غير مؤكدة</p></div>
                 <Button type="button" size="sm" variant="outline" onClick={addInitialExpense}><Plus size={14} /> إضافة مصروف</Button>
               </div>
-              {initialExpenses.length === 0 ? <p className="rounded-xl bg-slate-50 py-5 text-center text-xs text-slate-400">لا توجد مصاريف إضافية</p> : (
+              {initialExpenses.length === 0 ? <p className="rounded-xl bg-slate-50 py-5 text-center text-xs text-slate-400">لا توجد مصاريف مسجلة</p> : (
                 <div className="space-y-3">
                   {initialExpenses.map((expense, index) => <div key={index} className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <Input label="نوع المصروف" required value={expense.type} onChange={(e) => updateInitialExpense(index, { type: e.target.value })} />
+                      <Select label="نوع المصروف" required value={expense.type} onChange={(e) => updateInitialExpense(index, { type: e.target.value })}>
+                        {expenseTypes.map((type) => <option key={`${type.kind}-${type.name}`} value={type.name}>{type.name}</option>)}
+                      </Select>
                       <Input label="المبلغ" type="number" min={0} step="0.01" required value={expense.amount} onChange={(e) => updateInitialExpense(index, { amount: e.target.value })} />
                       <Input label="تاريخ المصروف" type="date" value={expense.invoiceDate} onChange={(e) => updateInitialExpense(index, { invoiceDate: e.target.value })} />
                     </div>

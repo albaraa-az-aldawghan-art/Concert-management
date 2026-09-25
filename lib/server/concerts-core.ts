@@ -43,7 +43,24 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
   let concertNumber = 1;
 
   await db.runTransaction(async (tx) => {
-    const cSnap = await tx.get(counterRef);
+    const expenseSettingsRef = db.collection("expense_settings").doc("config");
+    const [cSnap, expenseSettingsSnap] = await Promise.all([
+      tx.get(counterRef),
+      tx.get(expenseSettingsRef),
+    ]);
+    const configuredTypes = expenseSettingsSnap.data()?.types;
+    const kindByType = new Map<string, "transport" | "labor" | "other">(
+      (Array.isArray(configuredTypes) ? configuredTypes : [])
+        .filter((item): item is { name: string; kind: "transport" | "labor" | "other" } =>
+          !!item && typeof item.name === "string" && ["transport", "labor", "other"].includes(item.kind))
+        .map((item) => [item.name.trim(), item.kind])
+    );
+    if (kindByType.size === 0) {
+      kindByType.set("إيجار سيارات", "transport");
+      kindByType.set("نقل وشحن", "transport");
+      kindByType.set("إيجار عمالة", "labor");
+      kindByType.set("أخرى", "other");
+    }
     concertNumber = ((cSnap.data()?.lastNumber as number) ?? 0) + 1;
     tx.set(counterRef, { lastNumber: concertNumber });
 
@@ -51,6 +68,8 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
     if (!date) throw new ApiError("تاريخ الحفلة غير صحيح");
 
     const { initialExpenses: _initialExpenses, ...concertData } = d;
+    let transportExpensesCost = 0;
+    let laborExpensesCost = 0;
     let otherExpensesCost = 0;
     tx.set(concertRef, {
       ...concertData,
@@ -84,12 +103,18 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       if (!Number.isFinite(amount) || amount <= 0) throw new ApiError("مبلغ المصروف يجب أن يكون أكبر من صفر");
       const vatIncluded = expense.vatIncluded === true;
       const vatRate = Number(d.vatRate) || 15;
-      otherExpensesCost += vatIncluded ? r2(amount / (1 + vatRate / 100)) : amount;
+      const type = typeof expense.type === "string" && expense.type.trim() ? expense.type.trim() : "أخرى";
+      const kind = kindByType.get(type) ?? "other";
+      const netAmount = vatIncluded ? r2(amount / (1 + vatRate / 100)) : amount;
+      if (kind === "transport") transportExpensesCost += netAmount;
+      else if (kind === "labor") laborExpensesCost += netAmount;
+      else otherExpensesCost += netAmount;
       tx.set(expenseRefs[index], {
         concertId: concertRef.id,
         concertNumber,
         clientName: d.clientName ?? null,
-        type: typeof expense.type === "string" && expense.type.trim() ? expense.type.trim() : "مصاريف أخرى",
+        type,
+        kind,
         description: typeof expense.description === "string" && expense.description.trim() ? expense.description.trim() : null,
         amount: r2(amount),
         vatIncluded,
@@ -99,7 +124,11 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
         createdBy: uid,
       });
     });
-    if (otherExpensesCost > 0) tx.update(concertRef, { otherExpensesCost: r2(otherExpensesCost) });
+    const expenseTotals: Record<string, number> = {};
+    if (transportExpensesCost > 0) expenseTotals.transportCost = r2(transportExpensesCost);
+    if (laborExpensesCost > 0) expenseTotals.laborCost = r2(laborExpensesCost);
+    if (otherExpensesCost > 0) expenseTotals.otherExpensesCost = r2(otherExpensesCost);
+    if (Object.keys(expenseTotals).length > 0) tx.update(concertRef, expenseTotals);
   });
   return { id: concertRef.id, concertNumber };
 }
