@@ -720,8 +720,8 @@ function CostsProductionPageInner() {
       )}
 
       {/* تسجيل إنتاج */}
-      <Modal open={showAdd} onClose={closeModal} title={editTarget ? "تعديل عملية إنتاج" : "تسجيل إنتاج"} size="lg">
-        <div className="space-y-4">
+      <Modal open={showAdd} onClose={closeModal} title={editTarget ? "تعديل عملية إنتاج" : "تسجيل إنتاج"} size="xl" className="sm:max-w-5xl">
+        <form onSubmit={(event) => { event.preventDefault(); handleSave(); }} className="space-y-4">
           {editTarget && (
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs text-amber-800">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
@@ -1084,14 +1084,14 @@ function CostsProductionPageInner() {
                 )}
                 <div className="flex gap-3">
                   <Button variant="secondary" type="button" onClick={closeModal}>إلغاء</Button>
-                  <Button onClick={handleSave} loading={saving} disabled={shortages.length > 0}>
+                  <Button type="submit" loading={saving} disabled={shortages.length > 0}>
                     {editTarget ? "حفظ التعديل" : "تسجيل الإنتاج"}
                   </Button>
                 </div>
               </div>
             </>
           )}
-        </div>
+        </form>
       </Modal>
 
       {/* ملصق باركود المُنتَج — يُلصق على الخلطة بعد تجهيزها */}
