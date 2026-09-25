@@ -222,6 +222,15 @@ export async function deleteCostIncoming(entry: CostIncoming): Promise<void> {
   await api.del(`/api/costs/incoming/${entry.id}`);
 }
 
+export async function addCostIncomingInvoice(data: {
+  supplierName: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
+}): Promise<void> {
+  await api.post("/api/costs/incoming", data);
+}
+
 /* ── الإنتاج (الخلطات) ──────────────────────────────────────
    تستهلك مواد خام وتُنتج صنفاً جاهزاً له باركوده الخاص. تكلفة
    المُنتَج = مجموع تكاليف مدخلاته، فيصير متوسط سعره صادقاً تلقائياً

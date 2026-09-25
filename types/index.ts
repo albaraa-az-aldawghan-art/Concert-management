@@ -663,6 +663,8 @@ export interface CostDamage {
 
 export interface CostIncoming {
   id: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
   itemBarcode: string;
   itemName: string;
   supplierName: string;

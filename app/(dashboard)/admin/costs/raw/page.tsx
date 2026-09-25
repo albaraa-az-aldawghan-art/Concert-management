@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { Modal } from "@/components/ui/modal";
 import { PageHeader, PageShell, LoadingState } from "@/components/ui/page";
 import { SearchBox } from "@/components/ui/list-filters";
 import {
-  addCostIncoming,
   createCostItemGenerated,
   getCostIncoming,
   getCostItems,
@@ -25,7 +25,6 @@ import { FolderPlus, History, Package, PackagePlus, Plus } from "lucide-react";
 
 type Movement = { id: string; date: string; kind: string; quantity: number; note: string };
 const emptyItem = { name: "", unit: "", category: "" };
-const emptyIncoming = { supplierName: "", invoiceDate: new Date().toISOString().slice(0, 10), quantity: "", price: "" };
 
 export default function RawMaterialsPage() {
   const { appUser, feat } = useAuth();
@@ -49,8 +48,6 @@ export default function RawMaterialsPage() {
   const [categoryName, setCategoryName] = useState("");
   const [showItem, setShowItem] = useState(false);
   const [itemForm, setItemForm] = useState(emptyItem);
-  const [incomingItem, setIncomingItem] = useState<CostItem | null>(null);
-  const [incomingForm, setIncomingForm] = useState(emptyIncoming);
   const [movementItem, setMovementItem] = useState<CostItem | null>(null);
 
   async function load() {
@@ -107,27 +104,6 @@ export default function RawMaterialsPage() {
     finally { setSaving(false); }
   }
 
-  function openIncoming(item: CostItem) {
-    setIncomingItem(item);
-    setIncomingForm({ ...emptyIncoming, invoiceDate: new Date().toISOString().slice(0, 10) });
-  }
-
-  async function recordIncoming(e: React.FormEvent) {
-    e.preventDefault();
-    if (!appUser || !incomingItem) return;
-    const quantity = Number(incomingForm.quantity), price = Number(incomingForm.price);
-    if (!(quantity > 0)) { showToast("أدخل كمية صحيحة", "error"); return; }
-    setSaving(true);
-    try {
-      await addCostIncoming({
-        itemBarcode: incomingItem.id, supplierName: incomingForm.supplierName.trim(), quantity,
-        priceBeforeVat: Number.isFinite(price) ? price : 0, invoiceDate: incomingForm.invoiceDate, createdBy: appUser.uid,
-      });
-      setIncomingItem(null); showToast("تم تسجيل الوارد وتحديث الرصيد"); await load();
-    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تسجيل الوارد", "error"); }
-    finally { setSaving(false); }
-  }
-
   async function changeCategory(item: CostItem, rawCategory: string) {
     try {
       await updateCostItem(item.id, { rawCategory: rawCategory || null });
@@ -151,6 +127,7 @@ export default function RawMaterialsPage() {
         actions={<div className="flex gap-2 flex-wrap">
           {canConfig && <Button variant="outline" onClick={() => setShowCategory(true)}><FolderPlus size={16} /> إضافة قسم</Button>}
           {canAddItem && <Button onClick={() => { setItemForm({ ...emptyItem, category: categoryFilter }); setShowItem(true); }}><Plus size={16} /> إضافة مادة خام</Button>}
+          {canIncoming && <Link href="/admin/costs/incoming"><Button><PackagePlus size={16} /> فاتورة شراء جديدة</Button></Link>}
         </div>} />
 
       <div className="filter-panel">
@@ -166,21 +143,22 @@ export default function RawMaterialsPage() {
           <div className="flex items-center justify-between"><h2 className="font-bold text-slate-800">{group.name}</h2><span className="text-xs text-slate-400">{group.items.length} مادة</span></div>
           {group.items.length === 0 ? <Card className="py-8 text-center text-sm text-slate-400">القسم فارغ — أضف مادة خام إليه</Card> : (
             <div className="data-table-shell"><table className="data-table"><thead><tr>
-              <th>المادة</th><th>القسم</th><th>الوحدة</th><th>الرصيد</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
+              <th>المادة</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
             </tr></thead><tbody>{group.items.map((item) => {
               const bal = (item.totalIn ?? 0) - (item.totalOut ?? 0);
               const avg = bal > 0 ? (item.totalInValue ?? 0) / bal : 0;
               const last = incoming.find((e) => e.itemBarcode === item.id);
+              const suppliers = [...new Set(incoming.filter((e) => e.itemBarcode === item.id && e.supplierName).map((e) => e.supplierName))];
               return <tr key={item.id}>
                 <td><p className="font-semibold text-slate-800">{item.name}</p><p className="text-[11px] text-slate-400 font-mono">{item.id}</p></td>
                 <td>{canEditItem ? <select value={item.rawCategory ?? ""} onChange={(e) => changeCategory(item, e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</select> : (item.rawCategory ?? "غير مصنّف")}</td>
+                <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
                 <td>{item.unit}</td><td className="font-semibold tabular-nums-auto">{bal.toLocaleString("en-US")}</td>
                 <td className="tabular-nums-auto">{avg.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="tabular-nums-auto">{(item.totalInValue ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="text-slate-500 tabular-nums-auto">{last?.invoiceDate ?? "—"}</td>
                 <td><div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setMovementItem(item)}><History size={14} /> عرض الحركة</Button>
-                  {canIncoming && <Button size="sm" variant="outline" onClick={() => openIncoming(item)}><PackagePlus size={14} /> تسجيل وارد</Button>}
                 </div></td>
               </tr>;
             })}</tbody></table></div>
@@ -199,14 +177,6 @@ export default function RawMaterialsPage() {
           <Select label="الوحدة" required value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}><option value="" disabled>اختر الوحدة</option>{settings.units.map((u) => <option key={u}>{u}</option>)}</Select>
           <Select label="القسم" value={itemForm.category} onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</Select>
           <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setShowItem(false)}>إلغاء</Button><Button type="submit" loading={saving}>حفظ المادة</Button></div>
-        </form>
-      </Modal>
-
-      <Modal open={!!incomingItem} onClose={() => setIncomingItem(null)} title={`تسجيل وارد — ${incomingItem?.name ?? ""}`}>
-        <form onSubmit={recordIncoming} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3"><Input label="المورد" value={incomingForm.supplierName} onChange={(e) => setIncomingForm({ ...incomingForm, supplierName: e.target.value })} /><Input label="تاريخ الفاتورة" type="date" required value={incomingForm.invoiceDate} onChange={(e) => setIncomingForm({ ...incomingForm, invoiceDate: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3"><Input label={`الكمية (${incomingItem?.unit ?? ""})`} type="number" min={0} step="0.01" required value={incomingForm.quantity} onChange={(e) => setIncomingForm({ ...incomingForm, quantity: e.target.value })} /><Input label="سعر الوحدة قبل الضريبة" type="number" min={0} step="0.01" value={incomingForm.price} onChange={(e) => setIncomingForm({ ...incomingForm, price: e.target.value })} /></div>
-          <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setIncomingItem(null)}>إلغاء</Button><Button type="submit" loading={saving}>حفظ الوارد</Button></div>
         </form>
       </Modal>
 

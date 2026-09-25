@@ -86,6 +86,62 @@ export async function svcAddIncoming(
   return { id: entryRef.id };
 }
 
+export async function svcAddIncomingInvoice(
+  db: Firestore,
+  d: {
+    supplierName: string; invoiceNumber: string; invoiceDate: string; createdBy: string;
+    lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
+  }
+) {
+  if (d.lines.length === 0) throw new ApiError("أضف مادة واحدة على الأقل إلى الفاتورة");
+  const barcodes = d.lines.map((line) => line.itemBarcode);
+  if (new Set(barcodes).size !== barcodes.length) throw new ApiError("لا يمكن تكرار المادة نفسها في الفاتورة");
+  const invoiceRef = db.collection("cost_purchase_invoices").doc();
+  const itemRefs = barcodes.map((barcode) => db.collection("cost_items").doc(barcode));
+  const entryRefs = d.lines.map(() => db.collection("cost_incoming").doc());
+
+  await db.runTransaction(async (tx) => {
+    const itemSnaps = await Promise.all(itemRefs.map((ref) => tx.get(ref)));
+    itemSnaps.forEach((snap) => {
+      if (!snap.exists) throw new ApiError("إحدى مواد الفاتورة غير مسجلة");
+    });
+    let invoiceTotal = 0;
+    d.lines.forEach((line, index) => {
+      const item = itemSnaps[index].data() as ItemDoc;
+      const totalBeforeVat = r2(line.quantity * line.priceBeforeVat);
+      invoiceTotal = r2(invoiceTotal + totalBeforeVat);
+      tx.set(entryRefs[index], {
+        invoiceId: invoiceRef.id,
+        invoiceNumber: d.invoiceNumber,
+        itemBarcode: line.itemBarcode,
+        itemName: item.name,
+        unit: item.unit,
+        supplierName: d.supplierName,
+        quantity: line.quantity,
+        priceBeforeVat: line.priceBeforeVat,
+        totalBeforeVat,
+        invoiceDate: d.invoiceDate,
+        createdAt: Timestamp.now(),
+        createdBy: d.createdBy,
+      });
+      tx.update(itemRefs[index], {
+        totalIn: (item.totalIn ?? 0) + line.quantity,
+        totalInValue: r2((item.totalInValue ?? 0) + totalBeforeVat),
+      });
+    });
+    tx.set(invoiceRef, {
+      invoiceNumber: d.invoiceNumber,
+      supplierName: d.supplierName,
+      invoiceDate: d.invoiceDate,
+      lineCount: d.lines.length,
+      totalBeforeVat: invoiceTotal,
+      createdAt: Timestamp.now(),
+      createdBy: d.createdBy,
+    });
+  });
+  return { id: invoiceRef.id };
+}
+
 export async function svcDeleteIncoming(db: Firestore, id: string) {
   const entryRef = db.collection("cost_incoming").doc(id);
   await db.runTransaction(async (tx) => {
