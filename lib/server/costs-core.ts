@@ -951,6 +951,7 @@ export async function svcUpdateItem(
     kind?: "raw" | "produced" | "sale";
     rawCategory?: string | null;
     salesSections?: string[];
+    salesChannel?: "restaurant" | "concerts" | "contracts" | null;
     minimumStock?: number;
   }
 ) {
@@ -996,6 +997,12 @@ export async function svcUpdateItem(
       if (snaps.some((sectionSnap) => !sectionSnap.exists)) throw new ApiError("قسم البيع المحدد غير موجود");
     }
     patch.salesSections = clean;
+  }
+  if (d.salesChannel !== undefined) {
+    if (d.salesChannel !== null && d.salesChannel !== "restaurant" && d.salesChannel !== "concerts" && d.salesChannel !== "contracts") {
+      throw new ApiError("القسم الأساسي غير صحيح");
+    }
+    patch.salesChannel = d.salesChannel;
   }
   if (d.sectionPrices !== undefined) {
     if (typeof d.sectionPrices !== "object" || d.sectionPrices === null || Array.isArray(d.sectionPrices)) {

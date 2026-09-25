@@ -461,7 +461,7 @@ function CostsProductionPageInner() {
     .filter((r) => !recipeSectionFilter || (r.item.salesSections ?? []).includes(recipeSectionFilter) || r.item.rawCategory === recipeSectionFilter)
     .filter((r) => !recipeMainSectionFilter || (recipeMainSectionFilter === "manufactured"
       ? r.item.kind === "produced"
-      : (r.item.salesSections ?? []).some((id) => sections.find((section) => section.id === id)?.channel === recipeMainSectionFilter)))
+      : r.item.salesChannel === recipeMainSectionFilter || (r.item.salesSections ?? []).some((id) => sections.find((section) => section.id === id)?.channel === recipeMainSectionFilter)))
     .filter((r) => !recipeUnitFilter || r.item.unit === recipeUnitFilter)
     .filter((r) => !recipeBarcodeFilter.trim() || r.item.id.includes(recipeBarcodeFilter.trim()))
     .filter((r) => recipeBalanceFilter === "" || ((r.item.totalIn ?? 0) - (r.item.totalOut ?? 0)) <= Number(recipeBalanceFilter))
@@ -479,6 +479,7 @@ function CostsProductionPageInner() {
 
   function mainSectionOf(item: CostItem): SalesChannel | "manufactured" | "" {
     if (item.kind === "produced") return "manufactured";
+    if (item.salesChannel) return item.salesChannel;
     const sectionId = (item.salesSections ?? [])[0];
     return sections.find((section) => section.id === sectionId)?.channel ?? "";
   }
@@ -487,7 +488,10 @@ function CostsProductionPageInner() {
     const label = field === "kind" ? "نوع المنتج" : "قسم المنتج";
     if (!window.confirm(`هل أنت موافق على تغيير ${label} للمنتج «${item.name}»؟`)) return;
     try {
-      const patch = field === "kind" ? { kind: value as "raw" | "produced" | "sale" } : { salesSections: value ? [value] : [] };
+      const selectedSection = sections.find((section) => section.id === value);
+      const patch = field === "kind"
+        ? { kind: value as "raw" | "produced" | "sale" }
+        : { salesSections: value ? [value] : [], salesChannel: selectedSection?.channel ?? item.salesChannel ?? null };
       await updateCostItem(item.id, patch);
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));
       showToast(`تم تحديث ${label}`);
@@ -498,8 +502,8 @@ function CostsProductionPageInner() {
     const label = mainSections.find((section) => section.value === value)?.label ?? "بلا قسم";
     if (!window.confirm(`هل أنت موافق على تغيير القسم الأساسي للمنتج «${item.name}» إلى «${label}»؟ سيتم مسح القسم الفرعي السابق.`)) return;
     const patch = value === "manufactured"
-      ? { kind: "produced" as const, salesSections: [] as string[] }
-      : { kind: "sale" as const, salesSections: [] as string[] };
+      ? { kind: "produced" as const, salesSections: [] as string[], salesChannel: null }
+      : { kind: "sale" as const, salesSections: [] as string[], salesChannel: value || null };
     try {
       await updateCostItem(item.id, patch);
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));

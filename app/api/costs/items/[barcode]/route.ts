@@ -30,6 +30,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
       salesSections: Array.isArray(body.salesSections)
         ? body.salesSections.map((id: unknown) => str(id, "قسم البيع"))
         : undefined,
+      salesChannel: body.salesChannel === null
+        ? null
+        : body.salesChannel === "restaurant" || body.salesChannel === "concerts" || body.salesChannel === "contracts"
+          ? body.salesChannel
+          : undefined,
       minimumStock: body.minimumStock !== undefined
         ? num(body.minimumStock, "الحد الأدنى", { min: 0 })
         : undefined,
