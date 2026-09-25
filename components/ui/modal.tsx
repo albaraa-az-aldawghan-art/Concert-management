@@ -1,7 +1,7 @@
 ﻿"use client";
 
 /* النافذة: لوح سفلي على الجوّال وحوار في المنتصف على الشاشات، ونافذة تأكيد الحذف. */
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
@@ -22,6 +22,24 @@ const sizes = {
 };
 
 export function Modal({ open, onClose, title, children, className, size = "md" }: ModalProps) {
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const dirtyRef = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) { dirtyRef.current = false; setShowExitPrompt(false); }
+  }, [open]);
+
+  function requestClose() {
+    if (dirtyRef.current && panelRef.current?.querySelector("form")) setShowExitPrompt(true);
+    else onClose();
+  }
+
+  function saveBeforeClose() {
+    const form = panelRef.current?.querySelector("form") as HTMLFormElement | null;
+    setShowExitPrompt(false);
+    form?.requestSubmit();
+  }
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -39,10 +57,16 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px] anim-fade-in"
-        onClick={onClose}
+        onClick={requestClose}
       />
       {/* Bottom sheet on phones, centered dialog on larger screens */}
       <div
+        ref={panelRef}
+        onInputCapture={() => { dirtyRef.current = true; }}
+        onChangeCapture={() => { dirtyRef.current = true; }}
+        onClickCapture={(event) => {
+          if ((event.target as HTMLElement).closest("form")) dirtyRef.current = true;
+        }}
         className={cn(
           "relative w-full bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 max-h-[88vh] overflow-y-auto",
           "anim-slide-up sm:anim-scale-in",
@@ -59,7 +83,7 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-sm z-10">
             <h2 className="text-lg font-bold text-slate-800">{title}</h2>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="p-2 -m-1 rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors"
               aria-label="إغلاق"
             >
@@ -68,6 +92,19 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
           </div>
         )}
         <div className="p-5">{children}</div>
+        {showExitPrompt && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/35 p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+              <h3 className="font-bold text-slate-800">لديك بيانات غير محفوظة</h3>
+              <p className="mt-2 text-sm text-slate-500">هل تريد حفظ البيانات، متابعة التعديل، أم إلغاء التغييرات؟</p>
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => { dirtyRef.current = false; setShowExitPrompt(false); onClose(); }} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">إلغاء التغييرات</button>
+                <button type="button" onClick={() => setShowExitPrompt(false)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">متابعة التعديل</button>
+                <button type="button" onClick={saveBeforeClose} className="rounded-xl bg-[#1C2D50] px-3 py-2 text-sm font-semibold text-white">حفظ</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

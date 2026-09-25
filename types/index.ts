@@ -671,6 +671,7 @@ export interface CostIncoming {
   itemName: string;
   supplierName: string;
   unit: string; // نسخة من وحدة الصنف وقت التسجيل — للعرض والتدقيق فقط
+  dispenseUnit?: string;
   quantity: number;
   priceBeforeVat: number;
   totalBeforeVat: number;

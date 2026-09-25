@@ -90,7 +90,7 @@ export async function svcAddIncomingInvoice(
   db: Firestore,
   d: {
     supplierName: string; invoiceNumber: string; invoiceDate: string; createdBy: string;
-    lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
+    lines: { itemBarcode: string; quantity: number; priceBeforeVat: number; dispenseUnit?: string }[];
   }
 ) {
   if (d.lines.length === 0) throw new ApiError("أضف مادة واحدة على الأقل إلى الفاتورة");
@@ -116,6 +116,7 @@ export async function svcAddIncomingInvoice(
         itemBarcode: line.itemBarcode,
         itemName: item.name,
         unit: item.unit,
+        dispenseUnit: line.dispenseUnit || item.unit,
         supplierName: d.supplierName,
         quantity: line.quantity,
         priceBeforeVat: line.priceBeforeVat,

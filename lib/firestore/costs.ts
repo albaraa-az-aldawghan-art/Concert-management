@@ -226,7 +226,7 @@ export async function addCostIncomingInvoice(data: {
   supplierName: string;
   invoiceNumber: string;
   invoiceDate: string;
-  lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
+  lines: { itemBarcode: string; quantity: number; priceBeforeVat: number; dispenseUnit?: string }[];
 }): Promise<void> {
   await api.post("/api/costs/incoming", data);
 }

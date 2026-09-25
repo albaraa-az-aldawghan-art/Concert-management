@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
           itemBarcode: str(line.itemBarcode, "الصنف"),
           quantity: num(line.quantity, "الكمية", { positive: true }),
           priceBeforeVat: num(line.priceBeforeVat ?? 0, "السعر", { min: 0 }),
+          dispenseUnit: optStr(line.dispenseUnit) ?? undefined,
         })),
       });
     }
