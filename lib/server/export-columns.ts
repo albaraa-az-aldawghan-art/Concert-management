@@ -79,6 +79,43 @@ export const COSTS_COLUMNS: ExportColumn[] = [
   { key: "note",     label: "ملاحظة",         width: 28 },
 ];
 
+/* ── أعمدة كتالوج التكاليف ── */
+export const RAW_MATERIAL_COLUMNS: ExportColumn[] = [
+  { key: "name",       label: "المادة",          width: 28, default: true },
+  { key: "barcode",    label: "الباركود",        width: 15, default: true },
+  { key: "category",   label: "القسم",           width: 18, default: true },
+  { key: "suppliers",  label: "الموردون",        width: 28, default: true },
+  { key: "unit",       label: "الوحدة",          width: 11, default: true },
+  { key: "balance",    label: "الرصيد",          width: 12, fmt: "int", default: true },
+  { key: "minimum",    label: "الحد الأدنى",     width: 13, fmt: "int", default: true },
+  { key: "average",    label: "متوسط التكلفة",   width: 16, fmt: "money", default: true },
+  { key: "stockValue", label: "قيمة الرصيد",     width: 16, fmt: "money", default: true },
+];
+
+export const PRODUCT_COLUMNS: ExportColumn[] = [
+  { key: "name",        label: "المنتج",          width: 30, default: true },
+  { key: "barcode",     label: "الباركود",        width: 15, default: true },
+  { key: "kind",        label: "النوع",           width: 14, default: true },
+  { key: "mainSection", label: "القسم الأساسي",   width: 18, default: true },
+  { key: "subSections", label: "الأقسام الفرعية", width: 28, default: true },
+  { key: "unit",        label: "الوحدة",          width: 11, default: true },
+  { key: "balance",     label: "الرصيد",          width: 12, fmt: "int", default: true },
+  { key: "minimum",     label: "الحد الأدنى",     width: 13, fmt: "int", default: true },
+  { key: "average",     label: "متوسط التكلفة",   width: 16, fmt: "money", default: true },
+  { key: "stockValue",  label: "قيمة الرصيد",     width: 16, fmt: "money", default: true },
+  { key: "recipeStatus",label: "حالة الوصفة",     width: 16, default: true },
+];
+
+export const RECIPE_COLUMNS: ExportColumn[] = [
+  { key: "product",          label: "المنتج",           width: 30, default: true },
+  { key: "productBarcode",   label: "باركود المنتج",    width: 16, default: true },
+  { key: "productUnit",      label: "وحدة المنتج",      width: 14, default: true },
+  { key: "ingredient",       label: "المكوّن",          width: 28, default: true },
+  { key: "ingredientBarcode",label: "باركود المكوّن",   width: 17, default: true },
+  { key: "ingredientUnit",   label: "وحدة المكوّن",     width: 15, default: true },
+  { key: "quantity",         label: "الكمية القياسية",  width: 17, fmt: "int", default: true },
+];
+
 /** أعمدة لقطة الأرصدة آخر كل شهر — ثابتة، لا تُختار */
 export const BALANCE_COLUMNS: { label: string; width: number; fmt?: "money" | "int" }[] = [
   { label: "الصنف", width: 24 },

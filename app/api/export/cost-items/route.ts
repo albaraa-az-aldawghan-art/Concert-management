@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { requireCaller, ApiError, withActivityResponse } from "@/lib/server/guard";
+import {
+  ExportColumn, PRODUCT_COLUMNS, RAW_MATERIAL_COLUMNS, RECIPE_COLUMNS, pickColumns,
+} from "@/lib/server/export-columns";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,25 +21,41 @@ function balance(item: Doc) { return Number(item.totalIn ?? 0) - Number(item.tot
 function average(item: Doc) { const b = balance(item); return b > 0 ? Number(item.totalInValue ?? 0) / b : 0; }
 function kind(item: Doc) { return item.kind ?? (Array.isArray(item.productionRecipe) && item.productionRecipe.length ? "produced" : "raw"); }
 
-function prepareSheet(ws: ExcelJS.Worksheet, title: string, headers: string[]) {
-  ws.views = [{ rightToLeft: true, state: "frozen", ySplit: 2 }];
+const formats: Record<string, string> = {
+  money: '#,##0.00 "ريال"', int: "#,##0", pct: "0.0%", date: "dd/mm/yyyy",
+};
+
+function prepareSheet(ws: ExcelJS.Worksheet, title: string, columns: ExportColumn[], rowCount: number) {
+  ws.views = [{ rightToLeft: true, showGridLines: false, state: "frozen", ySplit: 3, topLeftCell: "A4", activeCell: "A1" }];
+  ws.properties.defaultRowHeight = 20;
+  ws.columns = columns.map((column) => ({ key: column.key, width: column.width }));
   const titleRow = ws.addRow([title]);
-  ws.mergeCells(1, 1, 1, headers.length);
+  ws.mergeCells(1, 1, 1, columns.length);
   titleRow.font = { bold: true, size: 15, color: { argb: "FF1C2D50" } };
   titleRow.height = 25;
-  const header = ws.addRow(headers);
+  const subtitle = ws.addRow([`${rowCount.toLocaleString("en-US")} سجل`]);
+  ws.mergeCells(2, 1, 2, columns.length);
+  subtitle.font = { size: 10, color: { argb: "FF64748B" } };
+  const header = ws.addRow(columns.map((column) => column.label));
   header.font = { bold: true, color: { argb: "FF1C2D50" } };
   header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF1F7" } };
   header.alignment = { horizontal: "right", vertical: "middle" };
-  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: headers.length } };
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: columns.length } };
 }
 
-function finishSheet(ws: ExcelJS.Worksheet) {
-  ws.columns.forEach((column) => { column.width = Math.min(40, Math.max(12, ...(column.values ?? []).map((v) => String(v ?? "").length + 2))); });
+function finishSheet(ws: ExcelJS.Worksheet, columns: ExportColumn[]) {
   ws.eachRow((row, rowNumber) => {
     row.alignment = { horizontal: "right", vertical: "middle", wrapText: true };
-    if (rowNumber > 2) row.eachCell((cell) => { cell.border = { bottom: { style: "hair", color: { argb: "FFE2E8F0" } } }; });
+    if (rowNumber > 3) row.eachCell((cell, columnNumber) => {
+      cell.border = { bottom: { style: "hair", color: { argb: "FFE2E8F0" } } };
+      const format = columns[columnNumber - 1]?.fmt;
+      if (format && formats[format]) cell.numFmt = formats[format];
+    });
   });
+}
+
+function values(columns: ExportColumn[], row: Record<string, string | number>) {
+  return columns.map((column) => row[column.key] ?? "");
 }
 
 async function download(req: NextRequest) {
@@ -63,30 +82,42 @@ async function download(req: NextRequest) {
         const data = doc.data(); const barcode = String(data.itemBarcode ?? ""); const supplier = String(data.supplierName ?? "").trim();
         if (barcode && supplier) { if (!supplierMap.has(barcode)) supplierMap.set(barcode, new Set()); supplierMap.get(barcode)!.add(supplier); }
       });
-      prepareSheet(ws, meta.title, ["المادة", "الباركود", "القسم", "الموردون", "الوحدة", "الرصيد", "الحد الأدنى", "متوسط التكلفة", "قيمة الرصيد"]);
-      items.filter((item) => kind(item) === "raw").forEach((item) => ws.addRow([
-        item.name, item.id, item.rawCategory ?? "غير مصنّف", [...(supplierMap.get(item.id) ?? [])].join("، "), item.unit,
-        balance(item), Number(item.minimumStock ?? 0), average(item), balance(item) * average(item),
-      ]));
+      const columns = pickColumns(RAW_MATERIAL_COLUMNS, new URL(req.url).searchParams.get("cols"));
+      const rows = items.filter((item) => kind(item) === "raw").map((item) => ({
+        name: String(item.name ?? ""), barcode: item.id, category: String(item.rawCategory ?? "غير مصنّف"),
+        suppliers: [...(supplierMap.get(item.id) ?? [])].join("، "), unit: String(item.unit ?? ""),
+        balance: balance(item), minimum: Number(item.minimumStock ?? 0), average: average(item), stockValue: balance(item) * average(item),
+      }));
+      prepareSheet(ws, meta.title, columns, rows.length);
+      rows.forEach((row) => ws.addRow(values(columns, row)));
+      finishSheet(ws, columns);
     } else if (scope === "products") {
       const sectionMap = new Map(sectionSnap?.docs.map((doc) => [doc.id, doc.data().name as string]) ?? []);
-      prepareSheet(ws, meta.title, ["المنتج", "الباركود", "النوع", "القسم الأساسي", "الأقسام الفرعية", "الوحدة", "الرصيد", "الحد الأدنى", "متوسط التكلفة", "قيمة الرصيد", "حالة الوصفة"]);
-      items.filter((item) => kind(item) !== "raw").forEach((item) => {
+      const columns = pickColumns(PRODUCT_COLUMNS, new URL(req.url).searchParams.get("cols"));
+      const rows = items.filter((item) => kind(item) !== "raw").map((item) => {
         const recipe = Array.isArray(item.productionRecipe) ? item.productionRecipe : [];
         const channel = item.salesChannel === "restaurant" ? "المطعم" : item.salesChannel === "concerts" ? "الحفلات" : item.salesChannel === "contracts" ? "التعاقدات" : "منتجات مصنعة";
-        ws.addRow([item.name, item.id, kind(item) === "sale" ? "منتج بيع" : "منتج مصنع", channel,
-          (Array.isArray(item.salesSections) ? item.salesSections : []).map((id) => sectionMap.get(String(id)) ?? id).join("، "), item.unit,
-          balance(item), Number(item.minimumStock ?? 0), average(item), balance(item) * average(item), recipe.length ? "مكتملة" : "تحتاج وصفة"]);
+        return {
+          name: String(item.name ?? ""), barcode: item.id, kind: kind(item) === "sale" ? "منتج بيع" : "منتج مصنع", mainSection: channel,
+          subSections: (Array.isArray(item.salesSections) ? item.salesSections : []).map((id) => sectionMap.get(String(id)) ?? String(id)).join("، "),
+          unit: String(item.unit ?? ""), balance: balance(item), minimum: Number(item.minimumStock ?? 0), average: average(item),
+          stockValue: balance(item) * average(item), recipeStatus: recipe.length ? "مكتملة" : "تحتاج وصفة",
+        };
       });
+      prepareSheet(ws, meta.title, columns, rows.length);
+      rows.forEach((row) => ws.addRow(values(columns, row)));
+      finishSheet(ws, columns);
     } else {
-      prepareSheet(ws, meta.title, ["المنتج", "باركود المنتج", "وحدة المنتج", "المكوّن", "باركود المكوّن", "وحدة المكوّن", "الكمية القياسية"]);
-      items.filter((item) => Array.isArray(item.productionRecipe) && item.productionRecipe.length > 0).forEach((item) => {
-        (item.productionRecipe as Record<string, unknown>[]).forEach((line) => ws.addRow([
-          item.name, item.id, item.unit, line.itemName ?? line.name ?? "", line.barcode ?? "", line.unit ?? "", Number(line.qty ?? line.quantity ?? 0),
-        ]));
-      });
+      const columns = pickColumns(RECIPE_COLUMNS, new URL(req.url).searchParams.get("cols"));
+      const rows = items.flatMap((item) => Array.isArray(item.productionRecipe) ? (item.productionRecipe as Record<string, unknown>[]).map((line) => ({
+        product: String(item.name ?? ""), productBarcode: item.id, productUnit: String(item.unit ?? ""),
+        ingredient: String(line.itemName ?? line.name ?? ""), ingredientBarcode: String(line.barcode ?? ""),
+        ingredientUnit: String(line.unit ?? ""), quantity: Number(line.qty ?? line.quantity ?? 0),
+      })) : []);
+      prepareSheet(ws, meta.title, columns, rows.length);
+      rows.forEach((row) => ws.addRow(values(columns, row)));
+      finishSheet(ws, columns);
     }
-    finishSheet(ws);
     const buffer = await wb.xlsx.writeBuffer();
     return new NextResponse(buffer as ArrayBuffer, { headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

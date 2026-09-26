@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
-import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { CostItemsExportDialog } from "@/components/ui/cost-items-export-dialog";
+import { RAW_MATERIAL_COLUMNS } from "@/lib/server/export-columns";
 import { PageHeader, PageShell, LoadingState } from "@/components/ui/page";
 import { SearchBox } from "@/components/ui/list-filters";
 import {
@@ -44,7 +45,7 @@ export default function RawMaterialsPage() {
   const [settings, setSettings] = useState<CostSettings>({ units: [], departments: [], rawCategories: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCategory, setShowCategory] = useState(false);
@@ -61,20 +62,6 @@ export default function RawMaterialsPage() {
       ]);
       setItems(i); setIncoming(inc); setOutgoing(out); setProductions(prod); setSettings(config);
     } finally { setLoading(false); }
-  }
-
-  async function exportRawMaterials() {
-    setExporting(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
-      const response = await fetch("/api/export/cost-items?scope=raw", { headers: { Authorization: `Bearer ${token}` } });
-      if (!response.ok) { const json = await response.json().catch(() => null); throw new Error(json?.error ?? "تعذّر التصدير"); }
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a"); link.href = url; link.download = "المواد الخام.xlsx"; link.click(); URL.revokeObjectURL(url);
-      showToast("تم تصدير المواد الخام");
-    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error"); }
-    finally { setExporting(false); }
   }
 
   useEffect(() => {
@@ -163,7 +150,7 @@ export default function RawMaterialsPage() {
       <PageHeader title="المواد الخام" eyebrow="التكاليف" icon={Package}
         description="تنظيم الخامات حسب الأقسام، وتسجيل الوارد ومراجعة حركة كل مادة من مكان واحد"
         actions={<div className="flex gap-2 flex-wrap">
-          {canExport && <Button variant="outline" loading={exporting} onClick={exportRawMaterials}><FileSpreadsheet size={16} /> تصدير إكسل</Button>}
+          {canExport && <Button variant="outline" onClick={() => setShowExport(true)}><FileSpreadsheet size={16} /> تصدير إكسل</Button>}
           {canConfig && <Button variant="outline" onClick={() => setShowCategory(true)}><FolderPlus size={16} /> إضافة قسم</Button>}
           {canAddItem && <Button onClick={() => { setItemForm({ ...emptyItem, category: categoryFilter }); setShowItem(true); }}><Plus size={16} /> إضافة مادة خام</Button>}
           {canIncoming && <Link href="/admin/costs/incoming"><Button><PackagePlus size={16} /> فاتورة شراء جديدة</Button></Link>}
@@ -206,6 +193,15 @@ export default function RawMaterialsPage() {
           )}
         </section>
       ))}
+
+      <CostItemsExportDialog
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        scope="raw"
+        columns={RAW_MATERIAL_COLUMNS}
+        title="تصدير المواد الخام إلى إكسل"
+        filename="المواد الخام.xlsx"
+      />
 
       <Modal open={showCategory} onClose={() => setShowCategory(false)} title="إضافة قسم للمواد الخام">
         <div className="space-y-4"><Input label="اسم القسم" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="مثال: اللحوم" />

@@ -10,11 +10,12 @@ import {
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
-import { auth } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { CostItemsExportDialog } from "@/components/ui/cost-items-export-dialog";
+import { PRODUCT_COLUMNS, RECIPE_COLUMNS } from "@/lib/server/export-columns";
 import { SearchBox, Pagination, SortHeader, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
@@ -60,21 +61,7 @@ function CostsProductionPageInner() {
   const canRecipe = isAdmin || feat("costs", "prod_recipe");
   const canLabel = isAdmin || feat("costs", "prod_label");
   const canExport = isAdmin || feat("costs", "export");
-  const [exporting, setExporting] = useState<"products" | "recipes" | null>(null);
-
-  async function exportSheet(scope: "products" | "recipes") {
-    setExporting(scope);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
-      const response = await fetch(`/api/export/cost-items?scope=${scope}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!response.ok) { const json = await response.json().catch(() => null); throw new Error(json?.error ?? "تعذّر التصدير"); }
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a"); link.href = url; link.download = scope === "products" ? "المنتجات.xlsx" : "الوصفات القياسية.xlsx"; link.click(); URL.revokeObjectURL(url);
-      showToast(scope === "products" ? "تم تصدير المنتجات" : "تم تصدير الوصفات القياسية");
-    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error"); }
-    finally { setExporting(null); }
-  }
+  const [exportScope, setExportScope] = useState<"products" | "recipes" | null>(null);
   const canDelete = isAdmin || feat("costs", "prod_delete");
   const fp = {
     inputs: isAdmin || feat("costs", "prf_inputs"),
@@ -561,7 +548,7 @@ function CostsProductionPageInner() {
           <p className="text-sm text-slate-500">{productions.length} عملية إنتاج مسجّلة</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canExport && <><Button variant="outline" loading={exporting === "products"} onClick={() => exportSheet("products")}><FileSpreadsheet size={16} /> تصدير المنتجات</Button><Button variant="outline" loading={exporting === "recipes"} onClick={() => exportSheet("recipes")}><FileSpreadsheet size={16} /> تصدير الوصفات</Button></>}
+          {canExport && <><Button variant="outline" onClick={() => setExportScope("products")}><FileSpreadsheet size={16} /> تصدير المنتجات</Button><Button variant="outline" onClick={() => setExportScope("recipes")}><FileSpreadsheet size={16} /> تصدير الوصفات</Button></>}
           {canRecord && <Button onClick={openAdd}><Plus size={16} /> تسجيل إنتاج</Button>}
         </div>
       </div>
@@ -1111,6 +1098,23 @@ function CostsProductionPageInner() {
           )}
         </form>
       </Modal>
+
+      <CostItemsExportDialog
+        open={exportScope === "products"}
+        onClose={() => setExportScope(null)}
+        scope="products"
+        columns={PRODUCT_COLUMNS}
+        title="تصدير المنتجات إلى إكسل"
+        filename="المنتجات.xlsx"
+      />
+      <CostItemsExportDialog
+        open={exportScope === "recipes"}
+        onClose={() => setExportScope(null)}
+        scope="recipes"
+        columns={RECIPE_COLUMNS}
+        title="تصدير الوصفات القياسية إلى إكسل"
+        filename="الوصفات القياسية.xlsx"
+      />
 
       {/* ملصق باركود المُنتَج — يُلصق على الخلطة بعد تجهيزها */}
       <BarcodeLabelModal open={!!labelTarget} onClose={() => setLabelTarget(null)} item={labelTarget} />
