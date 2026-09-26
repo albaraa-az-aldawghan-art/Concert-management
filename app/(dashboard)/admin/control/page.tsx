@@ -185,7 +185,7 @@ export default function ControlCenterPage() {
     ]);
     setFeatures(sys.features);
     setLabels(sys.labels);
-    setVat(String(vatRate));
+    setVat(vatRate === 0 ? "" : String(vatRate));
     setIdle(String(sys.idleMonths));
     setCostSettings(cs);
     setExpenseTypes(es.types ?? []);

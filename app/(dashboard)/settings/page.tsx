@@ -29,7 +29,7 @@ export default function SettingsPage() {
 
 
   useEffect(() => {
-    getVatRate().then((r) => setVatRateInput(String(r)));
+    getVatRate().then((r) => setVatRateInput(r === 0 ? "" : String(r)));
   }, []);
 
 

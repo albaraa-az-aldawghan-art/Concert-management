@@ -653,7 +653,7 @@ function NewConcertPageInner() {
                 onChange={(e) => setForm({ ...form, date: e.target.value })} required />
               <div className="flex flex-col gap-1.5">
                 <Input label={`السعر الإجمالي مع الضريبة (ريال)`} type="number" min={0} step="0.01" value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="0.00" />
+                  onChange={(e) => setForm({ ...form, price: e.target.value })} />
                 {form.price && parseFloat(form.price) > 0 && (
                   <div className="grid grid-cols-2 gap-2 mt-1">
                     <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
@@ -692,7 +692,7 @@ function NewConcertPageInner() {
                   <div className="flex items-center gap-3">
                     <input type="number" min={0} step="0.01" value={hallCostValue}
                       onChange={(e) => setHallCostValue(e.target.value)}
-                      placeholder={hallCostType === "percentage" ? "مثال: 15" : "0.00"}
+                      placeholder={hallCostType === "percentage" ? "مثال: 15" : ""}
                       className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
                     <span className="text-sm text-slate-500 shrink-0">{hallCostType === "percentage" ? "%" : "ريال"}</span>
                     {hallCostType === "percentage" && hallCostValue && form.price && (
@@ -826,7 +826,7 @@ function NewConcertPageInner() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <Input label="المبلغ (ريال)" type="number" min={1} step="0.01" value={paymentForm.amount}
-                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder="0.00" />
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
               <Input label="التاريخ" type="date" value={paymentForm.date}
                 onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} />
             </div>

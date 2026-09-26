@@ -89,7 +89,7 @@ export default function PackagesPage() {
     setEditTarget(p);
     setName(p.name);
     setNotes(p.notes ?? "");
-    setLines(p.items.map((i) => ({ barcode: i.barcode, quantity: String(i.quantity) })));
+    setLines(p.items.map((i) => ({ barcode: i.barcode, quantity: i.quantity === 0 ? "" : String(i.quantity) })));
     setMaterials(p.materials.map((m) => ({ itemId: m.itemId, count: String(m.count) })));
     setPickTab("food"); setPickSearch("");
     setShowForm(true);

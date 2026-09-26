@@ -194,7 +194,7 @@ export default function RawMaterialsPage() {
                 <td>{canEditItem ? <select value={item.rawCategory ?? ""} onChange={(e) => changeCategory(item, e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</select> : (item.rawCategory ?? "غير مصنّف")}</td>
                 <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
                 <td>{item.unit}</td><td className={`font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && bal <= (item.minimumStock ?? 0) ? "text-red-600" : ""}`}>{bal.toLocaleString("en-US")}</td>
-                <td><input type="number" min="0" step="0.01" defaultValue={item.minimumStock ?? 0} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
+                <td><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
                 <td className="tabular-nums-auto">{avg.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="tabular-nums-auto">{(item.totalInValue ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="text-slate-500 tabular-nums-auto">{last?.invoiceDate ?? "—"}</td>

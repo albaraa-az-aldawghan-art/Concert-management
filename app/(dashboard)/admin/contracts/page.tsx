@@ -138,9 +138,9 @@ export default function ContractsPage() {
     setForm({
       name: c.name, clientName: c.clientName ?? "", clientPhone: c.clientPhone ?? "",
       startDate: c.startDate, endDate: c.endDate,
-      totalValue: String(c.totalValue ?? ""), vatRate: String(c.vatRate ?? 15), notes: c.notes ?? "",
+      totalValue: (c.totalValue ?? 0) === 0 ? "" : String(c.totalValue), vatRate: (c.vatRate ?? 15) === 0 ? "" : String(c.vatRate ?? 15), notes: c.notes ?? "",
     });
-    setTerms(c.terms.map((t) => ({ barcode: t.barcode, quantity: String(t.quantity), unitPrice: String(t.unitPrice) })));
+    setTerms(c.terms.map((t) => ({ barcode: t.barcode, quantity: t.quantity === 0 ? "" : String(t.quantity), unitPrice: t.unitPrice === 0 ? "" : String(t.unitPrice) })));
     setTermSearch("");
     setShowForm(true);
   }

@@ -43,8 +43,8 @@ export default function WarehouseManagerWarehousePage() {
     setEditTarget(item);
     setForm({
       name: item.name,
-      totalCount: String(item.totalCount),
-      availableCount: String(item.availableCount),
+      totalCount: item.totalCount === 0 ? "" : String(item.totalCount),
+      availableCount: item.availableCount === 0 ? "" : String(item.availableCount),
       type: item.type,
     });
   }

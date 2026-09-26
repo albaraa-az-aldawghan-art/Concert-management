@@ -325,7 +325,7 @@ export default function DesignSystemPage() {
           <Spec title="الحقول" hint="التسمية فوق الحقل دائماً، والشرح تحته، والنجمة الحمراء للمطلوب.">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input label="اسم العميل" placeholder="مثال: أبو سعد" required />
-              <Input label="المبلغ (ريال)" type="number" placeholder="0.00" helperText="شامل الضريبة" />
+              <Input label="المبلغ (ريال)" type="number" helperText="شامل الضريبة" />
               <Select label="الوحدة" defaultValue="">
                 <option value="" disabled>اختر الوحدة</option>
                 <option>كجم</option>
@@ -520,7 +520,7 @@ export default function DesignSystemPage() {
         <div className="space-y-4">
           <Input label="اسم الصنف" placeholder="مثال: لحم بقر بدون عظم" required />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="الكمية" type="number" placeholder="0" />
+            <Input label="الكمية" type="number" />
             <Input label="التاريخ" type="date" />
           </div>
           <div className="flex gap-3 justify-end pt-1">

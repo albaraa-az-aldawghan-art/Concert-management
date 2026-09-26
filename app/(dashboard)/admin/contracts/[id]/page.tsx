@@ -255,9 +255,9 @@ export default function ContractDetailPage() {
       setLines(day.lines.map((l) => ({
         barcode: l.barcode, supplied: String(l.supplied), damaged: String(l.damaged), remaining: String(l.remaining),
       })));
-      setCollections(Object.fromEntries(METHODS.map((m) => [m.key, String((day.collections as Record<string, number>)?.[m.key] ?? 0)])));
-      setExpenses(Object.fromEntries((day.expenses ?? []).map((e) => [e.key, String(e.amount)])));
-      setCustody(String(day.custody ?? 0));
+      setCollections(Object.fromEntries(METHODS.map((m) => { const value = (day.collections as Record<string, number>)?.[m.key] ?? 0; return [m.key, value === 0 ? "" : String(value)]; })));
+      setExpenses(Object.fromEntries((day.expenses ?? []).map((e) => [e.key, e.amount === 0 ? "" : String(e.amount)])));
+      setCustody((day.custody ?? 0) === 0 ? "" : String(day.custody));
       setNotes(day.notes ?? "");
     } else {
       setLines([]);

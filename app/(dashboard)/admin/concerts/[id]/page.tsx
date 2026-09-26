@@ -1400,7 +1400,7 @@ export default function AdminConcertDetailPage() {
               <BadgeDollarSign size={15} />
               <span className="text-xs font-medium">سعر الحفلة</span>
             </div>
-            {fx.editPrice && <button onClick={() => { setEditPrice(String(concert.price ?? "")); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
+            {fx.editPrice && <button onClick={() => { setEditPrice((concert.price ?? 0) === 0 ? "" : String(concert.price)); setShowEditPrice(true); }} className="text-slate-300 hover:text-blue-500 transition-colors">
               <Pencil size={13} />
             </button>}
           </div>
@@ -1480,7 +1480,7 @@ export default function AdminConcertDetailPage() {
             {fx.editHall && <button
               onClick={() => {
                 setEditHallCostType(concert.hallCostType ?? "none");
-                setEditHallCostValue(String(concert.hallCostValue ?? ""));
+                setEditHallCostValue((concert.hallCostValue ?? 0) === 0 ? "" : String(concert.hallCostValue));
                 setEditHallCostDate(concert.hallCostDate ?? "");
                 setEditHallCostRecipient(concert.hallCostRecipient ?? "");
                 setShowEditHallCost(true);
@@ -2001,7 +2001,7 @@ export default function AdminConcertDetailPage() {
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-[#1C2D50] tabular-nums-auto">{f.quantity ?? 0}</span>
                           {fx.foodEditQty && <button
-                            onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue(String(f.quantity ?? 0)); }}
+                            onClick={() => { setEditFoodQtyTarget(f); setEditFoodQtyValue((f.quantity ?? 0) === 0 ? "" : String(f.quantity)); }}
                             className="text-orange-400 hover:text-orange-600 transition-colors p-1 -m-1"
                             title="تعديل الكمية"
                           >
@@ -2334,7 +2334,7 @@ export default function AdminConcertDetailPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">المبلغ (ريال)</label>
-              <input type="number" min={1} step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder="0.00" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+              <input type="number" min={1} step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">التاريخ</label>
@@ -2763,7 +2763,7 @@ export default function AdminConcertDetailPage() {
                 max={editHallCostType === "percentage" ? 100 : undefined}
                 value={editHallCostValue}
                 onChange={(e) => setEditHallCostValue(e.target.value)}
-                placeholder={editHallCostType === "percentage" ? "مثال: 10" : "0.00"}
+                placeholder={editHallCostType === "percentage" ? "مثال: 10" : ""}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
                 autoFocus
               />
@@ -2883,7 +2883,7 @@ export default function AdminConcertDetailPage() {
               step="0.01"
               value={editPrice}
               onChange={(e) => setEditPrice(e.target.value)}
-              placeholder="0.00"
+              placeholder=""
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]"
               autoFocus
             />
@@ -3066,7 +3066,7 @@ export default function AdminConcertDetailPage() {
                     step="0.01"
                     value={cancelRefundAmount}
                     onChange={(e) => setCancelRefundAmount(e.target.value)}
-                    placeholder="0.00"
+                    placeholder=""
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
                   />
                 </div>

@@ -269,11 +269,11 @@ export default function AdminWarehousePage() {
     setEditTarget(item);
     setForm({
       name: item.name,
-      totalCount: String(item.totalCount),
-      availableCount: String(item.availableCount),
+      totalCount: item.totalCount === 0 ? "" : String(item.totalCount),
+      availableCount: item.availableCount === 0 ? "" : String(item.availableCount),
       type: item.type,
       category: item.category ?? "",
-      pricePerUnit: String(item.pricePerUnit ?? ""),
+      pricePerUnit: (item.pricePerUnit ?? 0) === 0 ? "" : String(item.pricePerUnit),
     });
     pickImage(null);
     setImageUrl(item.imageUrl ?? null);
@@ -534,7 +534,7 @@ export default function AdminWarehousePage() {
           step="0.01"
           value={form.pricePerUnit}
           onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
-          placeholder="0.00 ريال (اختياري)"
+          placeholder="اختياري"
           helperText={
             form.type === "external"
               ? "تكلفة فعلية تُحتسب على الحفلة"

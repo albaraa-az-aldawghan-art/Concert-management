@@ -648,7 +648,7 @@ function CostsProductionPageInner() {
                         <td className="px-4 py-2.5">{mainSectionOf(item) === "manufactured" ? <span className="text-xs text-slate-400">—</span> : <select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} disabled={!mainSectionOf(item)} className="max-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-100"><option value="">اختر القسم الفرعي</option>{sections.filter((section) => section.channel === mainSectionOf(item)).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select>}</td>
                         <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
                         <td className="px-4 py-2.5 font-semibold tabular-nums-auto">{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
-                        <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={item.minimumStock ?? 0} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
+                        <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
                         {fp.inputs && (
                           <td className="px-4 py-2.5">
                             <div className="flex flex-wrap gap-1 max-w-xs">
@@ -984,7 +984,7 @@ function CostsProductionPageInner() {
                           <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{l.itemName}</span>
                           <input type="number" min={0} step="0.001" value={l.qty}
                             onChange={(e) => setInputs((prev) => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
-                            placeholder="0"
+                            placeholder=""
                             className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                           <span className="text-xs text-slate-500 shrink-0 w-10">{l.unit}</span>
                           <span className="text-[10px] font-semibold text-[#1C2D50] shrink-0 tabular-nums-auto whitespace-nowrap" title={`${money(unitPrice)} ريال لكل ${l.unit}`}>
