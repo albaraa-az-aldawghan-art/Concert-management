@@ -4,6 +4,7 @@ import { requireCaller, ApiError, withActivityResponse } from "@/lib/server/guar
 import {
   ExportColumn, PRODUCT_COLUMNS, RAW_MATERIAL_COLUMNS, RECIPE_COLUMNS, pickColumns,
 } from "@/lib/server/export-columns";
+import { appendRecipeGroups } from "@/lib/server/recipe-export-layout";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -109,13 +110,18 @@ async function download(req: NextRequest) {
       finishSheet(ws, columns);
     } else {
       const columns = pickColumns(RECIPE_COLUMNS, new URL(req.url).searchParams.get("cols"));
-      const rows = items.flatMap((item) => Array.isArray(item.productionRecipe) ? (item.productionRecipe as Record<string, unknown>[]).map((line) => ({
-        product: String(item.name ?? ""), productBarcode: item.id, productUnit: String(item.unit ?? ""),
-        ingredient: String(line.itemName ?? line.name ?? ""), ingredientBarcode: String(line.barcode ?? ""),
-        ingredientUnit: String(line.unit ?? ""), quantity: Number(line.qty ?? line.quantity ?? 0),
-      })) : []);
-      prepareSheet(ws, meta.title, columns, rows.length);
-      rows.forEach((row) => ws.addRow(values(columns, row)));
+      const groups = items.flatMap((item) => {
+        const recipe = Array.isArray(item.productionRecipe) ? item.productionRecipe as Record<string, unknown>[] : [];
+        if (recipe.length === 0) return [];
+        return [{ rows: recipe.map((line) => ({
+          product: String(item.name ?? ""), productBarcode: item.id, productUnit: String(item.unit ?? ""),
+          ingredient: String(line.itemName ?? line.name ?? ""), ingredientBarcode: String(line.barcode ?? ""),
+          ingredientUnit: String(line.unit ?? ""), quantity: Number(line.qty ?? line.quantity ?? 0),
+        })) }];
+      });
+      const ingredientCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
+      prepareSheet(ws, meta.title, columns, ingredientCount);
+      appendRecipeGroups(ws, columns, groups);
       finishSheet(ws, columns);
     }
     const buffer = await wb.xlsx.writeBuffer();
