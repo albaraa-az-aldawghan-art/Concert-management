@@ -1,5 +1,7 @@
 import { Timestamp, Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
+import { SalesChannel } from "@/types";
+import { validateSalesSectionOrder } from "@/lib/sales-section-order";
 
 /* ═══════════════════════════════════════════════════════════════
    منتجات البيع والبكجات على الخادم.
@@ -108,6 +110,26 @@ export async function svcSetSectionItemOrder(db: Firestore, sectionId: string, i
     }
   }
   await secRef.update({ itemOrder: unique });
+}
+
+/** يحفظ ترتيب كل أقسام قناة واحدة دفعة واحدة كي لا ترى التعاقدات ترتيباً جزئياً. */
+export async function svcSetSalesSectionOrder(db: Firestore, channel: string, sectionIds: string[]) {
+  if (!CHANNELS.includes(channel)) throw new ApiError("قناة بيع غير معروفة");
+  const snapshot = await db.collection("sales_sections").where("channel", "==", channel).get();
+  let ordered: string[];
+  try {
+    ordered = validateSalesSectionOrder(
+      channel as SalesChannel,
+      sectionIds,
+      snapshot.docs.map((doc) => ({ id: doc.id, channel: doc.data().channel as SalesChannel })),
+    );
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : "ترتيب الأقسام غير صالح");
+  }
+
+  const batch = db.batch();
+  ordered.forEach((id, order) => batch.update(db.collection("sales_sections").doc(id), { order }));
+  await batch.commit();
 }
 
 /* ── البكجات ── */

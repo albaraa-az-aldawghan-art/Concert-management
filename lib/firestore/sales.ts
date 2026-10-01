@@ -4,21 +4,18 @@ import { collection, doc, getDoc, getDocs, query, where } from "firebase/firesto
 import { db } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { SalesSection, SalesChannel, ConcertPackage, CostItem } from "@/types";
+import { orderSalesSections } from "@/lib/sales-section-order";
 
 /* ── أقسام البيع ── */
 
 export async function getSalesSections(): Promise<SalesSection[]> {
   const snap = await getDocs(collection(db, "sales_sections"));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as SalesSection))
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return orderSalesSections(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SalesSection)));
 }
 
 export async function getSectionsOfChannel(channel: SalesChannel): Promise<SalesSection[]> {
   const snap = await getDocs(query(collection(db, "sales_sections"), where("channel", "==", channel)));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as SalesSection))
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return orderSalesSections(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SalesSection)));
 }
 
 export async function addSalesSection(channel: SalesChannel, name: string): Promise<string> {
@@ -42,6 +39,11 @@ export async function setItemSections(barcode: string, sectionIds: string[]): Pr
 /** ترتيب أصناف قسم بيع بالسحب والإفلات */
 export async function setSectionItemOrder(sectionId: string, itemOrder: string[]): Promise<void> {
   await api.patch(`/api/sales-sections/${sectionId}/item-order`, { itemOrder });
+}
+
+/** ترتيب بطاقات الأقسام داخل قناة بيع؛ تستخدمه التعاقدات والحفلات والمطعم تلقائياً. */
+export async function setSalesSectionOrder(channel: SalesChannel, sectionIds: string[]): Promise<void> {
+  await api.patch("/api/sales-sections/order", { channel, sectionIds });
 }
 
 /** أصناف التكاليف المعروضة للبيع تحت قسم معيّن — بترتيبه المحفوظ إن

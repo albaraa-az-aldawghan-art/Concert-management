@@ -3,12 +3,12 @@
 /* منتجات البيع: قنوات البيع الثلاث، وأقسام كل قناة، والأصناف المعروضة
    تحت كل قسم — ومصدرها كلها أصناف التكاليف (خام أو مُنتَج). */
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent,
 } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy, rectSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
@@ -19,8 +19,9 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { getCostItems } from "@/lib/firestore/costs";
 import {
   getSalesSections, addSalesSection, renameSalesSection, deleteSalesSection,
-  setItemSections, setSectionItemOrder, itemsOfSection,
+  setItemSections, setSectionItemOrder, setSalesSectionOrder, itemsOfSection,
 } from "@/lib/firestore/sales";
+import { orderSalesSections } from "@/lib/sales-section-order";
 import { itemBalance, averageCost } from "@/lib/recipes";
 import { CostItem, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import {
@@ -80,6 +81,44 @@ function SortableFoodItemRow({
   );
 }
 
+function SortableSectionCard({
+  id, canReorder, children,
+}: {
+  id: string;
+  canReorder: boolean;
+  children: (dragHandle: ReactNode) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id, disabled: !canReorder });
+  const dragHandle = canReorder ? (
+    <button
+      {...attributes}
+      {...listeners}
+      className="p-1.5 text-slate-400 hover:text-[#1C2D50] cursor-grab active:cursor-grabbing touch-none transition-colors"
+      style={{ touchAction: "none" }}
+      title="اسحب لترتيب القسم بالكامل"
+      aria-label="اسحب لترتيب القسم بالكامل"
+    >
+      <GripVertical size={16} />
+    </button>
+  ) : null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.65 : 1,
+        zIndex: isDragging ? 50 : undefined,
+        position: "relative",
+      }}
+    >
+      <Card className="h-full">{children(dragHandle)}</Card>
+    </div>
+  );
+}
+
 /** وسم النوع كما تعرضه صفحة التكاليف — خام/مُصنَّع/بيع، بلا فلترة */
 function kindOf(i: CostItem): "raw" | "produced" | "sale" {
   return i.kind ?? ((i.productionRecipe?.length ?? 0) > 0 ? "produced" : "raw");
@@ -127,7 +166,7 @@ export default function SalesProductsPage() {
     setLoading(false);
   }
 
-  const channelSections = sections.filter((s) => s.channel === channel);
+  const channelSections = orderSalesSections(sections.filter((s) => s.channel === channel));
 
   async function handleAddSection() {
     const name = newSection.trim();
@@ -215,6 +254,29 @@ export default function SalesProductsPage() {
     }
   }
 
+  async function handleSalesSectionsReorder(event: DragEndEvent) {
+    if (!canReorder) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = channelSections.findIndex((section) => section.id === active.id);
+    const newIndex = channelSections.findIndex((section) => section.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(channelSections, oldIndex, newIndex);
+    const sectionIds = reordered.map((section) => section.id);
+    const rank = new Map(sectionIds.map((id, order) => [id, order]));
+    setSections((current) => current.map((section) => (
+      section.channel === channel ? { ...section, order: rank.get(section.id) ?? section.order } : section
+    )));
+    try {
+      await setSalesSectionOrder(channel, sectionIds);
+      showToast("حُفظ ترتيب الأقسام");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر حفظ ترتيب الأقسام", "error");
+      load();
+    }
+  }
+
   if (appUser && !isAdmin && !canView && !canAddSection && !canRename) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
@@ -292,26 +354,34 @@ export default function SalesProductsPage() {
           <p className="text-xs mt-1">أضف قسماً أولاً (مثل: المشاوي · المعجنات · المقبلات)</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleSalesSectionsReorder}>
+          <SortableContext items={channelSections.map((section) => section.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {channelSections.map((section) => {
             const secItems = itemsOfSection(items, section.id, section.itemOrder);
             return (
-              <Card key={section.id}>
+              <SortableSectionCard key={section.id} id={section.id} canReorder={canReorder}>
+                {(dragHandle) => <>
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="min-w-0">
                     <p className="font-bold text-slate-800 truncate">{section.name}</p>
                     <p className="text-xs text-slate-500">{secItems.length} صنف معروض</p>
                   </div>
-                  {canManage && (
+                  {(canManage || canReorder) && (
                     <div className="flex gap-1 shrink-0">
+                      {dragHandle}
+                      {canRename && (
                       <button onClick={() => { setRenameTarget(section); setRenameValue(section.name); }}
                         className="p-1.5 text-slate-400 hover:text-[#1C2D50] transition-colors" title="تعديل الاسم">
                         <Pencil size={14} />
                       </button>
+                      )}
+                      {canDeleteSection && (
                       <button onClick={() => setDeleteTarget(section)}
                         className="p-1.5 text-slate-400 hover:text-red-500 transition-colors" title="حذف القسم">
                         <Trash2 size={14} />
                       </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -343,10 +413,13 @@ export default function SalesProductsPage() {
                     <Plus size={14} /> اختيار أصناف من التكاليف
                   </Button>
                 )}
-              </Card>
+                </>}
+              </SortableSectionCard>
             );
           })}
-        </div>
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* اختيار أصناف القسم */}
