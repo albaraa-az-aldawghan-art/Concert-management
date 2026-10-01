@@ -119,8 +119,7 @@ async function download(req: NextRequest) {
           ingredientUnit: String(line.unit ?? ""), quantity: Number(line.qty ?? line.quantity ?? 0),
         })) }];
       });
-      const ingredientCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
-      prepareSheet(ws, meta.title, columns, ingredientCount);
+      prepareSheet(ws, meta.title, columns, groups.length);
       appendRecipeGroups(ws, columns, groups);
       finishSheet(ws, columns);
     }

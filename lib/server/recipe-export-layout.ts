@@ -8,53 +8,35 @@ export interface RecipeExportGroup {
 }
 
 const RECIPE_FILL = "FFFFE699";
-const SEPARATOR_FILL = "FFFFF2CC";
+const JOINER = " - ";
 
 function rowValues(columns: ExportColumn[], row: RecipeExportRow) {
   return columns.map((column) => row[column.key] ?? "");
 }
 
-/**
- * يكتب كل وصفة كمجموعة بصرية واحدة:
- * - اسم المنتج في خلية واحدة مدمجة، بلا تكرار.
- * - تظليل أصفر لكامل صفوف الوصفة.
- * - صف فاصل بعلامة ناقص بين الوصفات.
- */
+/** يكتب كل وصفة في صف واحد، ويفصل قيم مكوّناتها بشرطة داخل كل عمود. */
 export function appendRecipeGroups(
   ws: ExcelJS.Worksheet,
   columns: ExportColumn[],
   groups: RecipeExportGroup[],
 ) {
-  const productColumn = columns.findIndex((column) => column.key === "product") + 1;
-
-  groups.forEach((group, groupIndex) => {
+  groups.forEach((group) => {
     if (group.rows.length === 0) return;
-    const firstRow = ws.rowCount + 1;
-
-    group.rows.forEach((source, rowIndex) => {
-      const row = { ...source };
-      if (rowIndex > 0) row.product = "";
-      const excelRow = ws.addRow(rowValues(columns, row));
-      excelRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RECIPE_FILL } };
-      });
-    });
-
-    const lastRow = ws.rowCount;
-    if (productColumn > 0 && lastRow > firstRow) {
-      ws.mergeCells(firstRow, productColumn, lastRow, productColumn);
-      const nameCell = ws.getCell(firstRow, productColumn);
-      nameCell.value = group.rows[0].product ?? "";
-      nameCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    }
-
-    if (groupIndex < groups.length - 1) {
-      const separator = ws.addRow(["-"]);
-      ws.mergeCells(separator.number, 1, separator.number, columns.length);
-      separator.height = 14;
-      separator.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-      separator.getCell(1).font = { bold: true, color: { argb: "FFB45309" } };
-      separator.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: SEPARATOR_FILL } };
+    const first = group.rows[0];
+    const combined: RecipeExportRow = {
+      product: first.product ?? "",
+      productBarcode: first.productBarcode ?? "",
+      productUnit: first.productUnit ?? "",
+      ingredient: group.rows.map((row) => String(row.ingredient ?? "")).join(JOINER),
+      ingredientBarcode: group.rows.map((row) => String(row.ingredientBarcode ?? "")).join(JOINER),
+      ingredientUnit: group.rows.map((row) => String(row.ingredientUnit ?? "")).join(JOINER),
+      quantity: group.rows.map((row) => String(row.quantity ?? "")).join(JOINER),
+    };
+    const excelRow = ws.addRow(rowValues(columns, combined));
+    const ingredientColumn = columns.findIndex((column) => column.key === "ingredient") + 1;
+    if (ingredientColumn > 0) {
+      const ingredientCell = excelRow.getCell(ingredientColumn);
+      ingredientCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RECIPE_FILL } };
     }
   });
 }
