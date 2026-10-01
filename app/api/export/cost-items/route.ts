@@ -5,6 +5,7 @@ import {
   ExportColumn, PRODUCT_COLUMNS, RAW_MATERIAL_COLUMNS, RECIPE_COLUMNS, pickColumns,
 } from "@/lib/server/export-columns";
 import { appendRecipeGroups } from "@/lib/server/recipe-export-layout";
+import { productMainSectionLabel, productSubSectionLabel, ProductSectionRef } from "@/lib/product-sections";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -93,14 +94,23 @@ async function download(req: NextRequest) {
       rows.forEach((row) => ws.addRow(values(columns, row)));
       finishSheet(ws, columns);
     } else if (scope === "products") {
-      const sectionMap = new Map(sectionSnap?.docs.map((doc) => [doc.id, doc.data().name as string]) ?? []);
+      const sections: ProductSectionRef[] = sectionSnap?.docs.map((doc) => ({
+        id: doc.id,
+        name: String(doc.data().name ?? ""),
+        channel: doc.data().channel as ProductSectionRef["channel"],
+      })) ?? [];
       const columns = pickColumns(PRODUCT_COLUMNS, new URL(req.url).searchParams.get("cols"));
       const rows = items.filter((item) => kind(item) !== "raw").map((item) => {
         const recipe = Array.isArray(item.productionRecipe) ? item.productionRecipe : [];
-        const channel = item.salesChannel === "restaurant" ? "المطعم" : item.salesChannel === "concerts" ? "الحفلات" : item.salesChannel === "contracts" ? "التعاقدات" : "منتجات مصنعة";
+        const sectionItem = {
+          kind: item.kind,
+          salesChannel: item.salesChannel,
+          salesSections: item.salesSections,
+        };
         return {
-          name: String(item.name ?? ""), barcode: item.id, kind: kind(item) === "sale" ? "منتج بيع" : "منتج مصنع", mainSection: channel,
-          subSections: (Array.isArray(item.salesSections) ? item.salesSections : []).map((id) => sectionMap.get(String(id)) ?? String(id)).join("، "),
+          name: String(item.name ?? ""), barcode: item.id, kind: kind(item) === "sale" ? "منتج بيع" : "منتج مصنع",
+          mainSection: productMainSectionLabel(sectionItem, sections),
+          subSections: productSubSectionLabel(sectionItem, sections),
           unit: String(item.unit ?? ""), balance: balance(item), minimum: Number(item.minimumStock ?? 0), average: average(item),
           stockValue: balance(item) * average(item), recipeStatus: recipe.length ? "مكتملة" : "تحتاج وصفة",
         };

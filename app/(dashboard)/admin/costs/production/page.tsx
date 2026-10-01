@@ -20,6 +20,7 @@ import { SearchBox, Pagination, SortHeader, ClearFiltersButton } from "@/compone
 import { CostItem, CostProduction, RecipeLine, SalesSection, SalesChannel, SALES_CHANNELS } from "@/types";
 import { getSalesSections } from "@/lib/firestore/sales";
 import { averageCost, itemBalance } from "@/lib/recipes";
+import { productMainSection } from "@/lib/product-sections";
 import { Plus, FlaskConical, Trash2, X, Save, AlertTriangle, Barcode, Printer, Pencil, FileSpreadsheet } from "lucide-react";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -482,10 +483,7 @@ function CostsProductionPageInner() {
   ];
 
   function mainSectionOf(item: CostItem): SalesChannel | "manufactured" | "" {
-    if (item.kind === "produced") return "manufactured";
-    if (item.salesChannel) return item.salesChannel;
-    const sectionId = (item.salesSections ?? [])[0];
-    return sections.find((section) => section.id === sectionId)?.channel ?? "";
+    return productMainSection(item, sections);
   }
 
   async function confirmItemChange(item: CostItem, field: "kind" | "salesSections", value: string) {

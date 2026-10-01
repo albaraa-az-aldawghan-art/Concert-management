@@ -97,7 +97,7 @@ export const PRODUCT_COLUMNS: ExportColumn[] = [
   { key: "barcode",     label: "الباركود",        width: 15, default: true },
   { key: "kind",        label: "النوع",           width: 14, default: true },
   { key: "mainSection", label: "القسم الأساسي",   width: 18, default: true },
-  { key: "subSections", label: "الأقسام الفرعية", width: 28, default: true },
+  { key: "subSections", label: "القسم الفرعي",   width: 28, default: true },
   { key: "unit",        label: "الوحدة",          width: 11, default: true },
   { key: "balance",     label: "الرصيد",          width: 12, fmt: "int", default: true },
   { key: "minimum",     label: "الحد الأدنى",     width: 13, fmt: "int", default: true },
