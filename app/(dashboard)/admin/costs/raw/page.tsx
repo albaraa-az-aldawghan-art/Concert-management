@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
+import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { CostItemsExportDialog } from "@/components/ui/cost-items-export-dialog";
 import { RAW_MATERIAL_COLUMNS } from "@/lib/server/export-columns";
 import { PageHeader, PageShell, LoadingState } from "@/components/ui/page";
@@ -19,11 +19,13 @@ import {
   getCostOutgoing,
   getCostProductions,
   getCostSettings,
+  deleteRawCategory,
+  renameRawCategory,
   updateCostItem,
   updateCostSettings,
 } from "@/lib/firestore/costs";
 import { CostIncoming, CostItem, CostOutgoing, CostProduction, CostSettings } from "@/types";
-import { FileSpreadsheet, FolderPlus, History, Package, PackagePlus, Plus } from "lucide-react";
+import { FileSpreadsheet, FolderPlus, History, Package, PackagePlus, Pencil, Plus, Trash2 } from "lucide-react";
 
 type Movement = { id: string; date: string; kind: string; quantity: number; note: string };
 const emptyItem = { name: "", unit: "", category: "" };
@@ -50,6 +52,8 @@ export default function RawMaterialsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCategory, setShowCategory] = useState(false);
   const [categoryName, setCategoryName] = useState("");
+  const [editCategory, setEditCategory] = useState<string | null>(null);
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<string | null>(null);
   const [showItem, setShowItem] = useState(false);
   const [itemForm, setItemForm] = useState(emptyItem);
   const [movementItem, setMovementItem] = useState<CostItem | null>(null);
@@ -91,6 +95,49 @@ export default function RawMaterialsPage() {
       await updateCostSettings(next); setSettings(next); setCategoryName(""); setShowCategory(false);
       showToast("تمت إضافة قسم المواد الخام");
     } catch (e) { showToast(e instanceof Error ? e.message : "تعذّر إضافة القسم", "error"); }
+    finally { setSaving(false); }
+  }
+
+  function openAddCategory() {
+    setEditCategory(null);
+    setCategoryName("");
+    setShowCategory(true);
+  }
+
+  function openEditCategory(name: string) {
+    setEditCategory(name);
+    setCategoryName(name);
+    setShowCategory(true);
+  }
+
+  async function saveCategory() {
+    if (!editCategory) return addCategory();
+    const newName = categoryName.trim();
+    if (!newName || newName === editCategory) { setShowCategory(false); return; }
+    if (categories.includes(newName)) { showToast("اسم القسم موجود مسبقًا", "error"); return; }
+    setSaving(true);
+    try {
+      const result = await renameRawCategory(editCategory, newName);
+      setSettings((current) => ({ ...current, rawCategories: result.rawCategories }));
+      setItems((current) => current.map((item) => item.rawCategory === editCategory ? { ...item, rawCategory: newName } : item));
+      if (categoryFilter === editCategory) setCategoryFilter(newName);
+      setShowCategory(false); setEditCategory(null); setCategoryName("");
+      showToast(`تم تعديل اسم القسم وتحديث ${result.affected} مادة`);
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تعديل القسم", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function confirmDeleteCategory() {
+    if (!deleteCategoryTarget) return;
+    setSaving(true);
+    try {
+      const result = await deleteRawCategory(deleteCategoryTarget);
+      setSettings((current) => ({ ...current, rawCategories: result.rawCategories }));
+      setItems((current) => current.map((item) => item.rawCategory === deleteCategoryTarget ? { ...item, rawCategory: null } : item));
+      if (categoryFilter === deleteCategoryTarget) setCategoryFilter("");
+      setDeleteCategoryTarget(null);
+      showToast(`تم حذف القسم ونقل ${result.affected} مادة إلى غير مصنّف`);
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حذف القسم", "error"); }
     finally { setSaving(false); }
   }
 
@@ -151,7 +198,7 @@ export default function RawMaterialsPage() {
         description="تنظيم الخامات حسب الأقسام، وتسجيل الوارد ومراجعة حركة كل مادة من مكان واحد"
         actions={<div className="flex gap-2 flex-wrap">
           {canExport && <Button variant="outline" onClick={() => setShowExport(true)}><FileSpreadsheet size={16} /> تصدير إكسل</Button>}
-          {canConfig && <Button variant="outline" onClick={() => setShowCategory(true)}><FolderPlus size={16} /> إضافة قسم</Button>}
+          {canConfig && <Button variant="outline" onClick={openAddCategory}><FolderPlus size={16} /> إضافة قسم</Button>}
           {canAddItem && <Button onClick={() => { setItemForm({ ...emptyItem, category: categoryFilter }); setShowItem(true); }}><Plus size={16} /> إضافة مادة خام</Button>}
           {canIncoming && <Link href="/admin/costs/incoming"><Button><PackagePlus size={16} /> فاتورة شراء جديدة</Button></Link>}
         </div>} />
@@ -166,7 +213,18 @@ export default function RawMaterialsPage() {
 
       {grouped.length === 0 ? <Card className="py-12 text-center text-slate-400">لا توجد مواد خام مطابقة</Card> : grouped.map((group) => (
         <section key={group.name} className="space-y-3">
-          <div className="flex items-center justify-between"><h2 className="font-bold text-slate-800">{group.name}</h2><span className="text-xs text-slate-400">{group.items.length} مادة</span></div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-bold text-slate-800">{group.name}</h2>
+              {canConfig && group.name !== "غير مصنّف" && (
+                <>
+                  <button type="button" onClick={() => openEditCategory(group.name)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#1C2D50]" title="تعديل اسم القسم" aria-label={`تعديل قسم ${group.name}`}><Pencil size={14} /></button>
+                  <button type="button" onClick={() => setDeleteCategoryTarget(group.name)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="حذف القسم" aria-label={`حذف قسم ${group.name}`}><Trash2 size={14} /></button>
+                </>
+              )}
+            </div>
+            <span className="text-xs text-slate-400">{group.items.length} مادة</span>
+          </div>
           {group.items.length === 0 ? <Card className="py-8 text-center text-sm text-slate-400">القسم فارغ — أضف مادة خام إليه</Card> : (
             <div className="data-table-shell"><table className="data-table"><thead><tr>
               <th>المادة</th><th>النوع</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
@@ -203,10 +261,20 @@ export default function RawMaterialsPage() {
         filename="المواد الخام.xlsx"
       />
 
-      <Modal open={showCategory} onClose={() => setShowCategory(false)} title="إضافة قسم للمواد الخام">
+      <Modal open={showCategory} onClose={() => { setShowCategory(false); setEditCategory(null); }} title={editCategory ? "تعديل اسم قسم المواد الخام" : "إضافة قسم للمواد الخام"}>
         <div className="space-y-4"><Input label="اسم القسم" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="مثال: اللحوم" />
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowCategory(false)}>إلغاء</Button><Button onClick={addCategory} loading={saving}>إضافة القسم</Button></div></div>
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => { setShowCategory(false); setEditCategory(null); }}>إلغاء</Button><Button onClick={saveCategory} loading={saving}>{editCategory ? "حفظ التعديل" : "إضافة القسم"}</Button></div></div>
       </Modal>
+
+      <ConfirmModal
+        open={!!deleteCategoryTarget}
+        onClose={() => setDeleteCategoryTarget(null)}
+        onConfirm={confirmDeleteCategory}
+        title="حذف قسم المواد الخام"
+        message={`سيتم حذف قسم «${deleteCategoryTarget ?? ""}» ونقل مواده إلى «غير مصنّف». هل تريد المتابعة؟`}
+        confirmLabel="حذف القسم"
+        loading={saving}
+      />
 
       <Modal open={showItem} onClose={() => setShowItem(false)} title="إضافة مادة خام">
         <form onSubmit={addItem} className="space-y-4">

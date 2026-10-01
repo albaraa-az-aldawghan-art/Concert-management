@@ -51,6 +51,14 @@ export async function updateCostSettings(data: CostSettings): Promise<void> {
   await api.put("/api/settings/costs", data);
 }
 
+export async function renameRawCategory(oldName: string, newName: string): Promise<{ affected: number; rawCategories: string[] }> {
+  return api.patch("/api/costs/raw-categories", { oldName, newName });
+}
+
+export async function deleteRawCategory(name: string): Promise<{ affected: number; rawCategories: string[] }> {
+  return api.del(`/api/costs/raw-categories?name=${encodeURIComponent(name)}`);
+}
+
 /* الباركود الداخلي يُولَّد على الخادم الآن (lib/server/costs-core.ts)
    داخل نفس معاملة إنشاء الصنف، فلا يبقى عدّاد يتيم ولا يستطيع العميل
    القفز فوق التسلسل. */
