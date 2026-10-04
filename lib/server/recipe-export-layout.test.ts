@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import { RECIPE_COLUMNS } from "./export-columns";
 import { appendRecipeGroups } from "./recipe-export-layout";
 
-test("recipe export writes one row per product and separates ingredient values with dashes", async () => {
+test("recipe export writes one row per ingredient and keeps each recipe as one merged group", async () => {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("الوصفات القياسية");
   ws.addRow(["العنوان"]);
@@ -21,13 +21,16 @@ test("recipe export writes one row per product and separates ingredient values w
     ] },
   ]);
 
-  assert.equal(ws.rowCount, 5);
+  assert.equal(ws.rowCount, 6);
   assert.equal(ws.getCell("A4").value, "خلطة حمص");
-  assert.equal(ws.getCell("A5").value, "تبولة");
-  assert.equal(ws.getCell("D4").value, "حمص - طحينة");
-  assert.equal(ws.getCell("E4").value, " - ");
-  assert.equal(ws.getCell("F4").value, " - ");
-  assert.equal(ws.getCell("G4").value, "10 - 2");
+  assert.equal(ws.getCell("A5").value, "خلطة حمص");
+  assert.equal(ws.getCell("A6").value, "تبولة");
+  assert.equal(ws.getCell("D4").value, "حمص");
+  assert.equal(ws.getCell("D5").value, "طحينة");
+  assert.equal(ws.getCell("G4").value, 10);
+  assert.equal(ws.getCell("G5").value, 2);
+  assert.equal(ws.getCell("A4").isMerged, true);
+  assert.equal(ws.getCell("A5").isMerged, true);
   const firstFill = ws.getCell("D4").fill;
   const secondFill = ws.getCell("D5").fill;
   assert.equal(firstFill.type, "pattern");
@@ -42,12 +45,14 @@ test("recipe export writes one row per product and separates ingredient values w
   await reopened.xlsx.load(saved as ExcelJS.Buffer);
   const reopenedSheet = reopened.getWorksheet("الوصفات القياسية")!;
   assert.equal(reopenedSheet.getCell("A4").value, "خلطة حمص");
-  assert.equal(reopenedSheet.getCell("D4").value, "حمص - طحينة");
+  assert.equal(reopenedSheet.getCell("D4").value, "حمص");
+  assert.equal(reopenedSheet.getCell("D5").value, "طحينة");
+  assert.equal(reopenedSheet.getCell("A5").isMerged, true);
   const reopenedFill = reopenedSheet.getCell("D4").fill;
   assert.equal(reopenedFill.type === "pattern" && reopenedFill.fgColor?.argb, "FFFFE699");
 });
 
-test("single-row recipe layout still works when optional columns are not exported", () => {
+test("ingredient rows stay separate when optional columns are not exported", () => {
   const columns = RECIPE_COLUMNS.filter((column) => ["product", "ingredient", "quantity"].includes(column.key));
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("مختصر");
@@ -58,7 +63,10 @@ test("single-row recipe layout still works when optional columns are not exporte
   ] }]);
 
   assert.equal(ws.getCell("A1").value, "خلطة");
-  assert.equal(ws.rowCount, 1);
-  assert.equal(ws.getCell("B1").value, "مكوّن 1 - مكوّن 2");
-  assert.equal(ws.getCell("C1").value, "1 - 2");
+  assert.equal(ws.rowCount, 2);
+  assert.equal(ws.getCell("B1").value, "مكوّن 1");
+  assert.equal(ws.getCell("B2").value, "مكوّن 2");
+  assert.equal(ws.getCell("C1").value, 1);
+  assert.equal(ws.getCell("C2").value, 2);
+  assert.equal(ws.getCell("A2").isMerged, true);
 });
