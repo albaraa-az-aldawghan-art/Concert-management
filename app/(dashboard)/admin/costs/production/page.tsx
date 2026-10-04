@@ -590,54 +590,63 @@ function CostsProductionPageInner() {
               {recipeItems.length === 0 ? (
                 <p className="text-center text-sm text-slate-400 py-8">لا توجد نتائج مطابقة</p>
               ) : (
-              <div className="overflow-x-auto">
-                <table className="data-table w-full text-sm">
+              <div className="overflow-x-hidden">
+                <table className="data-table w-full table-fixed text-sm">
+                  <colgroup>
+                    <col className="w-[18%]" />
+                    <col className="w-[25%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[15%]" />
+                  </colgroup>
                   <thead>
                     <tr className="text-right text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
-                      <th className="px-4 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
-                      <th className="px-4 py-2.5 font-semibold">النوع</th>
-                      <th className="px-4 py-2.5 font-semibold">القسم الأساسي</th>
-                      <th className="px-4 py-2.5 font-semibold">القسم الفرعي</th>
-                      <th className="px-4 py-2.5 font-semibold">الوحدة</th>
-                      <th className="px-4 py-2.5 font-semibold">الرصيد</th>
-                      <th className="px-4 py-2.5 font-semibold">الحد الأدنى</th>
-                      {fp.inputs && <th className="px-4 py-2.5 font-semibold">الوصفة</th>}
-                      <th className="px-4 py-2.5"><SortHeader label="الحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
-                      <th className="px-4 py-2.5 font-semibold">الباركود</th>
-                      <th className="px-4 py-2.5 font-semibold">عمليات الإنتاج</th>
-                      <th className="px-4 py-2.5"></th>
+                      <th className="px-3 py-2.5"><SortHeader label="المنتج" sortKeyName="name" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
+                      <th className="px-3 py-2.5 font-semibold">التصنيف</th>
+                      <th className="px-3 py-2.5 font-semibold">المخزون</th>
+                      <th className="px-3 py-2.5"><SortHeader label="الوصفة والحالة" sortKeyName="status" activeKey={recipeSortKey} dir={recipeSortDir} onSort={toggleRecipeSort} /></th>
+                      <th className="px-3 py-2.5 font-semibold">الإنتاج والإجراءات</th>
                     </tr>
                     <tr className="border-b border-slate-100 bg-slate-50/70">
-                      <td className="px-2 py-2"><input value={recipeSearch} onChange={(e) => setRecipeSearch(e.target.value)} placeholder="بحث..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
-                      <td className="px-2 py-2"><select value={recipeTypeFilter} onChange={(e) => setRecipeTypeFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
-                      <td className="px-2 py-2"><select value={recipeMainSectionFilter} onChange={(e) => { setRecipeMainSectionFilter(e.target.value); setRecipeSectionFilter(""); }} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></td>
-                      <td className="px-2 py-2"><select value={recipeSectionFilter} onChange={(e) => setRecipeSectionFilter(e.target.value)} disabled={!recipeMainSectionFilter || recipeMainSectionFilter === "manufactured"} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white disabled:bg-slate-100"><option value="">الكل</option>{sections.filter((section) => !recipeMainSectionFilter || section.channel === recipeMainSectionFilter).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></td>
-                      <td className="px-2 py-2"><select value={recipeUnitFilter} onChange={(e) => setRecipeUnitFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option>{recipeUnits.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
-                      <td className="px-2 py-2"><input type="number" min="0" value={recipeBalanceFilter} onChange={(e) => setRecipeBalanceFilter(e.target.value)} placeholder="≤ الرصيد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
-                      <td className="px-2 py-2"><input type="number" min="0" value={recipeMinimumFilter} onChange={(e) => setRecipeMinimumFilter(e.target.value)} placeholder="≥ الحد" className="w-20 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
-                      {fp.inputs && <td className="px-2 py-2"><input value={recipeIngredientFilter} onChange={(e) => setRecipeIngredientFilter(e.target.value)} placeholder="مكوّن..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>}
-                      <td className="px-2 py-2"><select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing" | "raw" | "sale")} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="ready">جاهز</option><option value="short">غير متوفر</option><option value="missing">يحتاج خلطة</option><option value="raw">خام</option><option value="sale">بيع مباشر</option></select></td>
-                      <td className="px-2 py-2"><input value={recipeBarcodeFilter} onChange={(e) => setRecipeBarcodeFilter(e.target.value)} placeholder="باركود..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></td>
-                      <td className="px-2 py-2"><select value={recipeOperationFilter} onChange={(e) => setRecipeOperationFilter(e.target.value)} className="w-full rounded-md border border-slate-200 px-1 py-1 text-[11px] bg-white"><option value="">الكل</option><option value="yes">لها عمليات</option><option value="no">بلا عمليات</option></select></td>
-                      <td></td>
+                      <td className="px-2 py-2"><div className="space-y-1"><input value={recipeSearch} onChange={(e) => setRecipeSearch(e.target.value)} placeholder="اسم المنتج..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /><input value={recipeBarcodeFilter} onChange={(e) => setRecipeBarcodeFilter(e.target.value)} placeholder="الباركود..." className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px]" /></div></td>
+                      <td className="px-2 py-2"><div className="grid grid-cols-1 gap-1 xl:grid-cols-3"><select value={recipeTypeFilter} onChange={(e) => setRecipeTypeFilter(e.target.value)} className="min-w-0 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px]"><option value="">كل الأنواع</option><option value="raw">مادة خام</option><option value="produced">مُصنَّع</option><option value="sale">بيع</option></select><select value={recipeMainSectionFilter} onChange={(e) => { setRecipeMainSectionFilter(e.target.value); setRecipeSectionFilter(""); }} className="min-w-0 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px]"><option value="">كل الأساسية</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select><select value={recipeSectionFilter} onChange={(e) => setRecipeSectionFilter(e.target.value)} disabled={!recipeMainSectionFilter || recipeMainSectionFilter === "manufactured"} className="min-w-0 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px] disabled:bg-slate-100"><option value="">كل الفرعية</option>{sections.filter((section) => !recipeMainSectionFilter || section.channel === recipeMainSectionFilter).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></div></td>
+                      <td className="px-2 py-2"><div className="grid grid-cols-1 gap-1 xl:grid-cols-2"><select value={recipeUnitFilter} onChange={(e) => setRecipeUnitFilter(e.target.value)} className="min-w-0 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px]"><option value="">كل الوحدات</option>{recipeUnits.map((unit) => <option key={unit}>{unit}</option>)}</select><input type="number" min="0" value={recipeBalanceFilter} onChange={(e) => setRecipeBalanceFilter(e.target.value)} placeholder="الرصيد ≤" className="min-w-0 rounded-md border border-slate-200 px-2 py-1 text-[11px]" /><input type="number" min="0" value={recipeMinimumFilter} onChange={(e) => setRecipeMinimumFilter(e.target.value)} placeholder="الحد ≥" className="min-w-0 rounded-md border border-slate-200 px-2 py-1 text-[11px] xl:col-span-2" /></div></td>
+                      <td className="px-2 py-2"><div className="grid grid-cols-1 gap-1 xl:grid-cols-2">{fp.inputs && <input value={recipeIngredientFilter} onChange={(e) => setRecipeIngredientFilter(e.target.value)} placeholder="مكوّن..." className="min-w-0 rounded-md border border-slate-200 px-2 py-1 text-[11px]" />}<select value={recipeStatusFilter} onChange={(e) => setRecipeStatusFilter(e.target.value as "" | "ready" | "short" | "missing" | "raw" | "sale")} className="min-w-0 rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px]"><option value="">كل الحالات</option><option value="ready">جاهز</option><option value="short">غير متوفر</option><option value="missing">يحتاج خلطة</option><option value="raw">خام</option><option value="sale">بيع مباشر</option></select></div></td>
+                      <td className="px-2 py-2"><select value={recipeOperationFilter} onChange={(e) => setRecipeOperationFilter(e.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-1 py-1 text-[11px]"><option value="">كل العمليات</option><option value="yes">لها عمليات</option><option value="no">بلا عمليات</option></select></td>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedRecipeItems.map(({ item, maxQty, ready, shortageName }) => (
+                    {paginatedRecipeItems.map(({ item, maxQty, ready, shortageName }) => {
+                      const balance = (item.totalIn ?? 0) - (item.totalOut ?? 0);
+                      const isAtMinimum = (item.minimumStock ?? 0) > 0 && balance <= (item.minimumStock ?? 0);
+                      const status = recipeStatus({ item, maxQty, ready, shortageName });
+                      const itemProductions = productions.filter((production) => production.outputBarcode === item.id);
+                      const latest = itemProductions[0];
+
+                      return (
                       <tr key={item.id} className={`border-b border-slate-200 last:border-none align-top transition-colors ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "bg-red-50" : ""}`}>
-                        <td className="px-4 py-2.5">
-                          <p className={`font-semibold ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "text-red-700" : "text-slate-600"}`}>{item.name}</p>
-                          {(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) && <span className="mt-1 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">وصل للحد الأدنى</span>}
+                        <td className="px-3 py-3 min-w-0">
+                          <p className={`font-semibold leading-5 break-words ${isAtMinimum ? "text-red-700" : "text-slate-700"}`}>{item.name}</p>
+                          <p className="mt-1 font-mono text-[10px] text-slate-400 break-all">{item.id}</p>
+                          {isAtMinimum && <span className="mt-1.5 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">وصل للحد الأدنى</span>}
                         </td>
-                        <td className="px-4 py-2.5"><select value={item.kind ?? "raw"} onChange={(e) => confirmItemChange(item, "kind", e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
-                        <td className="px-4 py-2.5"><select value={mainSectionOf(item)} onChange={(e) => confirmMainSectionChange(item, e.target.value as SalesChannel | "manufactured" | "")} className="min-w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">بلا قسم</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></td>
-                        <td className="px-4 py-2.5">{mainSectionOf(item) === "manufactured" ? <span className="text-xs text-slate-400">—</span> : <select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} disabled={!mainSectionOf(item)} className="max-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-100"><option value="">اختر القسم الفرعي</option>{sections.filter((section) => section.channel === mainSectionOf(item)).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select>}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
-                        <td className={`px-4 py-2.5 font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "text-red-700" : ""}`}>{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
-                        <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
-                        {fp.inputs && (
-                          <td className="px-4 py-2.5">
-                            <div className="flex flex-wrap gap-1 max-w-xs">
+                        <td className="px-3 py-3 min-w-0">
+                          <div className="space-y-2">
+                            <label className="block"><span className="mb-1 block text-[10px] text-slate-400">النوع</span><select value={item.kind ?? "raw"} onChange={(e) => confirmItemChange(item, "kind", e.target.value)} className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></label>
+                            <label className="block"><span className="mb-1 block text-[10px] text-slate-400">القسم الأساسي</span><select value={mainSectionOf(item)} onChange={(e) => confirmMainSectionChange(item, e.target.value as SalesChannel | "manufactured" | "")} className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"><option value="">بلا قسم</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></label>
+                            {mainSectionOf(item) !== "manufactured" && <label className="block"><span className="mb-1 block text-[10px] text-slate-400">القسم الفرعي</span><select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} disabled={!mainSectionOf(item)} className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs disabled:bg-slate-100"><option value="">بلا قسم فرعي</option>{sections.filter((section) => section.channel === mainSectionOf(item)).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></label>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 min-w-0">
+                          <dl className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between gap-2"><dt className="text-slate-400">الوحدة</dt><dd className="font-medium text-slate-700">{item.unit}</dd></div>
+                            <div className="flex items-center justify-between gap-2"><dt className="text-slate-400">الرصيد</dt><dd className={`font-bold tabular-nums-auto ${isAtMinimum ? "text-red-700" : "text-slate-700"}`}>{balance.toLocaleString("en-US")}</dd></div>
+                            <label className="block"><span className="mb-1 block text-[10px] text-slate-400">الحد الأدنى</span><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs tabular-nums-auto" /></label>
+                          </dl>
+                        </td>
+                        <td className="px-3 py-3 min-w-0">
+                          {fp.inputs && <div className="max-h-24 overflow-y-auto overflow-x-hidden pe-1">
+                            <div className="flex flex-wrap gap-1">
                               {(item.productionRecipe ?? []).length === 0 ? (
                                 <span className="text-[11px] text-slate-400">{(item.kind ?? "raw") === "raw" ? "لا تحتاج وصفة" : item.kind === "sale" ? "بيع مباشر" : "لم تُضَف مكوّنات بعد"}</span>
                               ) : (
@@ -648,12 +657,11 @@ function CostsProductionPageInner() {
                                 ))
                               )}
                             </div>
-                          </td>
-                        )}
-                        <td className="px-4 py-2.5 tabular-nums-auto">
-                          {recipeStatus({ item, maxQty, ready, shortageName }) === "raw" ? (
+                          </div>}
+                          <div className="mt-2 border-t border-slate-100 pt-2 text-xs tabular-nums-auto">
+                          {status === "raw" ? (
                             <span className="text-slate-500">مادة خام</span>
-                          ) : recipeStatus({ item, maxQty, ready, shortageName }) === "sale" ? (
+                          ) : status === "sale" ? (
                             <span className="text-amber-700">منتج بيع مباشر</span>
                           ) : (item.productionRecipe ?? []).length === 0 ? (
                             <span className="inline-flex items-center gap-1.5 text-red-600 font-semibold">
@@ -671,14 +679,11 @@ function CostsProductionPageInner() {
                               {shortageName ? `غير متوفر — ينقص: ${shortageName}` : "غير متوفر"}
                             </span>
                           )}
+                          </div>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{item.id}</td>
-                        <td className="px-4 py-2.5 min-w-[190px]">
-                          {(() => {
-                            const itemProductions = productions.filter((p) => p.outputBarcode === item.id);
-                            const latest = itemProductions[0];
-                            if (!latest) return <span className="text-xs text-slate-400">لا توجد عملية إنتاج</span>;
-                            return (
+                        <td className="px-3 py-3 min-w-0">
+                          <div className="space-y-2">
+                            {latest ? (
                               <div className="space-y-1.5">
                                 <div className="text-xs text-slate-600 tabular-nums-auto">
                                   <span className="font-semibold text-slate-800">{latest.outputQty.toLocaleString("en-US")} {latest.outputUnit}</span>
@@ -691,18 +696,15 @@ function CostsProductionPageInner() {
                                   {canDelete && <button onClick={() => setDeleteTarget(latest)} className="text-slate-400 hover:text-red-500" title="حذف آخر عملية"><Trash2 size={13} /></button>}
                                 </div>
                               </div>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex gap-1.5 justify-end">
+                            ) : <span className="text-xs text-slate-400">لا توجد عملية إنتاج</span>}
+                          <div className="flex flex-wrap gap-1.5">
                             {canRecipe && (item.kind ?? "raw") !== "raw" && (
-                              <button
+                              <button type="button"
                                 onClick={() => openAddWithRecipe(item)}
-                                className="text-slate-400 hover:text-[#1C2D50] transition-colors p-1"
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:border-[#1C2D50] hover:text-[#1C2D50]"
                                 title="تعديل الوصفة"
                               >
-                                <Pencil size={14} />
+                                <Pencil size={12} /> الوصفة
                               </button>
                             )}
                             {ready && canRecord && (
@@ -711,9 +713,11 @@ function CostsProductionPageInner() {
                               </Button>
                             )}
                           </div>
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
