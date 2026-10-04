@@ -50,6 +50,7 @@ export default function CustomersPage() {
   const [tab, setTab] = useState<Tab>("concerts");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState({ name: "", primaryPhone: "", secondaryPhone: "", source: "", referralName: "", notes: "" });
 
   async function load(preferredId?: string) {
@@ -130,12 +131,17 @@ export default function CustomersPage() {
     finally { setSaving(false); }
   }
 
-  function exportRows() {
-    const headers = ["العميل", "الجوال الأساسي", "الجوال الإضافي", "تاريخ أول تسجيل", "المسجل بواسطة", "مصدر العميل", "عدد الحفلات", "إجمالي القيمة", "المحصل", "المتبقي", "آخر حفلة"];
-    const rows = filtered.map((customer) => [customer.name, customer.primaryPhone, customer.secondaryPhone ?? "", formatDate(customer.firstRegisteredAt), customer.firstCreatedByName, customer.source ?? "", customer.concertCount, customer.totalValue, customer.totalCollected, customer.totalRemaining, formatDate(customer.lastConcertAt)]);
-    const csv = "\uFEFF" + [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\r\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "عملاء-الحفلات.csv"; anchor.click(); URL.revokeObjectURL(url);
+  async function exportRows() {
+    setExporting(true);
+    try {
+      const { downloadCustomersWorkbook } = await import("@/lib/customer-export");
+      await downloadCustomersWorkbook(filtered);
+      showToast(`تم تصدير ${filtered.length} عميلاً إلى Excel`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "تعذّر تصدير العملاء", "error");
+    } finally {
+      setExporting(false);
+    }
   }
 
   if (!allowed) return <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center text-red-700">لا تملك صلاحية عرض عملاء الحفلات.</div>;
@@ -145,7 +151,7 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-2xl font-extrabold text-slate-900">عملاء الحفلات</h2><p className="mt-1 text-sm text-slate-500">ملف موحد لكل عميل وحفلاته ودفعاته</p></div>
-        {canExport && <Button variant="outline" onClick={exportRows}><Download size={16} /> تصدير إكسل</Button>}
+        {canExport && <Button variant="outline" onClick={exportRows} loading={exporting}><Download size={16} /> تصدير إكسل</Button>}
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
