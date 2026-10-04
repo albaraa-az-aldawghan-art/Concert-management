@@ -624,15 +624,16 @@ function CostsProductionPageInner() {
                   </thead>
                   <tbody>
                     {paginatedRecipeItems.map(({ item, maxQty, ready, shortageName }) => (
-                      <tr key={item.id} className="border-b border-slate-200 last:border-none align-top">
+                      <tr key={item.id} className={`border-b border-slate-200 last:border-none align-top transition-colors ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "bg-red-50" : ""}`}>
                         <td className="px-4 py-2.5">
-                          <p className="font-semibold text-slate-600">{item.name}</p>
+                          <p className={`font-semibold ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "text-red-700" : "text-slate-600"}`}>{item.name}</p>
+                          {(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) && <span className="mt-1 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">وصل للحد الأدنى</span>}
                         </td>
                         <td className="px-4 py-2.5"><select value={item.kind ?? "raw"} onChange={(e) => confirmItemChange(item, "kind", e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
                         <td className="px-4 py-2.5"><select value={mainSectionOf(item)} onChange={(e) => confirmMainSectionChange(item, e.target.value as SalesChannel | "manufactured" | "")} className="min-w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">بلا قسم</option>{mainSections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}</select></td>
                         <td className="px-4 py-2.5">{mainSectionOf(item) === "manufactured" ? <span className="text-xs text-slate-400">—</span> : <select value={(item.salesSections ?? [])[0] ?? ""} onChange={(e) => confirmItemChange(item, "salesSections", e.target.value)} disabled={!mainSectionOf(item)} className="max-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-100"><option value="">اختر القسم الفرعي</option>{sections.filter((section) => section.channel === mainSectionOf(item)).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select>}</td>
                         <td className="px-4 py-2.5 text-slate-600">{item.unit}</td>
-                        <td className="px-4 py-2.5 font-semibold tabular-nums-auto">{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
+                        <td className={`px-4 py-2.5 font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && ((item.totalIn ?? 0) - (item.totalOut ?? 0)) <= (item.minimumStock ?? 0) ? "text-red-700" : ""}`}>{((item.totalIn ?? 0) - (item.totalOut ?? 0)).toLocaleString("en-US")}</td>
                         <td className="px-4 py-2.5"><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums-auto" /></td>
                         {fp.inputs && (
                           <td className="px-4 py-2.5">
