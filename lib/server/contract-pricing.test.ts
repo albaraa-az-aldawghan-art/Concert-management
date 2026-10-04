@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
 import type { Contract, ContractType } from "@/types";
 import { svcCreateContract, svcUpdateContract } from "./contracts-core";
-import { svcSaveContractDay, svcContractMonth, svcPostMonthCollections, svcUnpostMonthCollections, svcDeleteContractDay } from "./contract-ledger-core";
+import { svcSaveContractDay, svcContractMonth, svcPostMonthCollections, svcUnpostMonthCollections, svcDeleteContractDay, svcSetLedgerConfig } from "./contract-ledger-core";
 import { buildContractMonthWorkbook } from "./contract-ledger-export";
 import { productContractPrice } from "../contract-pricing";
 
@@ -146,6 +146,46 @@ test("legacy agreements retain manual pricing; explicit contract value still ove
   await svcUpdateContract(f.db, id, { totalValue: 250 }, [{ barcode: "sandwich", quantity: 10, unitPrice: 25 }]);
   assert.equal(f.contract(id).terms[0].unitPrice, 25);
   assert.equal(f.contract(id).totalValue, 250);
+});
+
+test("renaming contract expense lines updates saved days and Excel without changing amounts", async () => {
+  const f = fixture();
+  const { id } = await svcCreateContract(f.db, f.draft("paid"));
+  await svcSaveContractDay(f.db, {
+    contractId: id,
+    date: "2026-09-24",
+    lines: [{ barcode: "sandwich", supplied: 10, damaged: 0, remaining: 2 }],
+    collections: { cash: 45 },
+    expenses: [{ key: "workers", amount: 5 }],
+    custody: null,
+    notes: null,
+    uid: "admin",
+  });
+
+  await svcSetLedgerConfig(f.db, id, {
+    enabled: true,
+    expenseLines: [
+      { key: "workers", label: "فريق التشغيل", kind: "from_till" },
+      { key: "admin", label: "الإشراف الإداري", kind: "from_till" },
+      { key: "guard", label: "الأمن", kind: "from_till" },
+      { key: "teachers", label: "المشرفون", kind: "from_till" },
+      { key: "error", label: "فروقات الصندوق", kind: "deduct_collected" },
+    ],
+    defaultCustody: 500,
+    sectionIds: [],
+    departmentName: null,
+  });
+
+  const saved = f.records.get(`contract_days/${id}_2026-09-24`)!;
+  const savedExpenses = saved.expenses as { key: string; label: string; amount: number }[];
+  assert.equal(savedExpenses.find((line) => line.key === "workers")?.label, "فريق التشغيل");
+  assert.equal(savedExpenses.find((line) => line.key === "workers")?.amount, 5);
+  assert.equal((saved.totals as { expenses: number }).expenses, 5);
+
+  const month = await svcContractMonth(f.db, id, "2026-09");
+  assert.equal(month.expenseLines.find((line) => line.key === "workers")?.label, "فريق التشغيل");
+  const { wb } = await buildContractMonthWorkbook(f.db, id, "2026-09");
+  assert.ok(wb.worksheets[0].getColumn(2).values.includes("فريق التشغيل"));
 });
 
 for (const [type, price] of [["collected", 3], ["paid", 5]] as const) {

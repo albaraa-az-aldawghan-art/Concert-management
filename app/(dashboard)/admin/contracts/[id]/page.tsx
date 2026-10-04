@@ -31,7 +31,7 @@ import {
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
-  Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2, GripVertical,
+  Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2, GripVertical, Pencil,
 } from "lucide-react";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -611,7 +611,18 @@ export default function ContractDetailPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-600">المصروفات</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-600">المصروفات</p>
+                {fx.config && (
+                  <button
+                    type="button"
+                    onClick={() => setShowConfig(true)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium text-[#1C2D50] hover:bg-[#EEF1F7]"
+                  >
+                    <Pencil size={11} /> تعديل أسماء البنود
+                  </button>
+                )}
+              </div>
               {expenseConfig.map((e) => (
                 <div key={e.key} className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-24 truncate" title={KIND_LABEL[e.kind]}>{e.label}</span>
@@ -764,7 +775,7 @@ export default function ContractDetailPage() {
       )}
 
       {/* ── إعداد الجدول ── */}
-      <Modal open={showConfig} onClose={() => setShowConfig(false)} title="إعداد الجدول اليومي">
+      <Modal open={showConfig} onClose={() => setShowConfig(false)} title="إعداد الجدول ومسميات المصروفات">
         <div className="space-y-4">
           <div className="flex items-start gap-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-3 py-2.5 text-[11px] text-[#1C2D50] leading-relaxed">
             <Info size={14} className="shrink-0 mt-0.5" />
@@ -775,7 +786,10 @@ export default function ContractDetailPage() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-600">بنود المصروف</p>
+            <div>
+              <p className="text-xs font-semibold text-slate-700">أسماء بنود المصروف</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">غيّر الاسم هنا وسيظهر بالاسم الجديد في الجدول والأيام السابقة وتصدير الإكسل.</p>
+            </div>
             {cfgLines.map((l, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Input value={l.label} placeholder="اسم البند"

@@ -509,16 +509,54 @@ export async function svcSetLedgerConfig(
     if (!s.exists) throw new ApiError("أحد الأقسام المختارة غير موجود");
     if (s.data()!.channel !== "contracts") throw new ApiError("القسم المختار ليس من قناة التعاقدات");
   }
+  const expenseLines = d.expenseLines.length ? d.expenseLines : DEFAULT_EXPENSE_LINES;
   await ref.update({
     ledger: {
       enabled: d.enabled,
-      expenseLines: d.expenseLines.length ? d.expenseLines : DEFAULT_EXPENSE_LINES,
+      expenseLines,
       defaultCustody: r2(d.defaultCustody ?? 0),
       sectionIds: d.sectionIds,
       departmentName: d.departmentName,
       itemOrder: data.ledger?.itemOrder ?? [],
     },
   });
+
+  /* اليوم يحفظ لقطة من اسم البند ونوعه حتى يبقى قابلاً للتدقيق. عند
+     تعديل إعداد العقد نحدّث هذه اللقطة أيضاً، وإلا ظهر الاسم القديم في
+     الأيام السابقة وفي الإكسل رغم نجاح حفظ الاسم الجديد. المفتاح ثابت،
+     لذلك لا تتغير المبالغ. وإذا تغيّر نوع البند نعيد حساب المطابقة حتى
+     لا تبقى مجاميع تاريخية مبنية على النوع السابق. */
+  const configured = new Map(expenseLines.map((line) => [line.key, line]));
+  const days = await db.collection("contract_days").where("contractId", "==", contractId).get();
+  const updates: { ref: FirebaseFirestore.DocumentReference; expenses: { key: string; label: string; kind: ContractExpenseKind; amount: number }[]; totals: ReturnType<typeof computeTotals> }[] = [];
+  for (const day of days.docs) {
+    const saved = day.data() as {
+      lines?: StoredLine[];
+      collections?: Record<Method, number>;
+      expenses?: { key: string; label: string; kind: ContractExpenseKind; amount: number }[];
+    };
+    const historical = saved.expenses ?? [];
+    const existingKeys = new Set(historical.map((line) => line.key));
+    const renamed = historical.map((line) => {
+      const current = configured.get(line.key);
+      return current ? { ...line, label: current.label, kind: current.kind } : line;
+    });
+    for (const line of expenseLines) {
+      if (!existingKeys.has(line.key)) renamed.push({ ...line, amount: 0 });
+    }
+    updates.push({
+      ref: day.ref,
+      expenses: renamed,
+      totals: computeTotals(saved.lines ?? [], saved.collections ?? { bank_transfer: 0, mada: 0, visa: 0, cash: 0 }, renamed),
+    });
+  }
+  for (let start = 0; start < updates.length; start += 400) {
+    const batch = db.batch();
+    for (const update of updates.slice(start, start + 400)) {
+      batch.update(update.ref, { expenses: update.expenses, totals: update.totals });
+    }
+    await batch.commit();
+  }
 }
 
 /** ترتيب عرض بنود العقد — يُحفظ وحده كي لا يمسّ صلاحية «إعداد الجدول»
