@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const { id } = await params;
-    await svcUpdateConcert(caller.db, id, body);
+    await svcUpdateConcert(caller.db, id, body, caller.uid);
   });
 }
 

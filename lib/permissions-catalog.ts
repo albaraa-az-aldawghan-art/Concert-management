@@ -277,6 +277,15 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
     href: "/admin/contracts",
     groups: [
       {
+        key: "customers",
+        label: "عملاء الحفلات",
+        hint: "ملفات العملاء المجمعة من الحفلات فقط",
+        actions: [
+          { key: "customers_edit", label: "تعديل بيانات عميل الحفلات" },
+          { key: "customers_export", label: "تصدير قائمة عملاء الحفلات", sensitive: true },
+        ],
+      },
+      {
         key: "contract",
         label: "العقد",
         actions: [

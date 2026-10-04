@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   "/admin/missing-items": "المفقودات",
   "/admin/packages": "البكجات",
   "/admin/contracts": "التعاقدات",
+  "/admin/customers": "عملاء الحفلات",
   "/admin/restaurant": "المطعم",
   "/admin/food": "منتجات البيع",
   "/admin/profitability": "ربحية الحفلات",

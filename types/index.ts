@@ -109,6 +109,8 @@ export interface Concert {
   clientName: string | null;
   clientPhone: string | null;
   clientPhone2: string | null;
+  /** ملف عميل الحفلات الثابت — اختياري للحفلات القديمة وتُجمع بالجوال عند غيابه. */
+  customerId?: string | null;
   supervisorIds: string[];
   employeeIds: string[];
   status: ConcertStatus;
@@ -171,6 +173,21 @@ export interface Concert {
   pendingDispenseRequestId?: string | null;
   createdAt: Timestamp;
   createdBy: string;
+}
+
+export interface ConcertCustomerProfile {
+  id: string;
+  name: string;
+  primaryPhone: string;
+  secondaryPhone: string | null;
+  phoneKeys: string[];
+  source: string | null;
+  referralName: string | null;
+  notes: string | null;
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt?: Timestamp | null;
+  updatedBy?: string | null;
 }
 
 /** مسودة حفلة قيد الإنشاء — لقطة كاملة من نموذج «إنشاء حفلة جديدة»

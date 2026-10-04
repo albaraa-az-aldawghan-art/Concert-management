@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/server/guard";
 import { syncDispenseRequest } from "@/lib/server/dispense-requests-core";
 import { svcSettleOutgoing } from "@/lib/server/costs-core";
 import { svcReleaseConcertStock } from "@/lib/server/stock-core";
+import { concertCustomerId, normalizeCustomerPhone } from "@/lib/concert-customers";
 
 /* ═══════════════════════════════════════════════════════════════
    الحفلات وفواتير مصروفاتها على الخادم.
@@ -35,6 +36,14 @@ function toTimestamp(v: unknown): Timestamp | null {
 export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>, uid: string) {
   const counterRef = db.collection("counters").doc("concerts");
   const concertRef = db.collection("concerts").doc();
+  const phoneKey = normalizeCustomerPhone(d.clientPhone);
+  let customerId = concertCustomerId(d.clientPhone, concertRef.id);
+  if (phoneKey) {
+    const existingCustomer = await db.collection("concert_customers")
+      .where("phoneKeys", "array-contains", phoneKey).limit(1).get();
+    if (!existingCustomer.empty) customerId = existingCustomer.docs[0].id;
+  }
+  const customerRef = db.collection("concert_customers").doc(customerId);
   const initialExpenses = Array.isArray(d.initialExpenses) ? d.initialExpenses as {
     type?: unknown; description?: unknown; amount?: unknown; vatIncluded?: unknown;
     invoiceDate?: unknown; supplierName?: unknown;
@@ -44,9 +53,10 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
 
   await db.runTransaction(async (tx) => {
     const expenseSettingsRef = db.collection("expense_settings").doc("config");
-    const [cSnap, expenseSettingsSnap] = await Promise.all([
+    const [cSnap, expenseSettingsSnap, customerSnap] = await Promise.all([
       tx.get(counterRef),
       tx.get(expenseSettingsRef),
+      tx.get(customerRef),
     ]);
     const configuredTypes = expenseSettingsSnap.data()?.types;
     const kindByType = new Map<string, "transport" | "labor" | "other">(
@@ -75,6 +85,7 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       ...concertData,
       date,
       concertNumber,
+      customerId,
       // كل حفلة تبدأ من الصفر التشغيلي مهما أرسل العميل
       status: d.status === "confirmed" ? "confirmed" : "planned",
       /* الفريق مصفوفتان دائماً — الصفحات تقرأ length وmap عليهما،
@@ -98,6 +109,19 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       createdAt: Timestamp.now(),
       createdBy: uid,
     });
+    const oldPhoneKeys = Array.isArray(customerSnap.data()?.phoneKeys) ? customerSnap.data()!.phoneKeys as string[] : [];
+    tx.set(customerRef, {
+      name: typeof d.clientName === "string" && d.clientName.trim() ? d.clientName.trim() : String(d.name ?? "").trim(),
+      primaryPhone: typeof d.clientPhone === "string" ? d.clientPhone.trim() : "",
+      secondaryPhone: typeof d.clientPhone2 === "string" && d.clientPhone2.trim() ? d.clientPhone2.trim() : null,
+      phoneKeys: [...new Set([...oldPhoneKeys, phoneKey].filter(Boolean))],
+      ...(customerSnap.exists ? {} : {
+        source: null, referralName: null, notes: null,
+        createdAt: Timestamp.now(), createdBy: uid,
+      }),
+      updatedAt: Timestamp.now(),
+      updatedBy: uid,
+    }, { merge: true });
     initialExpenses.forEach((expense, index) => {
       const amount = Number(expense.amount);
       if (!Number.isFinite(amount) || amount <= 0) throw new ApiError("مبلغ المصروف يجب أن يكون أكبر من صفر");
@@ -142,9 +166,10 @@ const EDITABLE = new Set([
   "hallCostType", "hallCostValue", "hallCostDate", "hallCostRecipient", "vatRate",
 ]);
 
-export async function svcUpdateConcert(db: Firestore, id: string, d: Record<string, unknown>) {
+export async function svcUpdateConcert(db: Firestore, id: string, d: Record<string, unknown>, uid = "") {
   const ref = db.collection("concerts").doc(id);
-  if (!(await ref.get()).exists) throw new ApiError("الحفلة غير موجودة", 404);
+  const currentSnap = await ref.get();
+  if (!currentSnap.exists) throw new ApiError("الحفلة غير موجودة", 404);
 
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(d)) if (EDITABLE.has(k)) patch[k] = v;
@@ -155,6 +180,27 @@ export async function svcUpdateConcert(db: Firestore, id: string, d: Record<stri
     patch.date = ts;
   }
   if (Object.keys(patch).length === 0) throw new ApiError("لا يوجد ما يُعدَّل");
+  if (patch.clientPhone !== undefined || patch.clientName !== undefined || patch.clientPhone2 !== undefined) {
+    const current = currentSnap.data()!;
+    const nextPhone = patch.clientPhone ?? current.clientPhone;
+    const phoneKey = normalizeCustomerPhone(nextPhone);
+    const customerId = typeof current.customerId === "string" && current.customerId
+      ? current.customerId
+      : concertCustomerId(nextPhone, id);
+    const customerRef = db.collection("concert_customers").doc(customerId);
+    const profile = await customerRef.get();
+    const oldKeys = Array.isArray(profile.data()?.phoneKeys) ? profile.data()!.phoneKeys as string[] : [];
+    await customerRef.set({
+      name: String(patch.clientName ?? current.clientName ?? current.name ?? "").trim(),
+      primaryPhone: String(nextPhone ?? "").trim(),
+      secondaryPhone: String(patch.clientPhone2 ?? current.clientPhone2 ?? "").trim() || null,
+      phoneKeys: [...new Set([...oldKeys, phoneKey].filter(Boolean))],
+      ...(profile.exists ? {} : { source: null, referralName: null, notes: null, createdAt: Timestamp.now(), createdBy: current.createdBy ?? "" }),
+      updatedAt: Timestamp.now(),
+      updatedBy: uid || current.createdBy || "",
+    }, { merge: true });
+    patch.customerId = customerId;
+  }
   await ref.update(patch);
 }
 
