@@ -16,7 +16,7 @@ import { CostIncoming, CostItem } from "@/types";
 import { Plus, PackagePlus, Trash2 } from "lucide-react";
 
 const PAGE_SIZE = 10;
-type InvoiceLine = { item: CostItem; quantity: string; dispenseUnit: string; priceMode: "unit" | "total"; priceInput: string };
+type InvoiceLine = { item: CostItem; quantity: string; priceMode: "unit" | "total"; priceInput: string };
 
 function parseEnteredNumber(value: string): number {
   const normalized = value.trim()
@@ -84,10 +84,10 @@ export default function CostsIncomingPage() {
       showToast("المادة مضافة إلى الفاتورة مسبقًا", "error");
       return;
     }
-    setLines((current) => [...current, { item, quantity: "", dispenseUnit: item.unit, priceMode: "unit", priceInput: "" }]);
+    setLines((current) => [...current, { item, quantity: "", priceMode: "unit", priceInput: "" }]);
   }
 
-  function updateLine(index: number, field: "quantity" | "dispenseUnit" | "priceMode" | "priceInput", value: string) {
+  function updateLine(index: number, field: "quantity" | "priceMode" | "priceInput", value: string) {
     setLines((current) => current.map((line, i) => i === index ? { ...line, [field]: value } : line));
   }
 
@@ -100,7 +100,7 @@ export default function CostsIncomingPage() {
     if (!appUser) return;
     if (!form.supplierName.trim()) { showToast("أدخل اسم المورد", "error"); return; }
     if (lines.length === 0) { showToast("أضف مادة واحدة على الأقل", "error"); return; }
-    if (lines.some((line) => !(lineValues(line).quantity > 0) || lineValues(line).unitPrice < 0 || !line.dispenseUnit.trim())) {
+    if (lines.some((line) => !(lineValues(line).quantity > 0) || lineValues(line).unitPrice < 0)) {
       showToast("تحقق من الكمية والسعر لكل مادة", "error"); return;
     }
     setSaving(true);
@@ -113,7 +113,6 @@ export default function CostsIncomingPage() {
           itemBarcode: line.item.id,
           quantity: lineValues(line).quantity,
           priceBeforeVat: lineValues(line).unitPrice,
-          dispenseUnit: line.dispenseUnit.trim(),
         })),
       });
       showToast("تم حفظ فاتورة الشراء وتحديث أرصدة المواد");
@@ -190,8 +189,9 @@ export default function CostsIncomingPage() {
                 <th className="px-4 py-3 font-semibold">الصنف</th>
                 <th className="px-4 py-3 font-semibold">رقم الفاتورة</th>
                 {fi.supplier && <th className="px-4 py-3 font-semibold">المورد</th>}
-                <th className="px-4 py-3 font-semibold">وحدة الصرف</th>
-                <th className="px-4 py-3 font-semibold">الكمية</th>
+                <th className="px-4 py-3 font-semibold">وحدة الشراء</th>
+                <th className="px-4 py-3 font-semibold">كمية الشراء</th>
+                <th className="px-4 py-3 font-semibold">المضاف للمخزون</th>
                 {fi.price && <th className="px-4 py-3 font-semibold">السعر قبل الضريبة</th>}
                 {(fi.date || fi.actor) && <th className="px-4 py-3 font-semibold">التاريخ</th>}
                 {fi.price && <th className="px-4 py-3 font-semibold">الإجمالي</th>}
@@ -204,8 +204,9 @@ export default function CostsIncomingPage() {
                   <td className="px-4 py-3 font-semibold text-slate-800">{e.itemName}</td>
                   <td className="px-4 py-3 text-slate-600">{e.invoiceNumber || "—"}</td>
                   {fi.supplier && <td className="px-4 py-3 text-slate-600">{e.supplierName || "—"}</td>}
-                  <td className="px-4 py-3 text-slate-600">{e.dispenseUnit || e.unit}</td>
-                  <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 text-slate-600">{e.purchaseUnit || e.unit}</td>
+                  <td className="px-4 py-3 tabular-nums-auto">{(e.purchaseQuantity ?? e.quantity).toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 tabular-nums-auto">{e.quantity.toLocaleString("en-US")} {e.unit}</td>
                   {fi.price && <td className="px-4 py-3 tabular-nums-auto text-slate-600">{e.priceBeforeVat.toLocaleString("en-US")} ريال</td>}
                   {(fi.date || fi.actor) && (
                     <td className="px-4 py-3 tabular-nums-auto text-slate-500">
@@ -244,14 +245,15 @@ export default function CostsIncomingPage() {
               <CostItemPicker items={items.filter((item) => !lines.some((line) => line.item.id === item.id))} onPick={addInvoiceItem} onScanMiss={handleScanMiss} />
             </div>
             {lines.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">لم تُضف مواد إلى الفاتورة بعد</p> : (
-              <div className="data-table-shell"><table className="data-table min-w-[900px]"><thead><tr><th>المادة</th><th>الوحدة الأساسية</th><th>وحدة الصرف</th><th>الكمية</th><th>طريقة السعر</th><th>السعر قبل الضريبة</th><th>الإجمالي</th><th></th></tr></thead><tbody>
+              <div className="data-table-shell"><table className="data-table min-w-[1050px]"><thead><tr><th>المادة</th><th>وحدة الشراء</th><th>وحدة الصرف</th><th>كمية الشراء</th><th>المضاف للمخزون</th><th>طريقة السعر</th><th>السعر قبل الضريبة</th><th>الإجمالي</th><th></th></tr></thead><tbody>
                 {lines.map((line, index) => <tr key={line.item.id}>
                   <td><p className="font-semibold text-slate-800">{line.item.name}</p><p className="text-[10px] text-slate-400 font-mono">{line.item.id}</p></td>
+                  <td>{line.item.purchaseUnit || line.item.unit}</td>
                   <td>{line.item.unit}</td>
-                  <td><Input aria-label={`وحدة صرف ${line.item.name}`} required value={line.dispenseUnit} onChange={(e) => updateLine(index, "dispenseUnit", e.target.value)} className="min-w-28" /></td>
                   <td><Input aria-label={`كمية ${line.item.name}`} type="text" inputMode="decimal" required value={line.quantity} onChange={(e) => updateLine(index, "quantity", e.target.value)} className="min-w-28 text-base" placeholder="اكتب الكمية" /></td>
+                  <td className="whitespace-nowrap font-semibold tabular-nums-auto">{(lineValues(line).quantity * (line.item.purchaseToIssue ?? 1)).toLocaleString("en-US", { maximumFractionDigits: 3 })} {line.item.unit}<span className="block text-[10px] font-normal text-slate-400">1 {line.item.purchaseUnit || line.item.unit} = {(line.item.purchaseToIssue ?? 1).toLocaleString("en-US")} {line.item.unit}</span></td>
                   <td><select value={line.priceMode} onChange={(e) => updateLine(index, "priceMode", e.target.value)} className="min-h-11 min-w-36 rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="unit">سعر الوحدة</option><option value="total">السعر الإجمالي</option></select></td>
-                  <td><Input aria-label={`سعر ${line.item.name}`} type="text" inputMode="decimal" required value={line.priceInput} onChange={(e) => updateLine(index, "priceInput", e.target.value)} className="min-w-36 text-base" placeholder={line.priceMode === "unit" ? "سعر الوحدة" : "إجمالي السطر"} /></td>
+                  <td><Input aria-label={`سعر ${line.item.name}`} type="text" inputMode="decimal" required value={line.priceInput} onChange={(e) => updateLine(index, "priceInput", e.target.value)} className="min-w-36 text-base" placeholder={line.priceMode === "unit" ? `سعر ${line.item.purchaseUnit || line.item.unit}` : "إجمالي السطر"} /></td>
                   <td className="font-semibold tabular-nums-auto whitespace-nowrap">{lineValues(line).total.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال{line.priceMode === "total" && lineValues(line).quantity > 0 && <span className="block text-[10px] font-normal text-slate-400">الوحدة {lineValues(line).unitPrice.toLocaleString("en-US", { maximumFractionDigits: 4 })}</span>}</td>
                   <td><button type="button" onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button></td>
                 </tr>)}

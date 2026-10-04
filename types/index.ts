@@ -581,7 +581,11 @@ export interface CostItem {
   id: string; // = الباركود نفسه (معرّف المستند)
   name: string;
   barcodeSource: "supplier" | "generated";
-  unit: string; // ثابتة لهذا الصنف — تُختار عند التسجيل ولا تتغيّر تلقائياً
+  unit: string; // وحدة الصرف والمخزون والوصفات
+  /** الوحدة التي يورد بها المورد الصنف، مثل كرتون أو كيس. القديمة = unit. */
+  purchaseUnit?: string;
+  /** عدد وحدات الصرف داخل وحدة شراء واحدة، مثل 12 حبة في الكرتون. */
+  purchaseToIssue?: number;
   totalIn: number;
   totalOut: number;
   /** قيمة ما في اليد من هذا الصنف. ترتفع بالوارد والإنتاج وتنخفض
@@ -677,9 +681,12 @@ export interface CostIncoming {
   itemName: string;
   supplierName: string;
   unit: string; // نسخة من وحدة الصنف وقت التسجيل — للعرض والتدقيق فقط
-  dispenseUnit?: string;
-  quantity: number;
-  priceBeforeVat: number;
+  dispenseUnit?: string; // للتوافق: وحدة الصرف وقت التسجيل
+  purchaseUnit?: string;
+  purchaseQuantity?: number;
+  purchaseToIssue?: number;
+  quantity: number; // الكمية المضافة للمخزون بوحدة الصرف
+  priceBeforeVat: number; // سعر وحدة الشراء قبل الضريبة
   totalBeforeVat: number;
   invoiceDate: string; // yyyy-mm-dd
   createdAt: Timestamp;

@@ -87,7 +87,8 @@ async function download(req: NextRequest) {
       const columns = pickColumns(RAW_MATERIAL_COLUMNS, new URL(req.url).searchParams.get("cols"));
       const rows = items.filter((item) => kind(item) === "raw").map((item) => ({
         name: String(item.name ?? ""), barcode: item.id, category: String(item.rawCategory ?? "غير مصنّف"),
-        suppliers: [...(supplierMap.get(item.id) ?? [])].join("، "), unit: String(item.unit ?? ""),
+        suppliers: [...(supplierMap.get(item.id) ?? [])].join("، "), purchaseUnit: String(item.purchaseUnit ?? item.unit ?? ""),
+        unit: String(item.unit ?? ""), conversion: Number(item.purchaseToIssue ?? 1),
         balance: balance(item), minimum: Number(item.minimumStock ?? 0), average: average(item), stockValue: balance(item) * average(item),
       }));
       prepareSheet(ws, meta.title, columns, rows.length);

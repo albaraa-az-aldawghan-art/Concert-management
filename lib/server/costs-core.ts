@@ -36,6 +36,8 @@ async function assertUniqueItemName(db: Firestore, name: string, exceptBarcode?:
 interface ItemDoc {
   name: string;
   unit: string;
+  purchaseUnit?: string;
+  purchaseToIssue?: number;
   totalIn?: number;
   totalOut?: number;
   totalInValue?: number;
@@ -65,13 +67,20 @@ export async function svcAddIncoming(
     if (!snap.exists) throw new ApiError("الصنف غير مسجّل — سجّله أولاً من صفحة أصناف التكاليف");
     const item = snap.data() as ItemDoc;
 
+    const purchaseUnit = item.purchaseUnit || item.unit;
+    const purchaseToIssue = Number.isFinite(item.purchaseToIssue) && (item.purchaseToIssue ?? 0) > 0 ? item.purchaseToIssue! : 1;
+    const stockQuantity = r2(d.quantity * purchaseToIssue);
     const totalBeforeVat = r2(d.quantity * d.priceBeforeVat);
     tx.set(entryRef, {
       itemBarcode: d.itemBarcode,
       itemName: item.name,
       unit: item.unit,
+      dispenseUnit: item.unit,
+      purchaseUnit,
+      purchaseQuantity: d.quantity,
+      purchaseToIssue,
       supplierName: d.supplierName,
-      quantity: d.quantity,
+      quantity: stockQuantity,
       priceBeforeVat: d.priceBeforeVat,
       totalBeforeVat,
       invoiceDate: d.invoiceDate,
@@ -79,7 +88,7 @@ export async function svcAddIncoming(
       createdBy: d.createdBy,
     });
     tx.update(itemRef, {
-      totalIn: (item.totalIn ?? 0) + d.quantity,
+      totalIn: r2((item.totalIn ?? 0) + stockQuantity),
       totalInValue: r2((item.totalInValue ?? 0) + totalBeforeVat),
     });
   });
@@ -90,7 +99,7 @@ export async function svcAddIncomingInvoice(
   db: Firestore,
   d: {
     supplierName: string; invoiceNumber: string; invoiceDate: string; createdBy: string;
-    lines: { itemBarcode: string; quantity: number; priceBeforeVat: number; dispenseUnit?: string }[];
+    lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
   }
 ) {
   if (d.lines.length === 0) throw new ApiError("أضف مادة واحدة على الأقل إلى الفاتورة");
@@ -108,6 +117,9 @@ export async function svcAddIncomingInvoice(
     let invoiceTotal = 0;
     d.lines.forEach((line, index) => {
       const item = itemSnaps[index].data() as ItemDoc;
+      const purchaseUnit = item.purchaseUnit || item.unit;
+      const purchaseToIssue = Number.isFinite(item.purchaseToIssue) && (item.purchaseToIssue ?? 0) > 0 ? item.purchaseToIssue! : 1;
+      const stockQuantity = r2(line.quantity * purchaseToIssue);
       const totalBeforeVat = r2(line.quantity * line.priceBeforeVat);
       invoiceTotal = r2(invoiceTotal + totalBeforeVat);
       tx.set(entryRefs[index], {
@@ -116,9 +128,12 @@ export async function svcAddIncomingInvoice(
         itemBarcode: line.itemBarcode,
         itemName: item.name,
         unit: item.unit,
-        dispenseUnit: line.dispenseUnit || item.unit,
+        dispenseUnit: item.unit,
+        purchaseUnit,
+        purchaseQuantity: line.quantity,
+        purchaseToIssue,
         supplierName: d.supplierName,
-        quantity: line.quantity,
+        quantity: stockQuantity,
         priceBeforeVat: line.priceBeforeVat,
         totalBeforeVat,
         invoiceDate: d.invoiceDate,
@@ -126,7 +141,7 @@ export async function svcAddIncomingInvoice(
         createdBy: d.createdBy,
       });
       tx.update(itemRefs[index], {
-        totalIn: (item.totalIn ?? 0) + line.quantity,
+        totalIn: r2((item.totalIn ?? 0) + stockQuantity),
         totalInValue: r2((item.totalInValue ?? 0) + totalBeforeVat),
       });
     });
@@ -836,6 +851,7 @@ export async function svcCreateItem(
   db: Firestore,
   d: {
     name: string; unit: string; mode: "generate" | "supplier"; barcode?: string;
+    purchaseUnit?: string; purchaseToIssue?: number;
     productionDate: string | null; expiryDate: string | null; createdBy: string;
     kind?: "raw" | "produced" | "sale";
     rawCategory?: string | null;
@@ -862,6 +878,8 @@ export async function svcCreateItem(
     name: d.name,
     nameKey,
     unit: d.unit,
+    purchaseUnit: d.purchaseUnit || d.unit,
+    purchaseToIssue: d.purchaseToIssue && d.purchaseToIssue > 0 ? r2(d.purchaseToIssue) : 1,
     totalIn: 0,
     totalOut: 0,
     totalInValue: 0,
@@ -942,6 +960,7 @@ export async function svcUpdateItem(
   barcode: string,
   d: {
     name?: string; unit?: string;
+    purchaseUnit?: string; purchaseToIssue?: number;
     productionDate?: string | null; expiryDate?: string | null;
     /** الخلطة القياسية — تُحفظ من صفحة الإنتاج */
     productionRecipe?: unknown;
@@ -975,6 +994,11 @@ export async function svcUpdateItem(
     patch.nameKey = nextNameKey;
   }
   if (d.unit !== undefined) patch.unit = d.unit;
+  if (d.purchaseUnit !== undefined) patch.purchaseUnit = d.purchaseUnit;
+  if (d.purchaseToIssue !== undefined) {
+    if (!Number.isFinite(d.purchaseToIssue) || d.purchaseToIssue <= 0) throw new ApiError("معامل التحويل يجب أن يكون أكبر من صفر");
+    patch.purchaseToIssue = r2(d.purchaseToIssue);
+  }
   if (d.productionDate !== undefined) patch.productionDate = d.productionDate;
   if (d.expiryDate !== undefined) patch.expiryDate = d.expiryDate;
   if (d.productionRecipe !== undefined) patch.productionRecipe = d.productionRecipe;

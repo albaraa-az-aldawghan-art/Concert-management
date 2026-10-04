@@ -84,6 +84,8 @@ export async function getCostItemByBarcode(barcode: string): Promise<CostItem | 
 export async function createCostItemGenerated(data: {
   name: string;
   unit: string;
+  purchaseUnit?: string;
+  purchaseToIssue?: number;
   productionDate?: string | null;
   expiryDate?: string | null;
   createdBy: string;
@@ -96,6 +98,8 @@ export async function createCostItemGenerated(data: {
     salesSectionIds: data.salesSectionIds,
     name: data.name,
     unit: data.unit,
+    purchaseUnit: data.purchaseUnit,
+    purchaseToIssue: data.purchaseToIssue,
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
     kind: data.kind,
@@ -109,6 +113,8 @@ export async function createCostItemGenerated(data: {
 export async function createCostItemFromSupplierBarcode(data: {
   name: string;
   unit: string;
+  purchaseUnit?: string;
+  purchaseToIssue?: number;
   barcode: string;
   productionDate?: string | null;
   expiryDate?: string | null;
@@ -120,6 +126,8 @@ export async function createCostItemFromSupplierBarcode(data: {
     mode: "supplier",
     name: data.name,
     unit: data.unit,
+    purchaseUnit: data.purchaseUnit,
+    purchaseToIssue: data.purchaseToIssue,
     barcode: data.barcode,
     productionDate: data.productionDate ?? null,
     expiryDate: data.expiryDate ?? null,
@@ -145,7 +153,7 @@ export async function bulkCreateCostItems(
 
 export async function updateCostItem(
   barcode: string,
-  data: Partial<Pick<CostItem, "name" | "unit" | "productionDate" | "expiryDate" | "sectionPrices" | "kind" | "rawCategory" | "salesSections" | "salesChannel" | "minimumStock">>
+  data: Partial<Pick<CostItem, "name" | "unit" | "purchaseUnit" | "purchaseToIssue" | "productionDate" | "expiryDate" | "sectionPrices" | "kind" | "rawCategory" | "salesSections" | "salesChannel" | "minimumStock">>
 ): Promise<void> {
   await api.patch(`/api/costs/items/${encodeURIComponent(barcode)}`, data);
 }
@@ -234,7 +242,7 @@ export async function addCostIncomingInvoice(data: {
   supplierName: string;
   invoiceNumber: string;
   invoiceDate: string;
-  lines: { itemBarcode: string; quantity: number; priceBeforeVat: number; dispenseUnit?: string }[];
+  lines: { itemBarcode: string; quantity: number; priceBeforeVat: number }[];
 }): Promise<void> {
   await api.post("/api/costs/incoming", data);
 }

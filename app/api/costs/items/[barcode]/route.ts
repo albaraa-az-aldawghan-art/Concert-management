@@ -15,6 +15,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
     await svcUpdateItem(caller.db, barcode, {
       name: body.name !== undefined ? str(body.name, "اسم الصنف") : undefined,
       unit: body.unit !== undefined ? str(body.unit, "الوحدة") : undefined,
+      purchaseUnit: body.purchaseUnit !== undefined ? str(body.purchaseUnit, "وحدة الشراء") : undefined,
+      purchaseToIssue: body.purchaseToIssue !== undefined ? num(body.purchaseToIssue, "معامل التحويل", { positive: true }) : undefined,
       productionDate: body.productionDate !== undefined
         ? (body.productionDate ? dateStr(body.productionDate, "تاريخ الإنتاج") : null)
         : undefined,

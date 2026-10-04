@@ -28,7 +28,7 @@ import { CostIncoming, CostItem, CostOutgoing, CostProduction, CostSettings } fr
 import { FileSpreadsheet, FolderPlus, History, Package, PackagePlus, Pencil, Plus, Trash2 } from "lucide-react";
 
 type Movement = { id: string; date: string; kind: string; quantity: number; note: string };
-const emptyItem = { name: "", unit: "", category: "" };
+const emptyItem = { name: "", purchaseUnit: "", unit: "", purchaseToIssue: "", category: "" };
 
 export default function RawMaterialsPage() {
   const { appUser, feat } = useAuth();
@@ -144,10 +144,13 @@ export default function RawMaterialsPage() {
   async function addItem(e: React.FormEvent) {
     e.preventDefault();
     if (!appUser) return;
+    const purchaseToIssue = Number(itemForm.purchaseToIssue);
+    if (!(purchaseToIssue > 0)) { showToast("أدخل عدد وحدات الصرف داخل وحدة الشراء", "error"); return; }
     setSaving(true);
     try {
       await createCostItemGenerated({
-        name: itemForm.name.trim(), unit: itemForm.unit, createdBy: appUser.uid,
+        name: itemForm.name.trim(), unit: itemForm.unit, purchaseUnit: itemForm.purchaseUnit,
+        purchaseToIssue, createdBy: appUser.uid,
         kind: "raw", rawCategory: itemForm.category || null,
       });
       setShowItem(false); setItemForm(emptyItem); showToast("تمت إضافة المادة الخام"); await load();
@@ -182,6 +185,14 @@ export default function RawMaterialsPage() {
       setItems((current) => current.map((i) => i.id === item.id ? { ...i, minimumStock } : i));
       showToast("تم حفظ الحد الأدنى للمادة");
     } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حفظ الحد الأدنى", "error"); }
+  }
+
+  async function saveUnitSettings(item: CostItem, patch: Pick<CostItem, "purchaseUnit"> | Pick<CostItem, "purchaseToIssue"> | Pick<CostItem, "unit">) {
+    try {
+      await updateCostItem(item.id, patch);
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...patch } : entry));
+      showToast("تم تحديث وحدات المادة");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث الوحدات", "error"); await load(); }
   }
 
   const movements: Movement[] = movementItem ? [
@@ -227,7 +238,7 @@ export default function RawMaterialsPage() {
           </div>
           {group.items.length === 0 ? <Card className="py-8 text-center text-sm text-slate-400">القسم فارغ — أضف مادة خام إليه</Card> : (
             <div className="data-table-shell"><table className="data-table"><thead><tr>
-              <th>المادة</th><th>النوع</th><th>القسم</th><th>الموردون</th><th>الوحدة</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
+              <th>المادة</th><th>النوع</th><th>القسم</th><th>الموردون</th><th>وحدة الشراء</th><th>وحدة الصرف</th><th>التحويل</th><th>الرصيد</th><th>الحد الأدنى</th><th>متوسط التكلفة</th><th>قيمة الرصيد</th><th>آخر وارد</th><th></th>
             </tr></thead><tbody>{group.items.map((item) => {
               const bal = (item.totalIn ?? 0) - (item.totalOut ?? 0);
               const avg = bal > 0 ? (item.totalInValue ?? 0) / bal : 0;
@@ -238,7 +249,10 @@ export default function RawMaterialsPage() {
                 <td><select value={item.kind ?? "raw"} onChange={(e) => changeKind(item, e.target.value as "raw" | "produced" | "sale")} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="raw">مادة خام</option><option value="produced">منتج مُصنَّع</option><option value="sale">منتج بيع</option></select></td>
                 <td>{canEditItem ? <select value={item.rawCategory ?? ""} onChange={(e) => changeCategory(item, e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</select> : (item.rawCategory ?? "غير مصنّف")}</td>
                 <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
-                <td>{item.unit}</td><td className={`font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && bal <= (item.minimumStock ?? 0) ? "text-red-600" : ""}`}>{bal.toLocaleString("en-US")}</td>
+                <td>{canEditItem ? <select value={item.purchaseUnit || item.unit} onChange={(e) => saveUnitSettings(item, { purchaseUnit: e.target.value })} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">{settings.units.map((unit) => <option key={unit}>{unit}</option>)}</select> : (item.purchaseUnit || item.unit)}</td>
+                <td>{canEditItem ? <select value={item.unit} onChange={(e) => saveUnitSettings(item, { unit: e.target.value })} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">{settings.units.map((unit) => <option key={unit}>{unit}</option>)}</select> : item.unit}</td>
+                <td><div className="flex min-w-32 items-center gap-1 text-xs"><span>1</span><span>{item.purchaseUnit || item.unit}</span><span>=</span>{canEditItem ? <input type="number" min="0.001" step="0.001" defaultValue={item.purchaseToIssue ?? 1} onBlur={(e) => { const value = Number(e.target.value); if (value > 0 && value !== (item.purchaseToIssue ?? 1)) saveUnitSettings(item, { purchaseToIssue: value }); }} className="w-16 rounded-lg border border-slate-200 px-2 py-1" /> : <strong>{item.purchaseToIssue ?? 1}</strong>}<span>{item.unit}</span></div></td>
+                <td className={`font-semibold tabular-nums-auto ${(item.minimumStock ?? 0) > 0 && bal <= (item.minimumStock ?? 0) ? "text-red-600" : ""}`}>{bal.toLocaleString("en-US")}</td>
                 <td><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
                 <td className="tabular-nums-auto">{avg.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="tabular-nums-auto">{(item.totalInValue ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
@@ -279,7 +293,11 @@ export default function RawMaterialsPage() {
       <Modal open={showItem} onClose={() => setShowItem(false)} title="إضافة مادة خام">
         <form onSubmit={addItem} className="space-y-4">
           <Input label="اسم المادة" required value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
-          <Select label="الوحدة" required value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}><option value="" disabled>اختر الوحدة</option>{settings.units.map((u) => <option key={u}>{u}</option>)}</Select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Select label="وحدة الشراء" required value={itemForm.purchaseUnit} onChange={(e) => setItemForm({ ...itemForm, purchaseUnit: e.target.value })}><option value="" disabled>اختر وحدة الشراء</option>{settings.units.map((u) => <option key={u}>{u}</option>)}</Select>
+            <Select label="وحدة الصرف" required value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}><option value="" disabled>اختر وحدة الصرف</option>{settings.units.map((u) => <option key={u}>{u}</option>)}</Select>
+          </div>
+          <Input label="عدد وحدات الصرف داخل وحدة شراء واحدة" type="number" min="0.001" step="0.001" required value={itemForm.purchaseToIssue} onChange={(e) => setItemForm({ ...itemForm, purchaseToIssue: e.target.value })} placeholder="مثال: الكرتون = 12 حبة" />
           <Select label="القسم" value={itemForm.category} onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}><option value="">غير مصنّف</option>{categories.map((c) => <option key={c}>{c}</option>)}</Select>
           <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setShowItem(false)}>إلغاء</Button><Button type="submit" loading={saving}>حفظ المادة</Button></div>
         </form>
