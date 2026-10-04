@@ -63,16 +63,8 @@ const adminNav: NavItem[] = [
     ],
   },
   { label: "المطعم", href: "/admin/restaurant", icon: <UtensilsCrossed size={17} />, section: "الأقسام الرئيسية" },
-  {
-    label: "التعاقدات",
-    href: "/admin/contracts",
-    icon: <FileSignature size={17} />,
-    section: "الأقسام الرئيسية",
-    children: [
-      { label: "الاتفاقيات", href: "/admin/contracts", icon: <FileSignature size={15} /> },
-      { label: "العملاء", href: "/admin/customers", icon: <UsersRound size={15} /> },
-    ],
-  },
+  { label: "التعاقدات", href: "/admin/contracts", icon: <FileSignature size={17} />, section: "الأقسام الرئيسية" },
+  { label: "العملاء", href: "/admin/customers", icon: <UsersRound size={17} />, section: "الأقسام الرئيسية" },
   {
     label: "المنتجات والبكجات",
     href: "/admin/food",
