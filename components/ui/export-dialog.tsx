@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { api } from "@/lib/api";
+import { downloadBlob } from "@/lib/download-file";
 import { ExportColumn } from "@/lib/server/export-columns";
 import {
   FileSpreadsheet, Download, Link2, Check, Copy, ShieldAlert, Loader2, RefreshCw,
@@ -95,14 +96,7 @@ export function ExportDialog({
         throw new Error(j?.error ?? "تعذّر التصدير");
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${kind === "sales" ? "المبيعات" : "التكاليف"}-${year}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${kind === "sales" ? "المبيعات" : "التكاليف"}-${year}.xlsx`);
       showToast("نُزّل الملف");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error");

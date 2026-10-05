@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SearchBox, Pagination, SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { CostItem } from "@/types";
 import { Scale, FileSpreadsheet } from "lucide-react";
+import { downloadBlob } from "@/lib/download-file";
 
 const PAGE_SIZE = 50;
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -85,14 +86,7 @@ export default function CostsBalancePage() {
         throw new Error(j?.error ?? "تعذّر التصدير");
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "رصيد الأصناف.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, "رصيد الأصناف.xlsx");
       showToast("نُزّل الملف");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error");

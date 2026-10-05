@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import type { ConcertCustomerSummary } from "@/lib/firestore/customers";
+import { downloadBlob } from "@/lib/download-file";
 
 const NAVY = "FF1C2D50";
 const NAVY_SOFT = "FFEEF1F7";
@@ -136,10 +137,5 @@ export async function downloadCustomersWorkbook(customers: ConcertCustomerSummar
   const blob = new Blob([new Uint8Array(buffer)], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `عملاء-الحفلات-${new Date().toISOString().slice(0, 10)}.xlsx`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `عملاء-الحفلات-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Check, Download } from "lucide-react";
-import { auth } from "@/lib/firebase";
 import { ExportColumn } from "@/lib/server/export-columns";
+import type { CostIncoming, CostItem, SalesSection } from "@/types";
+import { downloadBlob } from "@/lib/download-file";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -12,6 +13,7 @@ type Scope = "raw" | "products" | "recipes";
 
 export function CostItemsExportDialog({
   open, onClose, scope, columns, title, filename,
+  items, incoming, sections,
 }: {
   open: boolean;
   onClose: () => void;
@@ -19,6 +21,9 @@ export function CostItemsExportDialog({
   columns: ExportColumn[];
   title: string;
   filename: string;
+  items: CostItem[];
+  incoming?: CostIncoming[];
+  sections?: SalesSection[];
 }) {
   const { showToast } = useToast();
   const storeKey = `export-cols-cost-items-${scope}`;
@@ -39,28 +44,15 @@ export function CostItemsExportDialog({
   }
 
   async function download() {
+    if (busy) return;
     setBusy(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
-      const params = new URLSearchParams({ scope, cols: picked.join(",") });
-      const response = await fetch(`/api/export/cost-items?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "تعذّر التصدير");
-      }
-      const blob = await response.blob();
+      // البيانات معروضة ومحملة في الصفحة بالفعل؛ إنشاء الملف محلياً يمنع قراءة
+      // Firestore مرة ثانية ويعمل حتى عند بلوغ حصة القراءة على الخادم.
+      const { costItemsWorkbookBlob } = await import("@/lib/cost-items-export");
+      const blob = await costItemsWorkbookBlob({ scope, selectedColumns: picked, items, incoming, sections });
       if (blob.size < 1000) throw new Error("ملف التصدير غير مكتمل — حاول مرة أخرى");
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, filename);
       showToast("تم تنزيل ملف الإكسل");
       onClose();
     } catch (error) {

@@ -1160,6 +1160,8 @@ function CostsProductionPageInner() {
         columns={PRODUCT_COLUMNS}
         title="تصدير المنتجات إلى إكسل"
         filename="المنتجات.xlsx"
+        items={items}
+        sections={sections}
       />
       <CostItemsExportDialog
         open={exportScope === "recipes"}
@@ -1168,6 +1170,8 @@ function CostsProductionPageInner() {
         columns={RECIPE_COLUMNS}
         title="تصدير الوصفات القياسية إلى إكسل"
         filename="الوصفات القياسية.xlsx"
+        items={items}
+        sections={sections}
       />
 
       {/* ملصق باركود المُنتَج — يُلصق على الخلطة بعد تجهيزها */}

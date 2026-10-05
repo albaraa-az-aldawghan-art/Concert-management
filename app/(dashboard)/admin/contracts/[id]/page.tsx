@@ -15,6 +15,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { auth } from "@/lib/firebase";
+import { downloadBlob } from "@/lib/download-file";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -390,11 +391,7 @@ export default function ContractDetailPage() {
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "تعذّر التصدير");
       const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${contract?.name ?? "عقد"}-${month}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      downloadBlob(blob, `${contract?.name ?? "عقد"}-${month}.xlsx`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر التصدير", "error");
     }

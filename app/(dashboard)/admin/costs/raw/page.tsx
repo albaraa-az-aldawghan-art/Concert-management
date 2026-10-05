@@ -317,6 +317,8 @@ export default function RawMaterialsPage() {
         columns={RAW_MATERIAL_COLUMNS}
         title="تصدير المواد الخام إلى إكسل"
         filename="المواد الخام.xlsx"
+        items={items}
+        incoming={incoming}
       />
 
       <Modal open={showCategory} onClose={() => { setShowCategory(false); setEditCategory(null); }} title={editCategory ? "تعديل اسم قسم المواد الخام" : "إضافة قسم للمواد الخام"}>

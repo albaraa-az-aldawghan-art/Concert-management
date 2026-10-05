@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { downloadBlob } from "@/lib/download-file";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -106,14 +107,7 @@ export default function RestaurantPage() {
         throw new Error(j?.error ?? "تعذّر تنزيل القالب");
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "قالب منصرف المطعم.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, "قالب منصرف المطعم.xlsx");
       showToast("نُزّل القالب");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذّر التنزيل", "error");

@@ -28,6 +28,7 @@ import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { WarehouseItem } from "@/types";
 import { uploadImage, thumbUrl } from "@/lib/cloudinary";
 import { auth } from "@/lib/firebase";
+import { downloadBlob } from "@/lib/download-file";
 import { Plus, Package, Pencil, Trash2, ImagePlus, X, GripVertical, Search, FileSpreadsheet, FolderPlus } from "lucide-react";
 
 /* ── صف قابل للسحب داخل الجدول — نفس منطق الترتيب السابق على البطاقات ── */
@@ -362,14 +363,7 @@ export default function AdminWarehousePage() {
         throw new Error(j?.error ?? "تعذّر التصدير");
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "الموارد.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, "الموارد.xlsx");
       showToast("نُزّل الملف");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error");

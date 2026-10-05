@@ -152,11 +152,29 @@ export async function buildSalesWorkbook(
 ): Promise<ExcelJS.Workbook> {
   const cols = pickColumns(SALES_COLUMNS, colsRaw);
 
-  const [concertsSnap, paymentsSnap, outgoingSnap, foodSnap] = await Promise.all([
-    db.collection("concerts").get(),
-    db.collection("concert_payments").get(),
-    db.collection("cost_outgoing").get(),
-    db.collection("concert_food").get(),
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const nextYearStart = new Date(Date.UTC(year + 1, 0, 1));
+  const concertsSnap = await db.collection("concerts")
+    .where("date", ">=", yearStart)
+    .where("date", "<", nextYearStart)
+    .get();
+  const concertIds = concertsSnap.docs.map((doc) => doc.id);
+
+  // Firestore يسمح بعدد محدود داخل in؛ نجزّئ المعرّفات ونقرأ فقط السجلات
+  // المرتبطة بحفلات السنة المطلوبة بدلاً من مسح تاريخ النظام كله.
+  async function relatedDocs(collectionName: string) {
+    if (concertIds.length === 0) return [];
+    const chunks: string[][] = [];
+    for (let index = 0; index < concertIds.length; index += 30) chunks.push(concertIds.slice(index, index + 30));
+    const snapshots = await Promise.all(chunks.map((ids) =>
+      db.collection(collectionName).where("concertId", "in", ids).get()));
+    return snapshots.flatMap((snapshot) => snapshot.docs);
+  }
+
+  const [paymentDocs, outgoingDocs, foodDocs] = await Promise.all([
+    relatedDocs("concert_payments"),
+    relatedDocs("cost_outgoing"),
+    relatedDocs("concert_food"),
   ]);
 
   /* الدفعات وخامات التكاليف وأصناف الأكل تُجمَّع مرة واحدة حسب الحفلة */
@@ -166,7 +184,7 @@ export async function buildSalesWorkbook(
     invoiceNumber: string | null; hasInvoice: boolean | null;
   }
   const paysBy = new Map<string, PayRow[]>();
-  for (const d of paymentsSnap.docs) {
+  for (const d of paymentDocs) {
     const p = d.data() as Record<string, unknown>;
     const cid = p.concertId as string;
     const arr = paysBy.get(cid) ?? [];
@@ -203,13 +221,13 @@ export async function buildSalesWorkbook(
     return bits.join(" · ");
   }
   const rawBy = new Map<string, number>();
-  for (const d of outgoingSnap.docs) {
+  for (const d of outgoingDocs) {
     const o = d.data() as { concertId: string | null; totalCost: number };
     if (!o.concertId) continue;
     rawBy.set(o.concertId, (rawBy.get(o.concertId) ?? 0) + (o.totalCost ?? 0));
   }
   const foodBy = new Map<string, string[]>();
-  for (const d of foodSnap.docs) {
+  for (const d of foodDocs) {
     const f = d.data() as { concertId: string; categoryName: string; selectedOption: string; quantity: number | null };
     const label = `${f.selectedOption || f.categoryName}${f.quantity ? ` ×${f.quantity}` : ""}`;
     const arr = foodBy.get(f.concertId) ?? [];
