@@ -6,7 +6,7 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getCostItems, getCostProductions, addCostProduction, updateCostProduction, deleteCostProduction,
-  updateProductionRecipe, createCostItemGenerated, updateCostItem, getCostSettings,
+  updateProductionRecipe, createCostItemGenerated, updateCostItem, deleteCostItem, getCostSettings,
 } from "@/lib/firestore/costs";
 import { BarcodeLabelModal } from "@/components/ui/barcode-label-modal";
 import { useToast } from "@/components/ui/toast";
@@ -60,6 +60,8 @@ function CostsProductionPageInner() {
   const canView = isAdmin || feat("costs", "prod_view");
   const canEditEntry = isAdmin || feat("costs", "prod_edit");
   const canRecipe = isAdmin || feat("costs", "prod_recipe");
+  const canEditItem = isAdmin || feat("costs", "item_edit");
+  const canDeleteItem = isAdmin || feat("costs", "item_delete");
   const canLabel = isAdmin || feat("costs", "prod_label");
   const canExport = isAdmin || feat("costs", "export");
   const [exportScope, setExportScope] = useState<"products" | "recipes" | null>(null);
@@ -76,6 +78,9 @@ function CostsProductionPageInner() {
   /** غير null أثناء تعديل عملية قائمة — الصنف المُنتَج يبقى ثابتاً حينها */
   const [editTarget, setEditTarget] = useState<CostProduction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CostProduction | null>(null);
+  const [editProductTarget, setEditProductTarget] = useState<CostItem | null>(null);
+  const [editProductName, setEditProductName] = useState("");
+  const [deleteProductTarget, setDeleteProductTarget] = useState<CostItem | null>(null);
   /* أقسام البيع: تُختار مع الإنتاج لا في خطوة لاحقة تُنسى */
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [pickedSections, setPickedSections] = useState<string[]>([]);
@@ -417,6 +422,42 @@ function CostsProductionPageInner() {
     }
   }
 
+  function openEditProduct(item: CostItem) {
+    setEditProductTarget(item);
+    setEditProductName(item.name);
+  }
+
+  async function saveProductName(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editProductTarget) return;
+    const name = editProductName.trim();
+    if (!name) { showToast("اكتب اسم المنتج", "error"); return; }
+    if (name === editProductTarget.name) { setEditProductTarget(null); return; }
+    setSaving(true);
+    try {
+      await updateCostItem(editProductTarget.id, { name });
+      setItems((current) => current.map((item) => item.id === editProductTarget.id ? { ...item, name } : item));
+      setOutput((current) => current?.id === editProductTarget.id ? { ...current, name } : current);
+      setEditProductTarget(null);
+      setEditProductName("");
+      showToast("تم تعديل اسم المنتج وتحديث ارتباطاته");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تعديل اسم المنتج", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function confirmDeleteProduct() {
+    if (!deleteProductTarget) return;
+    setSaving(true);
+    try {
+      await deleteCostItem(deleteProductTarget.id);
+      setItems((current) => current.filter((item) => item.id !== deleteProductTarget.id));
+      if (output?.id === deleteProductTarget.id) setOutput(null);
+      setDeleteProductTarget(null);
+      showToast("تم حذف المنتج ووصفته نهائيًا");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حذف المنتج", "error"); }
+    finally { setSaving(false); }
+  }
+
   if (appUser && !pageAllowed) {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
@@ -698,6 +739,11 @@ function CostsProductionPageInner() {
                               </div>
                             ) : <span className="text-xs text-slate-400">لا توجد عملية إنتاج</span>}
                           <div className="flex flex-wrap gap-1.5">
+                            {canEditItem && (
+                              <button type="button" onClick={() => openEditProduct(item)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:border-[#1C2D50] hover:text-[#1C2D50]" title="تعديل اسم المنتج">
+                                <Pencil size={12} /> الاسم
+                              </button>
+                            )}
                             {canRecipe && (item.kind ?? "raw") !== "raw" && (
                               <button type="button"
                                 onClick={() => openAddWithRecipe(item)}
@@ -711,6 +757,11 @@ function CostsProductionPageInner() {
                               <Button size="sm" variant="secondary" onClick={() => openAddWithRecipe(item)} className="shrink-0">
                                 تسجيل
                               </Button>
+                            )}
+                            {canDeleteItem && (
+                              <button type="button" onClick={() => setDeleteProductTarget(item)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-[11px] text-red-600 hover:bg-red-50" title="حذف المنتج ووصفته بالكامل">
+                                <Trash2 size={12} /> حذف المنتج
+                              </button>
                             )}
                           </div>
                           </div>
@@ -1121,6 +1172,30 @@ function CostsProductionPageInner() {
 
       {/* ملصق باركود المُنتَج — يُلصق على الخلطة بعد تجهيزها */}
       <BarcodeLabelModal open={!!labelTarget} onClose={() => setLabelTarget(null)} item={labelTarget} />
+
+      <Modal open={!!editProductTarget} onClose={() => { setEditProductTarget(null); setEditProductName(""); }} title="تعديل اسم المنتج">
+        <form onSubmit={saveProductName} className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            الباركود ثابت ولا يتغير: <strong className="font-mono text-slate-700">{editProductTarget?.id}</strong>
+          </div>
+          <Input label="اسم المنتج" required value={editProductName} onChange={(event) => setEditProductName(event.target.value)} autoFocus />
+          <p className="text-xs leading-5 text-slate-500">سيُحدَّث الاسم في منتجات البيع والوصفات الأخرى والبكجات وبنود التعاقدات المرتبطة، دون تعديل السجلات المالية التاريخية.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" type="button" onClick={() => { setEditProductTarget(null); setEditProductName(""); }}>إلغاء</Button>
+            <Button type="submit" loading={saving}>حفظ الاسم</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteProductTarget}
+        onClose={() => setDeleteProductTarget(null)}
+        onConfirm={confirmDeleteProduct}
+        title="حذف المنتج بالكامل"
+        message={`سيتم حذف «${deleteProductTarget?.name ?? ""}» ووصفته القياسية نهائيًا ولا يمكن التراجع. لن يسمح النظام بالحذف إذا كان المنتج مرتبطًا بحركة مخزون أو وصفة أخرى أو عقد أو بكج. هل تريد المتابعة؟`}
+        confirmLabel="حذف المنتج نهائيًا"
+        loading={saving}
+      />
 
       <ConfirmModal
         open={!!deleteTarget}

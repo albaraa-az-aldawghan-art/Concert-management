@@ -14,6 +14,16 @@ import { OutgoingChannel } from "@/types";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+type NamedRecipeLine = { barcode: string; itemName: string; unit: string; [key: string]: unknown };
+
+export function recipeUsesItem(recipe: { barcode?: string }[] | undefined, barcode: string): boolean {
+  return (recipe ?? []).some((line) => line.barcode === barcode);
+}
+
+export function renameRecipeItem(recipe: NamedRecipeLine[], barcode: string, name: string, unit: string): NamedRecipeLine[] {
+  return recipe.map((line) => line.barcode === barcode ? { ...line, itemName: name, unit } : line);
+}
+
 /** مفتاح مقارنة الاسم: يوحّد فروق العربية غير المؤثرة والمسافات وعلامات الترقيم. */
 export function costItemNameKey(name: string): string {
   return name.normalize("NFKC")
@@ -926,9 +936,11 @@ export async function svcCreateItem(
  *  ورصيد أول اليوم وسجلات الأيام المحفوظة فعلاً لا تُمسّ — لقطة مالية
  *  متعمَّدة لا تتغيّر بتغيّر الحاضر. */
 async function cascadeItemRename(db: Firestore, barcode: string, name: string, unit: string) {
-  const [contracts, packages] = await Promise.all([
+  const [contracts, packages, costItems, foodCategories] = await Promise.all([
     db.collection("contracts").get(),
     db.collection("packages").get(),
+    db.collection("cost_items").get(),
+    db.collection("food_categories").get(),
   ]);
 
   const batch = db.batch();
@@ -948,6 +960,28 @@ async function cascadeItemRename(db: Firestore, barcode: string, name: string, u
     if (!items.some((it) => it.barcode === barcode && (it.itemName !== name || it.unit !== unit))) continue;
     batch.update(doc.ref, {
       items: items.map((it) => (it.barcode === barcode ? { ...it, itemName: name, unit } : it)),
+    });
+    writes++;
+  }
+
+  for (const doc of costItems.docs) {
+    const recipe = (doc.data().productionRecipe ?? []) as { barcode: string; itemName: string; unit: string }[];
+    if (!recipe.some((line) => line.barcode === barcode && (line.itemName !== name || line.unit !== unit))) continue;
+    batch.update(doc.ref, {
+      productionRecipe: renameRecipeItem(recipe, barcode, name, unit),
+    });
+    writes++;
+  }
+
+  for (const doc of foodCategories.docs) {
+    const optionDefs = (doc.data().optionDefs ?? []) as { recipe?: { barcode: string; itemName: string; unit: string }[] }[];
+    const changed = optionDefs.some((def) => (def.recipe ?? []).some((line) => line.barcode === barcode && (line.itemName !== name || line.unit !== unit)));
+    if (!changed) continue;
+    batch.update(doc.ref, {
+      optionDefs: optionDefs.map((def) => ({
+        ...def,
+        recipe: renameRecipeItem(def.recipe ?? [], barcode, name, unit),
+      })),
     });
     writes++;
   }
@@ -1052,7 +1086,7 @@ export async function svcUpdateItem(
 }
 
 export async function svcDeleteItem(db: Firestore, barcode: string) {
-  const [item, inc, out, dmg, prod, food, contracts, packages, orderedSections] = await Promise.all([
+  const [item, inc, out, dmg, prod, food, contracts, packages, costItems, orderedSections] = await Promise.all([
     db.collection("cost_items").doc(barcode).get(),
     db.collection("cost_incoming").where("itemBarcode", "==", barcode).limit(1).get(),
     db.collection("cost_outgoing").where("itemBarcode", "==", barcode).limit(1).get(),
@@ -1061,6 +1095,7 @@ export async function svcDeleteItem(db: Firestore, barcode: string) {
     db.collection("food_categories").get(),
     db.collection("contracts").get(),
     db.collection("packages").get(),
+    db.collection("cost_items").get(),
     db.collection("sales_sections").where("itemOrder", "array-contains", barcode).get(),
   ]);
   if (!item.exists) throw new ApiError("الصنف غير موجود", 404);
@@ -1096,6 +1131,11 @@ export async function svcDeleteItem(db: Firestore, barcode: string) {
     ((doc.data().items ?? []) as { barcode?: string }[]).some((entry) => entry.barcode === barcode)
   );
   if (usedInPackages) parts.push("بكجات");
+
+  const usedInOtherRecipes = costItems.docs.some((doc) =>
+    doc.id !== barcode && recipeUsesItem(doc.data().productionRecipe as { barcode?: string }[] | undefined, barcode)
+  );
+  if (usedInOtherRecipes) parts.push("وصفات منتجات أخرى");
 
   if (parts.length) {
     throw new ApiError(`لا يمكن حذف هذا الصنف — مرتبط بـ ${parts.join(" · ")}. احذف ما يشير إليه أولاً أو أبقِه كما هو.`);
