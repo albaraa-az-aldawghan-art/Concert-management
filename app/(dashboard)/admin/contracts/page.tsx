@@ -247,6 +247,7 @@ export default function ContractsPage() {
 
   /* المجاميع المالية تستبعد الملغى، وتلتزم بنتائج البحث والفلاتر الحالية. */
   const financialContracts = shown.filter((contract) => contract.status !== "cancelled");
+  const activeCount = contracts.filter((contract) => contract.status === "active").length;
   const aggregate = (list: Contract[]) => {
     const value = r2(list.reduce((sum, contract) => sum + (contract.totalValue ?? 0), 0));
     const sales = r2(list.reduce((sum, contract) => sum + (operating[contract.id]?.sales ?? 0), 0));
@@ -270,7 +271,7 @@ export default function ContractsPage() {
             <FileSignature size={20} className="text-[#1C2D50]" />
             التعاقدات
           </h2>
-          <p className="text-sm text-slate-500">{contracts.length} عقد · {active.length} ساري</p>
+          <p className="text-sm text-slate-500">{contracts.length} عقد · {activeCount} ساري</p>
         </div>
         {canCreate && (
           <Button onClick={openAdd}>
