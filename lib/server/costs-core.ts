@@ -1052,13 +1052,18 @@ export async function svcUpdateItem(
 }
 
 export async function svcDeleteItem(db: Firestore, barcode: string) {
-  const [inc, out, dmg, prod, food] = await Promise.all([
+  const [item, inc, out, dmg, prod, food, contracts, packages, orderedSections] = await Promise.all([
+    db.collection("cost_items").doc(barcode).get(),
     db.collection("cost_incoming").where("itemBarcode", "==", barcode).limit(1).get(),
     db.collection("cost_outgoing").where("itemBarcode", "==", barcode).limit(1).get(),
     db.collection("cost_damage").where("itemBarcode", "==", barcode).limit(1).get(),
     db.collection("cost_production").get(),
     db.collection("food_categories").get(),
+    db.collection("contracts").get(),
+    db.collection("packages").get(),
+    db.collection("sales_sections").where("itemOrder", "array-contains", barcode).get(),
   ]);
+  if (!item.exists) throw new ApiError("الصنف غير موجود", 404);
 
   const parts: string[] = [];
   if (!inc.empty) parts.push("عمليات وارد");
@@ -1082,8 +1087,24 @@ export async function svcDeleteItem(db: Firestore, barcode: string) {
   }
   if (recipes.length) parts.push(`وصفات: ${recipes.slice(0, 3).join("، ")}${recipes.length > 3 ? " وغيرها" : ""}`);
 
+  const usedInContracts = contracts.docs.some((doc) =>
+    ((doc.data().terms ?? []) as { barcode?: string }[]).some((term) => term.barcode === barcode)
+  );
+  if (usedInContracts) parts.push("بنود تعاقدات");
+
+  const usedInPackages = packages.docs.some((doc) =>
+    ((doc.data().items ?? []) as { barcode?: string }[]).some((entry) => entry.barcode === barcode)
+  );
+  if (usedInPackages) parts.push("بكجات");
+
   if (parts.length) {
     throw new ApiError(`لا يمكن حذف هذا الصنف — مرتبط بـ ${parts.join(" · ")}. احذف ما يشير إليه أولاً أو أبقِه كما هو.`);
   }
-  await db.collection("cost_items").doc(barcode).delete();
+  const batch = db.batch();
+  for (const section of orderedSections.docs) {
+    const itemOrder = ((section.data().itemOrder ?? []) as string[]).filter((entry) => entry !== barcode);
+    batch.update(section.ref, { itemOrder });
+  }
+  batch.delete(item.ref);
+  await batch.commit();
 }

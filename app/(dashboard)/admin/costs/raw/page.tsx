@@ -14,6 +14,7 @@ import { PageHeader, PageShell, LoadingState } from "@/components/ui/page";
 import { SearchBox } from "@/components/ui/list-filters";
 import {
   createCostItemGenerated,
+  deleteCostItem,
   getCostIncoming,
   getCostItems,
   getCostOutgoing,
@@ -36,6 +37,7 @@ export default function RawMaterialsPage() {
   const isAdmin = appUser?.role === "admin";
   const canAddItem = isAdmin || feat("costs", "item_add");
   const canEditItem = isAdmin || feat("costs", "item_edit");
+  const canDeleteItem = isAdmin || feat("costs", "item_delete");
   const canConfig = isAdmin || feat("costs", "item_config");
   const canIncoming = isAdmin || feat("costs", "in_add");
   const canExport = isAdmin || feat("costs", "export");
@@ -57,6 +59,9 @@ export default function RawMaterialsPage() {
   const [showItem, setShowItem] = useState(false);
   const [itemForm, setItemForm] = useState(emptyItem);
   const [movementItem, setMovementItem] = useState<CostItem | null>(null);
+  const [editItemTarget, setEditItemTarget] = useState<CostItem | null>(null);
+  const [editItemName, setEditItemName] = useState("");
+  const [deleteItemTarget, setDeleteItemTarget] = useState<CostItem | null>(null);
 
   async function load() {
     setLoading(true);
@@ -195,6 +200,42 @@ export default function RawMaterialsPage() {
     } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تحديث الوحدات", "error"); await load(); }
   }
 
+  function openEditItem(item: CostItem) {
+    setEditItemTarget(item);
+    setEditItemName(item.name);
+  }
+
+  async function saveItemName(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editItemTarget) return;
+    const name = editItemName.trim();
+    if (!name) { showToast("اكتب اسم المادة", "error"); return; }
+    if (name === editItemTarget.name) { setEditItemTarget(null); return; }
+    setSaving(true);
+    try {
+      await updateCostItem(editItemTarget.id, { name });
+      setItems((current) => current.map((item) => item.id === editItemTarget.id ? { ...item, name } : item));
+      setMovementItem((current) => current?.id === editItemTarget.id ? { ...current, name } : current);
+      setEditItemTarget(null);
+      setEditItemName("");
+      showToast("تم تعديل اسم المادة وتحديث ارتباطاتها");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر تعديل اسم المادة", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function confirmDeleteItem() {
+    if (!deleteItemTarget) return;
+    setSaving(true);
+    try {
+      await deleteCostItem(deleteItemTarget.id);
+      setItems((current) => current.filter((item) => item.id !== deleteItemTarget.id));
+      if (movementItem?.id === deleteItemTarget.id) setMovementItem(null);
+      setDeleteItemTarget(null);
+      showToast("تم حذف المادة نهائيًا");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذّر حذف المادة", "error"); }
+    finally { setSaving(false); }
+  }
+
   const movements: Movement[] = movementItem ? [
     ...incoming.filter((e) => e.itemBarcode === movementItem.id).map((e) => ({ id: `i-${e.id}`, date: e.invoiceDate, kind: "وارد", quantity: e.quantity, note: e.supplierName || "—" })),
     ...outgoing.filter((e) => e.itemBarcode === movementItem.id).map((e) => ({ id: `o-${e.id}`, date: e.dispenseDate, kind: "منصرف", quantity: -e.quantity, note: e.departmentName || e.concertName || "—" })),
@@ -260,6 +301,8 @@ export default function RawMaterialsPage() {
                 <td className="text-slate-500 tabular-nums-auto">{last?.invoiceDate ?? "—"}</td>
                 <td><div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setMovementItem(item)}><History size={14} /> عرض الحركة</Button>
+                  {canEditItem && <button type="button" onClick={() => openEditItem(item)} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#1C2D50]" title="تعديل اسم المادة" aria-label={`تعديل اسم ${item.name}`}><Pencil size={15} /></button>}
+                  {canDeleteItem && <button type="button" onClick={() => setDeleteItemTarget(item)} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" title="حذف المادة نهائيًا" aria-label={`حذف ${item.name}`}><Trash2 size={15} /></button>}
                 </div></td>
               </tr>;
             })}</tbody></table></div>
@@ -303,6 +346,30 @@ export default function RawMaterialsPage() {
           <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setShowItem(false)}>إلغاء</Button><Button type="submit" loading={saving}>حفظ المادة</Button></div>
         </form>
       </Modal>
+
+      <Modal open={!!editItemTarget} onClose={() => { setEditItemTarget(null); setEditItemName(""); }} title="تعديل اسم المادة الخام">
+        <form onSubmit={saveItemName} className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            الباركود ثابت ولا يتغير: <strong className="font-mono text-slate-700">{editItemTarget?.id}</strong>
+          </div>
+          <Input label="اسم المادة" required value={editItemName} onChange={(event) => setEditItemName(event.target.value)} autoFocus />
+          <p className="text-xs leading-5 text-slate-500">سيظهر الاسم الجديد في المواد الخام ومنتجات البيع والبكجات وبنود التعاقدات المرتبطة، دون تغيير الحركات المالية السابقة.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" type="button" onClick={() => { setEditItemTarget(null); setEditItemName(""); }}>إلغاء</Button>
+            <Button type="submit" loading={saving}>حفظ الاسم</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteItemTarget}
+        onClose={() => setDeleteItemTarget(null)}
+        onConfirm={confirmDeleteItem}
+        title="حذف المادة نهائيًا"
+        message={`سيتم حذف «${deleteItemTarget?.name ?? ""}» نهائيًا ولا يمكن التراجع. حفاظًا على دقة المخزون، لن يسمح النظام بالحذف إذا كانت المادة مرتبطة بوارد أو منصرف أو تالف أو إنتاج أو وصفة. هل تريد المتابعة؟`}
+        confirmLabel="حذف نهائي"
+        loading={saving}
+      />
 
       <Modal open={!!movementItem} onClose={() => setMovementItem(null)} title={`حركة المادة — ${movementItem?.name ?? ""}`} size="lg">
         {movementItem && <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"><span className="text-slate-500">الحد الأدنى:</span> <strong className="mr-1 tabular-nums-auto">{(movementItem.minimumStock ?? 0).toLocaleString("en-US")} {movementItem.unit}</strong></div>}
