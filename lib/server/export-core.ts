@@ -24,6 +24,20 @@ const NAVY = "FF1C2D50";
 const NAVY_SOFT = "FFEEF1F7";
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** تمييز الحفلة الملغاة بصرياً في ملف المبيعات من أول عمود مختار إلى آخره. */
+export function styleCancelledConcertRow(row: ExcelJS.Row, colCount: number, statusColumn: number) {
+  for (let column = 1; column <= colCount; column++) {
+    const cell = row.getCell(column);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+    cell.font = { ...(cell.font ?? {}), color: { argb: "FFB91C1C" } };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FFFCA5A5" } },
+      bottom: { style: "thin", color: { argb: "FFFCA5A5" } },
+    };
+  }
+  if (statusColumn > 0) row.getCell(statusColumn).font = { bold: true, color: { argb: "FF991B1B" } };
+}
+
 /** تنسيق العرض لكل نوع رقم — العملة بفاصلة آلاف ورقمين عشريين */
 const FORMATS: Record<string, string> = {
   money: '#,##0.00',
@@ -283,7 +297,7 @@ export async function buildSalesWorkbook(
   }
 
   /* توزيع الحفلات على أشهر السنة المطلوبة */
-  const byMonth: Record<number, (string | number | Date | null)[][]> = {};
+  const byMonth: Record<number, { values: (string | number | Date | null)[]; cancelled: boolean }[]> = {};
   for (let m = 0; m < 12; m++) byMonth[m] = [];
   const monthlyStats = Array.from({ length: 12 }, () => ({
     count: 0, price: 0, vat: 0, net: 0, paid: 0, due: 0, costs: 0, profit: 0, cancelled: 0,
@@ -294,7 +308,7 @@ export async function buildSalesWorkbook(
     const date = toDate(c.date);
     const m = monthOf(date, year);
     if (m < 0) continue;
-    byMonth[m].push(rowFor(d.id, c));
+    byMonth[m].push({ values: rowFor(d.id, c), cancelled: c.status === "cancelled" });
 
     const vatRate = (c.vatRate as number) ?? 15;
     const price = (c.price as number) ?? 0;
@@ -331,20 +345,22 @@ export async function buildSalesWorkbook(
     writeHeader(ws, `المبيعات — ${MONTHS[m]} ${year}`, `${byMonth[m].length} حفلة`, cols.length);
     const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
 
-    for (const r of byMonth[m]) {
-      const row = ws.addRow(r);
+    const statusColumn = cols.findIndex((column) => column.key === "status") + 1;
+    for (const entry of byMonth[m]) {
+      const row = ws.addRow(entry.values);
       // أعمدة تفاصيل الدفعات متعددة الأسطر — بلا التفاف تظهر سطراً واحداً
       cols.forEach((c, ci) => {
         if (c.key.startsWith("pay") && c.key !== "payCount" && c.key !== "lastPay") {
           row.getCell(ci + 1).alignment = { wrapText: true, vertical: "top", horizontal: "right" };
         }
       });
+      if (entry.cancelled) styleCancelledConcertRow(row, cols.length, statusColumn);
     }
     const lastRow = headerRow + byMonth[m].length;
     applyFormats(ws, headerRow + 1, lastRow, cols);
     if (byMonth[m].length > 0) {
       ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastRow, column: cols.length } };
-      writeTotalsRow(ws, cols, byMonth[m]);
+      writeTotalsRow(ws, cols, byMonth[m].map((entry) => entry.values));
     } else {
       ws.addRow(["لا توجد حفلات في هذا الشهر"]).font = { color: { argb: "FF94A3B8" }, italic: true };
     }

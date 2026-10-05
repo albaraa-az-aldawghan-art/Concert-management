@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, query, where } from "firebase/firesto
 import { db } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Contract, ContractPayment, ContractTerm } from "@/types";
+import type { ContractOperatingSummary } from "@/lib/contract-operating-summary";
 
 export async function getContracts(): Promise<Contract[]> {
   const snap = await getDocs(collection(db, "contracts"));
@@ -11,6 +12,9 @@ export async function getContracts(): Promise<Contract[]> {
     .map((d) => ({ id: d.id, ...d.data() } as Contract))
     .sort((a, b) => (b.contractNumber ?? 0) - (a.contractNumber ?? 0));
 }
+
+export const getContractOperatingSummaries = () =>
+  api.get<Record<string, ContractOperatingSummary>>("/api/contracts/summary");
 
 export async function getContractById(id: string): Promise<Contract | null> {
   const snap = await getDoc(doc(db, "contracts", id));

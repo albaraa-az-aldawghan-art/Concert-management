@@ -13,8 +13,9 @@ import { SearchBox } from "@/components/ui/list-filters";
 import { Actor } from "@/components/ui/actor";
 import {
   getContracts, addContract, updateContract, cancelContract,
-  completeContract, reopenContract, deleteContract, ContractDraft,
+  completeContract, reopenContract, deleteContract, ContractDraft, getContractOperatingSummaries,
 } from "@/lib/firestore/contracts";
+import type { ContractOperatingSummary } from "@/lib/contract-operating-summary";
 import { getCostItems, getCostOutgoing } from "@/lib/firestore/costs";
 import { getSectionsOfChannel } from "@/lib/firestore/sales";
 import { averageCost } from "@/lib/recipes";
@@ -22,7 +23,8 @@ import { Contract, ContractType, CostItem, CostOutgoing, SalesSection } from "@/
 import { productContractPrice, contractPriceLabel, contractPricingDescription } from "@/lib/contract-pricing";
 import {
   FileSignature, Plus, Trash2, Pencil, X, Check, Info, CalendarDays,
-  Search, Ban, CheckCircle2, Table2, RotateCcw,
+  Search, Ban, CheckCircle2, Table2, RotateCcw, TrendingUp, WalletCards,
+  ReceiptText, Boxes, CircleDollarSign,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -60,9 +62,12 @@ export default function ContractsPage() {
   const [items, setItems] = useState<CostItem[]>([]);
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
+  const [operating, setOperating] = useState<Record<string, ContractOperatingSummary>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Contract | null>(null);
@@ -84,16 +89,18 @@ export default function ContractsPage() {
 
   async function load() {
     setLoading(true);
-    const [c, i, s, o] = await Promise.all([
+    const [c, i, s, o, summaries] = await Promise.all([
       getContracts().catch(() => [] as Contract[]),
       getCostItems().catch(() => [] as CostItem[]),
       getSectionsOfChannel("contracts").catch(() => [] as SalesSection[]),
       getCostOutgoing().catch(() => [] as CostOutgoing[]),
+      fc.value ? getContractOperatingSummaries().catch(() => ({})) : Promise.resolve({}),
     ]);
     setContracts(c);
     setItems(i);
     setSections(s);
     setOutgoing(o);
+    setOperating(summaries);
     setLoading(false);
   }
 
@@ -229,18 +236,31 @@ export default function ContractsPage() {
 
   const q = search.trim();
   const shown = contracts.filter(
-    (c) => !q || c.name.includes(q) || (c.clientName ?? "").includes(q) ||
-      String(c.contractNumber ?? "").includes(q)
+    (c) => (!q || c.name.includes(q) || (c.clientName ?? "").includes(q) ||
+      String(c.contractNumber ?? "").includes(q)) &&
+      (!statusFilter || c.status === statusFilter) &&
+      (!typeFilter || (c.contractType ?? "legacy") === typeFilter)
   );
 
   const tq = termSearch.trim();
   const termChoices = contractItems.filter((i) => !tq || i.name.includes(tq) || i.id.includes(tq));
 
-  /* مجاميع الصفحة */
-  const active = contracts.filter((c) => c.status === "active");
-  const totalValue = r2(active.reduce((s, c) => s + (c.totalValue ?? 0), 0));
-  const totalPaid = r2(active.reduce((s, c) => s + (c.paid ?? 0), 0));
-  const totalCost = r2(active.reduce((s, c) => s + (costByContract.get(c.id) ?? 0), 0));
+  /* المجاميع المالية تستبعد الملغى، وتلتزم بنتائج البحث والفلاتر الحالية. */
+  const financialContracts = shown.filter((contract) => contract.status !== "cancelled");
+  const aggregate = (list: Contract[]) => {
+    const value = r2(list.reduce((sum, contract) => sum + (contract.totalValue ?? 0), 0));
+    const sales = r2(list.reduce((sum, contract) => sum + (operating[contract.id]?.sales ?? 0), 0));
+    const collected = r2(list.reduce((sum, contract) => sum + (operating[contract.id]?.collected ?? 0), 0));
+    const posted = r2(list.reduce((sum, contract) => sum + (contract.paid ?? 0), 0));
+    const rawCost = r2(list.reduce((sum, contract) => sum + (costByContract.get(contract.id) ?? 0), 0));
+    const expenses = r2(list.reduce((sum, contract) => sum + (operating[contract.id]?.expenses ?? 0), 0));
+    return { count: list.length, value, sales, collected, posted, rawCost, expenses, net: r2(sales - rawCost - expenses) };
+  };
+  const totals = aggregate(financialContracts);
+  const typeTotals = (["collected", "paid", "legacy"] as const).map((type) => ({
+    type,
+    ...aggregate(financialContracts.filter((contract) => (contract.contractType ?? "legacy") === type)),
+  }));
 
   return (
     <div className="space-y-5">
@@ -259,20 +279,67 @@ export default function ContractsPage() {
         )}
       </div>
 
-      {/* مجاميع العقود السارية */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {[
-          { l: "قيمة العقود السارية", v: totalValue, cls: "text-[#1C2D50]" },
-          { l: "المحصَّل", v: totalPaid, cls: "text-emerald-700" },
-          { l: "المتبقي", v: r2(totalValue - totalPaid), cls: "text-orange-700" },
-          { l: "تكلفة الخامات المصروفة", v: totalCost, cls: "text-slate-700" },
-        ].map((s) => (
-          <Card key={s.l}>
-            <p className="text-xs text-slate-500">{s.l}</p>
-            <p className={`text-lg font-bold tabular-nums-auto mt-1 ${s.cls}`}>{money(s.v)} ريال</p>
-          </Card>
-        ))}
+      <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-3">
+        <SearchBox value={search} onChange={setSearch} placeholder="ابحث باسم الجهة أو العميل أو رقم العقد..." />
+        <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="حالة العقد">
+          <option value="">كل حالات العقود</option>
+          <option value="active">ساري</option>
+          <option value="completed">منتهٍ</option>
+          <option value="cancelled">ملغى</option>
+        </Select>
+        <Select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} aria-label="نوع العقد">
+          <option value="">كل أنواع العقود</option>
+          <option value="collected">محصّل — بسعر التكلفة</option>
+          <option value="paid">مدفوع — بسعر البيع</option>
+          <option value="legacy">عقد سابق</option>
+        </Select>
       </div>
+
+      {/* الأرقام أدناه من العقود الظاهرة بعد الفلاتر، مع استبعاد الملغى مالياً. */}
+      {fc.value && <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
+          {[
+            { l: "العقود المحتسبة", v: totals.count.toLocaleString("en-US"), hint: `${shown.length - totals.count} ملغى مستبعد`, cls: "text-[#1C2D50]", icon: <FileSignature size={17} /> },
+            { l: "قيمة الاتفاقات", v: `${money(totals.value)} ريال`, hint: "القيمة المكتوبة في العقود", cls: "text-[#1C2D50]", icon: <ReceiptText size={17} /> },
+            { l: "مبيعات التشغيل", v: `${money(totals.sales)} ريال`, hint: "من الأيام المسجّلة فعليًا", cls: "text-blue-700", icon: <TrendingUp size={17} /> },
+            { l: "تحصيل التشغيل", v: `${money(totals.collected)} ريال`, hint: `${money(totals.posted)} ريال مرحّل للدفعات`, cls: "text-emerald-700", icon: <WalletCards size={17} /> },
+            { l: "التكاليف والمصروفات", v: `${money(totals.rawCost + totals.expenses)} ريال`, hint: `${money(totals.rawCost)} خامات · ${money(totals.expenses)} مصروفات`, cls: "text-orange-700", icon: <Boxes size={17} /> },
+            { l: "صافي التشغيل", v: `${money(totals.net)} ريال`, hint: "المبيعات − الخامات − المصروفات", cls: totals.net >= 0 ? "text-emerald-700" : "text-red-600", icon: <CircleDollarSign size={17} /> },
+          ].map((summary) => (
+            <Card key={summary.l} className="min-w-0 p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[11px] font-semibold text-slate-500">{summary.l}</p>
+                <span className="rounded-lg bg-slate-100 p-1.5 text-[#1C2D50]">{summary.icon}</span>
+              </div>
+              <p className={`mt-2 truncate text-base font-extrabold tabular-nums-auto sm:text-lg ${summary.cls}`}>{summary.v}</p>
+              <p className="mt-1 truncate text-[10px] text-slate-400" title={summary.hint}>{summary.hint}</p>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div><h3 className="text-sm font-bold text-slate-800">ملخص حسب نوع العقد</h3><p className="mt-0.5 text-[11px] text-slate-400">للعقود غير الملغاة المطابقة للفلاتر</p></div>
+            <span className="text-[11px] text-slate-400">المجموع: {totals.count} عقد</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {typeTotals.map((summary) => {
+              const label = summary.type === "collected" ? "عقود محصّل" : summary.type === "paid" ? "عقود مدفوع" : "عقود سابقة";
+              const detail = summary.type === "collected" ? "التسعير بسعر التكلفة" : summary.type === "paid" ? "التسعير بسعر البيع" : "أسعار محفوظة قبل التصنيف";
+              return <div key={summary.type} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between"><b className="text-sm text-slate-800">{label}</b><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#1C2D50]">{summary.count} عقد</span></div>
+                <p className="mt-0.5 text-[10px] text-slate-400">{detail}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div><span className="text-slate-400">قيمة الاتفاق</span><b className="block tabular-nums-auto text-slate-700">{money(summary.value)}</b></div>
+                  <div><span className="text-slate-400">مبيعات التشغيل</span><b className="block tabular-nums-auto text-blue-700">{money(summary.sales)}</b></div>
+                  <div><span className="text-slate-400">التحصيل</span><b className="block tabular-nums-auto text-emerald-700">{money(summary.collected)}</b></div>
+                  <div><span className="text-slate-400">صافي التشغيل</span><b className={`block tabular-nums-auto ${summary.net >= 0 ? "text-emerald-700" : "text-red-600"}`}>{money(summary.net)}</b></div>
+                </div>
+              </div>;
+            })}
+          </div>
+        </Card>
+      </>}
 
       <div className="flex items-start gap-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-4 py-3 text-xs text-[#1C2D50] leading-relaxed">
         <Info size={15} className="shrink-0 mt-0.5" />
@@ -282,8 +349,6 @@ export default function ContractsPage() {
           فتُقارن بقيمته وتظهر ربحيته.
         </p>
       </div>
-
-      <SearchBox value={search} onChange={setSearch} placeholder="ابحث باسم الجهة أو العميل أو رقم العقد..." />
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -298,9 +363,12 @@ export default function ContractsPage() {
         <div className="space-y-3">
           {shown.map((c) => {
             const cost = costByContract.get(c.id) ?? 0;
+            const operation = operating[c.id];
+            const sales = operation?.sales ?? 0;
+            const operatingExpenses = operation?.expenses ?? 0;
             const vatRate = c.vatRate ?? 15;
             const net = r2((c.totalValue ?? 0) / (1 + vatRate / 100));
-            const profit = r2(net - cost);
+            const operatingNet = r2(sales - cost - operatingExpenses);
             const st = STATUS[c.status] ?? STATUS.active;
             return (
               <Card key={c.id}>
@@ -314,6 +382,11 @@ export default function ContractsPage() {
                       )}
                       {c.name}
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        c.contractType === "collected" ? "bg-blue-50 text-blue-700" : c.contractType === "paid" ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {c.contractType === "collected" ? "محصّل · سعر التكلفة" : c.contractType === "paid" ? "مدفوع · سعر البيع" : "عقد سابق"}
+                      </span>
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 tabular-nums-auto">
                       <CalendarDays size={11} />
@@ -361,17 +434,19 @@ export default function ContractsPage() {
                   </div>
                 </div>
 
-                {fc.value && <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                {fc.value && <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 xl:grid-cols-6">
                   {[
-                    { l: "قيمة العقد", v: money(c.totalValue ?? 0), cls: "text-slate-800" },
-                    { l: "الصافي قبل الضريبة", v: money(net), cls: "text-slate-800" },
-                    { l: "المحصَّل", v: money(c.paid ?? 0), cls: "text-emerald-700" },
-                    { l: "تكلفة الخامات", v: money(cost), cls: "text-slate-700" },
-                    { l: "الربح", v: money(profit), cls: profit >= 0 ? "text-emerald-700" : "text-red-600" },
+                    { l: "قيمة الاتفاق", v: money(c.totalValue ?? 0), cls: "text-slate-800", hint: `الصافي قبل الضريبة ${money(net)}` },
+                    { l: "مبيعات التشغيل", v: money(sales), cls: "text-blue-700", hint: `${operation?.days ?? 0} يوم مسجّل` },
+                    { l: "تحصيل التشغيل", v: money(operation?.collected ?? 0), cls: "text-emerald-700", hint: `${money(c.paid ?? 0)} مرحّل` },
+                    { l: "تكلفة الخامات", v: money(cost), cls: "text-orange-700", hint: "من المنصرف الفعلي" },
+                    { l: "مصروفات التشغيل", v: money(operatingExpenses), cls: "text-orange-700", hint: "من الأيام المسجّلة" },
+                    { l: "صافي التشغيل", v: money(operatingNet), cls: operatingNet >= 0 ? "text-emerald-700" : "text-red-600", hint: "مبيعات − خامات − مصروفات" },
                   ].map((x) => (
                     <div key={x.l} className="bg-slate-50 rounded-lg px-2.5 py-1.5">
                       <p className="text-[10px] text-slate-500">{x.l}</p>
                       <p className={`font-bold tabular-nums-auto ${x.cls}`}>{x.v}</p>
+                      <p className="mt-0.5 truncate text-[9px] text-slate-400" title={x.hint}>{x.hint}</p>
                     </div>
                   ))}
                 </div>}
