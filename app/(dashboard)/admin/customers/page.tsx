@@ -14,8 +14,12 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import {
   ConcertCustomerSummary, CustomerConcertSummary, getConcertCustomers, saveConcertCustomer,
 } from "@/lib/firestore/customers";
+import {
+  CUSTOMER_CONCERT_PAGE_SIZE, CUSTOMER_PAGE_SIZE, filterConcertCustomers, pageOf,
+} from "@/lib/customer-list";
+import { auth } from "@/lib/firebase";
+import { downloadBlob } from "@/lib/download-file";
 
-const PAGE_SIZE = 50;
 const money = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const formatDate = (value: string | null) => value
   ? new Date(value).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -81,30 +85,19 @@ export default function CustomersPage() {
   }, [allowed, showToast]);
 
   const recorderOptions = useMemo(() => [...new Set(customers.map((customer) => customer.firstCreatedByName).filter((name) => name && name !== "—"))].sort((a, b) => a.localeCompare(b, "ar")), [customers]);
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const now = new Date();
-    return customers.filter((customer) => {
-      const searchable = [customer.name, customer.primaryPhone, customer.secondaryPhone, ...customer.concerts.flatMap((concert) => [String(concert.concertNumber ?? ""), concert.venueName ?? ""])].join(" ").toLowerCase();
-      if (query && !searchable.includes(query)) return false;
-      if (frequency === "one" && customer.concertCount !== 1) return false;
-      if (frequency === "returning" && customer.concertCount < 2) return false;
-      if (financial === "paid" && customer.totalRemaining > 0) return false;
-      if (financial === "due" && customer.totalRemaining <= 0) return false;
-      if (recorder && customer.firstCreatedByName !== recorder) return false;
-      if (period && customer.lastConcertAt) {
-        const date = new Date(customer.lastConcertAt);
-        if (period === "month" && (date.getFullYear() !== now.getFullYear() || date.getMonth() !== now.getMonth())) return false;
-        if (period === "year" && date.getFullYear() !== now.getFullYear()) return false;
-      }
-      return !(period && !customer.lastConcertAt);
-    });
-  }, [customers, search, period, frequency, financial, recorder]);
+  const filtered = useMemo(() => filterConcertCustomers(customers, {
+    search,
+    period: period as "" | "month" | "year",
+    frequency: frequency as "" | "one" | "returning",
+    financial: financial as "" | "paid" | "due",
+    recorder,
+  }), [customers, search, period, frequency, financial, recorder]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pageCustomers = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const selected = customers.find((customer) => customer.id === selectedId) ?? filtered[0] ?? null;
+  const customerPages = pageOf(filtered, page, CUSTOMER_PAGE_SIZE);
+  const safePage = customerPages.page;
+  const totalPages = customerPages.totalPages;
+  const pageCustomers = customerPages.items;
+  const selected = filtered.find((customer) => customer.id === selectedId) ?? pageCustomers[0] ?? null;
   const totalConcerts = filtered.reduce((sum, customer) => sum + customer.concertCount, 0);
   const totalRemaining = filtered.reduce((sum, customer) => sum + customer.totalRemaining, 0);
   const repeated = filtered.filter((customer) => customer.concertCount > 1).length;
@@ -134,9 +127,31 @@ export default function CustomersPage() {
   async function exportRows() {
     setExporting(true);
     try {
-      const { downloadCustomersWorkbook } = await import("@/lib/customer-export");
-      await downloadCustomersWorkbook(filtered);
-      showToast(`تم تصدير ${filtered.length} عميلاً إلى Excel`);
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("انتهت جلسة الدخول — أعد تسجيل الدخول");
+      const response = await fetch("/api/customers/export-pdf", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ customers: filtered.map((customer) => ({
+          name: customer.name,
+          primaryPhone: customer.primaryPhone,
+          secondaryPhone: customer.secondaryPhone,
+          firstRegisteredAt: customer.firstRegisteredAt,
+          firstCreatedByName: customer.firstCreatedByName,
+          source: customer.source,
+          concertCount: customer.concertCount,
+          totalValue: customer.totalValue,
+          totalCollected: customer.totalCollected,
+          totalRemaining: customer.totalRemaining,
+          lastConcertAt: customer.lastConcertAt,
+        })) }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(result.error || "تعذّر إنشاء ملف PDF");
+      }
+      downloadBlob(await response.blob(), `عملاء-الحفلات-${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast(`تم تصدير ${filtered.length} عميلاً إلى PDF`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "تعذّر تصدير العملاء", "error");
     } finally {
@@ -151,7 +166,7 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-2xl font-extrabold text-slate-900">عملاء الحفلات</h2><p className="mt-1 text-sm text-slate-500">ملف موحد لكل عميل وحفلاته ودفعاته</p></div>
-        {canExport && <Button variant="outline" onClick={exportRows} loading={exporting}><Download size={16} /> تصدير إكسل</Button>}
+        {canExport && <Button variant="outline" onClick={exportRows} loading={exporting}><Download size={16} /> تصدير PDF</Button>}
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -170,11 +185,11 @@ export default function CustomersPage() {
       </div>
 
       {customers.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-400">لا توجد حفلات مسجلة لإنشاء ملفات العملاء منها.</div> : (
-        <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><h3 className="font-bold text-slate-800">العملاء</h3><span className="text-xs text-slate-400">{filtered.length} نتيجة</span></div>
-            <div className="divide-y divide-slate-100">
-              {pageCustomers.map((customer) => <button key={customer.id} onClick={() => { setSelectedId(customer.id); setTab("concerts"); }} className={`grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-right transition-colors ${selected?.id === customer.id ? "border-r-4 border-[#1C2D50] bg-slate-100" : "hover:bg-slate-50"}`}>
+            <div className="flex gap-2 overflow-x-auto p-2 lg:block lg:max-h-[620px] lg:divide-y lg:divide-slate-100 lg:overflow-y-auto lg:p-0">
+              {pageCustomers.map((customer) => <button key={customer.id} onClick={() => { setSelectedId(customer.id); setTab("concerts"); }} className={`grid w-64 shrink-0 grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-100 px-4 py-3 text-right transition-colors lg:w-full lg:rounded-none lg:border-0 ${selected?.id === customer.id ? "border-r-4 border-[#1C2D50] bg-slate-100" : "hover:bg-slate-50"}`}>
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#1C2D50] font-bold text-white">{customer.name.trim().charAt(0) || "ع"}</span>
                 <span className="min-w-0"><b className="block truncate text-sm text-slate-800">{customer.name}</b><small className="mt-0.5 block text-xs text-slate-500 tabular-nums-auto">{customer.primaryPhone || "بلا رقم"}</small><small className="block text-[11px] text-slate-400">{customer.concertCount} حفلة · آخرها {formatDate(customer.lastConcertAt)}</small></span>
                 <span className={`text-[11px] font-bold ${customer.totalRemaining > 0 ? "text-red-600" : "text-emerald-600"}`}>{customer.totalRemaining > 0 ? money(customer.totalRemaining) : "مسدد"}</span>
@@ -184,7 +199,7 @@ export default function CustomersPage() {
             {totalPages > 1 && <div className="flex items-center justify-center gap-3 border-t border-slate-100 p-3 text-xs"><button disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">السابق</button><span className="text-slate-500">{safePage} من {totalPages}</span><button disabled={safePage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">التالي</button></div>}
           </section>
 
-          {selected && <CustomerProfile customer={selected} tab={tab} setTab={setTab} canEdit={canEdit} onEdit={() => openEdit(selected)} />}
+          {selected && <CustomerProfile key={selected.id} customer={selected} tab={tab} setTab={setTab} canEdit={canEdit} onEdit={() => openEdit(selected)} />}
         </div>
       )}
 
@@ -233,9 +248,41 @@ function Meta({ icon, label, value }: { icon: React.ReactNode; label: string; va
 function ProfileStat({ label, value, green, red }: { label: string; value: string | number; green?: boolean; red?: boolean }) { return <div className="border-l border-white p-3 last:border-0"><span className="block text-[11px] text-slate-500">{label}</span><b className={`mt-1 block text-lg tabular-nums-auto ${green ? "text-emerald-600" : red ? "text-red-600" : "text-slate-900"}`}>{value}</b></div>; }
 
 function ConcertsTable({ concerts }: { concerts: CustomerConcertSummary[] }) {
-  return <><div className="hidden md:block"><table className="w-full table-fixed text-xs"><thead><tr className="bg-slate-50 text-right text-slate-500"><th className="w-[11%] px-2 py-2">رقم الحفلة</th><th className="w-[24%] px-2 py-2">التاريخ والمكان</th><th className="w-[13%] px-2 py-2">الحالة</th><th className="w-[14%] px-2 py-2">القيمة</th><th className="w-[14%] px-2 py-2">المدفوع</th><th className="w-[14%] px-2 py-2">المتبقي</th><th className="w-[10%] px-2 py-2" /></tr></thead><tbody>{concerts.map((concert) => <ConcertRow key={concert.id} concert={concert} />)}</tbody></table></div><div className="space-y-2 md:hidden">{concerts.map((concert) => <div key={concert.id} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between"><div><b className="text-sm">حفلة #{concert.concertNumber ?? "—"}</b><p className="mt-1 text-xs text-slate-500">{formatDate(concert.date)} · {concert.venueName || "بلا مكان"}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS[concert.status]?.cls ?? "bg-slate-100"}`}>{STATUS[concert.status]?.label ?? concert.status}</span></div><div className="mt-3 grid grid-cols-3 gap-2 text-xs"><span>القيمة<br /><b>{money(concert.price)}</b></span><span>المدفوع<br /><b className="text-emerald-600">{money(concert.paid)}</b></span><span>المتبقي<br /><b className="text-red-600">{money(concert.remaining)}</b></span></div><Link href={`/admin/concerts/${concert.id}`} className="mt-3 block text-left text-xs font-bold text-blue-600">فتح التفاصيل</Link></div>)}</div></>;
+  const [page, setPage] = useState(1);
+  const pagination = pageOf(concerts, page, CUSTOMER_CONCERT_PAGE_SIZE);
+  if (concerts.length === 0) return <p className="py-8 text-center text-sm text-slate-400">لا توجد حفلات مسجلة</p>;
+  return <div className="space-y-3">
+    <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <table className="w-full min-w-[760px] table-fixed text-xs">
+        <thead><tr className="bg-slate-50 text-right text-slate-500">
+          <th className="w-[11%] px-3 py-3">رقم الحفلة</th>
+          <th className="w-[24%] px-3 py-3">التاريخ والمكان</th>
+          <th className="w-[13%] px-3 py-3">الحالة</th>
+          <th className="w-[14%] px-3 py-3">القيمة</th>
+          <th className="w-[14%] px-3 py-3">المدفوع</th>
+          <th className="w-[14%] px-3 py-3">المتبقي</th>
+          <th className="w-[10%] px-3 py-3" />
+        </tr></thead>
+        <tbody>{pagination.items.map((concert) => <ConcertRow key={concert.id} concert={concert} />)}</tbody>
+      </table>
+    </div>
+    {pagination.totalPages > 1 && <PageNavigation
+      page={pagination.page}
+      totalPages={pagination.totalPages}
+      onPage={setPage}
+      label="صفحة حفلات العميل"
+    />}
+  </div>;
 }
-function ConcertRow({ concert }: { concert: CustomerConcertSummary }) { return <tr className="border-b border-slate-100 text-slate-700"><td className="px-2 py-3 font-bold">#{concert.concertNumber ?? "—"}</td><td className="px-2 py-3"><b className="block">{formatDate(concert.date)}</b><small className="mt-1 block truncate text-slate-400">{concert.venueName || "بلا مكان"}</small></td><td className="px-2 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS[concert.status]?.cls ?? "bg-slate-100"}`}>{STATUS[concert.status]?.label ?? concert.status}</span></td><td className="px-2 py-3 tabular-nums-auto">{money(concert.price)}</td><td className="px-2 py-3 font-bold text-emerald-600 tabular-nums-auto">{money(concert.paid)}</td><td className={`px-2 py-3 font-bold tabular-nums-auto ${concert.remaining > 0 ? "text-red-600" : "text-slate-400"}`}>{concert.remaining > 0 ? money(concert.remaining) : "—"}</td><td className="px-2 py-3"><Link href={`/admin/concerts/${concert.id}`} className="font-bold text-blue-600">فتح</Link></td></tr>; }
+function ConcertRow({ concert }: { concert: CustomerConcertSummary }) { return <tr className="border-b border-slate-100 text-slate-700 last:border-0"><td className="px-3 py-3 font-bold">#{concert.concertNumber ?? "—"}</td><td className="px-3 py-3"><b className="block">{formatDate(concert.date)}</b><small className="mt-1 block truncate text-slate-400">{concert.venueName || "بلا مكان"}</small></td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS[concert.status]?.cls ?? "bg-slate-100"}`}>{STATUS[concert.status]?.label ?? concert.status}</span></td><td className="px-3 py-3 tabular-nums-auto">{money(concert.price)}</td><td className="px-3 py-3 font-bold text-emerald-600 tabular-nums-auto">{money(concert.paid)}</td><td className={`px-3 py-3 font-bold tabular-nums-auto ${concert.remaining > 0 ? "text-red-600" : "text-slate-400"}`}>{concert.remaining > 0 ? money(concert.remaining) : "—"}</td><td className="px-3 py-3"><Link href={`/admin/concerts/${concert.id}`} className="font-bold text-blue-600">فتح</Link></td></tr>; }
+
+function PageNavigation({ page, totalPages, onPage, label }: { page: number; totalPages: number; onPage: (page: number) => void; label: string }) {
+  return <div className="flex items-center justify-center gap-3 text-xs" aria-label={label}>
+    <button disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">السابق</button>
+    <span className="text-slate-500">{page} من {totalPages}</span>
+    <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">التالي</button>
+  </div>;
+}
 
 function PaymentsTable({ customer }: { customer: ConcertCustomerSummary }) { return customer.payments.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">لا توجد دفعات مسجلة</p> : <div className="space-y-2">{customer.payments.map((payment) => <div key={payment.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-xs sm:grid-cols-5"><span><small className="block text-slate-400">الحفلة</small><b>#{payment.concertNumber ?? "—"}</b></span><span><small className="block text-slate-400">المبلغ</small><b className="text-emerald-600">{money(payment.amount)} ريال</b></span><span><small className="block text-slate-400">الطريقة</small><b>{METHOD[payment.method] ?? payment.method}</b></span><span><small className="block text-slate-400">التاريخ</small><b>{payment.date || formatDate(payment.createdAt)}</b></span><span><small className="block text-slate-400">سجّلها</small><b>{payment.createdByName}</b></span></div>)}</div>; }
 
