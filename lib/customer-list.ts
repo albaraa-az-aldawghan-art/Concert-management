@@ -6,9 +6,61 @@ export const CUSTOMER_CONCERT_PAGE_SIZE = 10;
 export interface CustomerFilters {
   search: string;
   period: "" | "month" | "year";
+  dateFrom?: string;
+  dateTo?: string;
   frequency: "" | "one" | "returning";
   financial: "" | "paid" | "due";
   recorder: string;
+}
+
+function dateOnly(value: string | null): string {
+  if (!value) return "";
+  const match = value.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+}
+
+/** Scope customer details and totals to the selected concert-date range. */
+export function scopeCustomersToConcertDates(
+  customers: ConcertCustomerSummary[],
+  dateFrom = "",
+  dateTo = "",
+): ConcertCustomerSummary[] {
+  if (!dateFrom && !dateTo) return customers;
+
+  return customers.flatMap((customer) => {
+    const concerts = customer.concerts.filter((concert) => {
+      const date = dateOnly(concert.date);
+      if (!date) return false;
+      if (dateFrom && date < dateFrom) return false;
+      if (dateTo && date > dateTo) return false;
+      return true;
+    });
+    if (concerts.length === 0) return [];
+
+    const concertIds = new Set(concerts.map((concert) => concert.id));
+    const lastConcertAt = concerts
+      .map((concert) => dateOnly(concert.date))
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
+
+    return [{
+      ...customer,
+      concerts,
+      payments: customer.payments.filter((payment) => concertIds.has(payment.concertId)),
+      lastConcertAt,
+      concertCount: concerts.length,
+      completedCount: concerts.filter((concert) => concert.status === "completed").length,
+      cancelledCount: concerts.filter((concert) => concert.status === "cancelled").length,
+      upcomingCount: concerts.filter((concert) => concert.status === "planned" || concert.status === "confirmed").length,
+      totalValue: concerts.reduce((sum, concert) => sum + concert.price, 0),
+      totalCollected: concerts.reduce((sum, concert) => sum + concert.paid, 0),
+      totalRemaining: concerts.reduce((sum, concert) => sum + concert.remaining, 0),
+      totalRefunded: concerts.reduce((sum, concert) => sum + concert.refundAmount, 0),
+    }];
+  });
 }
 
 export function filterConcertCustomers(
@@ -16,6 +68,7 @@ export function filterConcertCustomers(
   filters: CustomerFilters,
   now = new Date(),
 ) {
+  customers = scopeCustomersToConcertDates(customers, filters.dateFrom, filters.dateTo);
   const query = filters.search.trim().toLocaleLowerCase("ar");
   return customers.filter((customer) => {
     const searchable = [

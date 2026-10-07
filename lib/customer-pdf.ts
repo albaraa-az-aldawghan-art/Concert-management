@@ -6,6 +6,21 @@ export type CustomerPdfRecord = Pick<ConcertCustomerSummary,
   "totalCollected" | "totalRemaining" | "lastConcertAt"
 >;
 
+export interface CustomerPdfFilters {
+  search?: string;
+  period?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  frequency?: string;
+  financial?: string;
+  recorder?: string;
+}
+
+export interface CustomerPdfOptions {
+  fontBase64?: string;
+  filters?: CustomerPdfFilters;
+}
+
 const escapeHtml = (value: unknown) => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -26,11 +41,33 @@ function dateText(value: string | null) {
   );
 }
 
-export function buildCustomersPdfHtml(customers: CustomerPdfRecord[], generatedAt = new Date()) {
+function activeFilterText(filters: CustomerPdfFilters = {}) {
+  const labels: string[] = [];
+  if (filters.search) labels.push(`البحث: ${filters.search}`);
+  if (filters.dateFrom) labels.push(`من: ${dateText(filters.dateFrom)}`);
+  if (filters.dateTo) labels.push(`إلى: ${dateText(filters.dateTo)}`);
+  if (filters.period === "month") labels.push("آخر حفلة: هذا الشهر");
+  if (filters.period === "year") labels.push("آخر حفلة: هذه السنة");
+  if (filters.frequency === "one") labels.push("عدد الحفلات: حفلة واحدة");
+  if (filters.frequency === "returning") labels.push("عدد الحفلات: عميل متكرر");
+  if (filters.financial === "paid") labels.push("الحالة المالية: مسدد");
+  if (filters.financial === "due") labels.push("الحالة المالية: عليه متبقي");
+  if (filters.recorder) labels.push(`المسجل بواسطة: ${filters.recorder}`);
+  return labels.length > 0 ? labels.join(" | ") : "كل العملاء وجميع الفترات";
+}
+
+export function buildCustomersPdfHtml(
+  customers: CustomerPdfRecord[],
+  generatedAt = new Date(),
+  options: CustomerPdfOptions = {},
+) {
   const totalConcerts = customers.reduce((sum, customer) => sum + customer.concertCount, 0);
   const totalValue = customers.reduce((sum, customer) => sum + customer.totalValue, 0);
   const totalCollected = customers.reduce((sum, customer) => sum + customer.totalCollected, 0);
   const totalRemaining = customers.reduce((sum, customer) => sum + customer.totalRemaining, 0);
+  const fontFace = options.fontBase64
+    ? `@font-face { font-family: "CairoPdf"; src: url(data:font/woff2;base64,${options.fontBase64}) format("woff2"); font-weight: 400 800; font-style: normal; font-display: block; }`
+    : "";
   const rows = customers.map((customer) => `
     <tr>
       <td class="name">${escapeHtml(customer.name)}</td>
@@ -47,13 +84,15 @@ export function buildCustomersPdfHtml(customers: CustomerPdfRecord[], generatedA
     </tr>`).join("");
 
   return `<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8" />
+<html lang="ar"><head><meta charset="utf-8" />
 <style>
+  ${fontFace}
   @page { size: A4 landscape; margin: 12mm 9mm 15mm; }
   * { box-sizing: border-box; }
   html, body { background: #ffffff; color-scheme: light; }
-  body { margin: 0; color: #172033; font-family: Arial, Tahoma, sans-serif; direction: rtl; }
-  h1 { margin: 0; color: #1c2d50; font-size: 21px; }
+  body { margin: 0; color: #172033; font-family: "CairoPdf", Arial, Tahoma, sans-serif; direction: ltr; }
+  h1, .sub, .summary, table { direction: rtl; }
+  h1 { margin: 0; color: #1c2d50; font-size: 21px; text-align: right; }
   .sub { margin: 5px 0 13px; color: #64748b; font-size: 10px; }
   .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-bottom: 12px; }
   .card { border: 1px solid #d8e0eb; border-radius: 8px; padding: 8px 10px; background: #f8fafc; }
@@ -73,7 +112,8 @@ export function buildCustomersPdfHtml(customers: CustomerPdfRecord[], generatedA
   .empty { padding: 35px; color: #94a3b8; font-size: 12px; }
 </style></head><body>
   <h1>تقرير عملاء الحفلات</h1>
-  <p class="sub">تاريخ التصدير: ${escapeHtml(dateText(generatedAt.toISOString()))} - يشمل التقرير جميع نتائج البحث والفلاتر المختارة</p>
+  <p class="sub">تاريخ التصدير: ${escapeHtml(dateText(generatedAt.toISOString()))} - يشمل التقرير النتائج المطابقة للفلاتر فقط</p>
+  <p class="sub"><b>الفلاتر المطبقة:</b> ${escapeHtml(activeFilterText(options.filters))}</p>
   <section class="summary">
     <div class="card"><span>إجمالي العملاء</span><b>${customers.length.toLocaleString("en-US")}</b></div>
     <div class="card"><span>إجمالي الحفلات</span><b>${totalConcerts.toLocaleString("en-US")}</b></div>

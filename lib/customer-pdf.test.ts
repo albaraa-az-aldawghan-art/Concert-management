@@ -19,3 +19,14 @@ test("تقرير PDF للعملاء أفقي ويحتوي الأرقام الص�
   assert.match(html, /إجمالي العملاء/);
   assert.doesNotMatch(html, /عميل <تجريبي>/);
 });
+
+test("تقرير العملاء يضمّن الخط العربي ويعرض نطاق التاريخ المطبق", () => {
+  const html = buildCustomersPdfHtml([record], new Date("2026-10-06T00:00:00.000Z"), {
+    fontBase64: "Zm9udA==",
+    filters: { dateFrom: "2026-09-01", dateTo: "2026-09-30", financial: "due" },
+  });
+  assert.match(html, /font-family: "CairoPdf"/);
+  assert.match(html, /data:font\/woff2;base64,Zm9udA==/);
+  assert.match(html, /الفلاتر المطبقة/);
+  assert.match(html, /الحالة المالية: عليه متبقي/);
+});

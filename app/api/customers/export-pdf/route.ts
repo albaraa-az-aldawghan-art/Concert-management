@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Browser } from "puppeteer-core";
-import { buildCustomersPdfHtml, type CustomerPdfRecord } from "@/lib/customer-pdf";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { buildCustomersPdfHtml, type CustomerPdfFilters, type CustomerPdfRecord } from "@/lib/customer-pdf";
 import { ApiError, require_, requireCaller, withActivityResponse } from "@/lib/server/guard";
 import { launchPdfBrowser } from "@/lib/server/pdf-browser";
 
@@ -37,14 +39,34 @@ function recordsFrom(value: unknown): CustomerPdfRecord[] {
   });
 }
 
+function filtersFrom(value: unknown): CustomerPdfFilters {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    search: text(item.search, 120),
+    period: text(item.period, 10),
+    dateFrom: text(item.dateFrom, 10),
+    dateTo: text(item.dateTo, 10),
+    frequency: text(item.frequency, 20),
+    financial: text(item.financial, 20),
+    recorder: text(item.recorder, 120),
+  };
+}
+
 async function download(req: NextRequest) {
   let browser: Browser | undefined;
   try {
     const caller = await requireCaller(req);
     require_(caller, "contracts", "customers_export", "تصدير قائمة عملاء الحفلات");
-    const body = await req.json() as { customers?: unknown };
+    const body = await req.json() as { customers?: unknown; filters?: unknown };
     const customers = recordsFrom(body.customers);
-    const html = buildCustomersPdfHtml(customers);
+    const fontBase64 = await readFile(
+      path.join(process.cwd(), "node_modules", "@fontsource", "cairo", "files", "cairo-arabic-400-normal.woff2"),
+      "base64",
+    );
+    const html = buildCustomersPdfHtml(customers, new Date(), {
+      fontBase64,
+      filters: filtersFrom(body.filters),
+    });
 
     browser = await launchPdfBrowser();
     const page = await browser.newPage();

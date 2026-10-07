@@ -37,3 +37,27 @@ test("البحث والفلاتر تعمل على جميع العملاء قبل
   assert.equal(result.length, 1);
   assert.equal(result[0].id, "customer-25");
 });
+
+test("نطاق التاريخ يعيد حساب حفلات العميل وأرقامه المالية قبل التصدير", () => {
+  const value = customer(1);
+  value.concerts = [
+    { ...value.concerts[0], id: "old", date: "2026-09-10", price: 100, paid: 100, remaining: 0 },
+    { ...value.concerts[0], id: "inside", date: "2026-10-05", price: 300, paid: 120, remaining: 180 },
+  ];
+  value.payments = [
+    { id: "p-old", concertId: "old", concertNumber: 1, amount: 100, method: "cash", date: "2026-09-10", createdAt: null, createdBy: "a", createdByName: "A" },
+    { id: "p-new", concertId: "inside", concertNumber: 2, amount: 120, method: "cash", date: "2026-10-05", createdAt: null, createdBy: "a", createdByName: "A" },
+  ];
+
+  const [result] = filterConcertCustomers([value], {
+    search: "", period: "", dateFrom: "2026-10-01", dateTo: "2026-10-31",
+    frequency: "one", financial: "due", recorder: "",
+  });
+
+  assert.equal(result.concertCount, 1);
+  assert.equal(result.totalValue, 300);
+  assert.equal(result.totalCollected, 120);
+  assert.equal(result.totalRemaining, 180);
+  assert.equal(result.concerts[0].id, "inside");
+  assert.equal(result.payments[0].id, "p-new");
+});

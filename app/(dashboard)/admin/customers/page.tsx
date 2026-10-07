@@ -47,6 +47,8 @@ export default function CustomersPage() {
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [frequency, setFrequency] = useState("");
   const [financial, setFinancial] = useState("");
   const [recorder, setRecorder] = useState("");
@@ -88,10 +90,12 @@ export default function CustomersPage() {
   const filtered = useMemo(() => filterConcertCustomers(customers, {
     search,
     period: period as "" | "month" | "year",
+    dateFrom,
+    dateTo,
     frequency: frequency as "" | "one" | "returning",
     financial: financial as "" | "paid" | "due",
     recorder,
-  }), [customers, search, period, frequency, financial, recorder]);
+  }), [customers, search, period, dateFrom, dateTo, frequency, financial, recorder]);
 
   const customerPages = pageOf(filtered, page, CUSTOMER_PAGE_SIZE);
   const safePage = customerPages.page;
@@ -125,6 +129,10 @@ export default function CustomersPage() {
   }
 
   async function exportRows() {
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      showToast("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", "error");
+      return;
+    }
     setExporting(true);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -132,7 +140,9 @@ export default function CustomersPage() {
       const response = await fetch("/api/customers/export-pdf", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ customers: filtered.map((customer) => ({
+        body: JSON.stringify({
+          filters: { search, period, dateFrom, dateTo, frequency, financial, recorder },
+          customers: filtered.map((customer) => ({
           name: customer.name,
           primaryPhone: customer.primaryPhone,
           secondaryPhone: customer.secondaryPhone,
@@ -144,7 +154,8 @@ export default function CustomersPage() {
           totalCollected: customer.totalCollected,
           totalRemaining: customer.totalRemaining,
           lastConcertAt: customer.lastConcertAt,
-        })) }),
+          })),
+        }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({})) as { error?: string };
@@ -176,9 +187,11 @@ export default function CustomersPage() {
         <Stat label="إجمالي المتبقي" value={`${money(totalRemaining)} ريال`} hint={`على ${filtered.filter((customer) => customer.totalRemaining > 0).length} عميلاً`} icon={<WalletCards size={18} />} danger={totalRemaining > 0} />
       </div>
 
-      <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-[2fr_repeat(4,1fr)]">
+      <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-[2fr_repeat(6,1fr)]">
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">بحث</span><div className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={15} className="text-slate-400" /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="الاسم، الجوال، رقم الحفلة أو المكان..." className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></div></label>
         <Filter label="آخر حفلة" value={period} onChange={(value) => { setPeriod(value); setPage(1); }} options={[["", "كل الفترات"], ["month", "هذا الشهر"], ["year", "هذه السنة"]]} />
+        <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة من</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
+        <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة إلى</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
         <Filter label="عدد الحفلات" value={frequency} onChange={(value) => { setFrequency(value); setPage(1); }} options={[["", "الكل"], ["one", "حفلة واحدة"], ["returning", "عميل متكرر"]]} />
         <Filter label="الحالة المالية" value={financial} onChange={(value) => { setFinancial(value); setPage(1); }} options={[["", "الكل"], ["paid", "مسدد"], ["due", "عليه متبقي"]]} />
         <Filter label="المسجل بواسطة" value={recorder} onChange={(value) => { setRecorder(value); setPage(1); }} options={[["", "كل الموظفين"], ...recorderOptions.map((name) => [name, name])]} />
