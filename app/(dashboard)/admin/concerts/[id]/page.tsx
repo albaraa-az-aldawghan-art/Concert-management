@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUpcomingConcerts, getConcertById, getConcertItems, updateConcert, updateConcertItem, updateConcertItemCount, deleteConcertItem, addConcertItem, getConcertPayments, addConcertPayment, deleteConcertPayment, addConcertLog, getConcertLogs, markConcertAsPaid, updateConcertItemCosts, cancelConcert, setConcertInvoice, setConcertLocation, runWorkflowStep, undoWorkflowStep, confirmWarehouseReturn, undoWarehouseReturn } from "@/lib/firestore/concerts";
 import { getMissingItemsByConcert } from "@/lib/firestore/missing-items";
-import { getFoodCategories, getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
+import { getConcertFood, addConcertFood, updateConcertFood, deleteConcertFood, getConcertFoodForConcerts } from "@/lib/firestore/food";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -23,6 +23,7 @@ import { getCostOutgoingByConcert, getCostOutgoingForConcerts, getCostItems, get
 import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { committedByBarcode, dispensedMap, itemBalance, averageCost } from "@/lib/recipes";
 import { getSectionsOfChannel, getPackages } from "@/lib/firestore/sales";
+import { sortConcertFoodByCurrentOrder } from "@/lib/concert-food-order";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
 import { Actor } from "@/components/ui/actor";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
@@ -1054,11 +1055,7 @@ export default function AdminConcertDetailPage() {
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount ?? 0), 0) + externalResourceExpense;
 
   /* أصناف الأكل بترتيب القسم كما هو معرَّف في الإعدادات، ثم اسم الصنف داخل القسم */
-  const foodCatOrder = new Map(sections.map((c, i) => [c.name, c.order ?? i]));
-  const sortedConcertFood = [...concertFood].sort((a, b) => {
-    const catDiff = (foodCatOrder.get(a.categoryName) ?? 999) - (foodCatOrder.get(b.categoryName) ?? 999);
-    return catDiff !== 0 ? catDiff : a.selectedOption.localeCompare(b.selectedOption, "ar");
-  });
+  const sortedConcertFood = sortConcertFoodByCurrentOrder(concertFood, sections);
 
   /* المرتبط بحفلات قادمة أخرى — حفلة هذه الصفحة مستثناة كي لا تنافس نفسها */
   const upcomingOtherIds = new Set(

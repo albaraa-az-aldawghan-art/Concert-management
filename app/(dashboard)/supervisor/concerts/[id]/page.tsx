@@ -11,6 +11,8 @@ import {
 } from "@/lib/firestore/concerts";
 import { reportMissingItem } from "@/lib/firestore/missing-items";
 import { getConcertFood } from "@/lib/firestore/food";
+import { getSectionsOfChannel } from "@/lib/firestore/sales";
+import { sortConcertFoodByCurrentOrder } from "@/lib/concert-food-order";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { getUserById, getUsersByRole } from "@/lib/firestore/users";
 import { useToast } from "@/components/ui/toast";
@@ -19,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { Concert, ConcertItem, AppUser, WarehouseItem, ConcertFood } from "@/types";
+import { Concert, ConcertItem, AppUser, WarehouseItem, ConcertFood, SalesSection } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { normalizeStatus, hasStartedExecuting } from "@/lib/concert-status";
 import { Calendar, Plus, Package, ChevronRight, CheckCircle, MapPin, Phone, UserRound, UtensilsCrossed, AlertTriangle, UsersRound } from "lucide-react";
@@ -48,6 +50,7 @@ export default function SupervisorConcertDetailPage() {
   const [employees, setEmployees] = useState<AppUser[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [concertFood, setConcertFood] = useState<ConcertFood[]>([]);
+  const [sections, setSections] = useState<SalesSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -108,18 +111,20 @@ export default function SupervisorConcertDetailPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [concertData, itemsData, warehouseData, foodData, allEmps] = await Promise.all([
+      const [concertData, itemsData, warehouseData, foodData, allEmps, salesSections] = await Promise.all([
         getConcertById(id),
         getConcertItems(id),
         getWarehouseItems(),
         getConcertFood(id),
         getUsersByRole("employee").catch(() => []),
+        getSectionsOfChannel("concerts").catch(() => [] as SalesSection[]),
       ]);
       setAllEmployees(allEmps);
       setConcert(concertData);
       setItems(itemsData);
       setWarehouseItems(warehouseData);
       setConcertFood(foodData);
+      setSections(salesSections);
 
       if (concertData) {
         const empData = await Promise.all(concertData.employeeIds.map((uid) => getUserById(uid)));
@@ -517,7 +522,7 @@ export default function SupervisorConcertDetailPage() {
             أصناف الأكل ({concertFood.length})
           </h3>
           <div className="space-y-2">
-            {concertFood.map((f) => (
+            {sortConcertFoodByCurrentOrder(concertFood, sections).map((f) => (
               <div key={f.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{f.categoryName}</p>

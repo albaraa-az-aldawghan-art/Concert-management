@@ -7,11 +7,13 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getConcertById, getConcertItems } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
+import { getSectionsOfChannel } from "@/lib/firestore/sales";
+import { sortConcertFoodByCurrentOrder } from "@/lib/concert-food-order";
 import { getWarehouseItems } from "@/lib/firestore/warehouse";
 import { thumbUrl } from "@/lib/cloudinary";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
-import { Concert, ConcertItem, ConcertFood, WarehouseItem } from "@/types";
+import { Concert, ConcertItem, ConcertFood, WarehouseItem, SalesSection } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import { Package, UtensilsCrossed, CalendarDays, Clock, MapPin, ChevronRight, FileText, UsersRound } from "lucide-react";
 
@@ -25,22 +27,25 @@ export default function EmployeeConcertViewPage() {
   const [concert, setConcert] = useState<Concert | null>(null);
   const [items, setItems] = useState<ConcertItem[]>([]);
   const [food, setFood] = useState<ConcertFood[]>([]);
+  const [sections, setSections] = useState<SalesSection[]>([]);
   const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [c, it, f, wh] = await Promise.all([
+        const [c, it, f, wh, salesSections] = await Promise.all([
           getConcertById(id),
           getConcertItems(id).catch(() => []),
           getConcertFood(id).catch(() => []),
           getWarehouseItems().catch(() => []),
+          getSectionsOfChannel("concerts").catch(() => [] as SalesSection[]),
         ]);
         setConcert(c);
         setItems(it);
         setFood(f);
         setWarehouseItems(wh);
+        setSections(salesSections);
       } catch {
         showToast("حدث خطأ أثناء تحميل البيانات", "error");
       } finally {
@@ -83,7 +88,7 @@ export default function EmployeeConcertViewPage() {
   const totalFood = food.reduce((s, f) => s + (f.quantity ?? 0), 0);
 
   const groups = new Map<string, ConcertFood[]>();
-  for (const f of food) {
+  for (const f of sortConcertFoodByCurrentOrder(food, sections)) {
     if (!groups.has(f.categoryName)) groups.set(f.categoryName, []);
     groups.get(f.categoryName)!.push(f);
   }

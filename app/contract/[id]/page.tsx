@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { getConcertById, getConcertPayments, getConcertLogs } from "@/lib/firestore/concerts";
 import { getConcertFood } from "@/lib/firestore/food";
 import { getSectionsOfChannel } from "@/lib/firestore/sales";
+import { sortConcertFoodByCurrentOrder } from "@/lib/concert-food-order";
 import { canvasToPdfBlob } from "@/lib/pdf";
 import { Concert, ConcertPayment, ConcertFood, ConcertLog, PaymentMethod, SalesSection } from "@/types";
 
@@ -197,9 +198,7 @@ export default function ContractPage() {
   const seen = new Map<string, FoodGroup>();
   // كمية كل صنف الحالية — لعرضها يمّه اسمه بلا مساس بمجموع القسم
   const foodQtyByKey = new Map<string, number>(); // "categoryName:::option"
-  // باركود كل صنف — لترتيب items داخل القسم بترتيبه المحفوظ في منتجات البيع
-  const foodBarcodeByKey = new Map<string, string | null>(); // "categoryName:::option"
-  for (const food of foodItems) {
+  for (const food of sortConcertFoodByCurrentOrder(foodItems, sections)) {
     if (!seen.has(food.categoryName)) {
       const g: FoodGroup = { categoryName: food.categoryName, categoryId: food.categoryId, items: [], totalQty: 0 };
       seen.set(food.categoryName, g);
@@ -210,23 +209,6 @@ export default function ContractPage() {
     g.totalQty += food.quantity ?? 0;
     const key = `${food.categoryName}:::${food.selectedOption}`;
     foodQtyByKey.set(key, food.quantity ?? 0);
-    foodBarcodeByKey.set(key, food.costItemBarcode ?? null);
-  }
-
-  // ترتيب الأصناف داخل كل قسم بأولوية الظهور المحفوظة في منتجات البيع —
-  // صنف بلا باركود أو غير مُرتَّب بعد يُلحَق بالنهاية أبجدياً
-  const sectionOrderById = new Map(sections.map((s) => [s.id, s.itemOrder ?? []]));
-  for (const g of foodGroups) {
-    const order = sectionOrderById.get(g.categoryId) ?? [];
-    if (order.length === 0) continue;
-    const rank = new Map(order.map((barcode, i) => [barcode, i]));
-    g.items.sort((a, b) => {
-      const ba = foodBarcodeByKey.get(`${g.categoryName}:::${a}`) ?? null;
-      const bb = foodBarcodeByKey.get(`${g.categoryName}:::${b}`) ?? null;
-      const ra = ba && rank.has(ba) ? rank.get(ba)! : Infinity;
-      const rb = bb && rank.has(bb) ? rank.get(bb)! : Infinity;
-      return ra !== rb ? ra - rb : a.localeCompare(b, "ar");
-    });
   }
 
   // ── Financial calculations ────────────────────────
