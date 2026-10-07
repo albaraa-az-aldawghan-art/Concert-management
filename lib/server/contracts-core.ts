@@ -36,7 +36,15 @@ async function buildTerms(db: Firestore, terms: TermInput[], type?: ContractType
       try {
         unitPrice = previous?.unitPrice ?? productContractPrice(x as CostItem, type, sectionId);
       } catch (error) {
-        throw new ApiError(`${x.name ?? t.barcode}: ${(error as Error).message}`);
+        // يبقى الربط بالقسم إلزامياً، أما السعر غير المسجل فيُسمح بإدخاله
+        // يدوياً عند إنشاء البند. الأسعار الآلية الموجودة تظل هي المرجع المعتمد.
+        const linkedToPaidSection = type !== "paid" || (
+          !!sectionId && ((x.salesSections as string[] | undefined) ?? []).includes(sectionId)
+        );
+        if (!linkedToPaidSection || !Number.isFinite(t.unitPrice) || t.unitPrice < 0) {
+          throw new ApiError(`${x.name ?? t.barcode}: ${(error as Error).message}`);
+        }
+        unitPrice = previous?.unitPrice ?? t.unitPrice;
       }
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new ApiError("سعر البند غير صالح");

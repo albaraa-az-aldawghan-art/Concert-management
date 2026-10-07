@@ -84,7 +84,7 @@ test("collected uses authoritative cost; paid uses the selected section, never c
   assert.equal(f.records.get("cost_items/sandwich")!.totalOut, 0);
 });
 
-test("rejects missing/invalid type, missing/foreign section, missing product price, and duplicate terms without writes", async () => {
+test("rejects missing/invalid type, missing/foreign section, unlinked items, and duplicate terms without writes", async () => {
   const f = fixture();
   for (const input of [
     { ...f.draft(), contractType: undefined as unknown as ContractType },
@@ -94,12 +94,29 @@ test("rejects missing/invalid type, missing/foreign section, missing product pri
     { ...f.draft("paid"), priceSectionId: "missing" },
     { ...f.draft(), terms: [...f.draft().terms, ...f.draft().terms] },
   ]) await assert.rejects(() => svcCreateContract(f.db, input));
-  f.records.get("cost_items/sandwich")!.sectionPrices = {};
-  await assert.rejects(() => svcCreateContract(f.db, f.draft("paid")), /سعر صالح/);
   f.records.get("cost_items/sandwich")!.salesSections = [];
   await assert.rejects(() => svcCreateContract(f.db, f.draft("paid")), /غير مرتبط/);
   assert.equal([...f.records.keys()].some((k) => k.startsWith("contracts/")), false);
   assert.equal(f.records.has("counters/contracts"), false);
+});
+
+test("both paid and collected contracts accept a manual price only when the automatic source is missing", async () => {
+  const paid = fixture();
+  paid.records.get("cost_items/sandwich")!.sectionPrices = {};
+  const paidContract = await svcCreateContract(paid.db, {
+    ...paid.draft("paid"), terms: [{ barcode: "sandwich", quantity: 10, unitPrice: 8.5 }],
+  });
+  assert.equal(paid.contract(paidContract.id).terms[0].unitPrice, 8.5);
+  assert.equal(paid.contract(paidContract.id).totalValue, 85);
+
+  const collected = fixture();
+  collected.records.get("cost_items/sandwich")!.totalIn = 0;
+  collected.records.get("cost_items/sandwich")!.totalInValue = 0;
+  const collectedContract = await svcCreateContract(collected.db, {
+    ...collected.draft(), terms: [{ barcode: "sandwich", quantity: 4, unitPrice: 6 }],
+  });
+  assert.equal(collected.contract(collectedContract.id).terms[0].unitPrice, 6);
+  assert.equal(collected.contract(collectedContract.id).totalValue, 24);
 });
 
 test("missing stock cost is rejected; explicit zero selling price and cost are valid; rounding is consistent", async () => {

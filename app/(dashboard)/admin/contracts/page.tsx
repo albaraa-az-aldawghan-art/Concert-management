@@ -120,6 +120,10 @@ export default function ContractsPage() {
     catch (error) { return { error: (error as Error).message }; }
   }
 
+  function needsManualPrice(term: TermDraft) {
+    return !!contractType && !!sourcePrice(term.barcode).error;
+  }
+
   /** ما صُرف فعلاً على كل عقد — التكلفة الحقيقية لا المقدّرة */
   const costByContract = new Map<string, number>();
   for (const o of outgoing) {
@@ -177,8 +181,10 @@ export default function ContractsPage() {
       showToast("أدخل كمية أكبر من صفر لكل بند", "error"); return;
     }
     if (contractType) {
-      const invalid = terms.find((t) => sourcePrice(t.barcode).error);
-      if (invalid) { showToast(sourcePrice(invalid.barcode).error!, "error"); return; }
+      const invalid = terms.find((t) => needsManualPrice(t) && (
+        t.unitPrice.trim() === "" || !Number.isFinite(Number(t.unitPrice)) || Number(t.unitPrice) < 0
+      ));
+      if (invalid) { showToast("أدخل سعراً صالحاً لكل بند لا يتوفر له سعر تلقائي", "error"); return; }
     }
     const draft: ContractDraft = {
       ...(contractType ? { contractType, priceSectionId: contractType === "paid" ? priceSectionId : null } : {}),
@@ -527,6 +533,7 @@ export default function ContractsPage() {
               <div className="space-y-1.5 mb-2">
                 {terms.map((t) => {
                   const item = items.find((i) => i.id === t.barcode);
+                  const manualPrice = needsManualPrice(t);
                   return (
                     <div key={t.barcode} className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2">
                       <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{item?.name ?? t.barcode}</span>
@@ -536,9 +543,10 @@ export default function ContractsPage() {
                       <span className="text-[11px] text-slate-500 w-9 shrink-0">{item?.unit}</span>
                       <span className="text-[11px] text-slate-400 shrink-0">×</span>
                       <input type="number" min={0} step="0.01" value={t.unitPrice} placeholder="السعر"
-                        readOnly={!!contractType} aria-label={contractPriceLabel(contractType || undefined)}
+                        readOnly={!!contractType && !manualPrice} aria-label={contractPriceLabel(contractType || undefined)}
                         onChange={(e) => setTerms((p) => p.map((x) => x.barcode === t.barcode ? { ...x, unitPrice: e.target.value } : x))}
-                        className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
+                        className={`w-24 border rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto ${manualPrice ? "border-amber-300 bg-amber-50" : "border-slate-200"}`} />
+                      {manualPrice && <span className="text-[10px] text-amber-700 shrink-0">أدخل السعر</span>}
                       <span className="text-xs font-bold text-[#1C2D50] w-20 text-left tabular-nums-auto shrink-0">
                         {money((parseFloat(t.quantity) || 0) * (parseFloat(t.unitPrice) || 0))}
                       </span>
@@ -574,8 +582,8 @@ export default function ContractsPage() {
                 const source = sourcePrice(i.id);
                 return (
                   <button key={i.id} type="button" onClick={() => toggleTerm(i.id)}
-                    disabled={!on && (!editTarget && !contractType || !!contractType && !!source.error)}
-                    className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center gap-2.5">
+                    disabled={!on && !editTarget && !contractType}
+                    className="w-full text-right px-3 py-2 hover:bg-slate-50 flex items-center gap-2.5 disabled:cursor-not-allowed disabled:opacity-50">
                     <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
                       on ? "bg-[#1C2D50] border-[#1C2D50]" : "border-slate-300"
                     }`}>
@@ -583,7 +591,7 @@ export default function ContractsPage() {
                     </span>
                     <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{i.name}</span>
                     <span className="text-[11px] text-slate-500 tabular-nums-auto shrink-0 max-w-[50%]">
-                      {contractType ? source.error ?? `${contractPriceLabel(contractType)} ${money(source.price ?? 0)} / ${i.unit}` : `تكلفته ${money(averageCost(i))} / ${i.unit}`}
+                      {contractType ? source.error ? "السعر غير مسجل — أدخله بعد الاختيار" : `${contractPriceLabel(contractType)} ${money(source.price ?? 0)} / ${i.unit}` : `تكلفته ${money(averageCost(i))} / ${i.unit}`}
                     </span>
                   </button>
                 );
