@@ -1,48 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Browser } from "puppeteer-core";
 import { requireCaller, withActivityResponse } from "@/lib/server/guard";
 import { activityContext } from "@/lib/server/activity-context";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { launchPdfBrowser } from "@/lib/server/pdf-browser";
+import type { Browser } from "puppeteer-core";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-
-// Must match the installed @sparticuz/chromium-min version
-const CHROMIUM_PACK_URL =
-  "https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar";
-
-async function launchBrowser(): Promise<Browser> {
-  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-
-  if (isServerless) {
-    const chromium = (await import("@sparticuz/chromium-min")).default;
-    const puppeteer = (await import("puppeteer-core")).default;
-
-    chromium.setGraphicsMode = false;
-
-    return puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
-      headless: true,
-    });
-  }
-
-  // Local development: use system Chrome
-  const puppeteer = (await import("puppeteer-core")).default;
-  return puppeteer.launch({
-    executablePath:
-      process.env.CHROME_PATH ??
-      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-  });
-}
 
 async function download(
   req: NextRequest,
@@ -65,7 +30,7 @@ async function download(
     const proto = req.headers.get("x-forwarded-proto") ?? "http";
     const contractUrl = `${proto}://${host}/contract/${id}`;
 
-    browser = await launchBrowser();
+    browser = await launchPdfBrowser();
 
     const page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
