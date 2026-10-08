@@ -2,52 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Browser } from "puppeteer-core";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { buildCustomersPdfHtml, type CustomerPdfFilters, type CustomerPdfRecord } from "@/lib/customer-pdf";
+import { buildCustomersPdfHtml } from "@/lib/customer-pdf";
+import type { CustomerFilters } from "@/lib/customer-list";
+import { selectCustomerStatements } from "@/lib/customer-pdf-scope";
+import { listConcertCustomers } from "@/lib/server/concert-customers-core";
 import { ApiError, require_, requireCaller, withActivityResponse } from "@/lib/server/guard";
 import { launchPdfBrowser } from "@/lib/server/pdf-browser";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-function finite(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
 function text(value: unknown, max = 200) {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
-function recordsFrom(value: unknown): CustomerPdfRecord[] {
-  if (!Array.isArray(value)) throw new ApiError("بيانات العملاء غير صحيحة");
-  if (value.length > 2000) throw new ApiError("عدد العملاء أكبر من الحد المسموح للتصدير");
-  return value.map((entry) => {
-    const item = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
-    return {
-      name: text(item.name),
-      primaryPhone: text(item.primaryPhone, 30),
-      secondaryPhone: text(item.secondaryPhone, 30) || null,
-      firstRegisteredAt: text(item.firstRegisteredAt, 50) || null,
-      firstCreatedByName: text(item.firstCreatedByName),
-      source: text(item.source) || null,
-      concertCount: Math.max(0, Math.trunc(finite(item.concertCount))),
-      totalValue: finite(item.totalValue),
-      totalCollected: finite(item.totalCollected),
-      totalRemaining: finite(item.totalRemaining),
-      lastConcertAt: text(item.lastConcertAt, 50) || null,
-    };
-  });
-}
-
-function filtersFrom(value: unknown): CustomerPdfFilters {
+function filtersFrom(value: unknown): CustomerFilters {
   const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
     search: text(item.search, 120),
-    period: text(item.period, 10),
+    period: item.period === "month" || item.period === "year" ? item.period : "",
     dateFrom: text(item.dateFrom, 10),
     dateTo: text(item.dateTo, 10),
-    frequency: text(item.frequency, 20),
-    financial: text(item.financial, 20),
+    frequency: item.frequency === "one" || item.frequency === "returning" ? item.frequency : "",
+    financial: item.financial === "paid" || item.financial === "due" ? item.financial : "",
     recorder: text(item.recorder, 120),
   };
 }
@@ -57,15 +34,25 @@ async function download(req: NextRequest) {
   try {
     const caller = await requireCaller(req);
     require_(caller, "contracts", "customers_export", "تصدير قائمة عملاء الحفلات");
-    const body = await req.json() as { customers?: unknown; filters?: unknown };
-    const customers = recordsFrom(body.customers);
+    const body = await req.json() as { customerIds?: unknown; filters?: unknown };
+    const filters = filtersFrom(body.filters);
+    for (const date of [filters.dateFrom, filters.dateTo]) {
+      if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)))) throw new ApiError("تاريخ الفلتر غير صحيح");
+    }
+    if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) throw new ApiError("تاريخ البداية يجب أن يكون قبل تاريخ النهاية");
+    if (body.customerIds !== undefined && (!Array.isArray(body.customerIds) || body.customerIds.length > 2000 || body.customerIds.some((id) => typeof id !== "string" || id.length > 150))) throw new ApiError("اختيار العملاء غير صحيح");
+    const generatedAt = new Date();
+    const records = await listConcertCustomers(caller.db);
+    const customers = selectCustomerStatements(records, filters, body.customerIds as string[] | undefined, generatedAt);
+    if (customers.length > 2000) throw new ApiError("عدد العملاء أكبر من الحد المسموح للتصدير");
+    if (!customers.length) throw new ApiError("لا توجد بيانات مطابقة للعملاء والفلاتر المختارة");
     const fontBase64 = await readFile(
       path.join(process.cwd(), "node_modules", "@fontsource", "cairo", "files", "cairo-arabic-400-normal.woff2"),
       "base64",
     );
-    const html = buildCustomersPdfHtml(customers, new Date(), {
+    const html = buildCustomersPdfHtml(customers, generatedAt, {
       fontBase64,
-      filters: filtersFrom(body.filters),
+      filters,
     });
 
     browser = await launchPdfBrowser();

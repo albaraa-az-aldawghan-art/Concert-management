@@ -55,8 +55,8 @@ export function scopeCustomersToConcertDates(
       completedCount: concerts.filter((concert) => concert.status === "completed").length,
       cancelledCount: concerts.filter((concert) => concert.status === "cancelled").length,
       upcomingCount: concerts.filter((concert) => concert.status === "planned" || concert.status === "confirmed").length,
-      totalValue: concerts.reduce((sum, concert) => sum + concert.price, 0),
-      totalCollected: concerts.reduce((sum, concert) => sum + concert.paid, 0),
+      totalValue: concerts.reduce((sum, concert) => sum + (concert.status === "cancelled" ? 0 : concert.price), 0),
+      totalCollected: concerts.reduce((sum, concert) => sum + (concert.status === "cancelled" ? 0 : concert.paid), 0),
       totalRemaining: concerts.reduce((sum, concert) => sum + concert.remaining, 0),
       totalRefunded: concerts.reduce((sum, concert) => sum + concert.refundAmount, 0),
     }];

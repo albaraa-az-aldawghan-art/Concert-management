@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ConcertCustomerSummary } from "@/lib/firestore/customers";
 import { CUSTOMER_CONCERT_PAGE_SIZE, CUSTOMER_PAGE_SIZE, filterConcertCustomers, pageOf } from "./customer-list";
+import { selectCustomerStatements } from "./customer-pdf-scope";
 
 const customer = (index: number): ConcertCustomerSummary => ({
   id: `customer-${index}`, name: `عميل ${index}`, primaryPhone: `050000${String(index).padStart(4, "0")}`,
@@ -12,6 +13,20 @@ const customer = (index: number): ConcertCustomerSummary => ({
   concerts: [{ id: `concert-${index}`, concertNumber: index, date: "2026-10-01", createdAt: null,
     venueName: index === 25 ? "قاعة الهدف" : "قاعة", peopleCount: null, status: "confirmed", price: 100,
     paid: 50, remaining: 50, refundAmount: 0, invoiceNumber: null }], payments: [],
+});
+
+test("كشف PDF يختار عدة عملاء عبر جميع الصفحات ويحترم النطاق والإلغاء", () => {
+  const customers = Array.from({ length: 45 }, (_, index) => customer(index + 1));
+  customers[24].concerts.push({ ...customers[24].concerts[0], id: "cancelled", status: "cancelled", price: 300, paid: 200, remaining: 0, refundAmount: 100 });
+  customers[24].concerts.push({ ...customers[24].concerts[0], id: "outside", date: "2026-09-01", price: 900 });
+  const result = selectCustomerStatements(customers, { search: "", period: "", frequency: "", financial: "", recorder: "", dateFrom: "2026-10-01", dateTo: "2026-10-31" }, ["customer-1", "customer-25", "customer-25", "missing"]);
+  assert.deepEqual(result.map((c) => c.id), ["customer-1", "customer-25"]);
+  assert.equal(result[1].concertCount, 2);
+  assert.equal(result[1].totalValue, 100);
+  assert.equal(result[1].totalCollected, 50);
+  assert.equal(result[1].totalRefunded, 100);
+  assert.equal(result[1].totalRemaining, 50);
+  assert.equal(selectCustomerStatements(customers, { search: "عميل 45", period: "", frequency: "", financial: "", recorder: "" }, ["customer-1"]).length, 0);
 });
 
 test("قائمة العملاء تعرض 20 عميلاً ثم تنتقل إلى الصفحة التالية", () => {

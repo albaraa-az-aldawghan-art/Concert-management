@@ -1,6 +1,7 @@
 import { FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
 import { concertCustomerId, normalizeCustomerPhone } from "@/lib/concert-customers";
 import { ApiError } from "@/lib/server/guard";
+import type { ConcertCustomerSummary, CustomerPaymentSummary } from "@/lib/firestore/customers";
 
 type DocData = Record<string, unknown>;
 
@@ -38,7 +39,7 @@ export interface ConcertCustomerUpdate {
   notes: string | null;
 }
 
-export async function listConcertCustomers(db: Firestore) {
+export async function listConcertCustomers(db: Firestore): Promise<ConcertCustomerSummary[]> {
   const [concertSnap, paymentSnap, profileSnap, userSnap] = await Promise.all([
     db.collection("concerts").get(),
     db.collection("concert_payments").get(),
@@ -87,7 +88,7 @@ export async function listConcertCustomers(db: Firestore) {
     let completedCount = 0;
     let cancelledCount = 0;
     let upcomingCount = 0;
-    const customerPayments: Record<string, unknown>[] = [];
+    const customerPayments: CustomerPaymentSummary[] = [];
 
     const concerts = orderedByEvent.map(({ id, data }) => {
       const status = text(data.status) || "planned";
@@ -109,17 +110,21 @@ export async function listConcertCustomers(db: Firestore) {
       for (const payment of eventPayments) customerPayments.push({
         id: payment.id,
         concertId: id,
-        concertNumber: data.concertNumber ?? null,
+        concertNumber: data.concertNumber == null ? null : amount(data.concertNumber),
         amount: amount(payment.data.amount),
         method: text(payment.data.method),
         date: text(payment.data.date),
         createdAt: iso(payment.data.createdAt),
         createdBy: text(payment.data.createdBy),
         createdByName: users.get(text(payment.data.createdBy)) || "—",
+        cardType: text(payment.data.cardType) || null,
+        bankName: text(payment.data.bankName) || null,
+        senderName: text(payment.data.senderName) || null,
+        receiverName: text(payment.data.receiverName) || null,
       });
       return {
         id,
-        concertNumber: data.concertNumber ?? null,
+        concertNumber: data.concertNumber == null ? null : amount(data.concertNumber),
         date: iso(data.date),
         createdAt: iso(data.createdAt),
         venueName: text(data.venueName) || null,
@@ -157,7 +162,7 @@ export async function listConcertCustomers(db: Firestore) {
       totalRemaining,
       totalRefunded,
       concerts,
-      payments: customerPayments.sort((a, b) => String(b.date).localeCompare(String(a.date))),
+      payments: customerPayments.sort((a, b) => b.date.localeCompare(a.date)),
     };
   });
 

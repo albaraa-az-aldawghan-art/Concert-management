@@ -25,6 +25,10 @@ export interface CustomerPaymentSummary {
   createdAt: string | null;
   createdBy: string;
   createdByName: string;
+  cardType?: string | null;
+  bankName?: string | null;
+  senderName?: string | null;
+  receiverName?: string | null;
 }
 
 export interface ConcertCustomerSummary {
