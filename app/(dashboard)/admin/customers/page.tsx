@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { CustomerExportDialog } from "@/components/customer-export-dialog";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import {
   ConcertCustomerSummary, CustomerConcertSummary, getConcertCustomers, saveConcertCustomer,
@@ -60,6 +61,7 @@ export default function CustomersPage() {
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportIds, setExportIds] = useState<string[]>([]);
+  const [exportSearch, setExportSearch] = useState("");
   const [form, setForm] = useState({ name: "", primaryPhone: "", secondaryPhone: "", source: "", referralName: "", notes: "" });
 
   async function load(preferredId?: string) {
@@ -170,7 +172,7 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-2xl font-extrabold text-slate-900">عملاء الحفلات</h2><p className="mt-1 text-sm text-slate-500">ملف موحد لكل عميل وحفلاته ودفعاته</p></div>
-        {canExport && <Button variant="outline" onClick={() => { setExportIds(filtered.map((customer) => customer.id)); setExportOpen(true); }} disabled={!filtered.length}><Download size={16} /> تصدير كشف حساب PDF</Button>}
+        {canExport && <Button variant="outline" onClick={() => { setExportSearch(""); setExportIds(filtered.map((customer) => customer.id)); setExportOpen(true); }} disabled={!filtered.length}><Download size={16} /> تصدير كشف حساب PDF</Button>}
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -209,21 +211,9 @@ export default function CustomersPage() {
         </div>
       )}
 
-      <Modal open={exportOpen} onClose={() => { if (!exporting) setExportOpen(false); }} title="كشف حساب العملاء إلى PDF" size="lg">
-        <p className="mb-3 text-sm text-slate-500">اختر عميلاً أو أكثر. يشمل الكشف جميع حفلاتهم ودفعاتها المطابقة للفلاتر، وليس الصفحة الحالية فقط. نطاق التاريخ حسب تاريخ الحفلة.</p>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setExportIds(filtered.map((customer) => customer.id))}>تحديد الكل</Button>
-          <Button variant="outline" onClick={() => setExportIds(selected ? [selected.id] : [])}>العميل المفتوح فقط</Button>
-          <Button variant="outline" onClick={() => setExportIds([])}>إلغاء التحديد</Button>
-        </div>
-        <div className="max-h-72 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
-          {filtered.map((customer) => <label key={customer.id} className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-slate-50">
-            <input type="checkbox" checked={exportIds.includes(customer.id)} onChange={(event) => setExportIds((ids) => event.target.checked ? [...ids, customer.id] : ids.filter((id) => id !== customer.id))} />
-            <span className="flex-1 text-sm">{customer.name}</span><span className="text-xs text-slate-500" dir="ltr">{customer.primaryPhone}</span>
-          </label>)}
-        </div>
-        <div className="mt-4"><Button onClick={exportRows} loading={exporting} disabled={!exportIds.length}><Download size={16} /> تنزيل كشف الحساب ({exportIds.length} عميل)</Button></div>
-      </Modal>
+      <CustomerExportDialog open={exportOpen} onClose={() => { if (!exporting) setExportOpen(false); }}
+        customers={filtered} currentCustomerId={selected?.id} selectedIds={exportIds} setSelectedIds={setExportIds}
+        search={exportSearch} setSearch={setExportSearch} exporting={exporting} onExport={exportRows} />
       <Modal open={editing} onClose={() => setEditing(false)} title="تعديل بيانات عميل الحفلات" size="lg">
         <form onSubmit={(event) => { event.preventDefault(); saveEdit(); }} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2"><Input label="اسم العميل" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /><Input label="الجوال الأساسي" required value={form.primaryPhone} onChange={(event) => setForm({ ...form, primaryPhone: event.target.value })} /></div>

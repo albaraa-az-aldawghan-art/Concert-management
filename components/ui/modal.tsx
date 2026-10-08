@@ -12,6 +12,8 @@ interface ModalProps {
   children: React.ReactNode;
   className?: string;
   size?: "sm" | "md" | "lg" | "xl";
+  /** Confirmation for selection dialogs which do not contain a saveable form. */
+  confirmClose?: boolean;
 }
 
 const sizes = {
@@ -21,7 +23,7 @@ const sizes = {
   xl: "max-w-2xl",
 };
 
-export function Modal({ open, onClose, title, children, className, size = "md" }: ModalProps) {
+export function Modal({ open, onClose, title, children, className, size = "md", confirmClose = false }: ModalProps) {
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const dirtyRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -31,9 +33,20 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
   }, [open]);
 
   function requestClose() {
-    if (dirtyRef.current && panelRef.current?.querySelector("form")) setShowExitPrompt(true);
+    if (confirmClose || (dirtyRef.current && panelRef.current?.querySelector("form"))) setShowExitPrompt(true);
     else onClose();
   }
+  useEffect(() => {
+    if (!open || !confirmClose) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setShowExitPrompt(current => !current);
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [open, confirmClose]);
 
   function saveBeforeClose() {
     const form = panelRef.current?.querySelector("form") as HTMLFormElement | null;
@@ -94,13 +107,13 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
         <div className="p-5">{children}</div>
         {showExitPrompt && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/35 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-              <h3 className="font-bold text-slate-800">لديك بيانات غير محفوظة</h3>
-              <p className="mt-2 text-sm text-slate-500">هل تريد حفظ البيانات، متابعة التعديل، أم إلغاء التغييرات؟</p>
+            <div role="alertdialog" aria-modal="true" aria-label="تأكيد إغلاق النافذة" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+              <h3 className="font-bold text-slate-800">{confirmClose ? "هل تريد البقاء أم المغادرة؟" : "لديك بيانات غير محفوظة"}</h3>
+              <p className="mt-2 text-sm text-slate-500">{confirmClose ? "البقاء يحافظ على البحث والعملاء المحددين. المغادرة تغلق نافذة التصدير." : "هل تريد حفظ البيانات، متابعة التعديل، أم إلغاء التغييرات؟"}</p>
               <div className="mt-5 flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => { dirtyRef.current = false; setShowExitPrompt(false); onClose(); }} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">إلغاء التغييرات</button>
-                <button type="button" onClick={() => setShowExitPrompt(false)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">متابعة التعديل</button>
-                <button type="button" onClick={saveBeforeClose} className="rounded-xl bg-[#1C2D50] px-3 py-2 text-sm font-semibold text-white">حفظ</button>
+                <button type="button" onClick={() => { dirtyRef.current = false; setShowExitPrompt(false); onClose(); }} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">{confirmClose ? "المغادرة" : "إلغاء التغييرات"}</button>
+                <button type="button" onClick={() => setShowExitPrompt(false)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">{confirmClose ? "البقاء" : "متابعة التعديل"}</button>
+                {!confirmClose && <button type="button" onClick={saveBeforeClose} className="rounded-xl bg-[#1C2D50] px-3 py-2 text-sm font-semibold text-white">حفظ</button>}
               </div>
             </div>
           </div>
