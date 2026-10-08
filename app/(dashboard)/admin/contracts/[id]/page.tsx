@@ -108,7 +108,7 @@ function DayLineRow({
           </button>
         )}
       </td>
-      <td className="py-1.5 px-2 font-medium text-slate-700">{row.name}</td>
+      <td className="py-1.5 px-2 text-center font-medium text-slate-700">{row.name}</td>
       <td className="px-2 text-center tabular-nums-auto text-slate-500">{money(row.price)}</td>
       <td className="px-2 text-center tabular-nums-auto text-slate-500">{int(row.opening)}</td>
       {(["supplied", "damaged", "remaining"] as const).map((f) => (
@@ -118,7 +118,7 @@ function DayLineRow({
             value={row[f]}
             disabled={!editable}
             onChange={(e) => onChangeField(f, e.target.value)}
-            className="w-20 text-center tabular-nums-auto rounded-lg border border-slate-200 py-1 disabled:bg-slate-50 disabled:text-slate-400 focus:border-[#1C2D50] outline-none"
+            className="block mx-auto w-20 text-center tabular-nums-auto rounded-lg border border-slate-200 py-1 disabled:bg-slate-50 disabled:text-slate-400 focus:border-[#1C2D50] outline-none"
           />
         </td>
       ))}
@@ -594,11 +594,11 @@ export default function ContractDetailPage() {
           <div className="overflow-x-auto -mx-1 px-1">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={lines.map((l) => l.barcode)} strategy={verticalListSortingStrategy}>
-                <table className="data-table w-full text-xs min-w-[46rem]">
+                <table className="data-table contract-day-table w-full text-xs min-w-[46rem]">
                   <thead>
                     <tr className="text-slate-500 border-b border-slate-100">
                       <th className="w-6" />
-                      <th className="text-right font-medium py-2 px-2">الصنف</th>
+                      <th className="text-center font-medium py-2 px-2">الصنف</th>
                       <th className="text-center font-medium px-2">{contractPriceLabel(contract.contractType)}</th>
                       <th className="text-center font-medium px-2">رصيد أول اليوم</th>
                       <th className="text-center font-medium px-2">المورَّد</th>
@@ -621,7 +621,7 @@ export default function ContractDetailPage() {
                     ))}
                     <tr className="font-bold text-slate-800">
                       <td />
-                      <td className="py-2 px-2">الإجمالي</td>
+                      <td className="py-2 px-2 text-center">الإجمالي</td>
                       <td colSpan={6} />
                       <td className="px-2 text-center tabular-nums-auto text-[#1C2D50]">{money(computed.sales)}</td>
                       <td />

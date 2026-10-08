@@ -284,6 +284,9 @@ body {
   white-space: nowrap;
 }
 .data-table th, .data-table td { padding: 0.75rem; vertical-align: middle; }
+/* Keep daily ledger titles, values and editable fields on the same column axis. */
+.data-table.contract-day-table thead > tr:first-child > th,
+.data-table.contract-day-table td { text-align: center; }
 .data-table tbody tr { transition: background-color var(--dur-fast) ease; }
 .data-table tbody tr:not(:last-child) > td { border-bottom: 1px solid var(--ink-100); }
 .data-table tbody tr:hover { background: var(--navy-50); }
