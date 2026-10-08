@@ -2,6 +2,8 @@
 
 /* القائمة المالية: المحصَّل والمتبقي وتكاليف الحفلات، وضبط نسبة الضريبة. */
 import { LatinInput } from "@/components/ui/latin-input";
+import { DATE_PERIOD_OPTIONS, getWeekBounds, getMonthBounds, matchesDate, type DateMode } from "@/lib/date-period";
+import { eventDateString, riyadhDateString } from "@/lib/event-date";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -48,45 +50,11 @@ const emptyRanges = {
 
 type SortKey = "name" | "date" | "status" | "price" | "hall" | "transport" | "external" | "labor" | "total" | "collected" | "remaining";
 
-/* ── local date helpers (avoid UTC shift bug) ── */
-function localStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function toLocalDateStr(val: unknown): string {
-  if (!val) return "";
-  if (typeof val === "string") return val.substring(0, 10);
-  const obj = val as Record<string, unknown>;
-  if (typeof obj.toDate === "function")
-    return localStr((obj as { toDate: () => Date }).toDate());
-  if (typeof obj.seconds === "number")
-    return localStr(new Date((obj as { seconds: number }).seconds * 1000));
-  return "";
-}
-
-function getWeekBounds(): [string, string] {
-  const now = new Date();
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  mon.setHours(0, 0, 0, 0);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return [localStr(mon), localStr(sun)];
-}
-
-function getMonthBounds(): [string, string] {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return [localStr(start), localStr(end)];
-}
+const toLocalDateStr = eventDateString;
 
 
 type StatusFilter = ConcertStatus4 | "all";
-type DateFilter   = "all" | "today" | "week" | "month" | "custom";
+type DateFilter = DateMode;
 type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
@@ -142,35 +110,18 @@ export default function FinancesPage() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const today                    = localStr(new Date());
+  const today                    = riyadhDateString(new Date());
   const [weekStart, weekEnd]     = getWeekBounds();
+  const [nextWeekStart, nextWeekEnd] = getWeekBounds(new Date(), 1);
   const [monthStart, monthEnd]   = getMonthBounds();
 
   /* ── date filter ── */
   function passesDate(c: Concert): boolean {
-    if (dateFilter === "all") return true;
-    const d = toLocalDateStr(dateField === "createdAt" ? c.createdAt : c.date);
-    if (!d) return false;
-    if (dateFilter === "today")  return d === today;
-    if (dateFilter === "week")   return d >= weekStart && d <= weekEnd;
-    if (dateFilter === "month")  return d >= monthStart && d <= monthEnd;
-    if (dateFilter === "custom") {
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo   && d > dateTo)   return false;
-      return true;
-    }
-    return true;
+    return matchesDate(dateField === "createdAt" ? c.createdAt : c.date, { mode: dateFilter, from: dateFrom, to: dateTo });
   }
 
   function passesDateValue(value: string): boolean {
-    if (dateFilter === "all") return true;
-    if (!value) return false;
-    if (dateFilter === "today") return value === today;
-    if (dateFilter === "week") return value >= weekStart && value <= weekEnd;
-    if (dateFilter === "month") return value >= monthStart && value <= monthEnd;
-    if (dateFrom && value < dateFrom) return false;
-    if (dateTo && value > dateTo) return false;
-    return true;
+    return matchesDate(value, { mode: dateFilter, from: dateFrom, to: dateTo });
   }
 
   /* concerts that pass the DATE filter (for status-tab counts) */
@@ -350,13 +301,7 @@ export default function FinancesPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {([
-            { key: "all",    label: "الكل" },
-            { key: "today",  label: "اليوم" },
-            { key: "week",   label: "هذا الأسبوع" },
-            { key: "month",  label: "هذا الشهر" },
-            { key: "custom", label: "نطاق مخصص" },
-          ] as { key: DateFilter; label: string }[]).map((f) => (
+          {DATE_PERIOD_OPTIONS.map((f) => (
             <button
               key={f.key}
               onClick={() => setDateFilter(f.key)}
@@ -406,6 +351,7 @@ export default function FinancesPage() {
           <p className="text-xs text-slate-400">
             {dateFilter === "today"  && `اليوم: ${today}`}
             {dateFilter === "week"   && `الأسبوع: ${weekStart} — ${weekEnd}`}
+            {dateFilter === "next-week" && `الأسبوع القادم: ${nextWeekStart} — ${nextWeekEnd}`}
             {dateFilter === "month"  && `الشهر: ${monthStart} — ${monthEnd}`}
             {dateFilter === "custom" && dateFrom && dateTo && `النطاق: ${dateFrom} — ${dateTo}`}
             {" · "}

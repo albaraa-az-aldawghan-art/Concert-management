@@ -1,11 +1,13 @@
 import type { ConcertCustomerSummary } from "@/lib/firestore/customers";
+import { getWeekBounds } from "./date-period";
+import { eventDateString, riyadhDateString } from "./event-date";
 
 export const CUSTOMER_PAGE_SIZE = 20;
 export const CUSTOMER_CONCERT_PAGE_SIZE = 10;
 
 export interface CustomerFilters {
   search: string;
-  period: "" | "month" | "year";
+  period: "" | "week" | "next-week" | "month" | "year";
   dateFrom?: string;
   dateTo?: string;
   frequency: "" | "one" | "returning";
@@ -15,8 +17,7 @@ export interface CustomerFilters {
 
 function dateOnly(value: string | null): string {
   if (!value) return "";
-  const match = value.match(/^\d{4}-\d{2}-\d{2}/);
-  if (match) return match[0];
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return eventDateString(value);
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
 }
@@ -90,12 +91,17 @@ export function filterConcertCustomers(
 
     if (filters.period) {
       if (!customer.lastConcertAt) return false;
-      const date = new Date(customer.lastConcertAt);
-      if (Number.isNaN(date.getTime())) return false;
+      const day = dateOnly(customer.lastConcertAt);
+      const today = riyadhDateString(now);
+      if (!day) return false;
+      if (filters.period === "week" || filters.period === "next-week") {
+        const [from, to] = getWeekBounds(now, filters.period === "next-week" ? 1 : 0);
+        if (day < from || day > to) return false;
+      }
       if (filters.period === "month" && (
-        date.getFullYear() !== now.getFullYear() || date.getMonth() !== now.getMonth()
+        day.slice(0, 7) !== today.slice(0, 7)
       )) return false;
-      if (filters.period === "year" && date.getFullYear() !== now.getFullYear()) return false;
+      if (filters.period === "year" && day.slice(0, 4) !== today.slice(0, 4)) return false;
     }
     return true;
   });

@@ -4,6 +4,10 @@
 import { LatinInput } from "@/components/ui/latin-input";
 import { Search, CalendarDays, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
 import { compareEventDates, eventDateString } from "@/lib/event-date";
+import { DATE_PERIOD_OPTIONS, getMonthBounds, getWeekBounds, periodBounds, type DateFilterState } from "@/lib/date-period";
+import { riyadhDateString } from "@/lib/event-date";
+export { matchesDate } from "@/lib/date-period";
+export type { DateMode, DateFilterState } from "@/lib/date-period";
 
 export const tsToDateStr = eventDateString;
 export const compareDateValues = compareEventDates;
@@ -14,56 +18,7 @@ export const compareDateValues = compareEventDates;
    numbered pagination. Used across orders/requests/missing pages.
    ═══════════════════════════════════════════════════════════════ */
 
-export type DateMode = "all" | "today" | "week" | "month" | "custom";
-export interface DateFilterState {
-  mode: DateMode;
-  from: string;
-  to: string;
-}
 export const emptyDateFilter: DateFilterState = { mode: "all", from: "", to: "" };
-
-function localStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function weekBounds(): [string, string] {
-  const now = new Date();
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  mon.setHours(0, 0, 0, 0);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return [localStr(mon), localStr(sun)];
-}
-
-function monthBounds(): [string, string] {
-  const now = new Date();
-  return [
-    localStr(new Date(now.getFullYear(), now.getMonth(), 1)),
-    localStr(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-  ];
-}
-
-export function matchesDate(val: unknown, f: DateFilterState): boolean {
-  if (f.mode === "all") return true;
-  const d = tsToDateStr(val);
-  if (!d) return false;
-  if (f.mode === "today") return d === localStr(new Date());
-  if (f.mode === "week") {
-    const [ws, we] = weekBounds();
-    return d >= ws && d <= we;
-  }
-  if (f.mode === "month") {
-    const [ms, me] = monthBounds();
-    return d >= ms && d <= me;
-  }
-  if (f.mode === "custom") {
-    if (f.from && d < f.from) return false;
-    if (f.to && d > f.to) return false;
-    return true;
-  }
-  return true;
-}
 
 /* ── Search box ── */
 export function SearchBox({
@@ -113,9 +68,10 @@ export function DateFilterBar({
   matchedCount?: number;
   unitLabel?: string;
 }) {
-  const [ws, we] = weekBounds();
-  const [ms, me] = monthBounds();
-  const today = localStr(new Date());
+  const [ws, we] = getWeekBounds();
+  const [nws, nwe] = periodBounds("next-week");
+  const [ms, me] = getMonthBounds();
+  const today = riyadhDateString(new Date());
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
@@ -124,13 +80,7 @@ export function DateFilterBar({
         {title}
       </div>
       <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "all", label: "الكل" },
-          { key: "today", label: "اليوم" },
-          { key: "week", label: "هذا الأسبوع" },
-          { key: "month", label: "هذا الشهر" },
-          { key: "custom", label: "نطاق مخصص" },
-        ] as { key: DateMode; label: string }[]).map((f) => (
+        {DATE_PERIOD_OPTIONS.map((f) => (
           <button
             key={f.key}
             onClick={() => onChange({ ...value, mode: f.key })}
@@ -180,6 +130,7 @@ export function DateFilterBar({
         <p className="text-xs text-slate-400">
           {value.mode === "today" && `اليوم: ${today}`}
           {value.mode === "week" && `الأسبوع: ${ws} — ${we}`}
+          {value.mode === "next-week" && `الأسبوع القادم: ${nws} — ${nwe}`}
           {value.mode === "month" && `الشهر: ${ms} — ${me}`}
           {value.mode === "custom" && value.from && value.to && `النطاق: ${value.from} — ${value.to}`}
           {matchedCount !== undefined && (

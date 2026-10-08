@@ -94,7 +94,7 @@ export default function CustomersPage() {
   const recorderOptions = useMemo(() => [...new Set(customers.map((customer) => customer.firstCreatedByName).filter((name) => name && name !== "—"))].sort((a, b) => a.localeCompare(b, "ar")), [customers]);
   const filtered = useMemo(() => filterConcertCustomers(customers, {
     search,
-    period: period as "" | "month" | "year",
+    period: period as "" | "week" | "next-week" | "month" | "year",
     dateFrom,
     dateTo,
     frequency: frequency as "" | "one" | "returning",
@@ -184,7 +184,7 @@ export default function CustomersPage() {
 
       <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-[2fr_repeat(6,1fr)]">
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">بحث</span><div className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={15} className="text-slate-400" /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="الاسم، الجوال، رقم الحفلة أو المكان..." className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></div></label>
-        <Filter label="آخر حفلة" value={period} onChange={(value) => { setPeriod(value); setPage(1); }} options={[["", "كل الفترات"], ["month", "هذا الشهر"], ["year", "هذه السنة"]]} />
+        <Filter label="آخر حفلة" value={period} onChange={(value) => { setPeriod(value); setPage(1); }} options={[["", "كل الفترات"], ["week", "هذا الأسبوع"], ["next-week", "الأسبوع القادم"], ["month", "هذا الشهر"], ["year", "هذه السنة"]]} />
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة من</span><LatinInput type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة إلى</span><LatinInput type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
         <Filter label="عدد الحفلات" value={frequency} onChange={(value) => { setFrequency(value); setPage(1); }} options={[["", "الكل"], ["one", "حفلة واحدة"], ["returning", "عميل متكرر"]]} />

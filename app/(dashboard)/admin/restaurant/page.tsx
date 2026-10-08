@@ -4,6 +4,7 @@
    وتفصيل كل صنف، مع إمكانية تسجيل الصرف في أي وقت. */
 
 import { useEffect, useMemo, useState } from "react";
+import { matchesDate, periodBounds } from "@/lib/date-period";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
@@ -76,6 +77,7 @@ export default function RestaurantPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [detailPeriod, setDetailPeriod] = useState<"" | "week" | "next-week">("");
 
   useEffect(() => { load(); }, []);
 
@@ -171,10 +173,12 @@ export default function RestaurantPage() {
 
   /* تفصيل الشهر المختار */
   const monthRows = restaurantOut.filter((o) => {
+    if (detailPeriod) return matchesDate(o.dispenseDate || o.createdAt, { mode: detailPeriod, from: "", to: "" });
     const t = ym(o.dispenseDate, o.createdAt);
     return t && t.y === year && t.m === month;
   });
   const monthTotal = r2(monthRows.reduce((s, o) => s + (o.totalCost ?? 0), 0));
+  const detailLabel = detailPeriod ? `${detailPeriod === "week" ? "هذا الأسبوع" : "الأسبوع القادم"} (${periodBounds(detailPeriod).join(" - ")})` : `${MONTHS[month]} ${year}`;
 
   /* تجميع الشهر حسب الصنف ثم حسب القسم */
   const byItem = new Map<string, { name: string; unit: string; qty: number; total: number }>();
@@ -199,8 +203,8 @@ export default function RestaurantPage() {
     return <p className="text-center text-slate-400 py-12">غير مصرح لك بالوصول لهذه الصفحة</p>;
   }
 
-  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
-  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
+  const prevMonth = () => { setDetailPeriod(""); if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
+  const nextMonth = () => { setDetailPeriod(""); if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
 
   return (
     <div className="space-y-5">
@@ -262,7 +266,7 @@ export default function RestaurantPage() {
                 const active = i === month;
                 const max = Math.max(...monthly.map((x) => x.total), 1);
                 return (
-                  <button key={i} onClick={() => setMonth(i)}
+                  <button key={i} onClick={() => { setDetailPeriod(""); setMonth(i); }}
                     className={`rounded-xl px-2 py-2 text-right transition-colors border-2 ${
                       active ? "border-orange-500 bg-orange-50" : "border-slate-100 hover:border-slate-200"
                     }`}>
@@ -291,7 +295,7 @@ export default function RestaurantPage() {
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <TrendingDown size={16} className="text-orange-500" />
-              تفصيل {MONTHS[month]} {year}
+              تفصيل {detailLabel}
             </h3>
             <div className="flex items-center gap-1">
               <button onClick={prevMonth} className="p-1.5 text-slate-400 hover:text-[#1C2D50]"><ChevronRight size={16} /></button>
@@ -299,9 +303,15 @@ export default function RestaurantPage() {
             </div>
           </div>
 
+          <label className="flex flex-wrap items-center gap-2 text-sm text-slate-500">فترة التفصيل
+            <select aria-label="فترة تفصيل المطعم" value={detailPeriod} onChange={event => setDetailPeriod(event.target.value as "" | "week" | "next-week")}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+              <option value="">الشهر المختار</option><option value="week">هذا الأسبوع</option><option value="next-week">الأسبوع القادم</option>
+            </select>
+          </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="bg-orange-50 border-orange-100">
-              <p className="text-xs text-orange-700 font-semibold">تكلفة الشهر</p>
+              <p className="text-xs text-orange-700 font-semibold">تكلفة الفترة المختارة</p>
               <p className="text-lg font-bold text-orange-800 tabular-nums-auto mt-1">{money(monthTotal)} ريال</p>
             </Card>
             <Card>
@@ -334,7 +344,7 @@ export default function RestaurantPage() {
           {itemRows.length === 0 ? (
             <Card className="flex flex-col items-center py-12 text-slate-400">
               <PackageMinus size={40} className="mb-3 opacity-40" />
-              <p>لا يوجد منصرف على المطعم في {MONTHS[month]} {year}</p>
+              <p>لا يوجد منصرف على المطعم في {detailLabel}</p>
               <p className="text-xs mt-1">سجّله من صفحة المنصرف على أحد أقسام المطعم</p>
             </Card>
           ) : (
@@ -345,7 +355,7 @@ export default function RestaurantPage() {
                     <th className="px-4 py-3 font-semibold">الصنف</th>
                     <th className="px-4 py-3 font-semibold">الكمية المصروفة</th>
                     <th className="px-4 py-3 font-semibold">التكلفة</th>
-                    <th className="px-4 py-3 font-semibold">النسبة من الشهر</th>
+                    <th className="px-4 py-3 font-semibold">النسبة من الفترة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -388,7 +398,7 @@ export default function RestaurantPage() {
           {/* آخر العمليات */}
           {monthRows.length > 0 && (
             <Card>
-              <p className="font-bold text-slate-800 mb-2">عمليات الصرف في هذا الشهر</p>
+              <p className="font-bold text-slate-800 mb-2">عمليات الصرف في الفترة المختارة</p>
               <div className="space-y-1.5 max-h-72 overflow-y-auto">
                 {[...monthRows]
                   .sort((a, b) => (b.dispenseDate ?? "").localeCompare(a.dispenseDate ?? ""))

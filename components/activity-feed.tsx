@@ -1,6 +1,7 @@
 "use client";
 
 import { LatinInput } from "@/components/ui/latin-input";
+import { DATE_PERIOD_OPTIONS, periodBounds, type DateMode } from "@/lib/date-period";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { History, RefreshCw, Search } from "lucide-react";
@@ -28,6 +29,7 @@ export function ActivityFeed({ full = false }: { full?: boolean }) {
   const [status, setStatus] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [period, setPeriod] = useState<DateMode>("all");
   const [filters, setFilters] = useState("");
   const generation = useRef(0);
   const load = useCallback(async (after?: string, quiet = false) => {
@@ -68,7 +70,7 @@ export function ActivityFeed({ full = false }: { full?: boolean }) {
         {!full && <Link className="text-sm font-semibold text-blue-600 hover:underline" href="/admin/activity">مشاهدة الكل</Link>}
       </div>
     </div>
-    {full && <form className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3" onSubmit={(event) => {
+    {full && <form className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3" onSubmit={(event) => {
       event.preventDefault();
       if (from && to && from > to) { setError("تاريخ البداية يجب أن يسبق تاريخ النهاية"); return; }
       const params = new URLSearchParams();
@@ -81,8 +83,12 @@ export function ActivityFeed({ full = false }: { full?: boolean }) {
     }}>
       <label className="text-xs text-slate-500">المستخدم أو الإجراء<input className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={search} maxLength={100} onChange={(e) => setSearch(e.target.value)} placeholder="الاسم، البريد، الإجراء…" /></label>
       <label className="text-xs text-slate-500">نوع النشاط<select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">كل النشاطات</option>{Object.entries(statuses).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></label>
-      <label className="text-xs text-slate-500">من تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-      <label className="text-xs text-slate-500">إلى تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+      <label className="text-xs text-slate-500">الفترة<select aria-label="فترة النشاطات" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={period} onChange={e => {
+        const mode = e.target.value as DateMode; setPeriod(mode);
+        if (mode !== "custom") { const [start, end] = periodBounds(mode); setFrom(start); setTo(end); }
+      }}>{DATE_PERIOD_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+      <label className="text-xs text-slate-500">من تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={from} onChange={(e) => { setFrom(e.target.value); setPeriod("custom"); }} /></label>
+      <label className="text-xs text-slate-500">إلى تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={to} onChange={(e) => { setTo(e.target.value); setPeriod("custom"); }} /></label>
       <button disabled={loading} className="self-end rounded-lg bg-[#1C2D50] text-white p-2 flex justify-center gap-2 disabled:opacity-50"><Search size={17} />تصفية</button>
     </form>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

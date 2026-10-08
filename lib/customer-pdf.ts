@@ -1,5 +1,6 @@
 import type { ConcertCustomerSummary } from "@/lib/firestore/customers";
 import { toLatinDigits } from "./utils";
+import { getWeekBounds } from "./date-period";
 
 export type CustomerPdfRecord = Pick<ConcertCustomerSummary,
   "name" | "primaryPhone" | "secondaryPhone" | "firstRegisteredAt" |
@@ -80,11 +81,15 @@ function customerStatement(customer: CustomerPdfRecord) {
   </section>`;
 }
 
-function activeFilterText(filters: CustomerPdfFilters = {}) {
+function activeFilterText(filters: CustomerPdfFilters = {}, now = new Date()) {
   const labels: string[] = [];
   if (filters.search) labels.push(`البحث: ${filters.search}`);
   if (filters.dateFrom) labels.push(`من: ${dateText(filters.dateFrom)}`);
   if (filters.dateTo) labels.push(`إلى: ${dateText(filters.dateTo)}`);
+  if (filters.period === "week" || filters.period === "next-week") {
+    const [from, to] = getWeekBounds(now, filters.period === "next-week" ? 1 : 0);
+    labels.push(`آخر حفلة: ${filters.period === "next-week" ? "الأسبوع القادم" : "هذا الأسبوع"} (${dateText(from)} - ${dateText(to)})`);
+  }
   if (filters.period === "month") labels.push("آخر حفلة: هذا الشهر");
   if (filters.period === "year") labels.push("آخر حفلة: هذه السنة");
   if (filters.frequency === "one") labels.push("عدد الحفلات: حفلة واحدة");
@@ -168,7 +173,7 @@ export function buildCustomersPdfHtml(
 </style></head><body>
   <h1>كشف حساب عملاء الحفلات</h1>
   <p class="sub">تاريخ التصدير: ${escapeHtml(dateText(generatedAt.toISOString()))} - يشمل التقرير النتائج المطابقة للفلاتر فقط</p>
-  <p class="sub"><b>الفلاتر المطبقة:</b> ${escapeHtml(activeFilterText(options.filters))}</p>
+  <p class="sub"><b>الفلاتر المطبقة:</b> ${escapeHtml(activeFilterText(options.filters, generatedAt))}</p>
   <section class="summary">
     <div class="card"><span>إجمالي العملاء</span><b>${customers.length.toLocaleString("en-US")}</b></div>
     <div class="card"><span>إجمالي الحفلات</span><b>${totalConcerts.toLocaleString("en-US")}</b></div>

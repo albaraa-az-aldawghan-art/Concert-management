@@ -2,6 +2,8 @@
 
 /* قائمة الحفلات: بحث وفلترة بالحالة والتاريخ، وبطاقة لكل حفلة بمرحلتها. */
 import { LatinInput } from "@/components/ui/latin-input";
+import { DATE_PERIOD_OPTIONS, getWeekBounds, getMonthBounds, matchesDate, type DateMode } from "@/lib/date-period";
+import { eventDateString, riyadhDateString } from "@/lib/event-date";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,44 +26,13 @@ import {
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 
 type StatusFilter = ConcertStatus4 | "all";
-type DateFilter   = "all" | "today" | "week" | "month" | "custom";
+type DateFilter = DateMode;
 type DateField    = "createdAt" | "date";
 type SortKey       = "number" | "name" | "date" | "venue" | "status" | "team" | "price" | "remaining";
 
 const PAGE_SIZE = 10;
 
-function localStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function toDateStr(val: unknown): string {
-  if (!val) return "";
-  if (typeof val === "string") return val.substring(0, 10);
-  const obj = val as Record<string, unknown>;
-  if (typeof obj.toDate === "function")
-    return localStr((obj as { toDate: () => Date }).toDate());
-  if (typeof obj.seconds === "number")
-    return localStr(new Date((obj as { seconds: number }).seconds * 1000));
-  return "";
-}
-
-function getWeekBounds(): [string, string] {
-  const now = new Date();
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  mon.setHours(0, 0, 0, 0);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return [localStr(mon), localStr(sun)];
-}
-
-function getMonthBounds(): [string, string] {
-  const now = new Date();
-  return [
-    localStr(new Date(now.getFullYear(), now.getMonth(), 1)),
-    localStr(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-  ];
-}
+const toDateStr = eventDateString;
 
 export default function AdminConcertsPage() {
   const { showToast } = useToast();
@@ -149,24 +120,14 @@ export default function AdminConcertsPage() {
     }
   }
 
-  const today                  = localStr(new Date());
+  const today                  = riyadhDateString(new Date());
   const [weekStart, weekEnd]   = getWeekBounds();
+  const [nextWeekStart, nextWeekEnd] = getWeekBounds(new Date(), 1);
   const [monthStart, monthEnd] = getMonthBounds();
 
   /* ── فلتر التاريخ ── */
   function passesDate(c: Concert): boolean {
-    if (dateFilter === "all") return true;
-    const d = toDateStr(dateField === "createdAt" ? c.createdAt : c.date);
-    if (!d) return false;
-    if (dateFilter === "today")  return d === today;
-    if (dateFilter === "week")   return d >= weekStart && d <= weekEnd;
-    if (dateFilter === "month")  return d >= monthStart && d <= monthEnd;
-    if (dateFilter === "custom") {
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo   && d > dateTo)   return false;
-      return true;
-    }
-    return true;
+    return matchesDate(dateField === "createdAt" ? c.createdAt : c.date, { mode: dateFilter, from: dateFrom, to: dateTo });
   }
 
   const dateFiltered = concerts.filter(passesDate);
@@ -293,13 +254,7 @@ export default function AdminConcertsPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {([
-            { key: "all",    label: "الكل" },
-            { key: "today",  label: "اليوم" },
-            { key: "week",   label: "هذا الأسبوع" },
-            { key: "month",  label: "هذا الشهر" },
-            { key: "custom", label: "نطاق مخصص" },
-          ] as { key: DateFilter; label: string }[]).map((f) => (
+          {DATE_PERIOD_OPTIONS.map((f) => (
             <button
               key={f.key}
               onClick={() => setDateFilter(f.key)}
@@ -336,6 +291,7 @@ export default function AdminConcertsPage() {
           <p className="text-xs text-slate-400">
             {dateFilter === "today"  && `اليوم: ${today}`}
             {dateFilter === "week"   && `الأسبوع: ${weekStart} — ${weekEnd}`}
+            {dateFilter === "next-week" && `الأسبوع القادم: ${nextWeekStart} — ${nextWeekEnd}`}
             {dateFilter === "month"  && `الشهر: ${monthStart} — ${monthEnd}`}
             {dateFilter === "custom" && dateFrom && dateTo && `النطاق: ${dateFrom} — ${dateTo}`}
             {" · "}

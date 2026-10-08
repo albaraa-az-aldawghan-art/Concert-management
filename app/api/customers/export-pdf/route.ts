@@ -20,7 +20,7 @@ function filtersFrom(value: unknown): CustomerFilters {
   const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
     search: text(item.search, 120),
-    period: item.period === "month" || item.period === "year" ? item.period : "",
+    period: item.period === "week" || item.period === "next-week" || item.period === "month" || item.period === "year" ? item.period : "",
     dateFrom: text(item.dateFrom, 10),
     dateTo: text(item.dateTo, 10),
     frequency: item.frequency === "one" || item.frequency === "returning" ? item.frequency : "",

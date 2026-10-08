@@ -1,10 +1,22 @@
-/** تحويل قيم التاريخ المستخدمة في Firestore والنماذج إلى YYYY-MM-DD محلي. */
+/** يوم الرياض، مستقل عن لغة الجهاز والمنطقة الزمنية للمتصفح أو الخادم. */
+export function riyadhDateString(date: Date): string {
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const part = (type: string) => parts.find(value => value.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/** تحويل قيم التاريخ المستخدمة في Firestore والنماذج إلى YYYY-MM-DD بتوقيت الرياض. */
 export function eventDateString(value: unknown): string {
   if (!value) return "";
-  if (typeof value === "string") return value.substring(0, 10);
+  if (typeof value === "string") {
+    // Date-only/local form values keep their calendar day; absolute timestamps use Riyadh.
+    if (/T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return riyadhDateString(new Date(value));
+    return value.substring(0, 10);
+  }
+  if (value instanceof Date) return riyadhDateString(value);
   const objectValue = value as Record<string, unknown>;
-  const asLocalDate = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const asLocalDate = riyadhDateString;
   if (typeof objectValue.toDate === "function") {
     return asLocalDate((objectValue as { toDate: () => Date }).toDate());
   }
