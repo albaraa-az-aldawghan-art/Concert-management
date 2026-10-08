@@ -1,6 +1,7 @@
 "use client";
 
 /* أدوات القوائم المشتركة: بحث وفلتر تاريخ وترقيم صفحات وفلترة/فرز الأعمدة. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { Search, CalendarDays, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
 import { compareEventDates, eventDateString } from "@/lib/event-date";
 
@@ -148,7 +149,7 @@ export function DateFilterBar({
         <div className="flex items-center gap-3 flex-wrap pt-1">
           <div className="flex items-center gap-2">
             <label className="text-xs text-slate-500 font-medium whitespace-nowrap">من:</label>
-            <input
+            <LatinInput
               type="date"
               value={value.from}
               onChange={(e) => onChange({ ...value, from: e.target.value })}
@@ -157,7 +158,7 @@ export function DateFilterBar({
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-slate-500 font-medium whitespace-nowrap">إلى:</label>
-            <input
+            <LatinInput
               type="date"
               value={value.to}
               onChange={(e) => onChange({ ...value, to: e.target.value })}
@@ -219,10 +220,10 @@ export function SortHeader<K extends string>({
 export function RangeFilter({ min, max, onMin, onMax }: { min: string; max: string; onMin: (v: string) => void; onMax: (v: string) => void }) {
   return (
     <div className="flex items-center gap-1">
-      <input type="number" value={min} onChange={(e) => onMin(e.target.value)} placeholder="من"
+      <LatinInput type="number" value={min} onChange={(e) => onMin(e.target.value)} placeholder="من"
         className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
       <span className="text-slate-300 text-[10px]">–</span>
-      <input type="number" value={max} onChange={(e) => onMax(e.target.value)} placeholder="إلى"
+      <LatinInput type="number" value={max} onChange={(e) => onMax(e.target.value)} placeholder="إلى"
         className="w-14 border border-slate-200 rounded-md px-1.5 py-1 text-[11px] text-center focus:outline-none focus:ring-1 focus:ring-[#1C2D50]" />
     </div>
   );

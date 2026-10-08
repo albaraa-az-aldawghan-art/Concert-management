@@ -30,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // ar-u-nu-latn: عربية بأرقام لاتينية — يجعل المتصفح يرسم أرقام
-    // حقول التاريخ والرقم بالأرقام اللاتينية دائماً
+    // لغة عربية بأرقام لاتينية؛ عرض حقول الرقم والتاريخ مضمون عبر LatinInput،
+    // ولا نعتمد على هذه اللغة وحدها لتنسيق عناصر المتصفح الأصلية.
     <html lang="ar-SA-u-ca-gregory-nu-latn" dir="rtl" className="h-full">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />

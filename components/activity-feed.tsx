@@ -1,5 +1,6 @@
 "use client";
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { History, RefreshCw, Search } from "lucide-react";
@@ -80,8 +81,8 @@ export function ActivityFeed({ full = false }: { full?: boolean }) {
     }}>
       <label className="text-xs text-slate-500">المستخدم أو الإجراء<input className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={search} maxLength={100} onChange={(e) => setSearch(e.target.value)} placeholder="الاسم، البريد، الإجراء…" /></label>
       <label className="text-xs text-slate-500">نوع النشاط<select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">كل النشاطات</option>{Object.entries(statuses).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></label>
-      <label className="text-xs text-slate-500">من تاريخ<input type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-      <label className="text-xs text-slate-500">إلى تاريخ<input type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+      <label className="text-xs text-slate-500">من تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+      <label className="text-xs text-slate-500">إلى تاريخ<LatinInput type="date" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} /></label>
       <button disabled={loading} className="self-end rounded-lg bg-[#1C2D50] text-white p-2 flex justify-center gap-2 disabled:opacity-50"><Search size={17} />تصفية</button>
     </form>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

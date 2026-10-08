@@ -1,6 +1,7 @@
 "use client";
 
 /* تفاصيل الحفلة: التعديل والمواد والأكل والدفعات والمصروفات وخطوات التنفيذ وسجل التغييرات. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -1806,7 +1807,7 @@ export default function AdminConcertDetailPage() {
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
                           <div className="flex items-center gap-1">
-                            <input
+                            <LatinInput
                               type="number" min={1} value={editItemQtyValue}
                               onChange={(e) => setEditItemQtyValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
@@ -1877,7 +1878,7 @@ export default function AdminConcertDetailPage() {
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         {editItemQtyTarget?.id === item.id ? (
                           <div className="flex items-center gap-1">
-                            <input
+                            <LatinInput
                               type="number" min={1} value={editItemQtyValue}
                               onChange={(e) => setEditItemQtyValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") handleSaveItemQty(); if (e.key === "Escape") setEditItemQtyTarget(null); }}
@@ -1978,7 +1979,7 @@ export default function AdminConcertDetailPage() {
                     <td className="py-2.5 px-2">
                       {editFoodQtyTarget?.id === f.id ? (
                         <div className="flex items-center gap-1">
-                          <input
+                          <LatinInput
                             type="number" min={0} value={editFoodQtyValue}
                             onChange={(e) => setEditFoodQtyValue(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") handleSaveFoodQty(); if (e.key === "Escape") setEditFoodQtyTarget(null); }}
@@ -2331,11 +2332,11 @@ export default function AdminConcertDetailPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">المبلغ (ريال)</label>
-              <input type="number" min={1} step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+              <LatinInput type="number" min={1} step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">التاريخ</label>
-              <input type="date" value={paymentForm.date} onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
+              <LatinInput type="date" value={paymentForm.date} onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
             </div>
           </div>
 
@@ -2547,7 +2548,7 @@ export default function AdminConcertDetailPage() {
                         {isChecked && (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <label className="text-xs text-slate-400 whitespace-nowrap">الكمية:</label>
-                            <input type="number" min={1} max={item.availableCount}
+                            <LatinInput type="number" min={1} max={item.availableCount}
                               value={state?.quantity ?? "1"}
                               onChange={(e) => setAddItemCheck((prev) => ({ ...prev, [item.id]: { checked: true, quantity: e.target.value } }))}
                               className="w-16 border border-indigo-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white" />
@@ -2664,7 +2665,7 @@ export default function AdminConcertDetailPage() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">تاريخ الحفلة ووقتها</label>
-            <input
+            <LatinInput
               type="datetime-local"
               value={editDate}
               onChange={(e) => setEditDate(e.target.value)}
@@ -2753,7 +2754,7 @@ export default function AdminConcertDetailPage() {
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">
                 {editHallCostType === "percentage" ? "النسبة المئوية" : "المبلغ (ريال)"}
               </label>
-              <input
+              <LatinInput
                 type="number"
                 min={0}
                 step={editHallCostType === "percentage" ? "0.1" : "0.01"}
@@ -2776,7 +2777,7 @@ export default function AdminConcertDetailPage() {
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">
                 تاريخ تسليم المبلغ <span className="text-slate-400 font-normal">(اختياري)</span>
               </label>
-              <input
+              <LatinInput
                 type="date"
                 value={editHallCostDate}
                 onChange={(e) => setEditHallCostDate(e.target.value)}
@@ -2874,7 +2875,7 @@ export default function AdminConcertDetailPage() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 block mb-1.5">السعر الجديد (ريال)</label>
-            <input
+            <LatinInput
               type="number"
               min={0}
               step="0.01"
@@ -3057,7 +3058,7 @@ export default function AdminConcertDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-semibold text-slate-700 block mb-1.5">مبلغ الاسترداد (ريال)</label>
-                  <input
+                  <LatinInput
                     type="number"
                     min={0}
                     step="0.01"
@@ -3069,7 +3070,7 @@ export default function AdminConcertDetailPage() {
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-slate-700 block mb-1.5">تاريخ الاسترداد</label>
-                  <input
+                  <LatinInput
                     type="date"
                     value={cancelRefundDate}
                     onChange={(e) => setCancelRefundDate(e.target.value)}

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { toLatinDigits } from "@/lib/utils";
 
 const NUMERIC_FIELDS = [
+  'input[data-latin-field]',
   'input[type="number"]',
   'input[type="date"]',
   'input[type="month"]',

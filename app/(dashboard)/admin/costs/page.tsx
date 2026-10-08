@@ -1,6 +1,7 @@
 "use client";
 
 /* أصناف التكاليف: التسجيل وتوليد الباركود وطباعة الملصقات والوحدات والأقسام. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -763,7 +764,7 @@ export function CostItemsPanel() {
                               <span className="text-sm font-semibold text-slate-800 truncate">
                                 {sec?.name ?? "قسم محذوف"}
                               </span>
-                              <input
+                              <LatinInput
                                 type="number" min={0} step="0.01" value={raw} placeholder="السعر شامل الضريبة"
                                 onChange={(e) => setPriceInputs((prev) => ({ ...prev, [id]: e.target.value }))}
                                 className="w-32 border border-slate-200 rounded-lg px-2.5 py-1 text-sm text-left tabular-nums-auto"

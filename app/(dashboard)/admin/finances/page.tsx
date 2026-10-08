@@ -1,6 +1,7 @@
 ﻿"use client";
 
 /* القائمة المالية: المحصَّل والمتبقي وتكاليف الحفلات، وضبط نسبة الضريبة. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -374,7 +375,7 @@ export default function FinancesPage() {
           <div className="flex items-center gap-3 flex-wrap pt-1">
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">من:</label>
-              <input
+              <LatinInput
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
@@ -383,7 +384,7 @@ export default function FinancesPage() {
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">إلى:</label>
-              <input
+              <LatinInput
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}

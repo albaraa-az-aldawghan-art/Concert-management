@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { LatinInput } from "./latin-input";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -21,7 +22,7 @@ export function Input({ label, error, helperText, className, id, ...props }: Inp
           {props.required && <span className="text-red-500 mr-1">*</span>}
         </label>
       )}
-      <input
+      <LatinInput
         {...props}
         id={inputId}
         lang={latinField ? "en-GB" : props.lang}

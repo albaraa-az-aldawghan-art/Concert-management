@@ -1,5 +1,6 @@
 "use client";
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { contractPriceLabel, contractPricingDescription } from "@/lib/contract-pricing";
 
 /* تفاصيل العقد وجدوله اليومي: دفتر تشغيل المقصف.
@@ -112,7 +113,7 @@ function DayLineRow({
       <td className="px-2 text-center tabular-nums-auto text-slate-500">{int(row.opening)}</td>
       {(["supplied", "damaged", "remaining"] as const).map((f) => (
         <td key={f} className="px-1 text-center">
-          <input
+          <LatinInput
             type="number" min="0" inputMode="numeric"
             value={row[f]}
             disabled={!editable}
@@ -647,7 +648,7 @@ export default function ContractDetailPage() {
               {METHODS.map((m) => (
                 <div key={m.key} className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 w-24">{m.label}</span>
-                  <input type="number" min="0" inputMode="decimal" disabled={!editable}
+                  <LatinInput type="number" min="0" inputMode="decimal" disabled={!editable}
                     value={collections[m.key] ?? ""}
                     onChange={(e) => setCollections((p) => ({ ...p, [m.key]: e.target.value }))}
                     className="flex-1 text-left tabular-nums-auto rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:bg-slate-50 focus:border-[#1C2D50] outline-none" />
@@ -655,7 +656,7 @@ export default function ContractDetailPage() {
               ))}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-xs text-slate-500 w-24">العهدة</span>
-                <input type="number" min="0" disabled={!editable} value={custody}
+                <LatinInput type="number" min="0" disabled={!editable} value={custody}
                   onChange={(e) => setCustody(e.target.value)}
                   className="flex-1 text-left tabular-nums-auto rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:bg-slate-50 focus:border-[#1C2D50] outline-none" />
               </div>
@@ -680,7 +681,7 @@ export default function ContractDetailPage() {
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${
                     e.kind === "from_till" ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"
                   }`}>{e.kind === "from_till" ? "من الصندوق" : "خصم"}</span>
-                  <input type="number" min="0" inputMode="decimal" disabled={!editable}
+                  <LatinInput type="number" min="0" inputMode="decimal" disabled={!editable}
                     value={expenses[e.key] ?? ""}
                     onChange={(v) => setExpenses((p) => ({ ...p, [e.key]: v.target.value }))}
                     className="flex-1 text-left tabular-nums-auto rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:bg-slate-50 focus:border-[#1C2D50] outline-none" />

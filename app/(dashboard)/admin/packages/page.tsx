@@ -2,6 +2,7 @@
 
 /* البكجات الجاهزة: مجموعة أصناف ومواد تُضاف للحفلة بضغطة واحدة ثم تُعدَّل. */
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
@@ -287,7 +288,7 @@ export default function PackagesPage() {
                   <div key={l.barcode} className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-lg px-2.5 py-1.5">
                     <UtensilsCrossed size={12} className="text-orange-500 shrink-0" />
                     <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{item?.name ?? l.barcode}</span>
-                    <input type="number" min={0} step="0.5" value={l.quantity}
+                    <LatinInput type="number" min={0} step="0.5" value={l.quantity}
                       onChange={(e) => setLines((prev) => prev.map((x) => x.barcode === l.barcode ? { ...x, quantity: e.target.value } : x))}
                       className="w-16 border border-orange-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                     <span className="text-[11px] text-slate-500 w-10 shrink-0">{item?.unit}</span>
@@ -304,7 +305,7 @@ export default function PackagesPage() {
                   <div key={m.itemId} className="flex items-center gap-2 bg-[#EEF1F7] border border-[#D4DCE8] rounded-lg px-2.5 py-1.5">
                     <PackageIcon size={12} className="text-[#1C2D50] shrink-0" />
                     <span className="text-sm text-slate-800 truncate flex-1 min-w-0">{w?.name ?? m.itemId}</span>
-                    <input type="number" min={0} step="1" value={m.count}
+                    <LatinInput type="number" min={0} step="1" value={m.count}
                       onChange={(e) => setMaterials((prev) => prev.map((x) => x.itemId === m.itemId ? { ...x, count: e.target.value } : x))}
                       className="w-16 border border-[#D4DCE8] rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                     <span className="text-[11px] text-slate-500 w-10 shrink-0">

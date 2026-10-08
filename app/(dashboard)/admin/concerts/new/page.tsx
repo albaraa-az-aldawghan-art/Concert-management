@@ -1,6 +1,7 @@
 ﻿"use client";
 
 /* إنشاء حفلة: البيانات والموقع والمواد وأصناف الأكل والدفعات في صفحة واحدة، مع عرض المتوفر من الخامات وتكلفتها التقديرية. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -690,7 +691,7 @@ function NewConcertPageInner() {
               {hallCostType && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <input type="number" min={0} step="0.01" value={hallCostValue}
+                    <LatinInput type="number" min={0} step="0.01" value={hallCostValue}
                       onChange={(e) => setHallCostValue(e.target.value)}
                       placeholder={hallCostType === "percentage" ? "مثال: 15" : ""}
                       className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
@@ -704,7 +705,7 @@ function NewConcertPageInner() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-slate-500 font-medium block mb-1">تاريخ تسليم المبلغ</label>
-                      <input type="date" value={hallCostDate} onChange={(e) => setHallCostDate(e.target.value)}
+                      <LatinInput type="date" value={hallCostDate} onChange={(e) => setHallCostDate(e.target.value)}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50]" />
                     </div>
                     <div>
@@ -961,7 +962,7 @@ function NewConcertPageInner() {
                         {isChecked && (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <label className="text-xs text-slate-400 whitespace-nowrap">الكمية:</label>
-                            <input
+                            <LatinInput
                               type="number"
                               min={1}
                               max={item.availableCount}

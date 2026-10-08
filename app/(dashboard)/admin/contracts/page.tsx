@@ -2,6 +2,7 @@
 
 /* التعاقدات: عقود الجهات بمددها وبنودها، وتكلفة ما صُرف عليها وربحيتها. */
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/toast";
@@ -537,12 +538,12 @@ export default function ContractsPage() {
                   return (
                     <div key={t.barcode} className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2">
                       <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{item?.name ?? t.barcode}</span>
-                      <input type="number" min={0} step="0.5" value={t.quantity} placeholder="الكمية"
+                      <LatinInput type="number" min={0} step="0.5" value={t.quantity} placeholder="الكمية"
                         onChange={(e) => setTerms((p) => p.map((x) => x.barcode === t.barcode ? { ...x, quantity: e.target.value } : x))}
                         className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto" />
                       <span className="text-[11px] text-slate-500 w-9 shrink-0">{item?.unit}</span>
                       <span className="text-[11px] text-slate-400 shrink-0">×</span>
-                      <input type="number" min={0} step="0.01" value={t.unitPrice} placeholder="السعر"
+                      <LatinInput type="number" min={0} step="0.01" value={t.unitPrice} placeholder="السعر"
                         readOnly={!!contractType && !manualPrice} aria-label={contractPriceLabel(contractType || undefined)}
                         onChange={(e) => setTerms((p) => p.map((x) => x.barcode === t.barcode ? { ...x, unitPrice: e.target.value } : x))}
                         className={`w-24 border rounded-lg px-2 py-1 text-sm text-center tabular-nums-auto ${manualPrice ? "border-amber-300 bg-amber-50" : "border-slate-200"}`} />

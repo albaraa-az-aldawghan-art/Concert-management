@@ -1,5 +1,6 @@
 "use client";
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -293,9 +294,9 @@ export default function RawMaterialsPage() {
                 <td>{suppliers.length ? <div className="flex flex-wrap gap-1">{suppliers.map((supplier) => <span key={supplier} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{supplier}</span>)}</div> : <span className="text-slate-400">—</span>}</td>
                 <td>{canEditItem ? <select value={item.purchaseUnit || item.unit} onChange={(e) => saveUnitSettings(item, { purchaseUnit: e.target.value })} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">{settings.units.map((unit) => <option key={unit}>{unit}</option>)}</select> : (item.purchaseUnit || item.unit)}</td>
                 <td>{canEditItem ? <select value={item.unit} onChange={(e) => saveUnitSettings(item, { unit: e.target.value })} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">{settings.units.map((unit) => <option key={unit}>{unit}</option>)}</select> : item.unit}</td>
-                <td><div className="flex min-w-32 items-center gap-1 text-xs"><span>1</span><span>{item.purchaseUnit || item.unit}</span><span>=</span>{canEditItem ? <input type="number" min="0.001" step="0.001" defaultValue={item.purchaseToIssue ?? 1} onBlur={(e) => { const value = Number(e.target.value); if (value > 0 && value !== (item.purchaseToIssue ?? 1)) saveUnitSettings(item, { purchaseToIssue: value }); }} className="w-16 rounded-lg border border-slate-200 px-2 py-1" /> : <strong>{item.purchaseToIssue ?? 1}</strong>}<span>{item.unit}</span></div></td>
+                <td><div className="flex min-w-32 items-center gap-1 text-xs"><span>1</span><span>{item.purchaseUnit || item.unit}</span><span>=</span>{canEditItem ? <LatinInput type="number" min="0.001" step="0.001" defaultValue={item.purchaseToIssue ?? 1} onBlur={(e) => { const value = Number(e.target.value); if (value > 0 && value !== (item.purchaseToIssue ?? 1)) saveUnitSettings(item, { purchaseToIssue: value }); }} className="w-16 rounded-lg border border-slate-200 px-2 py-1" /> : <strong>{item.purchaseToIssue ?? 1}</strong>}<span>{item.unit}</span></div></td>
                 <td className={`font-semibold tabular-nums-auto ${atMinimum ? "text-red-700" : ""}`}>{bal.toLocaleString("en-US")}</td>
-                <td><input type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
+                <td><LatinInput type="number" min="0" step="0.01" defaultValue={(item.minimumStock ?? 0) === 0 ? "" : item.minimumStock} onBlur={(e) => saveMinimumStock(item, e.target.value)} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs" /></td>
                 <td className="tabular-nums-auto">{avg.toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="tabular-nums-auto">{(item.totalInValue ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} ريال</td>
                 <td className="text-slate-500 tabular-nums-auto">{last?.invoiceDate ?? "—"}</td>

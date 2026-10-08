@@ -3,6 +3,7 @@
 /* اختيار أصناف الأكل للحفلة من هيكل منتجات البيع: أقسام قناة الحفلات،
    وتحت كل قسم أصنافها القادمة من التكاليف — بأرصدتها وتكلفتها. */
 
+import { LatinInput } from "@/components/ui/latin-input";
 import { useMemo, useRef, useState } from "react";
 import { CostItem, SalesSection, ConcertPackage } from "@/types";
 import { itemBalance, averageCost } from "@/lib/recipes";
@@ -255,7 +256,7 @@ export function SalesFoodPicker({
                   {checked && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <label className="text-xs text-slate-400 whitespace-nowrap">الكمية:</label>
-                      <input type="number" min={1} value={state?.quantity ?? ""}
+                      <LatinInput type="number" min={1} value={state?.quantity ?? ""}
                         onChange={(e) => onQuantity(section!.id, item.id, e.target.value)}
                         placeholder="1"
                         className="w-16 border border-orange-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white" />

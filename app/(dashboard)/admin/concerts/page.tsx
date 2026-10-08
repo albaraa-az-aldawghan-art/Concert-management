@@ -1,6 +1,7 @@
 "use client";
 
 /* قائمة الحفلات: بحث وفلترة بالحالة والتاريخ، وبطاقة لكل حفلة بمرحلتها. */
+import { LatinInput } from "@/components/ui/latin-input";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -317,12 +318,12 @@ export default function AdminConcertsPage() {
           <div className="flex items-center gap-3 flex-wrap pt-1">
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">من:</label>
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              <LatinInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white" />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">إلى:</label>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              <LatinInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white" />
             </div>
             {(dateFrom || dateTo) && (
