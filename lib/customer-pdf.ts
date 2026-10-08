@@ -158,7 +158,7 @@ export function buildCustomersPdfHtml(
   .cancelled h3 { color: #dc2626; }
   .cancelled .card { background: #fff1f2; }
   .customer table { font-size: 10px; break-inside: avoid; margin-bottom: 8px; }
-  .payment-block { break-inside: avoid; }
+  .payment-block { break-inside: avoid; display: flow-root; padding-top: 1px; }
   .payment-block + .payment-block { break-before: page; }
   .customer thead { display: table-row-group; }
   .table-context { display: block; font-size: 8px; font-weight: normal; color: #e2e8f0; }
