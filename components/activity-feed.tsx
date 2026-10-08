@@ -92,7 +92,7 @@ export function ActivityFeed({ full = false }: { full?: boolean }) {
         <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-slate-700">{entry.actorName || "مستخدم"}</span><span className={`text-xs rounded-full px-2 py-1 ${statuses[entry.status]?.color}`}>{statuses[entry.status]?.label}</span></div>
         <p className="text-xs text-slate-500 break-all">{entry.actorEmail || entry.actorId}</p>
         <p className="font-bold text-[#1C2D50] break-words">{entry.action}</p>
-        <time className="block text-xs text-slate-500" dateTime={entry.createdAt}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh", dateStyle: "medium", timeStyle: "medium", calendar: "gregory" }) : "—"}</time>
+        <time className="block text-xs text-slate-500" dateTime={entry.createdAt}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString("ar-SA-u-ca-gregory-nu-latn", { timeZone: "Asia/Riyadh", dateStyle: "medium", timeStyle: "medium", calendar: "gregory" }) : "—"}</time>
         {full && entry.targetId && <p className="text-xs text-slate-400 break-all">مرجع العملية: <bdi>{entry.targetId}</bdi></p>}
       </li>)}
     </ol>

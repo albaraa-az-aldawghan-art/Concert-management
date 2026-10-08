@@ -243,3 +243,43 @@ for (const [type, price] of [["collected", 3], ["paid", 5]] as const) {
     assert.equal(f.records.get("cost_items/sandwich")!.totalInValue, 300);
   });
 }
+
+test("remaining stock carries across months and becomes the next day's opening stock", async () => {
+  const f = fixture();
+  const { id } = await svcCreateContract(f.db, f.draft("paid"));
+  await svcSaveContractDay(f.db, {
+    contractId: id,
+    date: "2026-09-30",
+    lines: [{ barcode: "sandwich", supplied: 10, damaged: 0, remaining: 4 }],
+    collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
+  });
+
+  const october = await svcContractMonth(f.db, id, "2026-10");
+  assert.equal(october.openingStock.sandwich, 4);
+
+  await svcSaveContractDay(f.db, {
+    contractId: id,
+    date: "2026-10-01",
+    lines: [{ barcode: "sandwich", supplied: 2, damaged: 0, remaining: 3 }],
+    collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
+  });
+  const saved = f.records.get(`contract_days/${id}_2026-10-01`)!;
+  const line = (saved.lines as { openingQty: number; sold: number; remaining: number }[])[0];
+  assert.deepEqual({ opening: line.openingQty, sold: line.sold, remaining: line.remaining }, {
+    opening: 4, sold: 3, remaining: 3,
+  });
+
+  // إذا غاب الصنف من آخر جرد فلا يعود رصيده الافتتاحي القديم من جديد.
+  f.contract(id).terms[0].openingQty = 9;
+  await svcSaveContractDay(f.db, {
+    contractId: id, date: "2026-10-02", lines: [], collections: {},
+    expenses: [], custody: null, notes: null, uid: "admin",
+  });
+  await svcSaveContractDay(f.db, {
+    contractId: id, date: "2026-10-03",
+    lines: [{ barcode: "sandwich", supplied: 0, damaged: 0, remaining: 0 }],
+    collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
+  });
+  const afterEmptyDay = f.records.get(`contract_days/${id}_2026-10-03`)!.lines as { openingQty: number }[];
+  assert.equal(afterEmptyDay[0].openingQty, 0);
+});

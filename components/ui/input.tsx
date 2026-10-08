@@ -11,6 +11,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, error, helperText, className, id, ...props }: InputProps) {
   const inputId = id || label?.replace(/\s/g, "-").toLowerCase();
+  const latinField = ["number", "date", "month", "time", "datetime-local", "tel"].includes(props.type ?? "");
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -21,7 +22,10 @@ export function Input({ label, error, helperText, className, id, ...props }: Inp
         </label>
       )}
       <input
+        {...props}
         id={inputId}
+        lang={latinField ? "en-GB" : props.lang}
+        dir={latinField ? "ltr" : props.dir}
         className={cn(
           "w-full min-h-11 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-inner shadow-slate-900/[0.015]",
           "hover:border-slate-300 focus:bg-white focus:border-[#1C2D50] focus:ring-4 focus:ring-[#EEF1F7] focus:outline-none",
@@ -29,7 +33,6 @@ export function Input({ label, error, helperText, className, id, ...props }: Inp
           error && "border-red-400 focus:border-red-400 focus:ring-red-100",
           className
         )}
-        {...props}
       />
       {error && <p className="text-xs text-red-500">{error}</p>}
       {helperText && !error && <p className="text-xs text-slate-500">{helperText}</p>}

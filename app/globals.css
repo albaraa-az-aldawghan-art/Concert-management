@@ -91,7 +91,7 @@
 * {
   font-family: 'Cairo', sans-serif;
   box-sizing: border-box;
-  /* الأرقام لاتينية في كل الموقع: بعض الخطوط العربية تستبدل 0-9 بـ ٠-٩
+  /* الأرقام لاتينية في كل الموقع: بعض الخطوط العربية تستبدل شكلها
      تلقائياً عبر خاصية anum — نُطفئها هنا فلا يحدث ذلك في أي مكان */
   font-feature-settings: "anum" 0;
 }
@@ -331,6 +331,19 @@ table, .tabular-nums-auto {
    نثبّتها لاتينية أيضاً */
 input, select, textarea {
   font-feature-settings: "anum" 0;
+}
+
+/* كل حقول الأرقام والتاريخ لاتينية وباتجاه ثابت، بصرف النظر عن لغة
+   الجهاز أو المتصفح. المكوّن LatinNumeralsGuard يضيف السمات نفسها
+   ديناميكياً للنوافذ والميزات الجديدة. */
+input[type="number"], input[type="date"], input[type="month"],
+input[type="time"], input[type="datetime-local"], input[type="tel"],
+input[inputmode="numeric"], input[inputmode="decimal"] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: Arial, 'Cairo', sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "anum" 0, "lnum" 1, "tnum" 1;
 }
 
 /* ── Motion ── */

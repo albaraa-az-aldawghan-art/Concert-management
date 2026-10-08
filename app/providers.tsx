@@ -8,10 +8,12 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ActorsProvider } from "@/components/ui/actor";
 import { ActivityTracker } from "@/components/activity-tracker";
 import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
+import { LatinNumeralsGuard } from "@/components/latin-numerals-guard";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
+      <LatinNumeralsGuard />
       <ActivityTracker />
       <SystemProvider>
         <ActorsProvider>

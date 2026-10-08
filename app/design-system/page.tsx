@@ -248,7 +248,7 @@ export default function DesignSystemPage() {
               </div>
               <div className="border border-red-200 bg-red-50 rounded-xl p-3">
                 <p className="text-xs text-red-600 mb-1">ممنوع — أرقام عربية</p>
-                <p className="text-lg font-bold text-red-700">١٬٢٥٠٫٧٥ ريال</p>
+                <p className="text-lg font-bold text-red-700">1,250.75 ريال</p>
                 <p className="text-[11px] text-red-600 mt-1">
                   تُطفأ خاصية <Code>anum</Code> عالمياً، ولغة الصفحة <Code>ar-u-nu-latn</Code>.
                 </p>

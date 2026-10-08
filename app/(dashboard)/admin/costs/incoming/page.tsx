@@ -14,14 +14,13 @@ import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
 import { CostIncoming, CostItem } from "@/types";
 import { Plus, PackagePlus, Trash2 } from "lucide-react";
+import { toLatinDigits } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 type InvoiceLine = { item: CostItem; quantity: string; priceMode: "unit" | "total"; priceInput: string };
 
 function parseEnteredNumber(value: string): number {
-  const normalized = value.trim()
-    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
-    .replace(/[٬،,]/g, "");
+  const normalized = toLatinDigits(value.trim()).replace(/[٬،,]/g, "");
   return Number(normalized);
 }
 

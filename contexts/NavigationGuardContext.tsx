@@ -11,10 +11,15 @@ export interface NavigationGuard {
   hasDraft: boolean;
   save: () => Promise<boolean>;
   discard: () => Promise<void>;
+  title?: string;
+  description?: string;
+  saveLabel?: string;
+  discardLabel?: string;
 }
 interface GuardContext {
   register: (guard: NavigationGuard) => () => void;
   request: (action: Action) => void;
+  requestLocal: (action: Action) => void;
   leave: (action: Action) => void;
 }
 const Context = createContext<GuardContext | null>(null);
@@ -24,12 +29,14 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   const router = useRouter();
   const guard = useRef<NavigationGuard | null>(null);
   const pending = useRef<Action | null>(null);
+  const localPending = useRef(false);
   const bypass = useRef(false);
   const working = useRef(false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [hasDraft, setHasDraft] = useState(false);
+  const [copy, setCopy] = useState<Pick<NavigationGuard, "title" | "description" | "saveLabel" | "discardLabel">>({});
 
   const register = useCallback((value: NavigationGuard) => {
     guard.current = value;
@@ -40,6 +47,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     // Disable the guard synchronously, including beforeunload and popstate.
     guard.current = null;
     pending.current = null;
+    localPending.current = false;
     bypass.current = true;
     setOpen(false);
     try {
@@ -54,10 +62,33 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   }, []);
 
   const request = useCallback((action: Action) => {
+    localPending.current = false;
     if (working.current || pending.current || guard.current?.busy) return;
     if (!guard.current?.dirty) { void action(); return; }
     pending.current = action;
     setHasDraft(guard.current.hasDraft);
+    setCopy({
+      title: guard.current.title,
+      description: guard.current.description,
+      saveLabel: guard.current.saveLabel,
+      discardLabel: guard.current.discardLabel,
+    });
+    setError("");
+    setOpen(true);
+  }, []);
+
+  const requestLocal = useCallback((action: Action) => {
+    if (working.current || pending.current || guard.current?.busy) return;
+    if (!guard.current?.dirty) { localPending.current = false; void action(); return; }
+    localPending.current = true;
+    pending.current = action;
+    setHasDraft(guard.current.hasDraft);
+    setCopy({
+      title: guard.current.title,
+      description: guard.current.description,
+      saveLabel: guard.current.saveLabel,
+      discardLabel: guard.current.discardLabel,
+    });
     setError("");
     setOpen(true);
   }, []);
@@ -141,6 +172,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   function stay() {
     if (working.current) return;
     pending.current = null;
+    localPending.current = false;
     setOpen(false);
     setError("");
   }
@@ -154,7 +186,12 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
         if (!await guard.current.save()) { setError("لم تُحفظ المسودة. بياناتك ما زالت هنا؛ أعد المحاولة."); return; }
       } else await guard.current.discard();
       const action = pending.current;
-      if (action) leave(action);
+      if (action && localPending.current) {
+        pending.current = null;
+        localPending.current = false;
+        setOpen(false);
+        await action();
+      } else if (action) leave(action);
     } catch {
       setError(save ? "تعذّر حفظ المسودة. لم نغادر الصفحة." : "تعذّر حذف المسودة. لم نغادر الصفحة.");
     } finally {
@@ -163,21 +200,21 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     }
   }
 
-  return <Context.Provider value={{ register, request, leave }}>
+  return <Context.Provider value={{ register, request, requestLocal, leave }}>
     {children}
     <Dialog.Root open={open} onOpenChange={(value) => { if (!value) stay(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" />
         <Dialog.Content dir="rtl" className="fixed z-[101] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-6 shadow-xl" onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }} onInteractOutside={(event) => event.preventDefault()}>
-          <Dialog.Title className="text-lg font-bold text-slate-800">حفظ الحفلة قبل المغادرة؟</Dialog.Title>
+          <Dialog.Title className="text-lg font-bold text-slate-800">{copy.title ?? "حفظ الحفلة قبل المغادرة؟"}</Dialog.Title>
           <Dialog.Description className="mt-3 text-sm leading-7 text-slate-600">
-            لديك بيانات غير محفوظة. يمكنك حفظها في المسودات للرجوع إليها لاحقًا، أو حذفها والمغادرة.
-            {hasDraft && " الحذف سيزيل المسودة المحفوظة أيضًا."}
+            {copy.description ?? "لديك بيانات غير محفوظة. يمكنك حفظها في المسودات للرجوع إليها لاحقًا، أو حذفها والمغادرة."}
+            {!copy.description && hasDraft && " الحذف سيزيل المسودة المحفوظة أيضًا."}
           </Dialog.Description>
           {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
           <div className="mt-5 flex flex-col gap-2">
-            <button type="button" disabled={busy} onClick={() => void resolve(true)} className="rounded-xl bg-[#1C2D50] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "جارٍ التنفيذ…" : "حفظ في المسودات والمغادرة"}</button>
-            <button type="button" disabled={busy} onClick={() => void resolve(false)} className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50">{hasDraft ? "حذف المسودة والمغادرة" : "حذف البيانات والمغادرة"}</button>
+            <button type="button" disabled={busy} onClick={() => void resolve(true)} className="rounded-xl bg-[#1C2D50] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "جارٍ التنفيذ…" : copy.saveLabel ?? "حفظ في المسودات والمغادرة"}</button>
+            <button type="button" disabled={busy} onClick={() => void resolve(false)} className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50">{copy.discardLabel ?? (hasDraft ? "حذف المسودة والمغادرة" : "حذف البيانات والمغادرة")}</button>
             <button type="button" disabled={busy} onClick={stay} className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50">البقاء في الصفحة</button>
           </div>
         </Dialog.Content>

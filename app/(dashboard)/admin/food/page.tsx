@@ -303,9 +303,9 @@ export default function SalesProductsPage() {
       <div className="flex items-start gap-2.5 bg-[#EEF1F7] border border-[#D4DCE8] rounded-xl px-4 py-3 text-xs text-[#1C2D50] leading-relaxed">
         <Info size={15} className="shrink-0 mt-0.5" />
         <p>
-          <strong>١. المواد الأولية</strong> تُشترى في <Link href="/admin/costs/incoming" className="underline">الوارد</Link> ·
-          <strong> ٢. التصنيع</strong> يدمجها في <Link href="/admin/costs/production" className="underline">الإنتاج</Link> ·
-          <strong> ٣. منتجات البيع</strong> هنا: تختار لكل قسم أصنافه من التكاليف — خاماً كان أو مُنتَجاً.
+          <strong>1. المواد الأولية</strong> تُشترى في <Link href="/admin/costs/incoming" className="underline">الوارد</Link> ·
+          <strong> 2. التصنيع</strong> يدمجها في <Link href="/admin/costs/production" className="underline">الإنتاج</Link> ·
+          <strong> 3. منتجات البيع</strong> هنا: تختار لكل قسم أصنافه من التكاليف — خاماً كان أو مُنتَجاً.
           ولا يظهر في الحفلات إلا ما اخترته هنا تحت «مبيعات الحفلات».
         </p>
       </div>

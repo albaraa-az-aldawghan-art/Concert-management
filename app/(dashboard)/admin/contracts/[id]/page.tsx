@@ -6,8 +6,8 @@ import { contractPriceLabel, contractPricingDescription } from "@/lib/contract-p
    ثلاثة أرقام تُدخَل لكل صنف — المورَّد والتالف والمتبقي — وما عداها
    يحسبه الخادم. الشاشة تُظهر الحساب قبل الحفظ كي يُرى الخطأ لا ليُكتشف. */
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent,
@@ -17,6 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { auth } from "@/lib/firebase";
 import { downloadBlob } from "@/lib/download-file";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigationGuard } from "@/contexts/NavigationGuardContext";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ import {
   postMonthCollections, unpostMonthCollections, ContractMonth,
 } from "@/lib/firestore/contract-ledger";
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
+import { draftSnapshot } from "@/lib/draft-snapshot";
+import { carriedDayLines, openingStockForDate } from "@/lib/contract-day-carry";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
   Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2, GripVertical, Pencil,
@@ -133,9 +136,9 @@ function DayLineRow({
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { showToast } = useToast();
   const { feat } = useAuth();
+  const { register, requestLocal } = useNavigationGuard();
 
   const fx = {
     view:   feat("contracts", "ledger_view"),
@@ -168,6 +171,7 @@ export default function ContractDetailPage() {
   const [notes, setNotes] = useState("");
   const [pickSection, setPickSection] = useState("");
   const [deleteDayTarget, setDeleteDayTarget] = useState<string | null>(null);
+  const [savedDaySnapshot, setSavedDaySnapshot] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -183,8 +187,8 @@ export default function ContractDetailPage() {
 
   const expenseConfig = contract?.ledger?.expenseLines?.length ? contract.ledger.expenseLines : DEFAULT_EXPENSES;
 
-  useEffect(() => { loadBase(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
-  useEffect(() => { if (contract) loadMonth(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [month, contract?.id]);
+  useEffect(() => { loadBase(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (contract) loadMonth(); }, [month, contract?.id]);
 
   async function loadBase() {
     setLoading(true);
@@ -235,13 +239,25 @@ export default function ContractDetailPage() {
   }, [contract?.ledger?.itemOrder, terms]);
 
   /* رصيد أول اليوم كما سيحسبه الخادم — من آخر يوم مسجَّل قبل التاريخ */
-  const openingMap = useMemo(() => {
-    const prev = (data?.days ?? []).filter((d) => d.date < date).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-    const m = new Map<string, number>();
-    for (const t of terms) m.set(t.barcode, t.openingQty ?? 0);
-    if (prev) for (const l of prev.lines) m.set(l.barcode, l.remaining);
-    return m;
-  }, [data, date, terms]);
+  const openingMap = useMemo(() => openingStockForDate(
+    data?.days ?? [],
+    date,
+    data?.openingStock ?? Object.fromEntries(terms.map((term) => [term.barcode, term.openingQty ?? 0])),
+  ), [data, date, terms]);
+
+  function daySnapshot(value: {
+    date: string;
+    lines: LineDraft[];
+    collections: Record<string, string>;
+    expenses: Record<string, string>;
+    custody: string;
+    notes: string;
+  }) {
+    return draftSnapshot(value);
+  }
+
+  const currentDaySnapshot = daySnapshot({ date, lines, collections, expenses, custody, notes });
+  const dayDirty = !monthLoading && savedDaySnapshot !== "" && currentDaySnapshot !== savedDaySnapshot;
 
   /* ملء المسودّة من يوم مسجَّل، أو تفريغها ليوم جديد — يُعبَّأ الجديد
      باختيار قسم من الصندوق تحت (يضيف كل أصنافه دفعة واحدة) لا تلقائياً،
@@ -251,23 +267,39 @@ export default function ContractDetailPage() {
      فجأة بسطوره الحقيقية. */
   useEffect(() => {
     if (monthLoading) return;
+    if (data?.month !== monthOf(date)) return;
     const day = data?.days.find((d) => d.date === date);
+    let nextLines: LineDraft[];
+    let nextCollections: Record<string, string>;
+    let nextExpenses: Record<string, string>;
+    let nextCustody: string;
+    let nextNotes: string;
     if (day) {
-      setLines(day.lines.map((l) => ({
+      nextLines = day.lines.map((l) => ({
         barcode: l.barcode, supplied: String(l.supplied), damaged: String(l.damaged), remaining: String(l.remaining),
-      })));
-      setCollections(Object.fromEntries(METHODS.map((m) => { const value = (day.collections as Record<string, number>)?.[m.key] ?? 0; return [m.key, value === 0 ? "" : String(value)]; })));
-      setExpenses(Object.fromEntries((day.expenses ?? []).map((e) => [e.key, e.amount === 0 ? "" : String(e.amount)])));
-      setCustody((day.custody ?? 0) === 0 ? "" : String(day.custody));
-      setNotes(day.notes ?? "");
+      }));
+      nextCollections = Object.fromEntries(METHODS.map((m) => { const value = (day.collections as Record<string, number>)?.[m.key] ?? 0; return [m.key, value === 0 ? "" : String(value)]; }));
+      nextExpenses = Object.fromEntries((day.expenses ?? []).map((e) => [e.key, e.amount === 0 ? "" : String(e.amount)]));
+      nextCustody = (day.custody ?? 0) === 0 ? "" : String(day.custody);
+      nextNotes = day.notes ?? "";
     } else {
-      setLines([]);
-      setCollections({});
-      setExpenses({});
-      setNotes("");
-      setCustody(String(contract?.ledger?.defaultCustody ?? 500));
+      nextLines = carriedDayLines(orderedBarcodes, openingMap);
+      nextCollections = {};
+      nextExpenses = {};
+      nextNotes = "";
+      nextCustody = String(contract?.ledger?.defaultCustody ?? 500);
     }
-  }, [date, data, monthLoading, contract?.ledger?.defaultCustody]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- تحميل مسودة التاريخ المختار من الخادم إلى حقول التحرير
+    setLines(nextLines);
+    setCollections(nextCollections);
+    setExpenses(nextExpenses);
+    setCustody(nextCustody);
+    setNotes(nextNotes);
+    setSavedDaySnapshot(daySnapshot({
+      date, lines: nextLines, collections: nextCollections, expenses: nextExpenses,
+      custody: nextCustody, notes: nextNotes,
+    }));
+  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, openingMap, orderedBarcodes]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -353,8 +385,8 @@ export default function ContractDetailPage() {
     }
   }
 
-  async function handleSaveDay() {
-    if (lines.length === 0) { showToast("أضف صنفاً واحداً على الأقل", "error"); return; }
+  async function handleSaveDay(): Promise<boolean> {
+    if (lines.length === 0) { showToast("أضف صنفاً واحداً على الأقل", "error"); return false; }
     setSaving(true);
     try {
       await saveContractDay(id, {
@@ -368,12 +400,34 @@ export default function ContractDetailPage() {
         notes: notes.trim() || null,
       });
       showToast("حُفظ اليوم");
+      setSavedDaySnapshot(currentDaySnapshot);
       await loadMonth();
+      return true;
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر الحفظ", "error");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  useLayoutEffect(() => register({
+    dirty: dayDirty,
+    busy: saving,
+    hasDraft: false,
+    save: handleSaveDay,
+    discard: async () => {},
+    title: "حفظ يوم التشغيل قبل المغادرة؟",
+    description: "لديك أرقام أو تعديلات غير محفوظة. احفظها أولاً، أو غادر دون حفظها.",
+    saveLabel: "حفظ اليوم والمغادرة",
+    discardLabel: "المغادرة دون حفظ",
+  }));
+
+  function changeDate(nextDate: string) {
+    requestLocal(() => {
+      setDate(nextDate);
+      setMonth(monthOf(nextDate));
+    });
   }
 
   async function run(fn: () => Promise<unknown>, msg: string) {
@@ -499,7 +553,7 @@ export default function ContractDetailPage() {
             <Table2 size={17} className="text-[#1C2D50]" /> يوم التشغيل
           </h3>
           <div className="flex items-center gap-2">
-            <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setMonth(monthOf(e.target.value)); }} className="max-w-[10.5rem]" />
+            <Input type="date" value={date} onChange={(e) => changeDate(e.target.value)} className="max-w-[10.5rem]" />
             {fx.del && data?.days.some((d) => d.date === date) && (
               <button onClick={() => setDeleteDayTarget(date)} className="p-2 text-slate-400 hover:text-red-500" title="حذف اليوم">
                 <Trash2 size={15} />

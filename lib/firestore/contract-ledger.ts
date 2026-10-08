@@ -12,6 +12,7 @@ export interface MonthItemRow {
 
 export interface ContractMonth {
   month: string;
+  openingStock: Record<string, number>;
   contractName: string;
   contractType?: ContractType | null;
   priceSectionName?: string | null;

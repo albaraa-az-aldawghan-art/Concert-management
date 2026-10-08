@@ -153,7 +153,7 @@ export async function svcSaveContractDay(
     ((existing.data()?.lines ?? []) as StoredLine[]).map((l) => [l.barcode, l])
   );
 
-  const { map: opening } = await openingByBarcode(db, d.contractId, d.date);
+  const { map: opening, hasPrev } = await openingByBarcode(db, d.contractId, d.date);
 
   /* ١) يُتحقّق من كل السطور قبل لمس المخزون: لا يُصرف نصف يوم ثم يُرفض */
   const seen = new Set<string>();
@@ -168,7 +168,9 @@ export async function svcSaveContractDay(
       if (!Number.isFinite(v) || v < 0) throw new ApiError(`${label} في "${term.itemName}" لا يقبل قيمة سالبة`);
     }
 
-    const openingQty = opening.get(raw.barcode) ?? term.openingQty ?? 0;
+    // بعد وجود أول يوم مسجل لا نعيد إحياء الرصيد الافتتاحي للصنف إذا
+    // غاب من اليوم السابق؛ الغياب من آخر جرد يعني أن رصيده صفر.
+    const openingQty = opening.get(raw.barcode) ?? (hasPrev ? 0 : term.openingQty ?? 0);
     const available = r2(raw.supplied + openingQty);
     /* التالف والمتبقي قد يتجاوزان المتاح أثناء التعبئة التدريجية لليوم —
        لا يُرفض الحفظ لهذا، بل يُحسب «المباع» سالباً فيظهر الخطأ بصرياً
@@ -356,6 +358,13 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
   if (!/^\d{4}-\d{2}$/.test(month)) throw new ApiError("الشهر بصيغة yyyy-mm");
   const { data: contract } = await loadContract(db, contractId);
   const docs = await daysOfMonth(db, contractId, month);
+  const beforeMonth = await openingByBarcode(db, contractId, `${month}-01`);
+  const openingStock = Object.fromEntries(
+    (contract.terms ?? []).map((term) => [
+      term.barcode,
+      beforeMonth.map.get(term.barcode) ?? (beforeMonth.hasPrev ? 0 : term.openingQty ?? 0),
+    ])
+  );
 
   const days = docs
     .map((x) => x.data() as { date: string; lines: StoredLine[]; totals: Record<string, number>; collections: Record<string, number>; expenses: { key: string; label: string; kind: string; amount: number }[]; custody: number; postedPaymentIds: string[] | null })
@@ -403,6 +412,7 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
   const expenses = sum((t) => t.expenses);
   return {
     month,
+    openingStock,
     contractName: contract.name,
     contractType: contract.contractType ?? null,
     priceSectionName: contract.priceSectionName ?? null,

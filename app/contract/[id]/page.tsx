@@ -815,12 +815,12 @@ export default function ContractPage() {
                   <span style={S.fv}>{concert.clientName || "—"}</span>
                 </div>
                 <div style={S.fld}>
-                  <span style={S.fl}>الجوال ١</span>
+                  <span style={S.fl}>الجوال 1</span>
                   <span style={{ ...S.fv, direction: "ltr", display: "inline-block" }}>{concert.clientPhone || "—"}</span>
                 </div>
                 {concert.clientPhone2 && (
                   <div style={S.fld}>
-                    <span style={S.fl}>الجوال ٢</span>
+                    <span style={S.fl}>الجوال 2</span>
                     <span style={{ ...S.fv, direction: "ltr", display: "inline-block" }}>{concert.clientPhone2}</span>
                   </div>
                 )}
