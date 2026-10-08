@@ -69,3 +69,13 @@ test("تقرير العملاء يضمّن الخط العربي ويعرض نط
   assert.match(html, /الفلاتر المطبقة/);
   assert.match(html, /الحالة المالية: عليه متبقي/);
 });
+
+test("compact statements keep client identity with first concert and remove forced page gaps", () => {
+  const html = buildCustomersPdfHtml([record, { ...record, name: "عميل ثان" }]);
+  assert.doesNotMatch(html, /break-before: page/);
+  const block = html.slice(html.indexOf('<div class="payment-block">'));
+  assert.ok(block.indexOf("<h2>") < block.indexOf('<div class="concert-heading">'));
+  assert.ok(block.indexOf('<div class="concert-heading">') < block.indexOf("<table>"));
+  assert.match(html, /\.payment-block \{ break-inside: avoid/);
+  assert.match(html, /العميل: عميل &lt;تجريبي&gt;/);
+});
