@@ -1,4 +1,5 @@
-import { Timestamp, Firestore } from "firebase-admin/firestore";
+import { Timestamp, Firestore, FieldValue } from "firebase-admin/firestore";
+import { isPurchaseRawItem, purchaseSupplierNames } from "@/lib/purchase-options";
 import { ApiError } from "@/lib/server/guard";
 import { OutgoingChannel } from "@/types";
 
@@ -44,6 +45,7 @@ async function assertUniqueItemName(db: Firestore, name: string, exceptBarcode?:
 }
 
 interface ItemDoc {
+  kind?: "raw" | "produced" | "sale";
   name: string;
   unit: string;
   purchaseUnit?: string;
@@ -77,6 +79,8 @@ export async function svcAddIncoming(
     if (!snap.exists) throw new ApiError("الصنف غير مسجّل — سجّله أولاً من صفحة أصناف التكاليف");
     const item = snap.data() as ItemDoc;
 
+    if (!isPurchaseRawItem(item)) throw new ApiError("فاتورة الشراء تقبل المواد الخام فقط");
+
     const purchaseUnit = item.purchaseUnit || item.unit;
     const purchaseToIssue = Number.isFinite(item.purchaseToIssue) && (item.purchaseToIssue ?? 0) > 0 ? item.purchaseToIssue! : 1;
     const stockQuantity = r2(d.quantity * purchaseToIssue);
@@ -101,6 +105,8 @@ export async function svcAddIncoming(
       totalIn: r2((item.totalIn ?? 0) + stockQuantity),
       totalInValue: r2((item.totalInValue ?? 0) + totalBeforeVat),
     });
+    const supplier = purchaseSupplierNames([d.supplierName])[0];
+    if (supplier) tx.set(db.collection("cost_settings").doc("suppliers"), { names: FieldValue.arrayUnion(supplier) }, { merge: true });
   });
   return { id: entryRef.id };
 }
@@ -123,6 +129,7 @@ export async function svcAddIncomingInvoice(
     const itemSnaps = await Promise.all(itemRefs.map((ref) => tx.get(ref)));
     itemSnaps.forEach((snap) => {
       if (!snap.exists) throw new ApiError("إحدى مواد الفاتورة غير مسجلة");
+      if (!isPurchaseRawItem(snap.data() as ItemDoc)) throw new ApiError("فاتورة الشراء تقبل المواد الخام فقط");
     });
     let invoiceTotal = 0;
     d.lines.forEach((line, index) => {
@@ -164,6 +171,8 @@ export async function svcAddIncomingInvoice(
       createdAt: Timestamp.now(),
       createdBy: d.createdBy,
     });
+    const supplier = purchaseSupplierNames([d.supplierName])[0];
+    if (supplier) tx.set(db.collection("cost_settings").doc("suppliers"), { names: FieldValue.arrayUnion(supplier) }, { merge: true });
   });
   return { id: invoiceRef.id };
 }

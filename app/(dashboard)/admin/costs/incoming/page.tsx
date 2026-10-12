@@ -3,12 +3,13 @@
 /* الوارد: تسجيل المشتريات بأسعارها قبل الضريبة — منه يُبنى متوسط سعر التكلفة. */
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCostIncoming, addCostIncomingInvoice, deleteCostIncoming, getCostItems } from "@/lib/firestore/costs";
+import { getCostIncoming, addCostIncomingInvoice, deleteCostIncoming, getCostItems, getPurchaseSuppliers, addPurchaseSupplier } from "@/lib/firestore/costs";
+import { isPurchaseRawItem, purchaseSupplierNames } from "@/lib/purchase-options";
 import { useToast } from "@/components/ui/toast";
 import { Actor } from "@/components/ui/actor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
 import { CostItemPicker } from "@/components/ui/cost-item-picker";
 import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState } from "@/components/ui/list-filters";
@@ -60,6 +61,11 @@ export default function CostsIncomingPage() {
   const [deleteTarget, setDeleteTarget] = useState<CostIncoming | null>(null);
   const [form, setForm] = useState({ supplierName: "", invoiceNumber: "", invoiceDate: "" });
   const [lines, setLines] = useState<InvoiceLine[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [newSupplier, setNewSupplier] = useState<string | null>(null);
+  const [supplierSaving, setSupplierSaving] = useState(false);
 
   useEffect(() => { setPage(1); }, [search, dateF]);
   useEffect(() => { load(); }, []);
@@ -75,10 +81,31 @@ export default function CostsIncomingPage() {
   function openAdd() {
     setForm({ supplierName: "", invoiceNumber: "", invoiceDate: new Date().toISOString().slice(0, 10) });
     setLines([]);
+    setSupplierSearch("");
+    setNewSupplier(null);
     setShowAdd(true);
+    setSuppliersLoading(true);
+    getPurchaseSuppliers().then((names) => setSuppliers((current) => purchaseSupplierNames([...current, ...names]))).catch((err) => showToast(err instanceof Error ? err.message : "تعذر تحميل الموردين", "error")).finally(() => setSuppliersLoading(false));
+  }
+
+  async function saveSupplier() {
+    if (!newSupplier?.trim()) { showToast("أدخل اسم المورد الجديد", "error"); return; }
+    setSupplierSaving(true);
+    try {
+      const normalized = purchaseSupplierNames([newSupplier])[0];
+      const existing = purchaseSupplierNames([...suppliers, ...entries.map((entry) => entry.supplierName)]).find((name) => name.toLowerCase() === normalized.toLowerCase());
+      const name = await addPurchaseSupplier(existing || normalized);
+      setSuppliers((current) => purchaseSupplierNames([...current, name]));
+      setForm((current) => ({ ...current, supplierName: name }));
+      setSupplierSearch("");
+      setNewSupplier(null);
+      showToast("تم حفظ المورد في القائمة");
+    } catch (err) { showToast(err instanceof Error ? err.message : "تعذر حفظ المورد", "error"); }
+    finally { setSupplierSaving(false); }
   }
 
   function addInvoiceItem(item: CostItem) {
+    if (!isPurchaseRawItem(item)) { showToast("يمكن إضافة المواد الخام فقط", "error"); return; }
     if (lines.some((line) => line.item.id === item.id)) {
       showToast("المادة مضافة إلى الفاتورة مسبقًا", "error");
       return;
@@ -91,12 +118,14 @@ export default function CostsIncomingPage() {
   }
 
   function handleScanMiss() {
-    showToast("لم يُعثر على صنف بهذا الباركود — سجّله أولاً من صفحة أصناف التكاليف", "error");
+    showToast("لم يُعثر على مادة خام متاحة بهذا الباركود — تأكد من نوع المادة وأنها غير مضافة مسبقًا", "error");
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!appUser) return;
+    if (supplierSaving || suppliersLoading) return;
+    if (newSupplier?.trim()) { showToast("احفظ المورد الجديد أو ألغِ إضافته قبل حفظ الفاتورة", "error"); return; }
     if (!form.supplierName.trim()) { showToast("أدخل اسم المورد", "error"); return; }
     if (lines.length === 0) { showToast("أضف مادة واحدة على الأقل", "error"); return; }
     if (lines.some((line) => !(lineValues(line).quantity > 0) || lineValues(line).unitPrice < 0)) {
@@ -235,13 +264,22 @@ export default function CostsIncomingPage() {
         <div className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input label="اسم المورد" required value={form.supplierName} onChange={(e) => setForm({ ...form, supplierName: e.target.value })} />
+              <div className="space-y-2">
+                <Select label="اسم المورد" required placeholder={suppliersLoading ? "جارٍ تحميل الموردين..." : "اختر المورد"} disabled={suppliersLoading || supplierSaving} value={form.supplierName} onChange={(e) => setForm({ ...form, supplierName: e.target.value })}>
+                  {purchaseSupplierNames([...suppliers, ...entries.map((entry) => entry.supplierName)]).filter((name) => name === form.supplierName || name.includes(supplierSearch.trim())).map((name) => <option key={name} value={name}>{name}</option>)}
+                </Select>
+                <Input aria-label="بحث عن مورد" placeholder="ابحث عن مورد..." value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} />
+                {newSupplier === null ? <Button variant="secondary" type="button" onClick={() => setNewSupplier("")}><Plus size={14} /> إضافة مورد جديد</Button> : <div className="space-y-2 rounded-xl border border-slate-200 p-2">
+                  <Input label="اسم المورد الجديد" maxLength={150} value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} />
+                  <div className="flex gap-2"><Button type="button" loading={supplierSaving} onClick={saveSupplier}>حفظ المورد</Button><Button variant="secondary" type="button" disabled={supplierSaving} onClick={() => setNewSupplier(null)}>إلغاء</Button></div>
+                </div>}
+              </div>
               <Input label="رقم الفاتورة" value={form.invoiceNumber} onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })} />
               <Input label="تاريخ الفاتورة" type="date" required value={form.invoiceDate} onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })} />
             </div>
             <div className="rounded-xl border border-slate-200 p-3 space-y-3">
-              <p className="text-sm font-bold text-slate-700">إضافة مواد الفاتورة</p>
-              <CostItemPicker items={items.filter((item) => !lines.some((line) => line.item.id === item.id))} onPick={addInvoiceItem} onScanMiss={handleScanMiss} />
+              <p className="text-sm font-bold text-slate-700">إضافة المواد الخام للفاتورة</p>
+              <CostItemPicker items={items.filter((item) => isPurchaseRawItem(item) && !lines.some((line) => line.item.id === item.id))} onPick={addInvoiceItem} onScanMiss={handleScanMiss} />
             </div>
             {lines.length === 0 ? <p className="py-5 text-center text-sm text-slate-400">لم تُضف مواد إلى الفاتورة بعد</p> : (
               <div className="data-table-shell"><table className="data-table min-w-[1050px]"><thead><tr><th>المادة</th><th>وحدة الشراء</th><th>وحدة الصرف</th><th>كمية الشراء</th><th>المضاف للمخزون</th><th>طريقة السعر</th><th>السعر قبل الضريبة</th><th>الإجمالي</th><th></th></tr></thead><tbody>
@@ -259,7 +297,7 @@ export default function CostsIncomingPage() {
               </tbody></table></div>
             )}
             <div className="flex items-center justify-between rounded-xl bg-[#EEF1F7] px-4 py-3"><span className="font-semibold text-slate-600">إجمالي الفاتورة قبل الضريبة</span><strong className="text-[#1C2D50] tabular-nums-auto">{total.toLocaleString("en-US")} ريال</strong></div>
-            <div className="flex gap-3 justify-end pt-2"><Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button><Button type="submit" loading={saving}>حفظ فاتورة الشراء</Button></div>
+            <div className="flex gap-3 justify-end pt-2"><Button variant="secondary" type="button" onClick={() => setShowAdd(false)}>إلغاء</Button><Button type="submit" disabled={supplierSaving || suppliersLoading} loading={saving}>حفظ فاتورة الشراء</Button></div>
           </form>
         </div>
       </Modal>

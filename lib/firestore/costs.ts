@@ -210,6 +210,16 @@ export async function deleteCostItem(barcode: string): Promise<void> {
 
 /* ── الوارد ────────────────────────────────────────────────── */
 
+export async function getPurchaseSuppliers(): Promise<string[]> {
+  const result = await api.get<{ names: string[] }>("/api/costs/suppliers");
+  return result.names;
+}
+
+export async function addPurchaseSupplier(name: string): Promise<string> {
+  const result = await api.post<{ name: string }>("/api/costs/suppliers", { name });
+  return result.name;
+}
+
 export async function getCostIncoming(): Promise<CostIncoming[]> {
   const snap = await getDocs(collection(db, "cost_incoming"));
   return snap.docs

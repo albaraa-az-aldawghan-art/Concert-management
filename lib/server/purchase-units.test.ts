@@ -45,6 +45,7 @@ test("purchase invoice converts purchase units into issue-unit stock without cha
   assert.equal(incoming.unit, "حبة");
   assert.equal(incoming.priceBeforeVat, 120);
   assert.equal(incoming.totalBeforeVat, 240);
+  assert.ok(records.has("cost_settings/suppliers"), "supplier is saved independently of the invoice in the same transaction");
 });
 
 test("legacy items use the same unit for purchase and issue", async () => {
