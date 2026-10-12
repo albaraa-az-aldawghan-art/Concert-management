@@ -6,7 +6,8 @@ import { buildCustomersPdfHtml } from "@/lib/customer-pdf";
 import type { CustomerFilters } from "@/lib/customer-list";
 import { selectCustomerStatements } from "@/lib/customer-pdf-scope";
 import { listConcertCustomers } from "@/lib/server/concert-customers-core";
-import { ApiError, require_, requireCaller, withActivityResponse } from "@/lib/server/guard";
+import { ApiError, require_, requirePage, requireCaller, withActivityResponse } from "@/lib/server/guard";
+import { customerAccess } from "@/lib/customer-permissions";
 import { launchPdfBrowser } from "@/lib/server/pdf-browser";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,9 @@ async function download(req: NextRequest) {
   let browser: Browser | undefined;
   try {
     const caller = await requireCaller(req);
-    require_(caller, "contracts", "customers_export", "تصدير قائمة عملاء الحفلات");
+    requirePage(caller, "customers", "عرض العملاء");
+    require_(caller, "customers", "export", "تصدير كشف حساب العملاء");
+    if (!customerAccess(caller.feat).exportPdf) throw new ApiError("تصدير كشف الحساب يتطلب عرض المبالغ والدفعات والمصدر وسجل العميل", 403);
     const body = await req.json() as { customerIds?: unknown; filters?: unknown };
     const filters = filtersFrom(body.filters);
     for (const date of [filters.dateFrom, filters.dateTo]) {

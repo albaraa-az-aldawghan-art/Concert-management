@@ -44,7 +44,7 @@ export function pageKeyFromPath(pathname: string): PermissionPage | null {
   if (pathname.startsWith("/admin/food")) return "food";
   if (pathname.startsWith("/admin/missing-items")) return "missing_items";
   if (pathname.startsWith("/admin/contracts")) return "contracts";
-  if (pathname.startsWith("/admin/customers")) return "contracts";
+  if (pathname.startsWith("/admin/customers")) return "customers";
   if (pathname.startsWith("/admin/restaurant")) return "restaurant";
   if (pathname.startsWith("/admin/costs")) return "costs";
   if (pathname.startsWith("/admin/profitability")) return "profitability";
@@ -67,7 +67,10 @@ export function normalizedFeatures(
 ): string[] | null {
   const raw = role?.permissions?.[page];
   if (raw === undefined || raw === null) return null; // الصفحة غير ممنوحة
-  if (Array.isArray(raw)) return raw;
+  // Retire only the old customer actions; preserve other legacy role keys.
+  if (Array.isArray(raw)) return page === "contracts"
+    ? raw.filter(key => key !== "customers_edit" && key !== "customers_export")
+    : raw;
   if (raw === "manage") return KEYS_BY_PAGE[page] ?? [];
   return []; // "view"
 }

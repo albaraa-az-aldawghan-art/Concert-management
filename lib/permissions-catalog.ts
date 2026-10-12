@@ -277,15 +277,6 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
     href: "/admin/contracts",
     groups: [
       {
-        key: "customers",
-        label: "عملاء الحفلات",
-        hint: "ملفات العملاء المجمعة من الحفلات فقط",
-        actions: [
-          { key: "customers_edit", label: "تعديل بيانات عميل الحفلات" },
-          { key: "customers_export", label: "تصدير قائمة عملاء الحفلات", sensitive: true },
-        ],
-      },
-      {
         key: "contract",
         label: "العقد",
         actions: [
@@ -324,6 +315,27 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         ],
       },
     ],
+  },
+
+  {
+    key: "customers",
+    label: "العملاء",
+    href: "/admin/customers",
+    hint: "مستقلة عن التعاقدات: تفعيل الصفحة يسمح بعرض الأسماء والجوالات وقائمة الحفلات فقط",
+    groups: [{
+      key: "customer_profile", label: "ملف العميل وكشف الحساب",
+      actions: [
+        { key: "edit", label: "عرض وتعديل بيانات العميل", hint: "يشمل الاسم والجوال والمصدر والملاحظات، ولا يمنح عرض المبالغ" },
+        { key: "export", label: "تنزيل كشف حساب PDF", sensitive: true, hint: "يلزم أيضاً عرض البيانات المالية والدفعات والمصدر وسجل العميل لأن الكشف يتضمنها" },
+      ],
+      fields: [
+        { key: "financial", label: "المبالغ: القيمة والمحصّل والمتبقي والاسترداد", sensitive: true },
+        { key: "payments", label: "تفاصيل الدفعات وطرق الدفع", hint: "يلزم معها عرض المبالغ" },
+        { key: "source", label: "مصدر العميل والشخص المُحيل" },
+        { key: "notes", label: "ملاحظات العميل" },
+        { key: "activity", label: "سجل العميل ومن سجّل أول طلب والدفعات" },
+      ],
+    }],
   },
 
   /* ══════════════════ المطعم ══════════════════ */

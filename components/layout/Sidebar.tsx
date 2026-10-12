@@ -369,7 +369,10 @@ export function Sidebar() {
   const activityNav = can("activity") && !navItems.some((item) => item.href === "/admin/activity")
     ? [...navItems, { label: "سجل النشاطات", href: "/admin/activity", icon: <LayoutDashboard size={17} />, section: "الإدارة" }]
     : navItems;
-  const visibleNav = applySystemNav(activityNav, settings.features, settings.labels);
+  const customerNav = can("customers") && !activityNav.some((item) => item.href === "/admin/customers")
+    ? [...activityNav, { label: "العملاء", href: "/admin/customers", icon: <UsersRound size={17} />, section: "الأقسام الرئيسية" }]
+    : activityNav;
+  const visibleNav = applySystemNav(customerNav, settings.features, settings.labels);
 
   async function handleSignOut() {
     request(async () => {

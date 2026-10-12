@@ -21,6 +21,7 @@ import {
 } from "@/lib/customer-list";
 import { auth } from "@/lib/firebase";
 import { downloadBlob } from "@/lib/download-file";
+import { customerAccess, type CustomerAccess } from "@/lib/customer-permissions";
 
 const money = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const formatDate = (value: string | null) => value
@@ -38,12 +39,12 @@ const METHOD: Record<string, string> = { card: "شبكة", cash: "نقد", bank_
 type Tab = "concerts" | "payments" | "notes" | "activity";
 
 export default function CustomersPage() {
-  const { appUser, can, feat } = useAuth();
+  const { can, feat } = useAuth();
   const { showToast } = useToast();
-  const isAdmin = appUser?.role === "admin";
-  const allowed = isAdmin || (appUser?.role === "custom" && can("contracts"));
-  const canEdit = isAdmin || feat("contracts", "customers_edit");
-  const canExport = isAdmin || feat("contracts", "customers_export");
+  const allowed = can("customers");
+  const access = customerAccess(feat);
+  const canEdit = access.edit;
+  const canExport = access.exportPdf;
   const [customers, setCustomers] = useState<ConcertCustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
@@ -98,9 +99,9 @@ export default function CustomersPage() {
     dateFrom,
     dateTo,
     frequency: frequency as "" | "one" | "returning",
-    financial: financial as "" | "paid" | "due",
-    recorder,
-  }), [customers, search, period, dateFrom, dateTo, frequency, financial, recorder]);
+    financial: access.financial ? financial as "" | "paid" | "due" : "",
+    recorder: access.activity ? recorder : "",
+  }), [customers, search, period, dateFrom, dateTo, frequency, financial, recorder, access.financial, access.activity]);
 
   const customerPages = pageOf(filtered, page, CUSTOMER_PAGE_SIZE);
   const safePage = customerPages.page;
@@ -120,6 +121,7 @@ export default function CustomersPage() {
   }
 
   async function saveEdit() {
+    if (!allowed || !canEdit) return;
     if (!selected || !form.name.trim() || !form.primaryPhone.trim()) {
       showToast("اسم العميل والجوال الأساسي مطلوبان", "error"); return;
     }
@@ -134,6 +136,7 @@ export default function CustomersPage() {
   }
 
   async function exportRows() {
+    if (!allowed || !canExport) return;
     if (!exportIds.length) { showToast("اختر عميلاً واحداً على الأقل", "error"); return; }
     if (dateFrom && dateTo && dateFrom > dateTo) {
       showToast("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", "error");
@@ -179,7 +182,7 @@ export default function CustomersPage() {
         <Stat label="إجمالي العملاء" value={filtered.length.toLocaleString("en-US")} hint="من واقع سجلات الحفلات" icon={<UsersRound size={18} />} />
         <Stat label="عملاء متكررون" value={repeated.toLocaleString("en-US")} hint="لديهم أكثر من حفلة" icon={<UserRound size={18} />} />
         <Stat label="إجمالي الحفلات" value={totalConcerts.toLocaleString("en-US")} hint="لكل العملاء الظاهرين" icon={<CalendarDays size={18} />} />
-        <Stat label="إجمالي المتبقي" value={`${money(totalRemaining)} ريال`} hint={`على ${filtered.filter((customer) => customer.totalRemaining > 0).length} عميلاً`} icon={<WalletCards size={18} />} danger={totalRemaining > 0} />
+        {access.financial && <Stat label="إجمالي المتبقي" value={`${money(totalRemaining)} ريال`} hint={`على ${filtered.filter((customer) => customer.totalRemaining > 0).length} عميلاً`} icon={<WalletCards size={18} />} danger={totalRemaining > 0} />}
       </div>
 
       <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-2 xl:grid-cols-[2fr_repeat(6,1fr)]">
@@ -188,8 +191,8 @@ export default function CustomersPage() {
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة من</span><LatinInput type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
         <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">تاريخ الحفلة إلى</span><LatinInput type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]" /></label>
         <Filter label="عدد الحفلات" value={frequency} onChange={(value) => { setFrequency(value); setPage(1); }} options={[["", "الكل"], ["one", "حفلة واحدة"], ["returning", "عميل متكرر"]]} />
-        <Filter label="الحالة المالية" value={financial} onChange={(value) => { setFinancial(value); setPage(1); }} options={[["", "الكل"], ["paid", "مسدد"], ["due", "عليه متبقي"]]} />
-        <Filter label="المسجل بواسطة" value={recorder} onChange={(value) => { setRecorder(value); setPage(1); }} options={[["", "كل الموظفين"], ...recorderOptions.map((name) => [name, name])]} />
+        {access.financial && <Filter label="الحالة المالية" value={financial} onChange={(value) => { setFinancial(value); setPage(1); }} options={[["", "الكل"], ["paid", "مسدد"], ["due", "عليه متبقي"]]} />}
+        {access.activity && <Filter label="المسجل بواسطة" value={recorder} onChange={(value) => { setRecorder(value); setPage(1); }} options={[["", "كل الموظفين"], ...recorderOptions.map((name) => [name, name])]} />}
       </div>
 
       {customers.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-400">لا توجد حفلات مسجلة لإنشاء ملفات العملاء منها.</div> : (
@@ -200,14 +203,14 @@ export default function CustomersPage() {
               {pageCustomers.map((customer) => <button key={customer.id} onClick={() => { setSelectedId(customer.id); setTab("concerts"); }} className={`grid w-64 shrink-0 grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-100 px-4 py-3 text-right transition-colors lg:w-full lg:rounded-none lg:border-0 ${selected?.id === customer.id ? "border-r-4 border-[#1C2D50] bg-slate-100" : "hover:bg-slate-50"}`}>
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#1C2D50] font-bold text-white">{customer.name.trim().charAt(0) || "ع"}</span>
                 <span className="min-w-0"><b className="block truncate text-sm text-slate-800">{customer.name}</b><small className="mt-0.5 block text-xs text-slate-500 tabular-nums-auto">{customer.primaryPhone || "بلا رقم"}</small><small className="block text-[11px] text-slate-400">{customer.concertCount} حفلة · آخرها {formatDate(customer.lastConcertAt)}</small></span>
-                <span className={`text-[11px] font-bold ${customer.totalRemaining > 0 ? "text-red-600" : "text-emerald-600"}`}>{customer.totalRemaining > 0 ? money(customer.totalRemaining) : "مسدد"}</span>
+                {access.financial && <span className={`text-[11px] font-bold ${customer.totalRemaining > 0 ? "text-red-600" : "text-emerald-600"}`}>{customer.totalRemaining > 0 ? money(customer.totalRemaining) : "مسدد"}</span>}
               </button>)}
               {pageCustomers.length === 0 && <p className="p-8 text-center text-sm text-slate-400">لا توجد نتائج مطابقة</p>}
             </div>
             {totalPages > 1 && <div className="flex items-center justify-center gap-3 border-t border-slate-100 p-3 text-xs"><button disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">السابق</button><span className="text-slate-500">{safePage} من {totalPages}</span><button disabled={safePage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">التالي</button></div>}
           </section>
 
-          {selected && <CustomerProfile key={selected.id} customer={selected} tab={tab} setTab={setTab} canEdit={canEdit} onEdit={() => openEdit(selected)} />}
+          {selected && <CustomerProfile key={selected.id} customer={selected} tab={tab} setTab={setTab} access={access} canOpenConcert={can("concerts")} onEdit={() => openEdit(selected)} />}
         </div>
       )}
 
@@ -235,22 +238,24 @@ function Filter({ label, value, onChange, options }: { label: string; value: str
   return <label className="space-y-1"><span className="text-[11px] font-semibold text-slate-500">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#1C2D50]">{options.map(([key, text]) => <option key={`${label}-${key}`} value={key}>{text}</option>)}</select></label>;
 }
 
-function CustomerProfile({ customer, tab, setTab, canEdit, onEdit }: { customer: ConcertCustomerSummary; tab: Tab; setTab: (tab: Tab) => void; canEdit: boolean; onEdit: () => void }) {
+function CustomerProfile({ customer, tab, setTab, access, canOpenConcert, onEdit }: { customer: ConcertCustomerSummary; tab: Tab; setTab: (tab: Tab) => void; access: CustomerAccess; canOpenConcert: boolean; onEdit: () => void }) {
+  const canEdit = access.edit;
   return <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-[#1C2D50] text-lg font-bold text-white">{customer.name.charAt(0)}</span><div><h3 className="text-lg font-bold text-slate-900">{customer.name}</h3><p className="text-xs text-slate-500">عميل حفلات منذ {formatDate(customer.firstRegisteredAt)}</p></div></div>{canEdit && <Button variant="outline" size="sm" onClick={onEdit}><Pencil size={14} /> تعديل بيانات العميل</Button>}</div>
     <div className="grid gap-3 border-b border-slate-100 p-5 sm:grid-cols-2 xl:grid-cols-4">
       <Meta icon={<Phone size={14} />} label="الجوال الأساسي" value={customer.primaryPhone || "—"} />
       <Meta icon={<Phone size={14} />} label="الجوال الإضافي" value={customer.secondaryPhone || "—"} />
-      <Meta icon={<UserRound size={14} />} label="أول طلب سُجّل بواسطة" value={customer.firstCreatedByName} />
-      <Meta icon={<FileSignature size={14} />} label="مصدر العميل" value={customer.source || "غير محدد"} />
+      {access.activity && <Meta icon={<UserRound size={14} />} label="أول طلب سُجّل بواسطة" value={customer.firstCreatedByName} />}
+      {access.source && <Meta icon={<FileSignature size={14} />} label="مصدر العميل" value={customer.source || "غير محدد"} />}
+      {access.source && customer.referralName && <Meta icon={<UserRound size={14} />} label="الشخص المُحيل" value={customer.referralName} />}
     </div>
-    <div className="m-5 grid grid-cols-2 overflow-hidden rounded-xl bg-slate-100 xl:grid-cols-4"><ProfileStat label="عدد الحفلات" value={customer.concertCount} /><ProfileStat label="إجمالي القيمة" value={money(customer.totalValue)} /><ProfileStat label="المحصّل" value={money(customer.totalCollected)} green /><ProfileStat label="المتبقي" value={money(customer.totalRemaining)} red={customer.totalRemaining > 0} /></div>
-    <div className="flex overflow-x-auto border-y border-slate-100 px-4">{([["concerts", `الحفلات (${customer.concertCount})`], ["payments", `الدفعات (${customer.payments.length})`], ["notes", "ملاحظات العميل"], ["activity", "سجل العميل"]] as [Tab, string][]).map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold ${tab === key ? "border-[#1C2D50] text-[#1C2D50]" : "border-transparent text-slate-400"}`}>{label}</button>)}</div>
+    <div className="m-5 grid grid-cols-2 overflow-hidden rounded-xl bg-slate-100 xl:grid-cols-4"><ProfileStat label="عدد الحفلات" value={customer.concertCount} />{access.financial && <><ProfileStat label="إجمالي القيمة" value={money(customer.totalValue)} /><ProfileStat label="المحصّل" value={money(customer.totalCollected)} green /><ProfileStat label="المتبقي" value={money(customer.totalRemaining)} red={customer.totalRemaining > 0} /></>}</div>
+    <div className="flex overflow-x-auto border-y border-slate-100 px-4">{([["concerts", `الحفلات (${customer.concertCount})`], ...(access.payments ? [["payments", `الدفعات (${customer.payments.length})`]] : []), ...(access.notes ? [["notes", "ملاحظات العميل"]] : []), ...(access.activity ? [["activity", "سجل العميل"]] : [])] as [Tab, string][]).map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold ${tab === key ? "border-[#1C2D50] text-[#1C2D50]" : "border-transparent text-slate-400"}`}>{label}</button>)}</div>
     <div className="p-4 sm:p-5">
-      {tab === "concerts" && <ConcertsTable concerts={customer.concerts} />}
-      {tab === "payments" && <PaymentsTable customer={customer} />}
-      {tab === "notes" && <div className="min-h-32 rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">{customer.notes || "لا توجد ملاحظات مسجلة لهذا العميل."}{customer.referralName && <p className="mt-3 border-t border-slate-200 pt-3"><b>الشخص المُحيل:</b> {customer.referralName}</p>}</div>}
-      {tab === "activity" && <div className="space-y-3">{customer.concerts.slice().reverse().map((concert, index) => <div key={concert.id} className="flex gap-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#1C2D50]" /><div><p className="text-sm font-semibold text-slate-700">{index === 0 ? "تسجيل أول طلب" : `إضافة الحفلة #${concert.concertNumber ?? "—"}`}</p><p className="text-xs text-slate-400">{formatDate(concert.createdAt)}{index === 0 ? ` · بواسطة ${customer.firstCreatedByName}` : ""}</p></div></div>)}</div>}
+      {tab === "concerts" && <ConcertsTable concerts={customer.concerts} financial={access.financial} canOpenConcert={canOpenConcert} />}
+      {tab === "payments" && access.payments && <PaymentsTable customer={customer} activity={access.activity} />}
+      {tab === "notes" && access.notes && <div className="min-h-32 rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">{customer.notes || "لا توجد ملاحظات مسجلة لهذا العميل."}{access.source && customer.referralName && <p className="mt-3 border-t border-slate-200 pt-3"><b>الشخص المُحيل:</b> {customer.referralName}</p>}</div>}
+      {tab === "activity" && access.activity && <div className="space-y-3">{customer.concerts.slice().reverse().map((concert, index) => <div key={concert.id} className="flex gap-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#1C2D50]" /><div><p className="text-sm font-semibold text-slate-700">{index === 0 ? "تسجيل أول طلب" : `إضافة الحفلة #${concert.concertNumber ?? "—"}`}</p><p className="text-xs text-slate-400">{formatDate(concert.createdAt)}{index === 0 ? ` · بواسطة ${customer.firstCreatedByName}` : ""}</p></div></div>)}</div>}
     </div>
   </section>;
 }
@@ -258,7 +263,7 @@ function CustomerProfile({ customer, tab, setTab, canEdit, onEdit }: { customer:
 function Meta({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div><span className="flex items-center gap-1.5 text-[11px] text-slate-400">{icon}{label}</span><b className="mt-1.5 block text-sm text-slate-700 tabular-nums-auto">{value}</b></div>; }
 function ProfileStat({ label, value, green, red }: { label: string; value: string | number; green?: boolean; red?: boolean }) { return <div className="border-l border-white p-3 last:border-0"><span className="block text-[11px] text-slate-500">{label}</span><b className={`mt-1 block text-lg tabular-nums-auto ${green ? "text-emerald-600" : red ? "text-red-600" : "text-slate-900"}`}>{value}</b></div>; }
 
-function ConcertsTable({ concerts }: { concerts: CustomerConcertSummary[] }) {
+function ConcertsTable({ concerts, financial, canOpenConcert }: { concerts: CustomerConcertSummary[]; financial: boolean; canOpenConcert: boolean }) {
   const [page, setPage] = useState(1);
   const pagination = pageOf(concerts, page, CUSTOMER_CONCERT_PAGE_SIZE);
   if (concerts.length === 0) return <p className="py-8 text-center text-sm text-slate-400">لا توجد حفلات مسجلة</p>;
@@ -269,12 +274,12 @@ function ConcertsTable({ concerts }: { concerts: CustomerConcertSummary[] }) {
           <th className="w-[11%] px-3 py-3">رقم الحفلة</th>
           <th className="w-[24%] px-3 py-3">التاريخ والمكان</th>
           <th className="w-[13%] px-3 py-3">الحالة</th>
-          <th className="w-[14%] px-3 py-3">القيمة</th>
+          {financial && <><th className="w-[14%] px-3 py-3">القيمة</th>
           <th className="w-[14%] px-3 py-3">المدفوع</th>
-          <th className="w-[14%] px-3 py-3">المتبقي</th>
+          <th className="w-[14%] px-3 py-3">المتبقي</th></>}
           <th className="w-[10%] px-3 py-3" />
         </tr></thead>
-        <tbody>{pagination.items.map((concert) => <ConcertRow key={concert.id} concert={concert} />)}</tbody>
+        <tbody>{pagination.items.map((concert) => <ConcertRow key={concert.id} concert={concert} financial={financial} canOpenConcert={canOpenConcert} />)}</tbody>
       </table>
     </div>
     {pagination.totalPages > 1 && <PageNavigation
@@ -285,7 +290,15 @@ function ConcertsTable({ concerts }: { concerts: CustomerConcertSummary[] }) {
     />}
   </div>;
 }
-function ConcertRow({ concert }: { concert: CustomerConcertSummary }) { return <tr className="border-b border-slate-100 text-slate-700 last:border-0"><td className="px-3 py-3 font-bold">#{concert.concertNumber ?? "—"}</td><td className="px-3 py-3"><b className="block">{formatDate(concert.date)}</b><small className="mt-1 block truncate text-slate-400">{concert.venueName || "بلا مكان"}</small></td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS[concert.status]?.cls ?? "bg-slate-100"}`}>{STATUS[concert.status]?.label ?? concert.status}</span></td><td className="px-3 py-3 tabular-nums-auto">{money(concert.price)}</td><td className="px-3 py-3 font-bold text-emerald-600 tabular-nums-auto">{money(concert.paid)}</td><td className={`px-3 py-3 font-bold tabular-nums-auto ${concert.remaining > 0 ? "text-red-600" : "text-slate-400"}`}>{concert.remaining > 0 ? money(concert.remaining) : "—"}</td><td className="px-3 py-3"><Link href={`/admin/concerts/${concert.id}`} className="font-bold text-blue-600">فتح</Link></td></tr>; }
+function ConcertRow({ concert, financial, canOpenConcert }: { concert: CustomerConcertSummary; financial: boolean; canOpenConcert: boolean }) {
+  return <tr className="border-b border-slate-100 text-slate-700 last:border-0">
+    <td className="px-3 py-3 font-bold">#{concert.concertNumber ?? "—"}</td>
+    <td className="px-3 py-3"><b className="block">{formatDate(concert.date)}</b><small className="mt-1 block truncate text-slate-400">{concert.venueName || "بلا مكان"}</small></td>
+    <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${STATUS[concert.status]?.cls ?? "bg-slate-100"}`}>{STATUS[concert.status]?.label ?? concert.status}</span></td>
+    {financial && <><td className="px-3 py-3 tabular-nums-auto">{money(concert.price)}</td><td className="px-3 py-3 font-bold text-emerald-600 tabular-nums-auto">{money(concert.paid)}</td><td className={`px-3 py-3 font-bold tabular-nums-auto ${concert.remaining > 0 ? "text-red-600" : "text-slate-400"}`}>{concert.remaining > 0 ? money(concert.remaining) : "—"}</td></>}
+    <td className="px-3 py-3">{canOpenConcert && <Link href={`/admin/concerts/${concert.id}`} className="font-bold text-blue-600">فتح</Link>}</td>
+  </tr>;
+}
 
 function PageNavigation({ page, totalPages, onPage, label }: { page: number; totalPages: number; onPage: (page: number) => void; label: string }) {
   return <div className="flex items-center justify-center gap-3 text-xs" aria-label={label}>
@@ -295,5 +308,5 @@ function PageNavigation({ page, totalPages, onPage, label }: { page: number; tot
   </div>;
 }
 
-function PaymentsTable({ customer }: { customer: ConcertCustomerSummary }) { return customer.payments.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">لا توجد دفعات مسجلة</p> : <div className="space-y-2">{customer.payments.map((payment) => <div key={payment.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-xs sm:grid-cols-5"><span><small className="block text-slate-400">الحفلة</small><b>#{payment.concertNumber ?? "—"}</b></span><span><small className="block text-slate-400">المبلغ</small><b className="text-emerald-600">{money(payment.amount)} ريال</b></span><span><small className="block text-slate-400">الطريقة</small><b>{METHOD[payment.method] ?? payment.method}</b></span><span><small className="block text-slate-400">التاريخ</small><b>{payment.date || formatDate(payment.createdAt)}</b></span><span><small className="block text-slate-400">سجّلها</small><b>{payment.createdByName}</b></span></div>)}</div>; }
+function PaymentsTable({ customer, activity }: { customer: ConcertCustomerSummary; activity: boolean }) { return customer.payments.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">لا توجد دفعات مسجلة</p> : <div className="space-y-2">{customer.payments.map((payment) => <div key={payment.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-xs sm:grid-cols-5"><span><small className="block text-slate-400">الحفلة</small><b>#{payment.concertNumber ?? "—"}</b></span><span><small className="block text-slate-400">المبلغ</small><b className="text-emerald-600">{money(payment.amount)} ريال</b></span><span><small className="block text-slate-400">الطريقة</small><b>{METHOD[payment.method] ?? payment.method}</b></span><span><small className="block text-slate-400">التاريخ</small><b>{payment.date || formatDate(payment.createdAt)}</b></span>{activity && <span><small className="block text-slate-400">سجّلها</small><b>{payment.createdByName}</b></span>}</div>)}</div>; }
 

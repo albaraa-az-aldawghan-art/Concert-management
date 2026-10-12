@@ -22,6 +22,7 @@ export type PermissionPage =
   | "settings"
   | "costs"
   | "contracts"
+  | "customers"
   | "restaurant"
   | "profitability"
   | "packages";
