@@ -7,7 +7,7 @@ import { contractPriceLabel, contractPricingDescription } from "@/lib/contract-p
    ثلاثة أرقام تُدخَل لكل صنف — المورَّد والتالف والمتبقي — وما عداها
    يحسبه الخادم. الشاشة تُظهر الحساب قبل الحفظ كي يُرى الخطأ لا ليُكتشف. */
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -34,6 +34,7 @@ import {
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import { draftSnapshot } from "@/lib/draft-snapshot";
 import { carriedDayLines, openingStockForDate } from "@/lib/contract-day-carry";
+import { riyadhDateString } from "@/lib/event-date";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
   Info, CalendarDays, AlertTriangle, CheckCircle2, Undo2, Table2, GripVertical, Pencil,
@@ -42,7 +43,7 @@ import {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => (n ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 const int = (n: number) => (n ?? 0).toLocaleString("en-US");
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => riyadhDateString(new Date());
 const monthOf = (d: string) => d.slice(0, 7);
 
 const METHODS: { key: string; label: string }[] = [
@@ -173,6 +174,8 @@ export default function ContractDetailPage() {
   const [pickSection, setPickSection] = useState("");
   const [deleteDayTarget, setDeleteDayTarget] = useState<string | null>(null);
   const [savedDaySnapshot, setSavedDaySnapshot] = useState("");
+  const hydratedDay = useRef<{ date: string; data: ContractMonth | null } | null>(null);
+  const saveInFlight = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -269,6 +272,9 @@ export default function ContractDetailPage() {
   useEffect(() => {
     if (monthLoading) return;
     if (data?.month !== monthOf(date)) return;
+    // Changes to item order/configuration must not overwrite an edited day.
+    if (hydratedDay.current?.date === date && hydratedDay.current.data === data) return;
+    hydratedDay.current = { date, data };
     const day = data?.days.find((d) => d.date === date);
     let nextLines: LineDraft[];
     let nextCollections: Record<string, string>;
@@ -277,7 +283,10 @@ export default function ContractDetailPage() {
     let nextNotes: string;
     if (day) {
       nextLines = day.lines.map((l) => ({
-        barcode: l.barcode, supplied: String(l.supplied), damaged: String(l.damaged), remaining: String(l.remaining),
+        barcode: l.barcode,
+        supplied: l.supplied === 0 ? "" : String(l.supplied),
+        damaged: l.damaged === 0 ? "" : String(l.damaged),
+        remaining: l.remaining === 0 ? "" : String(l.remaining),
       }));
       nextCollections = Object.fromEntries(METHODS.map((m) => { const value = (day.collections as Record<string, number>)?.[m.key] ?? 0; return [m.key, value === 0 ? "" : String(value)]; }));
       nextExpenses = Object.fromEntries((day.expenses ?? []).map((e) => [e.key, e.amount === 0 ? "" : String(e.amount)]));
@@ -365,7 +374,7 @@ export default function ContractDetailPage() {
   /* سحب وإفلات صفوف الجدول — يعيد ترتيبها محلياً فوراً، ثم يحفظ
      الترتيب على العقد نفسه فيثبت لكل الأيام القادمة */
   async function handleDragEnd(event: DragEndEvent) {
-    if (!editable) return;
+    if (!editable || saving) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -387,7 +396,14 @@ export default function ContractDetailPage() {
   }
 
   async function handleSaveDay(): Promise<boolean> {
+    if (saveInFlight.current || monthLoading || !editable) return false;
     if (lines.length === 0) { showToast("أضف صنفاً واحداً على الأقل", "error"); return false; }
+    const fields = [...lines.flatMap((l) => [l.supplied, l.damaged, l.remaining]), ...Object.values(collections), ...Object.values(expenses), custody];
+    if (fields.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+      showToast("أدخل أرقاماً صحيحة غير سالبة قبل الحفظ", "error");
+      return false;
+    }
+    saveInFlight.current = true;
     setSaving(true);
     try {
       await saveContractDay(id, {
@@ -400,7 +416,7 @@ export default function ContractDetailPage() {
         custody: num(custody),
         notes: notes.trim() || null,
       });
-      showToast("حُفظ اليوم");
+      showToast(`تم حفظ بيانات يوم ${date}`);
       setSavedDaySnapshot(currentDaySnapshot);
       await loadMonth();
       return true;
@@ -408,6 +424,7 @@ export default function ContractDetailPage() {
       showToast(e instanceof Error ? e.message : "تعذّر الحفظ", "error");
       return false;
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   }
@@ -425,6 +442,7 @@ export default function ContractDetailPage() {
   }));
 
   function changeDate(nextDate: string) {
+    if (saveInFlight.current || monthLoading) return;
     requestLocal(() => {
       setDate(nextDate);
       setMonth(monthOf(nextDate));
@@ -502,7 +520,7 @@ export default function ContractDetailPage() {
 
       {/* ── ملخص الشهر ── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-[11rem]" />
+        <Input type="month" value={month} disabled={saving || monthLoading} onChange={(e) => requestLocal(() => setMonth(e.target.value))} className="max-w-[11rem]" />
         {data && <span className="text-xs text-slate-500">{data.days.length} يوم مسجَّل</span>}
       </div>
 
@@ -548,13 +566,14 @@ export default function ContractDetailPage() {
       )}
 
       {/* ══ إدخال اليوم ══ */}
-      <Card className="space-y-4">
+      <Card data-calendar-boundary>
+        <fieldset disabled={saving || monthLoading} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Table2 size={17} className="text-[#1C2D50]" /> يوم التشغيل
           </h3>
           <div className="flex items-center gap-2">
-            <Input type="date" value={date} onChange={(e) => changeDate(e.target.value)} className="max-w-[10.5rem]" />
+            <Input type="date" aria-label="تاريخ يوم التشغيل" value={date} disabled={saving || monthLoading} onChange={(e) => changeDate(e.target.value)} className="max-w-[10.5rem]" />
             {fx.del && data?.days.some((d) => d.date === date) && (
               <button onClick={() => setDeleteDayTarget(date)} className="p-2 text-slate-400 hover:text-red-500" title="حذف اليوم">
                 <Trash2 size={15} />
@@ -721,6 +740,7 @@ export default function ContractDetailPage() {
             </Button>
           </div>
         )}
+        </fieldset>
       </Card>
 
       {/* ══ شبكة الشهر — تخطيط ورقة الإكسل ══ */}

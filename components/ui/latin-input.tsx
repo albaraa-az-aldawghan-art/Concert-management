@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toLatinDigits } from "@/lib/utils";
 import { latinFieldValue, numericFieldError, validCalendarValue } from "@/lib/latin-fields";
 
@@ -13,6 +13,7 @@ export function LatinInput({ type = "text", value, defaultValue, onChange, onBlu
   const input = useRef<HTMLInputElement>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [popupLayout, setPopupLayout] = useState({ left: 0, width: 288 });
   const formatted = value == null ? toLatinDigits(String(defaultValue ?? "")) : toLatinDigits(String(value));
   const [edit, setEdit] = useState({ source: formatted, text: formatted });
   const draft = edit.source === formatted ? edit.text : formatted;
@@ -26,6 +27,22 @@ export function LatinInput({ type = "text", value, defaultValue, onChange, onBlu
     const close = (event: PointerEvent) => { if (!wrapper.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const position = () => {
+      if (!wrapper.current) return;
+      const anchor = wrapper.current.getBoundingClientRect();
+      const boundary = wrapper.current.closest("[data-calendar-boundary]")?.getBoundingClientRect();
+      const min = Math.max(8, (boundary?.left ?? 0) + 8);
+      const max = Math.min(window.innerWidth - 8, (boundary?.right ?? window.innerWidth) - 8);
+      const width = Math.min(288, Math.max(0, max - min));
+      const left = Math.max(min, Math.min(anchor.right - width, max - width)) - anchor.left;
+      setPopupLayout({ left, width });
+    };
+    position();
+    window.addEventListener("resize", position);
+    return () => window.removeEventListener("resize", position);
   }, [open]);
 
   function choose(next: string, close = true) {
@@ -83,7 +100,7 @@ export function LatinInput({ type = "text", value, defaultValue, onChange, onBlu
     <button type="button" aria-label="فتح التقويم" aria-expanded={open} disabled={props.disabled || props.readOnly}
       onClick={() => { setView(formatted.slice(0, 7) || view); setOpen(!open); }}
       className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-slate-500 disabled:opacity-40">▦</button>
-    {open && <div role="dialog" aria-label="اختيار التاريخ" dir="rtl" className="absolute right-0 top-full z-50 mt-1 w-72 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 shadow-xl">
+    {open && <div role="dialog" aria-label="اختيار التاريخ" dir="rtl" style={popupLayout} className="absolute top-full z-50 mt-1 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 shadow-xl">
       <div className="mb-3 flex items-center justify-between gap-2">
         <button type="button" aria-label={type === "month" ? "السنة السابقة" : "الشهر السابق"} onClick={() => navigate(type === "month" ? -12 : -1)}>‹</button>
         <span>{monthNames[month - 1]} <b dir="ltr">{year}</b></span>

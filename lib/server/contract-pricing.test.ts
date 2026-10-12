@@ -244,6 +244,35 @@ for (const [type, price] of [["collected", 3], ["paid", 5]] as const) {
   });
 }
 
+test("save retains every daily entry on its selected date and repeated saves do not duplicate stock", async () => {
+  const f = fixture();
+  const { id } = await svcCreateContract(f.db, f.draft("paid"));
+  const input = {
+    contractId: id, date: "2026-10-12",
+    lines: [{ barcode: "sandwich", supplied: 15, damaged: 1, remaining: 7 }],
+    collections: { bank_transfer: 12.5, mada: 10, visa: 5, cash: 3 },
+    expenses: [{ key: "workers", amount: 2 }, { key: "admin", amount: 1 }, { key: "error", amount: 0.5 }],
+    custody: 600, notes: "ملاحظات يوم التشغيل", uid: "admin",
+  };
+  await svcSaveContractDay(f.db, input);
+  await svcSaveContractDay(f.db, input);
+  const month = await svcContractMonth(f.db, id, "2026-10");
+  assert.equal(month.days.length, 1);
+  const day = month.days[0];
+  assert.equal(day.date, input.date);
+  assert.deepEqual(day.collections, input.collections);
+  assert.deepEqual(day.expenses.map(e => e.amount), [2, 1, 0, 0, 0.5]);
+  assert.equal(day.custody, 600);
+  assert.equal(day.notes, input.notes);
+  assert.deepEqual(day.lines.map(l => [l.supplied, l.damaged, l.remaining]), [[15, 1, 7]]);
+  assert.equal(f.records.get("cost_items/sandwich")!.totalOut, 15);
+  await svcSaveContractDay(f.db, { ...input, date: "2026-10-13", lines: [{ barcode: "sandwich", supplied: 0, damaged: 0, remaining: 7 }], collections: {}, expenses: [], notes: null });
+  const reloaded = await svcContractMonth(f.db, id, "2026-10");
+  assert.equal(reloaded.days.length, 2);
+  assert.deepEqual(reloaded.days.find(d => d.date === input.date)?.collections, input.collections);
+  assert.equal(reloaded.days.find(d => d.date === "2026-10-13")?.lines[0].openingQty, 7);
+});
+
 test("remaining stock carries across months and becomes the next day's opening stock", async () => {
   const f = fixture();
   const { id } = await svcCreateContract(f.db, f.draft("paid"));
