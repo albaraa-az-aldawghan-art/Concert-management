@@ -553,6 +553,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         label: "الطلبات",
         actions: [
           { key: "confirm", label: "تأكيد استلام الطلب" },
+          { key: "export", label: "تصدير تجميع أصناف الحفلات المستلمة إلى Excel", sensitive: true, hint: "يجمع كميات الأصناف للطلبات المختارة ضمن فلتر التاريخ والبحث" },
         ],
       },
     ],

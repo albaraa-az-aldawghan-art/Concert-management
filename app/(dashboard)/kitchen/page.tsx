@@ -11,8 +11,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader, PageShell } from "@/components/ui/page";
 import { KitchenOrder } from "@/types";
 import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
-import { SearchBox, DateFilterBar, Pagination, matchesDate, emptyDateFilter, DateFilterState, compareDateValues } from "@/components/ui/list-filters";
+import { SearchBox, DateFilterBar, Pagination, emptyDateFilter, DateFilterState, compareDateValues } from "@/components/ui/list-filters";
 import { UtensilsCrossed, Printer, CheckCircle2, Clock } from "lucide-react";
+import { Download } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { matchesKitchenExportOrder, type KitchenExportFilters } from "@/lib/kitchen-export";
+import { periodBounds } from "@/lib/date-period";
+import { auth } from "@/lib/firebase";
+import { downloadBlob } from "@/lib/download-file";
 
 const PAGE_SIZE = 10;
 
@@ -20,6 +26,12 @@ export default function KitchenPage() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const canConfirm = feat("kitchen", "confirm");
+  const allowed = can("kitchen");
+  const canExport = feat("kitchen", "export");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportIds, setExportIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportFilters, setExportFilters] = useState<KitchenExportFilters>({date:emptyDateFilter,search:""});
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -30,7 +42,7 @@ export default function KitchenPage() {
 
   useEffect(() => { setPage(1); }, [search, dateF, statusF]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if(allowed) void load(); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
@@ -44,7 +56,7 @@ export default function KitchenPage() {
   }
 
   async function handleConfirm(order: KitchenOrder) {
-    if (!appUser) return;
+    if (!appUser || !canConfirm) return;
     setConfirmingId(order.id);
     try {
       await confirmKitchenOrder(order.id);
@@ -64,20 +76,31 @@ export default function KitchenPage() {
   const pending = orders.filter((o) => o.status === "sent");
   const received = orders.filter((o) => o.status === "received");
 
-  const q = search.trim().toLowerCase();
-  const numQ = search.trim().replace(/^#/, "");
   const filtered = orders.filter(
     (o) =>
       (!statusF || o.status === statusF) &&
-      matchesDate(o.concertDate, dateF) &&
-      (!q ||
-        o.clientName.toLowerCase().includes(q) ||
-        (o.venueName ?? "").toLowerCase().includes(q) ||
-        String(o.concertNumber).padStart(3, "0").includes(numQ))
+      matchesKitchenExportOrder(o,{date:dateF,search})
   ).sort((a, b) => compareDateValues(a.concertDate, b.concertDate));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const eligible = filtered.filter(order=>order.status==="received");
+  function openExport() {
+    const [from,to]=periodBounds(dateF.mode);
+    setExportFilters({date:dateF.mode==="all"||dateF.mode==="custom"?dateF:{mode:"custom",from,to},search});
+    setExportIds(eligible.map(order=>order.id));setExportOpen(true);
+  }
+  async function exportExcel() {
+    if(!allowed||!canExport||!exportIds.length||exporting)return;
+    setExporting(true);
+    try {
+      const token=await auth.currentUser?.getIdToken();
+      if(!token)throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
+      const response=await fetch("/api/kitchen/export",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({orderIds:exportIds,filters:exportFilters})});
+      if(!response.ok){const error=await response.json();throw new Error(error.error||"تعذر التصدير");}
+      downloadBlob(await response.blob(),"تجميع-أصناف-المطبخ.xlsx");setExportOpen(false);showToast("تم تصدير أصناف الحفلات المختارة في ورقة واحدة");
+    }catch(error){showToast(error instanceof Error?error.message:"تعذر التصدير","error");}finally{setExporting(false);}
+  }
 
   function OrderCard({ order }: { order: KitchenOrder }) {
     const isPending = order.status === "sent";
@@ -172,6 +195,10 @@ export default function KitchenPage() {
       />
 
       <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="حفلة" />
+      {canExport && <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">التصدير يجمع الطلبات المستلمة فقط ضمن الفلاتر، عبر جميع الصفحات.</p>
+        <Button variant="outline" disabled={loading||!eligible.length} onClick={openExport}><Download size={16}/> تصدير تجميع الأصناف ({eligible.length})</Button>
+      </div>}
 
       {/* Status filter */}
       <div className="flex gap-2 flex-wrap">
@@ -208,6 +235,14 @@ export default function KitchenPage() {
           <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
+      <Modal open={exportOpen&&canExport} onClose={()=>{if(!exporting)setExportOpen(false)}} title="تجميع أصناف الحفلات إلى Excel" size="lg">
+        <p className="mb-3 text-sm text-slate-500">اختر الحفلات المستلمة المطابقة للفلاتر. تُجمع كميات الأصناف في ورقة واحدة، مع ملاحظات 1 وملاحظات 2 فارغتين.</p>
+        <div className="mb-3 flex gap-2"><Button variant="secondary" size="sm" onClick={()=>setExportIds(eligible.map(order=>order.id))} disabled={exporting}>تحديد الكل</Button><Button variant="secondary" size="sm" onClick={()=>setExportIds([])} disabled={exporting}>إلغاء التحديد</Button></div>
+        <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200">
+          {eligible.map(order=><label key={order.id} className="flex items-center gap-3 border-b border-slate-100 p-3 text-sm last:border-0"><input type="checkbox" aria-label={`اختيار الحفلة ${order.concertNumber}`} disabled={exporting} checked={exportIds.includes(order.id)} onChange={event=>setExportIds(ids=>event.target.checked?[...ids,order.id]:ids.filter(id=>id!==order.id))}/><span className="min-w-0">#{order.concertNumber} · {order.clientName}<small className="block text-slate-500">{formatDate(order.concertDate)} · {order.venueName||"بلا مكان"}</small></span></label>)}
+        </div>
+        <div className="mt-4 flex justify-end"><Button onClick={exportExcel} loading={exporting} disabled={!exportIds.length}><Download size={16}/> تنزيل Excel ({exportIds.length} حفلة)</Button></div>
+      </Modal>
     </PageShell>
   );
 }
