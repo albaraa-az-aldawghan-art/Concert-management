@@ -11,6 +11,7 @@ import { getCachedConcerts, getConcerts, deleteConcert } from "@/lib/firestore/c
 import { loadCachedThenFresh } from "@/lib/cached-first";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
+import { ConcertPeopleCount } from "@/components/ui/concert-people-count";
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { SALES_COLUMNS } from "@/lib/server/export-columns";
@@ -20,7 +21,7 @@ import { Concert } from "@/types";
 import { formatDate } from "@/lib/utils";
 import {
   Plus, Music, CalendarDays, Search, Hash,
-  Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users, UsersRound,
+  Trash2, Eye, ChevronRight, ChevronLeft, AlertCircle, MapPin, Users,
   FileSpreadsheet, Wallet,
 } from "lucide-react";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
@@ -392,11 +393,7 @@ export default function AdminConcertsPage() {
                         <MapPin size={11} />{c.venueName}
                       </span>
                     )}
-                    {c.peopleCount && (
-                      <span className="flex items-center gap-1">
-                        <UsersRound size={11} />{c.peopleCount}
-                      </span>
-                    )}
+                    <ConcertPeopleCount value={c.peopleCount} />
                     <span className="flex items-center gap-1">
                       <Users size={11} />{(c.supervisorIds ?? []).length} مشرف · {(c.employeeIds ?? []).length} موظف
                     </span>
@@ -473,6 +470,7 @@ export default function AdminConcertsPage() {
                         <td className="py-3.5 px-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(dateField === "createdAt" ? c.createdAt : c.date)}</td>
                         <td className="py-3.5 px-3 text-slate-600 text-xs max-w-[140px]">
                           <span className="line-clamp-1">{c.venueName || c.location?.address || "—"}</span>
+                          <div className="mt-1.5"><ConcertPeopleCount value={c.peopleCount} /></div>
                         </td>
                         <td className="py-3.5 px-3">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>
