@@ -37,7 +37,7 @@ export default function CostsIncomingPage() {
   const { appUser, can, feat } = useAuth();
   const { showToast } = useToast();
   const isAdmin = appUser?.role === "admin";
-  const pageAllowed = isAdmin || (appUser?.role === "custom" && can("costs"));
+  const pageAllowed = isAdmin || can("costs");
   const canRecord = isAdmin || feat("costs", "in_add");
   const canView = isAdmin || feat("costs", "in_view");
   const canDelete = isAdmin || feat("costs", "in_delete");
@@ -68,14 +68,20 @@ export default function CostsIncomingPage() {
   const [supplierSaving, setSupplierSaving] = useState(false);
 
   useEffect(() => { setPage(1); }, [search, dateF]);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (pageAllowed && (canView || canRecord)) void load(); }, [pageAllowed, canView, canRecord]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
-    const [e, i] = await Promise.all([getCostIncoming(), getCostItems().catch(() => [] as CostItem[])]);
-    setEntries(e);
-    setItems(i);
-    setLoading(false);
+    try {
+      const [e, i] = await Promise.all([
+        canView ? getCostIncoming() : Promise.resolve([] as CostIncoming[]),
+        canRecord ? getCostItems() : Promise.resolve([] as CostItem[]),
+      ]);
+      setEntries(e);
+      setItems(i);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذر تحميل الوارد", "error");
+    } finally { setLoading(false); }
   }
 
   function openAdd() {
@@ -154,13 +160,13 @@ export default function CostsIncomingPage() {
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !pageAllowed || !canDelete || saving) return;
     setSaving(true);
     try {
       await deleteCostIncoming(deleteTarget);
       showToast("تم حذف العملية");
       setDeleteTarget(null);
-      load();
+      await load();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "حدث خطأ", "error");
     } finally {
@@ -245,7 +251,7 @@ export default function CostsIncomingPage() {
                   {fi.price && <td className="px-4 py-3 tabular-nums-auto font-semibold text-[#1C2D50]">{e.totalBeforeVat.toLocaleString("en-US")} ريال</td>}
                   {canDelete && (
                     <td className="px-4 py-3">
-                      <button onClick={() => setDeleteTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
+                      <button aria-label={`حذف وارد ${e.itemName}`} disabled={saving} onClick={() => setDeleteTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40">
                         <Trash2 size={14} />
                       </button>
                     </td>
@@ -303,7 +309,7 @@ export default function CostsIncomingPage() {
       </Modal>
 
       <ConfirmModal
-        open={!!deleteTarget}
+        open={pageAllowed && canDelete && !!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="حذف عملية الوارد"

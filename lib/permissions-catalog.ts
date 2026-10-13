@@ -409,7 +409,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         actions: [
           { key: "in_view",   label: "عرض الوارد" },
           { key: "in_add",    label: "تسجيل وارد من مورّد" },
-          { key: "in_delete", label: "حذف عملية وارد", sensitive: true, hint: "يعيد حساب الرصيد والمتوسط" },
+          { key: "in_delete", label: "حذف عملية وارد من فاتورة شراء", sensitive: true, hint: "يسحب الكمية والقيمة من المخزون ويعيد حساب المتوسط. يلزم عرض الوارد لظهور الزر، ويُمنع الحذف إذا صُرفت المادة بالفعل" },
         ],
         fields: [
           { key: "inf_supplier", label: "اسم المورّد" },
