@@ -277,7 +277,7 @@ export async function buildSalesWorkbook(
       vat,
       net,
       paid: r2(paid),
-      due: r2(price - paid),
+      due: c.status === "cancelled" ? 0 : r2(price - paid),
       payCount: pays.length,
       lastPay: pays.length ? toDate(pays.map((p) => p.date).sort().at(-1)!) : null,
       // كل دفعة سطر داخل الخلية، فيبقى صف الحفلة واحداً لا يتكرّر
@@ -345,7 +345,7 @@ export async function buildSalesWorkbook(
     s.vat += r2(price - net);
     s.net += net;
     s.paid += paid;
-    s.due += price - paid;
+    s.due += c.status === "cancelled" ? 0 : price - paid;
     s.costs += costs;
     s.profit += net - costs;
     if (c.status === "cancelled") s.cancelled++;

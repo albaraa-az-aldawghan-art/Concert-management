@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import fs from "node:fs/promises";
 import ExcelJS from "exceljs";
 import type { Firestore } from "firebase-admin/firestore";
 import {
@@ -62,6 +63,52 @@ function allValues(workbook: ExcelJS.Workbook) {
   workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => values.push(cell.value))));
   return values;
 }
+
+test("sales export excludes cancelled balances from detail, monthly and annual totals", async () => {
+  const cases = [
+    { id: "cancel-unpaid", status: "cancelled", month: "10", price: 1000, payments: [] as number[], due: 0 },
+    { id: "cancel-partial", status: "cancelled", month: "10", price: 1000, payments: [100, 150], due: 0 },
+    { id: "cancel-full", status: "cancelled", month: "10", price: 1000, payments: [1000], due: 0 },
+    { id: "cancel-overpaid", status: "cancelled", month: "11", price: 1000, payments: [1100], due: 0 },
+    { id: "active-partial", status: "confirmed", month: "10", price: 1000, payments: [200, 150], due: 650 },
+    { id: "active-unpaid", status: "completed", month: "11", price: 500, payments: [], due: 500 },
+    { id: "cancel-only", status: "cancelled", month: "12", price: 900, payments: [50], due: 0 },
+  ];
+  const fixture = fakeDb({
+    concerts: Object.fromEntries(cases.map(c => [c.id, { ...c, name: c.id, date: `2026-${c.month}-05`, refundAmount: 25 }])),
+    concert_payments: Object.fromEntries(cases.flatMap(c => c.payments.map((amount, i) => [`${c.id}-${i}`, { concertId: c.id, amount, date: "2026-10-01", method: "cash" }]))),
+  });
+  // The rule must work even if the user does not select the status column.
+  for (const selection of ["name,status,price,paid,due,refund", "name,price,paid,due,refund"]) {
+    const original = await buildSalesWorkbook(fixture, 2026, selection);
+    if (process.env.SALES_QA_PATH && selection.includes("status")) await original.xlsx.writeFile(process.env.SALES_QA_PATH);
+    const workbook = await roundTrip(original);
+    for (const [month, sheetName] of [["10", "أكتوبر"], ["11", "نوفمبر"], ["12", "ديسمبر"]]) {
+      const sheet = workbook.getWorksheet(sheetName)!;
+      const headers = sheet.getRow(3).values as unknown[];
+      const dueCol = headers.indexOf("المتبقي");
+      const paidCol = headers.indexOf("المحصَّل");
+      const priceCol = headers.indexOf("السعر شامل الضريبة");
+      const refundCol = headers.indexOf("المسترد");
+      const monthlyCases = cases.filter(c => c.month === month);
+      for (const c of monthlyCases) {
+        const row = sheet.getRows(4, monthlyCases.length)!.find(r => r.getCell(1).value === c.id)!;
+        assert.equal(row.getCell(dueCol).value, c.due, c.id);
+        assert.equal(row.getCell(paidCol).value, c.payments.reduce((a, b) => a + b, 0));
+        assert.equal(row.getCell(priceCol).value, c.price);
+        assert.equal(row.getCell(refundCol).value, 25);
+        if (c.status === "cancelled") assert.equal(row.getCell(dueCol).font.color?.argb, "FFB91C1C");
+      }
+      assert.equal(sheet.getRow(4 + monthlyCases.length).getCell(dueCol).value, monthlyCases.reduce((sum, c) => sum + c.due, 0));
+    }
+    const summary = workbook.getWorksheet("ملخص 2026")!;
+    assert.equal(summary.getCell("H13").value, 650);
+    assert.equal(summary.getCell("H14").value, 500);
+    assert.equal(summary.getCell("H15").value, 0);
+    assert.equal(summary.getCell("H16").value, 1150);
+    assert.equal(summary.getCell("G16").value, cases.reduce((sum, c) => sum + c.payments.reduce((a, b) => a + b, 0), 0));
+  }
+});
 
 const db = fakeDb({
   concerts: {
