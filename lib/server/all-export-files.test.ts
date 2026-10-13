@@ -25,6 +25,7 @@ function comparable(value: unknown) {
 function fakeDb(collections: Record<string, RecordMap>) {
   function collection(name: string, predicates: [string, string, unknown][] = []) {
     return {
+      doc(id: string) { return { id, collectionName: name }; },
       where(field: string, operator: string, value: unknown) {
         return collection(name, [...predicates, [field, operator, value]]);
       },
@@ -46,7 +47,9 @@ function fakeDb(collections: Record<string, RecordMap>) {
       },
     };
   }
-  return { collection } as unknown as Firestore;
+  return { collection, getAll: async (...refs: { id: string; collectionName: string }[]) => refs.map(ref => ({
+    id: ref.id, exists: !!collections[ref.collectionName]?.[ref.id], data: () => collections[ref.collectionName]?.[ref.id],
+  })) } as unknown as Firestore;
 }
 
 async function roundTrip(workbook: ExcelJS.Workbook) {
@@ -108,6 +111,33 @@ test("sales export excludes cancelled balances from detail, monthly and annual t
     assert.equal(summary.getCell("H16").value, 1150);
     assert.equal(summary.getCell("G16").value, cases.reduce((sum, c) => sum + c.payments.reduce((a, b) => a + b, 0), 0));
   }
+});
+
+test("filtered sales export keeps exactly the selected records across years and rechecks date basis", async () => {
+  const fixture = fakeDb({ concerts: {
+    a: { name: "حفلة نهاية السنة", date: "2026-12-31", createdAt: "2026-10-13", price: 1000, status: "confirmed" },
+    b: { name: "حفلة بداية السنة", date: "2027-01-01", createdAt: "2026-10-13", price: 2000, status: "confirmed" },
+    excluded: { name: "خارج الفلتر", date: "2026-12-31", price: 99999, status: "confirmed" },
+    cancelled: { name: "ملغاة", date: "2026-12-31", price: 500, status: "cancelled" },
+  }, concert_payments: { p: { concertId: "b", amount: 500, method: "cash", date: "2026-10-13" } } });
+  const scope = { concertIds: ["a", "b"], from: "2026-12-31", to: "2027-01-01", dateField: "date" as const, financialOnly: true };
+  const original = await buildSalesWorkbook(fixture, 2026, "name,date,price,paid,due", scope);
+  if (process.env.FILTERED_SALES_QA_PATH) await original.xlsx.writeFile(process.env.FILTERED_SALES_QA_PATH);
+  const wb = await roundTrip(original);
+  assert.deepEqual(wb.worksheets.map(s => s.name), ["حفلات الفترة", "ملخص الفترة"]);
+  const summary = wb.getWorksheet("ملخص الفترة")!;
+  assert.equal(summary.getCell("B5").value, 2);
+  assert.equal(summary.getCell("D5").value, 3000);
+  assert.equal(summary.getCell("G5").value, 500);
+  assert.equal(summary.getCell("H5").value, 2500);
+  assert.ok(!allValues(wb).includes("خارج الفلتر"));
+  assert.match(String(summary.getCell("A2").value), /2026-12-31.*2027-01-01/);
+  await buildSalesWorkbook(fixture, 2026, null, { ...scope, dateField: "createdAt", from: "2026-10-13", to: "2026-10-13" });
+  await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, to: "2026-12-31" }), /خارج الفلاتر/);
+  await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, concertIds: ["missing"] }), /تغيّرت قائمة/);
+  await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, concertIds: ["cancelled"] }), /خارج الفلاتر/);
+  const all = await buildSalesWorkbook(fixture, 2026, null, { ...scope, from: "", to: "" });
+  assert.equal(all.getWorksheet("ملخص الفترة")!.getCell("H5").value, 2500);
 });
 
 const db = fakeDb({

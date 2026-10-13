@@ -12,6 +12,10 @@ import { getConcerts } from "@/lib/firestore/concerts";
 import { getContracts } from "@/lib/firestore/contracts";
 import { getCostOutgoing } from "@/lib/firestore/costs";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ExportDialog } from "@/components/ui/export-dialog";
+import { SALES_COLUMNS } from "@/lib/server/export-columns";
+import { salesExportScope } from "@/lib/sales-export-scope";
 import { Concert, Contract, CostOutgoing } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
@@ -59,6 +63,8 @@ type DateField    = "createdAt" | "date";
 
 export default function FinancesPage() {
   const { can, feat } = useAuth();
+  const canExport = feat("concerts", "export");
+  const [showExport, setShowExport] = useState(false);
   const searchParams = useSearchParams();
   const requestedOverdue = searchParams.get("filter") === "overdue";
   /* كل رقم بحقله: دور قد يتابع الحفلات ولا يرى أسعارها */
@@ -256,10 +262,17 @@ export default function FinancesPage() {
             {filtered.length} من {concerts.length} حفلة
           </p>
         </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        {canExport && <Button variant="outline" disabled={loading || filtered.length === 0} onClick={() => setShowExport(true)}>تصدير حفلات الفترة</Button>}
         <Link href="/admin" className="text-sm text-slate-500 hover:text-[#1C2D50] flex items-center gap-1">
           لوحة التحكم <ChevronRight size={14} />
         </Link>
+        </div>
       </div>
+
+      <ExportDialog open={showExport && canExport} onClose={() => setShowExport(false)} kind="sales"
+        columns={SALES_COLUMNS} title="تصدير حفلات الفترة المالية"
+        scope={salesExportScope(filtered, dateFilter, dateFrom, dateTo, dateField, true)} />
 
       {/* Search */}
       <div className="relative">

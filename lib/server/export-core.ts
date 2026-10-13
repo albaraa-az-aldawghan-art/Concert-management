@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Firestore } from "firebase-admin/firestore";
+import { salesScopeLabel, type SalesExportScope } from "@/lib/sales-export-scope";
+import { eventDateString } from "@/lib/event-date";
 import {
   ExportColumn, SALES_COLUMNS, COSTS_COLUMNS, BALANCE_COLUMNS, pickColumns,
 } from "@/lib/server/export-columns";
@@ -148,16 +150,31 @@ function writeTotalsRow(
 export async function buildSalesWorkbook(
   db: Firestore,
   year: number,
-  colsRaw: string | null
+  colsRaw: string | null,
+  scope?: SalesExportScope,
 ): Promise<ExcelJS.Workbook> {
   const cols = pickColumns(SALES_COLUMNS, colsRaw);
 
   const yearStart = new Date(Date.UTC(year, 0, 1));
   const nextYearStart = new Date(Date.UTC(year + 1, 0, 1));
-  const concertsSnap = await db.collection("concerts")
+  const concertsSnap = scope ? { docs: (await Promise.all(
+    Array.from({ length: Math.ceil(scope.concertIds.length / 100) }, (_, index) =>
+      db.getAll(...scope.concertIds.slice(index * 100, (index + 1) * 100).map(id => db.collection("concerts").doc(id))))
+  )).flat() } : await db.collection("concerts")
     .where("date", ">=", yearStart)
     .where("date", "<", nextYearStart)
     .get();
+  if (scope) {
+    for (const doc of concertsSnap.docs) {
+      if (!doc.exists) throw new Error("تغيّرت قائمة الحفلات — حدّث الصفحة وأعد التصدير");
+      const c = doc.data()!;
+      const date = eventDateString(c[scope.dateField]);
+      if ((scope.from && (!date || date < scope.from)) || (scope.to && (!date || date > scope.to)) ||
+          (scope.financialOnly && c.status === "cancelled")) {
+        throw new Error("تغيّرت بيانات حفلة خارج الفلاتر — حدّث الصفحة وأعد التصدير");
+      }
+    }
+  }
   const concertIds = concertsSnap.docs.map((doc) => doc.id);
 
   // Firestore يسمح بعدد محدود داخل in؛ نجزّئ المعرّفات ونقرأ فقط السجلات
@@ -324,7 +341,7 @@ export async function buildSalesWorkbook(
   for (const d of concertsSnap.docs) {
     const c = d.data() as Record<string, unknown>;
     const date = toDate(c.date);
-    const m = monthOf(date, year);
+    const m = scope ? 0 : monthOf(date, year);
     if (m < 0) continue;
     byMonth[m].push({ values: rowFor(d.id, c), cancelled: c.status === "cancelled" });
 
@@ -356,11 +373,12 @@ export async function buildSalesWorkbook(
   wb.creator = "الفريج لإدارة الفعاليات";
   wb.created = new Date();
 
-  for (let m = 0; m < 12; m++) {
-    const ws = wb.addWorksheet(MONTHS[m], { views: [{ rightToLeft: true }] });
+  for (let m = 0; m < (scope ? 1 : 12); m++) {
+    const ws = wb.addWorksheet(scope ? "حفلات الفترة" : MONTHS[m], { views: [{ rightToLeft: true }] });
     ws.columns = cols.map((c) => ({ width: c.width }));
 
-    writeHeader(ws, `المبيعات — ${MONTHS[m]} ${year}`, `${byMonth[m].length} حفلة`, cols.length);
+    writeHeader(ws, scope ? "المبيعات — نتائج الفلاتر" : `المبيعات — ${MONTHS[m]} ${year}`,
+      `${scope ? salesScopeLabel(scope) + " · " : ""}${byMonth[m].length} حفلة`, cols.length);
     const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
 
     const statusColumn = cols.findIndex((column) => column.key === "status") + 1;
@@ -386,9 +404,9 @@ export async function buildSalesWorkbook(
   }
 
   /* ── ورقة الملخص السنوي ── */
-  const sum = wb.addWorksheet(`ملخص ${year}`, { views: [{ rightToLeft: true }] });
+  const sum = wb.addWorksheet(scope ? "ملخص الفترة" : `ملخص ${year}`, { views: [{ rightToLeft: true }] });
   const sumCols = [
-    { label: "الشهر", width: 12 },
+    { label: scope ? "الفترة" : "الشهر", width: scope ? 18 : 12 },
     { label: "عدد الحفلات", width: 12, fmt: "int" },
     { label: "الملغاة", width: 10, fmt: "int" },
     { label: "الإيرادات شاملة الضريبة", width: 20, fmt: "money" },
@@ -400,14 +418,15 @@ export async function buildSalesWorkbook(
     { label: "الربح", width: 14, fmt: "money" },
   ];
   sum.columns = sumCols.map((c) => ({ width: c.width }));
-  writeHeader(sum, `ملخص المبيعات لسنة ${year}`, "مجاميع كل شهر ثم مجموع السنة", sumCols.length);
+  writeHeader(sum, scope ? "ملخص المبيعات للفترة المختارة" : `ملخص المبيعات لسنة ${year}`,
+    scope ? salesScopeLabel(scope) : "مجاميع كل شهر ثم مجموع السنة", sumCols.length);
   const sumHeader = writeColumnHeaders(sum, sumCols.map((c) => c.label));
 
   const totals = { count: 0, cancelled: 0, price: 0, vat: 0, net: 0, paid: 0, due: 0, costs: 0, profit: 0 };
-  for (let m = 0; m < 12; m++) {
+  for (let m = 0; m < (scope ? 1 : 12); m++) {
     const s = monthlyStats[m];
     sum.addRow([
-      MONTHS[m], s.count, s.cancelled, r2(s.price), r2(s.vat), r2(s.net),
+      scope ? "الفترة المختارة" : MONTHS[m], s.count, s.cancelled, r2(s.price), r2(s.vat), r2(s.net),
       r2(s.paid), r2(s.due), r2(s.costs), r2(s.profit),
     ]);
     totals.count += s.count; totals.cancelled += s.cancelled; totals.price += s.price;

@@ -12,6 +12,7 @@ import { auth } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { downloadBlob } from "@/lib/download-file";
 import { ExportColumn } from "@/lib/server/export-columns";
+import { salesScopeLabel, type SalesExportScope } from "@/lib/sales-export-scope";
 import {
   FileSpreadsheet, Download, Link2, Check, Copy, ShieldAlert, Loader2, RefreshCw,
 } from "lucide-react";
@@ -27,6 +28,7 @@ export function ExportDialog({
   kind,
   columns,
   title,
+  scope,
 }: {
   open: boolean;
   onClose: () => void;
@@ -34,6 +36,7 @@ export function ExportDialog({
   kind: "sales" | "costs";
   columns: ExportColumn[];
   title: string;
+  scope?: SalesExportScope;
 }) {
   const { appUser } = useAuth();
   const { showToast } = useToast();
@@ -89,14 +92,16 @@ export function ExportDialog({
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
       const res = await fetch(`/api/export/${kind}?${query}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        method: scope ? "POST" : "GET",
+        headers: { Authorization: `Bearer ${token}`, ...(scope ? { "Content-Type": "application/json" } : {}) },
+        ...(scope ? { body: JSON.stringify({ scope }) } : {}),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
         throw new Error(j?.error ?? "تعذّر التصدير");
       }
       const blob = await res.blob();
-      downloadBlob(blob, `${kind === "sales" ? "المبيعات" : "التكاليف"}-${year}.xlsx`);
+      downloadBlob(blob, scope ? "المبيعات-الفترة-المختارة.xlsx" : `${kind === "sales" ? "المبيعات" : "التكاليف"}-${year}.xlsx`);
       showToast("نُزّل الملف");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذّر التصدير", "error");
@@ -159,7 +164,10 @@ export function ExportDialog({
     <Modal open={open} onClose={onClose} title={title} size="xl">
       <div className="space-y-4">
         {/* السنة */}
-        <div>
+        {scope ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <p className="font-semibold">{salesScopeLabel(scope)}</p>
+          <p className="mt-1 text-xs">{scope.concertIds.length} حفلة من جميع الصفحات، وفق الفلاتر والبحث الحاليين. لا يُحصر التصدير في سنة منفصلة.</p>
+        </div> : <div>
           <label className="text-sm font-semibold text-slate-700 block mb-1.5">السنة</label>
           <div className="flex gap-2 flex-wrap">
             {years.map((y) => (
@@ -174,7 +182,7 @@ export function ExportDialog({
           <p className="text-[11px] text-slate-500 mt-1.5">
             ملف واحد لكل سنة: اثنتا عشرة ورقة شهرية وورقة ملخص في آخره.
           </p>
-        </div>
+        </div>}
 
         {/* الأعمدة */}
         <div>
@@ -212,10 +220,10 @@ export function ExportDialog({
 
         {/* التنزيل */}
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button onClick={download} loading={busy} className="flex-1 justify-center">
-            <Download size={15} /> تنزيل ملف {year}
+          <Button onClick={download} loading={busy} disabled={!!scope && scope.concertIds.length === 0} className="flex-1 justify-center">
+            <Download size={15} /> {scope ? "تنزيل نتائج الفلاتر" : `تنزيل ملف ${year}`}
           </Button>
-          {isAdmin && (
+          {isAdmin && !scope && (
             <Button variant="outline" onClick={createKey} disabled={busy} className="flex-1 justify-center">
               <Link2 size={15} /> إنشاء رابط دائم
             </Button>

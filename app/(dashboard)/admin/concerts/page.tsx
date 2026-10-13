@@ -12,6 +12,7 @@ import { loadCachedThenFresh } from "@/lib/cached-first";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { ConcertPeopleCount } from "@/components/ui/concert-people-count";
+import { salesExportScope } from "@/lib/sales-export-scope";
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { SALES_COLUMNS } from "@/lib/server/export-columns";
@@ -215,6 +216,7 @@ export default function AdminConcertsPage() {
         kind="sales"
         columns={SALES_COLUMNS}
         title="تصدير المبيعات إلى إكسل"
+        scope={salesExportScope(filtered, dateFilter, dateFrom, dateTo, dateField)}
       />
 
       {/* Search */}
