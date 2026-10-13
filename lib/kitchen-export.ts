@@ -16,7 +16,7 @@ export function matchesKitchenExportOrder(order: KitchenExportOrder, filters: Ki
 const clean = (value: string) => toLatinDigits(value.normalize("NFKC")).trim().replace(/\s+/g, " ");
 export function aggregateKitchenOrders(orders: KitchenExportOrder[]) {
   const seen = new Set<string>();
-  const rows = new Map<string, { name: string; category: string; quantity: number }>();
+  const rows = new Map<string, { name: string; category: string; quantity: number; known: boolean; missing: Set<number> }>();
   for (const order of orders) {
     if (order.status !== "received") throw new Error(`الحفلة #${order.concertNumber} لم يُؤكَّد استلامها`);
     if (!order.concertId || seen.has(order.concertId)) throw new Error("تكررت الحفلة في اختيار التصدير — أعد تحميل الطلبات");
@@ -25,12 +25,14 @@ export function aggregateKitchenOrders(orders: KitchenExportOrder[]) {
     for (const line of order.lines) {
       const name = typeof line.name === "string" ? clean(line.name) : "";
       const category = typeof line.categoryName === "string" ? clean(line.categoryName) : "";
-      if (!name || typeof line.quantity !== "number" || !Number.isFinite(line.quantity) || line.quantity < 0) {
+      const unspecified = line.quantity == null;
+      if (!name || (!unspecified && (typeof line.quantity !== "number" || !Number.isFinite(line.quantity) || line.quantity < 0))) {
         throw new Error(`الحفلة #${order.concertNumber}: راجع اسم وكمية الصنف «${name || "غير مسجل"}» قبل التصدير`);
       }
       const key = JSON.stringify([category, name]);
-      const row = rows.get(key) ?? { name, category, quantity: 0 };
-      row.quantity += line.quantity;
+      const row = rows.get(key) ?? { name, category, quantity: 0, known: false, missing: new Set<number>() };
+      if (unspecified) row.missing.add(order.concertNumber);
+      else { row.quantity += line.quantity!; row.known = true; }
       if (!Number.isFinite(row.quantity) || row.quantity > Number.MAX_SAFE_INTEGER) throw new Error("مجموع الكمية أكبر من الحد المسموح");
       rows.set(key, row);
     }
@@ -39,6 +41,7 @@ export function aggregateKitchenOrders(orders: KitchenExportOrder[]) {
   for (const row of rows.values()) names.set(row.name, (names.get(row.name) ?? 0) + 1);
   return [...rows.values()].map(row => ({
     name: (names.get(row.name) ?? 0) > 1 && row.category ? `${row.name} (${row.category})` : row.name,
-    quantity: Number(row.quantity.toFixed(9)),
+    quantity: row.known ? Number(row.quantity.toFixed(9)) : null,
+    missingConcertNumbers: [...row.missing],
   })).sort((a,b) => a.name.localeCompare(b.name, "ar"));
 }

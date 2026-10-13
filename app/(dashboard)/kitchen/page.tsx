@@ -98,7 +98,9 @@ export default function KitchenPage() {
       if(!token)throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
       const response=await fetch("/api/kitchen/export",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({orderIds:exportIds,filters:exportFilters})});
       if(!response.ok){const error=await response.json();throw new Error(error.error||"تعذر التصدير");}
-      downloadBlob(await response.blob(),"تجميع-أصناف-المطبخ.xlsx");setExportOpen(false);showToast("تم تصدير أصناف الحفلات المختارة في ورقة واحدة");
+      downloadBlob(await response.blob(),"تجميع-أصناف-المطبخ.xlsx");setExportOpen(false);
+      const unspecified=Number(response.headers.get("X-Kitchen-Unspecified-Lines")||0);
+      showToast(unspecified ? `تم تنزيل Excel؛ ${unspecified} كمية غير محددة موضحة في ملاحظات الملف` : "تم تصدير أصناف الحفلات المختارة في ورقة واحدة", unspecified ? "warning" : "success");
     }catch(error){showToast(error instanceof Error?error.message:"تعذر التصدير","error");}finally{setExporting(false);}
   }
 

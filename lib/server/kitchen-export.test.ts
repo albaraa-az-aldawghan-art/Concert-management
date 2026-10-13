@@ -20,12 +20,32 @@ test("kitchen export aggregates all selected events without page limits and keep
   for(const r of [5,6]){assert.equal(typeof ws.getCell(`C${r}`).value,"number");assert.equal(ws.getCell(`D${r}`).value,null);assert.equal(ws.getCell(`E${r}`).value,null);}
   assert.equal(ws.views[0].rightToLeft,true);assert.equal(ws.views[0].state,"frozen");
 });
-test("received-only, duplicates, missing quantities and missing order lines are rejected",()=>{
+test("received-only, duplicates, invalid quantities and missing order lines are rejected",()=>{
   assert.throws(()=>aggregateKitchenOrders([{...order("1"),status:"sent"}]),/لم يُؤكَّد/);
   assert.throws(()=>aggregateKitchenOrders([order("1"),order("1")]),/تكررت/);
-  for(const quantity of [null,NaN,-1,Infinity])assert.throws(()=>aggregateKitchenOrders([{...order("1"),lines:[{name:"كشري",quantity}]}]),/راجع/);
+  for(const quantity of [NaN,-1,Infinity])assert.throws(()=>aggregateKitchenOrders([{...order("1"),lines:[{name:"كشري",quantity}]}]),/راجع/);
   assert.throws(()=>aggregateKitchenOrders([{...order("1"),lines:undefined}]),/لا توجد أصناف/);
   assert.throws(()=>buildKitchenSummaryWorkbook([]),/لا توجد أصناف/);
+});
+test("unspecified quantities do not block Excel or masquerade as zero/complete totals",async()=>{
+  const orders=[{...order("105"),lines:[{name:"مياه صغير",quantity:null},{name:"كشري",quantity:null},{name:"صفر",quantity:0}]},
+    {...order("106"),lines:[{name:"كشري",quantity:3},{name:"صفر",quantity:null}]}];
+  const rows=aggregateKitchenOrders(orders);
+  assert.equal(rows.find(r=>r.name==="مياه صغير")?.quantity,null);
+  assert.equal(rows.find(r=>r.name==="كشري")?.quantity,3);
+  assert.deepEqual(rows.find(r=>r.name==="كشري")?.missingConcertNumbers,[105]);
+  assert.equal(rows.find(r=>r.name==="صفر")?.quantity,0);
+  const wb=new ExcelJS.Workbook();await wb.xlsx.load(await buildKitchenSummaryWorkbook(orders).xlsx.writeBuffer());
+  const ws=wb.worksheets[0];
+  const row=ws.getRows(5,3)!.find(r=>r.getCell(2).value==="مياه صغير")!;
+  assert.equal(row.getCell(3).value,null);
+  assert.match(String(row.getCell(4).value),/كمية غير محددة.*#105/);
+  const partial=ws.getRows(5,3)!.find(r=>r.getCell(2).value==="كشري")!;
+  assert.equal(partial.getCell(3).value,3);
+  assert.match(String(partial.getCell(4).value),/مجموع جزئي/);
+  assert.equal(partial.getCell(5).value,null);
+  const allMissing=buildKitchenSummaryWorkbook([{...order("1"),lines:[{name:"مياه",quantity:null}]}]);
+  assert.equal(allMissing.worksheets[0].getCell("C5").value,null);
 });
 test("item aggregation preserves categories, real zero and decimal quantities",()=>{
   const rows=aggregateKitchenOrders([{...order("1"),lines:[{name:"  كشري ",categoryName:"الأطباق",quantity:0.1},{name:"كشري",categoryName:"الأطباق",quantity:0.2},{name:"كشري",categoryName:"أخرى",quantity:2},{name:"صفر",quantity:0}]}]);

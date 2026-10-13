@@ -24,5 +24,9 @@ const response=await run();assert.equal(response.status,200);assert.match(respon
 const bytes=Buffer.from(await response.arrayBuffer());assert.equal(bytes.subarray(0,2).toString(),'PK');const wb=new ExcelJS.Workbook();await wb.xlsx.load(bytes);assert.equal(wb.worksheets.length,1);const ws=wb.worksheets[0];assert.equal(ws.rowCount,8);
 const quantities=new Map([5,6,7,8].map(r=>[ws.getCell('B'+r).value,ws.getCell('C'+r).value]));assert.equal(quantities.get('كشري'),5);assert.equal(quantities.get('كرات البطاطس'),2);assert.equal(quantities.get('بشمل لحم'),5);assert.equal(quantities.get('ام علي'),4);
 await fs.mkdir('tmp/kitchen-export',{recursive:true});await fs.writeFile('tmp/kitchen-export/sample.xlsx',bytes);
-orders.get('1').lines[0].quantity=null;assert.equal((await run(['1'])).status,400);
-console.log('PASS: real export/auth route; permission isolation; date/search recheck; received-only; duplicates and missing records rejected; native XLSX with one sheet and exact quantities; missing quantity blocked.');
+orders.get('1').lines[0].quantity=null;const missingResponse=await run(['1']);assert.equal(missingResponse.status,200);assert.equal(missingResponse.headers.get('X-Kitchen-Unspecified-Lines'),'1');
+const missingBook=new ExcelJS.Workbook();await missingBook.xlsx.load(Buffer.from(await missingResponse.arrayBuffer()));const missingRow=missingBook.worksheets[0].getRows(5,4).find(r=>r.getCell(2).value==='كشري');assert.equal(missingRow.getCell(3).value,null);assert.match(String(missingRow.getCell(4).value),/#1/);
+const partialResponse=await run();assert.equal(partialResponse.status,200);const partialBytes=Buffer.from(await partialResponse.arrayBuffer());await fs.writeFile('tmp/kitchen-export/missing.xlsx',partialBytes);
+const partialBook=new ExcelJS.Workbook();await partialBook.xlsx.load(partialBytes);const partialRow=partialBook.worksheets[0].getRows(5,4).find(r=>r.getCell(2).value==='كشري');assert.equal(partialRow.getCell(3).value,2);assert.match(String(partialRow.getCell(4).value),/مجموع جزئي/);
+orders.get('1').lines[0].quantity=-1;assert.equal((await run(['1'])).status,400);
+console.log('PASS: real export/auth route; permission isolation; date/search recheck; received-only; duplicates and missing records rejected; exact native XLSX quantities; null exported blank, partial totals flagged, negative quantities rejected.');

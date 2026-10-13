@@ -26,8 +26,9 @@ export async function POST(req: NextRequest) {
       const orders=snaps.map(s=>({id:s.id,...s.data()} as KitchenExportOrder));
       if(snaps.some(s=>!s.exists)||orders.some(o=>o.status!=="received"||!matchesKitchenExportOrder(o,filters)))throw new ApiError("تغيّرت الطلبات أو يوجد اختيار خارج الفلاتر أو غير مستلم — حدّث الصفحة وأعد الاختيار");
       const wb=buildKitchenSummaryWorkbook(orders,filters);
+      const unspecified=orders.reduce((sum,order)=>sum+(order.lines??[]).filter(line=>line.quantity==null).length,0);
       const buffer=await wb.xlsx.writeBuffer();
-      return new NextResponse(buffer as ArrayBuffer,{headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="kitchen-summary.xlsx"; filename*=UTF-8''${encodeURIComponent(`تجميع-المطبخ-${riyadhDateString(new Date())}.xlsx`)}`,"Cache-Control":"no-store"}});
+      return new NextResponse(buffer as ArrayBuffer,{headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="kitchen-summary.xlsx"; filename*=UTF-8''${encodeURIComponent(`تجميع-المطبخ-${riyadhDateString(new Date())}.xlsx`)}`,"Cache-Control":"no-store","X-Kitchen-Unspecified-Lines":String(unspecified)}});
     } catch(error){return NextResponse.json({error:error instanceof Error?error.message:"تعذر التصدير"},{status:error instanceof ApiError?error.status:400});}
   });
 }
