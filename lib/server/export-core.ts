@@ -257,7 +257,8 @@ export async function buildSalesWorkbook(
 
   /** صف واحد لكل حفلة بالأعمدة المختارة */
   function rowFor(id: string, c: Record<string, unknown>): (string | number | Date | null)[] {
-    const date = toDate(c.date);
+    const rawDate = toDate(c.date);
+    const date = scope && rawDate ? new Date(`${eventDateString(c.date)}T00:00:00Z`) : rawDate;
     const vatRate = (c.vatRate as number) ?? 15;
     const price = (c.price as number) ?? 0;
     // نفس معادلة العقد حرفاً بحرف كي تتطابق الأرقام مع المطبوع
@@ -332,16 +333,24 @@ export async function buildSalesWorkbook(
   }
 
   /* توزيع الحفلات على أشهر السنة المطلوبة */
+  const scopedMonth = (c: Record<string, unknown>) => {
+    const date = eventDateString(c[scope?.dateField ?? "date"]);
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(0, 7) : "بلا تاريخ";
+  };
+  const periods = scope
+    ? [...new Set(concertsSnap.docs.map(d => scopedMonth(d.data()!)))].sort()
+    : MONTHS;
+  const monthLabels = scope ? periods.map(key => key === "بلا تاريخ" ? key : `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`) : MONTHS;
   const byMonth: Record<number, { values: (string | number | Date | null)[]; cancelled: boolean }[]> = {};
-  for (let m = 0; m < 12; m++) byMonth[m] = [];
-  const monthlyStats = Array.from({ length: 12 }, () => ({
+  for (let m = 0; m < periods.length; m++) byMonth[m] = [];
+  const monthlyStats = Array.from({ length: periods.length }, () => ({
     count: 0, price: 0, vat: 0, net: 0, paid: 0, due: 0, costs: 0, profit: 0, cancelled: 0,
   }));
 
   for (const d of concertsSnap.docs) {
     const c = d.data() as Record<string, unknown>;
     const date = toDate(c.date);
-    const m = scope ? 0 : monthOf(date, year);
+    const m = scope ? periods.indexOf(scopedMonth(c)) : monthOf(date, year);
     if (m < 0) continue;
     byMonth[m].push({ values: rowFor(d.id, c), cancelled: c.status === "cancelled" });
 
@@ -373,11 +382,11 @@ export async function buildSalesWorkbook(
   wb.creator = "الفريج لإدارة الفعاليات";
   wb.created = new Date();
 
-  for (let m = 0; m < (scope ? 1 : 12); m++) {
-    const ws = wb.addWorksheet(scope ? "حفلات الفترة" : MONTHS[m], { views: [{ rightToLeft: true }] });
+  for (let m = 0; m < periods.length; m++) {
+    const ws = wb.addWorksheet(monthLabels[m], { views: [{ rightToLeft: true }] });
     ws.columns = cols.map((c) => ({ width: c.width }));
 
-    writeHeader(ws, scope ? "المبيعات — نتائج الفلاتر" : `المبيعات — ${MONTHS[m]} ${year}`,
+    writeHeader(ws, scope ? `المبيعات — ${monthLabels[m]}` : `المبيعات — ${MONTHS[m]} ${year}`,
       `${scope ? salesScopeLabel(scope) + " · " : ""}${byMonth[m].length} حفلة`, cols.length);
     const headerRow = writeColumnHeaders(ws, cols.map((c) => c.label));
 
@@ -406,7 +415,7 @@ export async function buildSalesWorkbook(
   /* ── ورقة الملخص السنوي ── */
   const sum = wb.addWorksheet(scope ? "ملخص الفترة" : `ملخص ${year}`, { views: [{ rightToLeft: true }] });
   const sumCols = [
-    { label: scope ? "الفترة" : "الشهر", width: scope ? 18 : 12 },
+    { label: "الشهر", width: scope ? 18 : 12 },
     { label: "عدد الحفلات", width: 12, fmt: "int" },
     { label: "الملغاة", width: 10, fmt: "int" },
     { label: "الإيرادات شاملة الضريبة", width: 20, fmt: "money" },
@@ -423,10 +432,10 @@ export async function buildSalesWorkbook(
   const sumHeader = writeColumnHeaders(sum, sumCols.map((c) => c.label));
 
   const totals = { count: 0, cancelled: 0, price: 0, vat: 0, net: 0, paid: 0, due: 0, costs: 0, profit: 0 };
-  for (let m = 0; m < (scope ? 1 : 12); m++) {
+  for (let m = 0; m < periods.length; m++) {
     const s = monthlyStats[m];
     sum.addRow([
-      scope ? "الفترة المختارة" : MONTHS[m], s.count, s.cancelled, r2(s.price), r2(s.vat), r2(s.net),
+      monthLabels[m], s.count, s.cancelled, r2(s.price), r2(s.vat), r2(s.net),
       r2(s.paid), r2(s.due), r2(s.costs), r2(s.profit),
     ]);
     totals.count += s.count; totals.cancelled += s.cancelled; totals.price += s.price;

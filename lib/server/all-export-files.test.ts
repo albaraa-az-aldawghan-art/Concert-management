@@ -124,20 +124,50 @@ test("filtered sales export keeps exactly the selected records across years and 
   const original = await buildSalesWorkbook(fixture, 2026, "name,date,price,paid,due", scope);
   if (process.env.FILTERED_SALES_QA_PATH) await original.xlsx.writeFile(process.env.FILTERED_SALES_QA_PATH);
   const wb = await roundTrip(original);
-  assert.deepEqual(wb.worksheets.map(s => s.name), ["حفلات الفترة", "ملخص الفترة"]);
+  assert.deepEqual(wb.worksheets.map(s => s.name), ["ديسمبر 2026", "يناير 2027", "ملخص الفترة"]);
+  assert.equal(wb.getWorksheet("ديسمبر 2026")!.getCell("A4").value,"حفلة نهاية السنة");
+  assert.equal(wb.getWorksheet("يناير 2027")!.getCell("A4").value,"حفلة بداية السنة");
   const summary = wb.getWorksheet("ملخص الفترة")!;
-  assert.equal(summary.getCell("B5").value, 2);
-  assert.equal(summary.getCell("D5").value, 3000);
-  assert.equal(summary.getCell("G5").value, 500);
-  assert.equal(summary.getCell("H5").value, 2500);
+  assert.equal(summary.getCell("A4").value,"ديسمبر 2026");
+  assert.equal(summary.getCell("A5").value,"يناير 2027");
+  assert.equal(summary.getCell("B6").value, 2);
+  assert.equal(summary.getCell("D6").value, 3000);
+  assert.equal(summary.getCell("G6").value, 500);
+  assert.equal(summary.getCell("H6").value, 2500);
+  assert.equal(summary.getCell("H4").value,1000);
+  assert.equal(summary.getCell("H5").value,1500);
   assert.ok(!allValues(wb).includes("خارج الفلتر"));
   assert.match(String(summary.getCell("A2").value), /2026-12-31.*2027-01-01/);
-  await buildSalesWorkbook(fixture, 2026, null, { ...scope, dateField: "createdAt", from: "2026-10-13", to: "2026-10-13" });
+  const created = await buildSalesWorkbook(fixture, 2026, null, { ...scope, dateField: "createdAt", from: "2026-10-13", to: "2026-10-13" });
+  assert.deepEqual(created.worksheets.map(s=>s.name),["أكتوبر 2026","ملخص الفترة"]);
   await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, to: "2026-12-31" }), /خارج الفلاتر/);
   await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, concertIds: ["missing"] }), /تغيّرت قائمة/);
   await assert.rejects(buildSalesWorkbook(fixture, 2026, null, { ...scope, concertIds: ["cancelled"] }), /خارج الفلاتر/);
   const all = await buildSalesWorkbook(fixture, 2026, null, { ...scope, from: "", to: "" });
-  assert.equal(all.getWorksheet("ملخص الفترة")!.getCell("H5").value, 2500);
+  assert.equal(all.getWorksheet("ملخص الفترة")!.getCell("H6").value, 2500);
+});
+
+test("monthly filtered sheets separate identical months in different years and use Riyadh boundaries", async () => {
+  const fixture=fakeDb({concerts:{
+    old:{name:"قديم",date:"2026-01-01",price:100,status:"confirmed"},
+    boundary:{name:"حد السنة",date:"2026-12-31T21:00:00Z",price:200,status:"confirmed"},
+    next:{name:"الجديد",date:"2027-01-05",price:300,status:"cancelled"},
+    missing:{name:"بلا موعد",date:null,price:50,status:"confirmed"},
+  }});
+  const wb=await roundTrip(await buildSalesWorkbook(fixture,2026,"name,date,due",{
+    concertIds:["missing","next","old","boundary"],dateField:"date",from:"",to:"",financialOnly:false,
+  }));
+  assert.deepEqual(wb.worksheets.map(s=>s.name),["يناير 2026","يناير 2027","بلا تاريخ","ملخص الفترة"]);
+  assert.equal(wb.getWorksheet("يناير 2026")!.getCell("A4").value,"قديم");
+  const next=wb.getWorksheet("يناير 2027")!;
+  const rows=next.getRows(4,2)!;
+  assert.equal(rows.find(r=>r.getCell(1).value==="حد السنة")!.getCell(2).value instanceof Date,true);
+  assert.equal((rows.find(r=>r.getCell(1).value==="حد السنة")!.getCell(2).value as Date).toISOString().slice(0,10),"2027-01-01");
+  assert.equal(rows.find(r=>r.getCell(1).value==="الجديد")!.getCell(3).value,0);
+  const summary=wb.getWorksheet("ملخص الفترة")!;
+  assert.equal(summary.getCell("B7").value,4);
+  assert.equal(summary.getCell("H7").value,350);
+  assert.equal(next.getRow(6).getCell(3).value,200);
 });
 
 const db = fakeDb({

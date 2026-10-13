@@ -166,7 +166,7 @@ export function ExportDialog({
         {/* السنة */}
         {scope ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
           <p className="font-semibold">{salesScopeLabel(scope)}</p>
-          <p className="mt-1 text-xs">{scope.concertIds.length} حفلة من جميع الصفحات، وفق الفلاتر والبحث الحاليين. لا يُحصر التصدير في سنة منفصلة.</p>
+          <p className="mt-1 text-xs">{scope.concertIds.length} حفلة من جميع الصفحات، وفق الفلاتر والبحث الحاليين. لا يُحصر التصدير في سنة منفصلة. ورقة مستقلة لكل شهر وسنة، وورقة ملخص بإجماليات الأشهر والفترة.</p>
         </div> : <div>
           <label className="text-sm font-semibold text-slate-700 block mb-1.5">السنة</label>
           <div className="flex gap-2 flex-wrap">
