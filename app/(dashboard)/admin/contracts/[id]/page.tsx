@@ -303,6 +303,18 @@ export default function ContractDetailPage() {
       nextExpenses = Object.fromEntries((day.expenses ?? []).map((e) => [e.key, e.amount === 0 ? "" : String(e.amount)]));
       nextCustody = (day.custody ?? 0) === 0 ? "" : String(day.custody);
       nextNotes = day.notes ?? "";
+      // قد يكون يوم محفوظ بالتعديل السابق وفيه المشروبات الثلاثة فقط.
+      // أكمل صفوف القسم دون استبدال أي قيمة محفوظة أو الكتابة في قاعدة البيانات.
+      const section = sections.find((section) => section.id === pickSection);
+      if (section && !day.postedPaymentIds?.length) {
+        const present = new Set(nextLines.map((line) => line.barcode));
+        const members = new Set(itemsOfSection(items, section.id, section.itemOrder).map((item) => item.id));
+        for (const barcode of orderedBarcodes) {
+          if (members.has(barcode) && !present.has(barcode)) nextLines.push({
+            barcode, supplied: "", damaged: "", remaining: String(openingMap.get(barcode) ?? 0),
+          });
+        }
+      }
     } else {
       nextLines = carriedDayLines(orderedBarcodes, openingMap);
       // أسماء الصفوف مستقلة عن الأرصدة: اعرض القسم كاملاً، لكن لا ترحّل
