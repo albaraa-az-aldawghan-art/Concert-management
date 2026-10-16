@@ -15,7 +15,7 @@ import { SearchBox, DateFilterBar, Pagination, emptyDateFilter, DateFilterState,
 import { UtensilsCrossed, Printer, CheckCircle2, Clock } from "lucide-react";
 import { Download } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { matchesKitchenExportOrder, type KitchenExportFilters } from "@/lib/kitchen-export";
+import { matchesKitchenExportOrder, kitchenConcertName, type KitchenExportFilters } from "@/lib/kitchen-export";
 import { periodBounds } from "@/lib/date-period";
 import { auth } from "@/lib/firebase";
 import { downloadBlob } from "@/lib/download-file";
@@ -90,17 +90,17 @@ export default function KitchenPage() {
     setExportFilters({date:dateF.mode==="all"||dateF.mode==="custom"?dateF:{mode:"custom",from,to},search});
     setExportIds(eligible.map(order=>order.id));setExportOpen(true);
   }
-  async function exportExcel() {
+  async function exportFile() {
     if(!allowed||!canExport||!exportIds.length||exporting)return;
     setExporting(true);
     try {
       const token=await auth.currentUser?.getIdToken();
       if(!token)throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
-      const response=await fetch("/api/kitchen/export",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({orderIds:exportIds,filters:exportFilters})});
+      const response=await fetch("/api/kitchen/export",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({orderIds:exportIds,filters:exportFilters,format:"pdf"})});
       if(!response.ok){const error=await response.json();throw new Error(error.error||"تعذر التصدير");}
-      downloadBlob(await response.blob(),"تجميع-أصناف-المطبخ.xlsx");setExportOpen(false);
+      downloadBlob(await response.blob(),"تجميع-أصناف-المطبخ.pdf");setExportOpen(false);
       const unspecified=Number(response.headers.get("X-Kitchen-Unspecified-Lines")||0);
-      showToast(unspecified ? `تم تنزيل Excel؛ ${unspecified} كمية غير محددة موضحة في ملاحظات الملف` : "تم تصدير أصناف الحفلات المختارة في ورقة واحدة", unspecified ? "warning" : "success");
+      showToast(unspecified ? `تم تنزيل الملف؛ ${unspecified} كمية غير محددة موضحة في ملاحظات الملف` : "تم تصدير أصناف الحفلات المختارة", unspecified ? "warning" : "success");
     }catch(error){showToast(error instanceof Error?error.message:"تعذر التصدير","error");}finally{setExporting(false);}
   }
 
@@ -199,7 +199,7 @@ export default function KitchenPage() {
       <DateFilterBar value={dateF} onChange={setDateF} matchedCount={filtered.length} unitLabel="حفلة" />
       {canExport && <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">التصدير يجمع الطلبات المستلمة فقط ضمن الفلاتر، عبر جميع الصفحات.</p>
-        <Button variant="outline" disabled={loading||!eligible.length} onClick={openExport}><Download size={16}/> تصدير تجميع الأصناف ({eligible.length})</Button>
+        <Button variant="outline" disabled={loading||!eligible.length} onClick={openExport}><Download size={16}/> تصدير تجميع الأصناف PDF ({eligible.length})</Button>
       </div>}
 
       {/* Status filter */}
@@ -237,13 +237,13 @@ export default function KitchenPage() {
           <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </>
       )}
-      <Modal open={exportOpen&&canExport} onClose={()=>{if(!exporting)setExportOpen(false)}} title="تجميع أصناف الحفلات إلى Excel" size="lg">
-        <p className="mb-3 text-sm text-slate-500">اختر الحفلات المستلمة المطابقة للفلاتر. تُجمع كميات الأصناف في ورقة واحدة، مع ملاحظات 1 وملاحظات 2 فارغتين.</p>
+      <Modal open={exportOpen&&canExport} onClose={()=>{if(!exporting)setExportOpen(false)}} title="تجميع أصناف الحفلات إلى PDF" size="lg">
+        <p className="mb-3 text-sm text-slate-500">اختر الحفلات المستلمة المطابقة للفلاتر. يحتوي PDF على جدول مستقل لكل قسم وأصنافه، وأسماء الحفلات وتواريخها، مع توضيح أي كميات غير محددة.</p>
         <div className="mb-3 flex gap-2"><Button variant="secondary" size="sm" onClick={()=>setExportIds(eligible.map(order=>order.id))} disabled={exporting}>تحديد الكل</Button><Button variant="secondary" size="sm" onClick={()=>setExportIds([])} disabled={exporting}>إلغاء التحديد</Button></div>
         <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200">
-          {eligible.map(order=><label key={order.id} className="flex items-center gap-3 border-b border-slate-100 p-3 text-sm last:border-0"><input type="checkbox" aria-label={`اختيار الحفلة ${order.concertNumber}`} disabled={exporting} checked={exportIds.includes(order.id)} onChange={event=>setExportIds(ids=>event.target.checked?[...ids,order.id]:ids.filter(id=>id!==order.id))}/><span className="min-w-0">#{order.concertNumber} · {order.clientName}<small className="block text-slate-500">{formatDate(order.concertDate)} · {order.venueName||"بلا مكان"}</small></span></label>)}
+          {eligible.map(order=><label key={order.id} className="flex items-center gap-3 border-b border-slate-100 p-3 text-sm last:border-0"><input type="checkbox" aria-label={`اختيار الحفلة ${order.concertNumber}`} disabled={exporting} checked={exportIds.includes(order.id)} onChange={event=>setExportIds(ids=>event.target.checked?[...ids,order.id]:ids.filter(id=>id!==order.id))}/><span className="min-w-0">{kitchenConcertName(order)}<small className="block text-slate-500">{formatDate(order.concertDate)} · {order.venueName||"بلا مكان"}</small></span></label>)}
         </div>
-        <div className="mt-4 flex justify-end"><Button onClick={exportExcel} loading={exporting} disabled={!exportIds.length}><Download size={16}/> تنزيل Excel ({exportIds.length} حفلة)</Button></div>
+        <div className="mt-4 flex justify-end"><Button onClick={exportFile} loading={exporting} disabled={!exportIds.length}><Download size={16}/> تنزيل PDF ({exportIds.length} حفلة)</Button></div>
       </Modal>
     </PageShell>
   );

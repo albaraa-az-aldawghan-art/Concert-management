@@ -32,6 +32,7 @@ async function snapshot(db: Firestore, concertId: string) {
   return {
     concertId,
     concertNumber: c.concertNumber ?? 0,
+    concertName: c.name ?? null,
     clientName: c.clientName ?? "",
     concertDate: c.date ?? null,
     venueName: c.venueName ?? null,

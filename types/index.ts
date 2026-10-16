@@ -46,6 +46,7 @@ export interface KitchenOrder {
   id: string;
   concertId: string;
   concertNumber: number;
+  concertName?: string | null;
   clientName: string;
   concertDate: Timestamp | null;
   venueName: string | null;
