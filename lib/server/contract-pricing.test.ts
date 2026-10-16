@@ -270,10 +270,10 @@ test("save retains every daily entry on its selected date and repeated saves do 
   const reloaded = await svcContractMonth(f.db, id, "2026-10");
   assert.equal(reloaded.days.length, 2);
   assert.deepEqual(reloaded.days.find(d => d.date === input.date)?.collections, input.collections);
-  assert.equal(reloaded.days.find(d => d.date === "2026-10-13")?.lines[0].openingQty, 7);
+  assert.equal(reloaded.days.find(d => d.date === "2026-10-13")?.lines[0].openingQty, 0);
 });
 
-test("remaining stock carries across months and becomes the next day's opening stock", async () => {
+test("food stock does not carry to another day or month", async () => {
   const f = fixture();
   const { id } = await svcCreateContract(f.db, f.draft("paid"));
   await svcSaveContractDay(f.db, {
@@ -284,7 +284,7 @@ test("remaining stock carries across months and becomes the next day's opening s
   });
 
   const october = await svcContractMonth(f.db, id, "2026-10");
-  assert.equal(october.openingStock.sandwich, 4);
+  assert.equal(october.openingStock.sandwich, 0);
 
   await svcSaveContractDay(f.db, {
     contractId: id,
@@ -295,10 +295,10 @@ test("remaining stock carries across months and becomes the next day's opening s
   const saved = f.records.get(`contract_days/${id}_2026-10-01`)!;
   const line = (saved.lines as { openingQty: number; sold: number; remaining: number }[])[0];
   assert.deepEqual({ opening: line.openingQty, sold: line.sold, remaining: line.remaining }, {
-    opening: 4, sold: 3, remaining: 3,
+    opening: 0, sold: -1, remaining: 3,
   });
 
-  // غياب الصنف من جرد يوم آخر لا يمحو آخر متبقٍ له ولا يعيد الافتتاحي.
+  // الأصناف غير المعتمدة لا ترحل حتى لو كان لها متبقٍ أو افتتاحي سابق.
   f.contract(id).terms[0].openingQty = 9;
   await svcSaveContractDay(f.db, {
     contractId: id, date: "2026-10-02", lines: [], collections: {},
@@ -310,7 +310,7 @@ test("remaining stock carries across months and becomes the next day's opening s
     collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
   });
   const afterEmptyDay = f.records.get(`contract_days/${id}_2026-10-03`)!.lines as { openingQty: number }[];
-  assert.equal(afterEmptyDay[0].openingQty, 3);
+  assert.equal(afterEmptyDay[0].openingQty, 0);
   await svcSaveContractDay(f.db, {
     contractId: id, date: "2026-10-04",
     lines: [{ barcode: "sandwich", supplied: 0, damaged: 0, remaining: 0 }],

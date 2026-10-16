@@ -8,6 +8,18 @@ export interface CarryDay {
   lines: CarryLine[];
 }
 
+// الأصناف الثلاثة المعتمدة في كتالوج التعاقدات. الباركود ثابت ولو تغير الاسم.
+const CARRY_BARCODES = new Set(["FRJ000109", "FRJ000038", "FRJ000661"]);
+export function canCarryContractItem(barcode: string): boolean {
+  return CARRY_BARCODES.has(barcode);
+}
+
+/** الترحيل التشغيلي مقصور على الماء والعصير والكينزا فقط. */
+export function contractOpeningStockForDate(days: CarryDay[], date: string, monthOpening: Record<string, number>) {
+  const opening = openingStockForDate(days, date, monthOpening);
+  return new Map([...opening].map(([barcode, quantity]) => [barcode, canCarryContractItem(barcode) ? quantity : 0]));
+}
+
 /**
  * رصيد بداية التاريخ المطلوب لكل صنف، من أحدث جرد سابق له.
  * غياب الصنف لا يعني نفاده؛ الصفر الصريح وحده يصفر رصيده.

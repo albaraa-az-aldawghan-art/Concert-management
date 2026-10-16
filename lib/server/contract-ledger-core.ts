@@ -3,7 +3,7 @@ import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcAdjustOutgoingQty, svcSetOutgoingDamage, svcDeleteOutgoing } from "@/lib/server/costs-core";
 import { svcAddContractPayment, svcDeleteContractPayment } from "@/lib/server/contracts-core";
 import type { ContractExpenseKind, ContractType } from "@/types";
-import { openingStockForDate, type CarryDay } from "@/lib/contract-day-carry";
+import { contractOpeningStockForDate, type CarryDay } from "@/lib/contract-day-carry";
 
 /* ═══════════════════════════════════════════════════════════════
    الجدول اليومي للعقد — دفتر تشغيل المقصف.
@@ -106,7 +106,7 @@ async function contractHistory(db: Firestore, contractId: string) {
 }
 
 function stockFromHistory(docs: FirebaseFirestore.QueryDocumentSnapshot[], date: string, contract: ContractDoc) {
-  return openingStockForDate(
+  return contractOpeningStockForDate(
     docs.map((doc) => doc.data() as CarryDay), date,
     Object.fromEntries((contract.terms ?? []).map((term) => [term.barcode, term.openingQty ?? 0])),
   );

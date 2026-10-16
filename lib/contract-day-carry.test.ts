@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { carriedDayLines, openingStockForDate, nextContractDate } from "./contract-day-carry";
+import { carriedDayLines, openingStockForDate, contractOpeningStockForDate, canCarryContractItem, nextContractDate } from "./contract-day-carry";
+
+test("الترحيل محصور في باركود الماء والعصير والكينزا ولا يتأثر بتشابه الأسماء", () => {
+  const water = "FRJ000109", juice = "FRJ000038", kinza = "FRJ000661";
+  const days = [{ date: "2026-10-08", lines: [
+    { barcode: water, remaining: 332 }, { barcode: juice, remaining: 67 },
+    { barcode: kinza, remaining: 701 }, { barcode: "sandwich", remaining: 40 },
+  ] }];
+  const opening = contractOpeningStockForDate(days, "2026-10-11", { sandwich: 99, other: 50 });
+  assert.equal(opening.get(water), 332);
+  assert.equal(opening.get(juice), 67);
+  assert.equal(opening.get(kinza), 701);
+  assert.equal(opening.get("sandwich"), 0);
+  assert.equal(opening.get("other"), 0);
+  assert.equal(canCarryContractItem("عصير"), false);
+  assert.deepEqual(carriedDayLines(["sandwich", juice, water, kinza], opening).map((line) => line.barcode), [juice, water, kinza]);
+});
 
 test("يرحّل رصيد آخر الشهر إلى أول يوم في الشهر التالي", () => {
   const opening = openingStockForDate([], "2026-10-01", { sandwich: 4, juice: 0 });

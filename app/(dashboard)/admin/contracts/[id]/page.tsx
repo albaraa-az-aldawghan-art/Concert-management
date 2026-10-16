@@ -33,7 +33,7 @@ import {
 } from "@/lib/firestore/contract-ledger";
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import { draftSnapshot } from "@/lib/draft-snapshot";
-import { carriedDayLines, openingStockForDate, nextContractDate } from "@/lib/contract-day-carry";
+import { carriedDayLines, contractOpeningStockForDate, canCarryContractItem, nextContractDate } from "@/lib/contract-day-carry";
 import { riyadhDateString } from "@/lib/event-date";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
@@ -249,7 +249,7 @@ export default function ContractDetailPage() {
   }, [contract?.ledger?.itemOrder, terms]);
 
   /* رصيد أول اليوم كما سيحسبه الخادم — من آخر يوم مسجَّل قبل التاريخ */
-  const openingMap = useMemo(() => openingStockForDate(
+  const openingMap = useMemo(() => contractOpeningStockForDate(
     data?.days ?? [],
     date,
     data?.openingStock ?? Object.fromEntries(terms.map((term) => [term.barcode, term.openingQty ?? 0])),
@@ -460,7 +460,7 @@ export default function ContractDetailPage() {
   function changeDate(nextDate: string, keepItems = false) {
     if (saveInFlight.current || monthLoading || monthError) return;
     if (!nextContractDate(nextDate)) return;
-    const barcodes = lines.map((line) => line.barcode);
+    const barcodes = lines.map((line) => line.barcode).filter(canCarryContractItem);
     requestLocal(() => {
       nextDayItems.current = keepItems ? { date: nextDate, barcodes } : null;
       setDate(nextDate);
@@ -608,7 +608,7 @@ export default function ContractDetailPage() {
           </div>
         </div>
 
-        <p className="text-xs text-slate-500 leading-6">رصيد أول اليوم هو المتبقي من آخر جرد محفوظ لكل صنف قبل هذا التاريخ، حتى مع وجود أيام دون تسجيل. لا تُنسخ التحصيلات أو المصروفات إلى اليوم الجديد.</p>
+        <p className="text-xs text-slate-500 leading-6">يُرحّل المتبقي من الماء والعصير والكينزا فقط، من آخر جرد محفوظ لكل منها قبل هذا التاريخ. بقية الأصناف تبدأ برصيد أول يوم 0، ولا تُنسخ التحصيلات أو المصروفات.</p>
 
         {isPosted && (
           <div className="flex items-start gap-2.5 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-600">
