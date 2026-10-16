@@ -238,7 +238,7 @@ export default function KitchenPage() {
         </>
       )}
       <Modal open={exportOpen&&canExport} onClose={()=>{if(!exporting)setExportOpen(false)}} title="تجميع أصناف الحفلات إلى PDF" size="lg">
-        <p className="mb-3 text-sm text-slate-500">اختر الحفلات المستلمة المطابقة للفلاتر. يحتوي PDF على جدول مستقل لكل قسم وأصنافه، وأسماء الحفلات وتواريخها، مع توضيح أي كميات غير محددة.</p>
+        <p className="mb-3 text-sm text-slate-500">اختر الحفلات المستلمة المطابقة للفلاتر. يظهر PDF كجدول واحد: اسم الحفلة، تاريخها، اسم الصنف، العدد، ملاحظات 1 وملاحظات 2، دون المكان. كل كمية مرتبطة بحفلتها.</p>
         <div className="mb-3 flex gap-2"><Button variant="secondary" size="sm" onClick={()=>setExportIds(eligible.map(order=>order.id))} disabled={exporting}>تحديد الكل</Button><Button variant="secondary" size="sm" onClick={()=>setExportIds([])} disabled={exporting}>إلغاء التحديد</Button></div>
         <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200">
           {eligible.map(order=><label key={order.id} className="flex items-center gap-3 border-b border-slate-100 p-3 text-sm last:border-0"><input type="checkbox" aria-label={`اختيار الحفلة ${order.concertNumber}`} disabled={exporting} checked={exportIds.includes(order.id)} onChange={event=>setExportIds(ids=>event.target.checked?[...ids,order.id]:ids.filter(id=>id!==order.id))}/><span className="min-w-0">{kitchenConcertName(order)}<small className="block text-slate-500">{formatDate(order.concertDate)} · {order.venueName||"بلا مكان"}</small></span></label>)}
