@@ -16,6 +16,9 @@ export function LatinInput({ type = "text", value, defaultValue, onChange, onBlu
   const [popupLayout, setPopupLayout] = useState({ left: 0, width: 288 });
   const formatted = value == null ? toLatinDigits(String(defaultValue ?? "")) : toLatinDigits(String(value));
   const [edit, setEdit] = useState({ source: formatted, text: formatted });
+  // Forget an old local draft when the controlled value changes, including
+  // A -> B -> A navigation. Otherwise A can resurrect B's old typed text.
+  if (edit.source !== formatted) setEdit({ source: formatted, text: formatted });
   const draft = edit.source === formatted ? edit.text : formatted;
   const [view, setView] = useState(() => formatted.slice(0, 7) || new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 7));
 

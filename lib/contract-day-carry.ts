@@ -9,8 +9,8 @@ export interface CarryDay {
 }
 
 /**
- * رصيد بداية التاريخ المطلوب. يبدأ برصيد ما قبل الشهر، ثم يأخذ آخر
- * جرد مسجل داخل الشهر قبل التاريخ. الصنف الغائب من آخر جرد رصيده صفر.
+ * رصيد بداية التاريخ المطلوب لكل صنف، من أحدث جرد سابق له.
+ * غياب الصنف لا يعني نفاده؛ الصفر الصريح وحده يصفر رصيده.
  */
 export function openingStockForDate(
   days: CarryDay[],
@@ -19,12 +19,20 @@ export function openingStockForDate(
 ): Map<string, number> {
   const previous = days
     .filter((day) => day.date < date)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .at(-1);
-  const source = previous
-    ? Object.fromEntries(previous.lines.map((line) => [line.barcode, line.remaining]))
-    : monthOpening;
-  return new Map(Object.entries(source).map(([barcode, quantity]) => [barcode, Number(quantity) || 0]));
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const opening = new Map(Object.entries(monthOpening).map(([barcode, quantity]) => [barcode, Number(quantity) || 0]));
+  for (const day of previous) {
+    for (const line of day.lines) opening.set(line.barcode, Number(line.remaining) || 0);
+  }
+  return opening;
+}
+
+/** تقدم يوم تقويمي واحد دون الاعتماد على توقيت الجهاز أو طول الشهر. */
+export function nextContractDate(date: string): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(value.getTime()) || value.toISOString().slice(0, 10) !== date) return "";
+  value.setUTCDate(value.getUTCDate() + 1);
+  return value.toISOString().slice(0, 10);
 }
 
 /** اليوم الجديد يبدأ فقط بالأصناف التي بقي منها رصيد، دون تسجيل بيع وهمي. */

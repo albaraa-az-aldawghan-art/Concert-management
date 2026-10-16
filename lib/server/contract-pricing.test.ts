@@ -298,7 +298,7 @@ test("remaining stock carries across months and becomes the next day's opening s
     opening: 4, sold: 3, remaining: 3,
   });
 
-  // إذا غاب الصنف من آخر جرد فلا يعود رصيده الافتتاحي القديم من جديد.
+  // غياب الصنف من جرد يوم آخر لا يمحو آخر متبقٍ له ولا يعيد الافتتاحي.
   f.contract(id).terms[0].openingQty = 9;
   await svcSaveContractDay(f.db, {
     contractId: id, date: "2026-10-02", lines: [], collections: {},
@@ -310,5 +310,11 @@ test("remaining stock carries across months and becomes the next day's opening s
     collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
   });
   const afterEmptyDay = f.records.get(`contract_days/${id}_2026-10-03`)!.lines as { openingQty: number }[];
-  assert.equal(afterEmptyDay[0].openingQty, 0);
+  assert.equal(afterEmptyDay[0].openingQty, 3);
+  await svcSaveContractDay(f.db, {
+    contractId: id, date: "2026-10-04",
+    lines: [{ barcode: "sandwich", supplied: 0, damaged: 0, remaining: 0 }],
+    collections: {}, expenses: [], custody: null, notes: null, uid: "admin",
+  });
+  assert.equal((f.records.get(`contract_days/${id}_2026-10-04`)!.lines as { openingQty: number }[])[0].openingQty, 0);
 });

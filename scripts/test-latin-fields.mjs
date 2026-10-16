@@ -15,6 +15,7 @@ function App(){
  const [date,setDate]=useState('2026-10-08');
  const [month,setMonth]=useState('2026-10');
  const [datetime,setDatetime]=useState('2026-10-08T13:45');
+ window.setDateForTest=setDate;
  window.values={number,date,month,datetime};
  return <main><LatinNumeralsGuard/><form>
  <LatinInput id="number" type="number" min="0" step="0.01" value={number} onChange={e=>setNumber(e.target.value)}/>
@@ -43,6 +44,9 @@ try{
  await page.$eval('#date',e=>{e.focus();e.select();});await page.keyboard.type('2026-10-');
  assert.equal(await page.evaluate(()=>window.values.date),'2026-10-08');
  await page.keyboard.type('09');assert.equal(await page.evaluate(()=>window.values.date),'2026-10-09');
+ // External next-day/previous-day changes must not resurrect an old typed draft.
+ await page.evaluate(()=>window.setDateForTest('2026-10-08'));await page.waitForFunction(()=>document.querySelector('#date').value==='2026-10-08');
+ await page.evaluate(()=>window.setDateForTest('2026-10-09'));await page.waitForFunction(()=>document.querySelector('#date').value==='2026-10-09');
  await page.$eval('#date',e=>e.parentElement.querySelector('button').click());await page.click('[aria-label="2026-10-10"]');
  assert.equal(await page.evaluate(()=>window.values.date),'2026-10-10');
  await page.$eval('#month',e=>e.parentElement.querySelector('button').click());await page.click('[aria-label="2026-11"]');

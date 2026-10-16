@@ -33,7 +33,7 @@ import {
 } from "@/lib/firestore/contract-ledger";
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import { draftSnapshot } from "@/lib/draft-snapshot";
-import { carriedDayLines, openingStockForDate } from "@/lib/contract-day-carry";
+import { carriedDayLines, openingStockForDate, nextContractDate } from "@/lib/contract-day-carry";
 import { riyadhDateString } from "@/lib/event-date";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
@@ -162,6 +162,7 @@ export default function ContractDetailPage() {
   const [data, setData] = useState<ContractMonth | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthLoading, setMonthLoading] = useState(true);
+  const [monthError, setMonthError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   /* ── مسودّة اليوم ── */
@@ -176,6 +177,7 @@ export default function ContractDetailPage() {
   const [savedDaySnapshot, setSavedDaySnapshot] = useState("");
   const hydratedDay = useRef<{ date: string; data: ContractMonth | null } | null>(null);
   const saveInFlight = useRef(false);
+  const nextDayItems = useRef<{ date: string; barcodes: string[] } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -222,8 +224,12 @@ export default function ContractDetailPage() {
     setMonthLoading(true);
     try {
       setData(await getContractMonth(id, month));
+      setMonthError(false);
+      return true;
     } catch (e) {
+      setMonthError(true);
       showToast(e instanceof Error ? e.message : "تعذّر تحميل الشهر", "error");
+      return false;
     } finally {
       setMonthLoading(false);
     }
@@ -294,11 +300,18 @@ export default function ContractDetailPage() {
       nextNotes = day.notes ?? "";
     } else {
       nextLines = carriedDayLines(orderedBarcodes, openingMap);
+      if (nextDayItems.current?.date === date) {
+        const keep = new Set([...nextDayItems.current.barcodes, ...nextLines.map((line) => line.barcode)]);
+        nextLines = orderedBarcodes.filter((barcode) => keep.has(barcode)).map((barcode) => ({
+          barcode, supplied: "", damaged: "", remaining: String(openingMap.get(barcode) ?? 0),
+        }));
+      }
       nextCollections = {};
       nextExpenses = {};
       nextNotes = "";
       nextCustody = String(contract?.ledger?.defaultCustody ?? 500);
     }
+    nextDayItems.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- تحميل مسودة التاريخ المختار من الخادم إلى حقول التحرير
     setLines(nextLines);
     setCollections(nextCollections);
@@ -358,7 +371,7 @@ export default function ContractDetailPage() {
       const existing = new Set(prev.map((l) => l.barcode));
       const merged = [
         ...prev,
-        ...secItems.filter((it) => !existing.has(it.id)).map((it) => ({ barcode: it.id, supplied: "", damaged: "", remaining: "" })),
+        ...secItems.filter((it) => !existing.has(it.id)).map((it) => ({ barcode: it.id, supplied: "", damaged: "", remaining: String(openingMap.get(it.id) ?? 0) })),
       ];
       const known = new Set(merged.map((l) => l.barcode));
       const byBarcode = new Map(merged.map((l) => [l.barcode, l]));
@@ -396,7 +409,7 @@ export default function ContractDetailPage() {
   }
 
   async function handleSaveDay(): Promise<boolean> {
-    if (saveInFlight.current || monthLoading || !editable) return false;
+    if (saveInFlight.current || monthLoading || monthError || !editable) return false;
     if (lines.length === 0) { showToast("أضف صنفاً واحداً على الأقل", "error"); return false; }
     const fields = [...lines.flatMap((l) => [l.supplied, l.damaged, l.remaining]), ...Object.values(collections), ...Object.values(expenses), custody];
     if (fields.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
@@ -416,9 +429,12 @@ export default function ContractDetailPage() {
         custody: num(custody),
         notes: notes.trim() || null,
       });
-      showToast(`تم حفظ بيانات يوم ${date}`);
       setSavedDaySnapshot(currentDaySnapshot);
-      await loadMonth();
+      if (!await loadMonth()) {
+        showToast("حُفظ اليوم، لكن تعذّر تحديث الأرصدة. أعد تحميلها قبل الانتقال لليوم التالي.", "error");
+        return false;
+      }
+      showToast(`تم حفظ بيانات يوم ${date}`);
       return true;
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذّر الحفظ", "error");
@@ -441,9 +457,12 @@ export default function ContractDetailPage() {
     discardLabel: "المغادرة دون حفظ",
   }));
 
-  function changeDate(nextDate: string) {
-    if (saveInFlight.current || monthLoading) return;
+  function changeDate(nextDate: string, keepItems = false) {
+    if (saveInFlight.current || monthLoading || monthError) return;
+    if (!nextContractDate(nextDate)) return;
+    const barcodes = lines.map((line) => line.barcode);
     requestLocal(() => {
+      nextDayItems.current = keepItems ? { date: nextDate, barcodes } : null;
       setDate(nextDate);
       setMonth(monthOf(nextDate));
     });
@@ -567,13 +586,20 @@ export default function ContractDetailPage() {
 
       {/* ══ إدخال اليوم ══ */}
       <Card data-calendar-boundary>
-        <fieldset disabled={saving || monthLoading} className="min-w-0 space-y-4">
+        {monthError && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          تعذّر تحميل الأرصدة. أوقفنا الإدخال والانتقال حتى لا تُستخدم أرقام قديمة.
+          <Button type="button" variant="outline" size="sm" className="mt-2" disabled={saving || monthLoading} onClick={() => void loadMonth()}>إعادة تحميل الأرصدة</Button>
+        </div>}
+        <fieldset disabled={saving || monthLoading || monthError} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Table2 size={17} className="text-[#1C2D50]" /> يوم التشغيل
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <Input type="date" aria-label="تاريخ يوم التشغيل" value={date} disabled={saving || monthLoading} onChange={(e) => changeDate(e.target.value)} className="max-w-[10.5rem]" />
+            <Button type="button" variant="outline" size="sm" disabled={saving || monthLoading} onClick={() => changeDate(nextContractDate(date), true)}>
+              اليوم التالي
+            </Button>
             {fx.del && data?.days.some((d) => d.date === date) && (
               <button onClick={() => setDeleteDayTarget(date)} className="p-2 text-slate-400 hover:text-red-500" title="حذف اليوم">
                 <Trash2 size={15} />
@@ -581,6 +607,8 @@ export default function ContractDetailPage() {
             )}
           </div>
         </div>
+
+        <p className="text-xs text-slate-500 leading-6">رصيد أول اليوم هو المتبقي من آخر جرد محفوظ لكل صنف قبل هذا التاريخ، حتى مع وجود أيام دون تسجيل. لا تُنسخ التحصيلات أو المصروفات إلى اليوم الجديد.</p>
 
         {isPosted && (
           <div className="flex items-start gap-2.5 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-600">

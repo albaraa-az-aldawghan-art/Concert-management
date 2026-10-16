@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcAdjustOutgoingQty, svcSetOutgoingDamage, svcDeleteOutgoing } from "@/lib/server/costs-core";
 import { svcAddContractPayment, svcDeleteContractPayment } from "@/lib/server/contracts-core";
 import type { ContractExpenseKind, ContractType } from "@/types";
+import { openingStockForDate, type CarryDay } from "@/lib/contract-day-carry";
 
 /* ═══════════════════════════════════════════════════════════════
    الجدول اليومي للعقد — دفتر تشغيل المقصف.
@@ -79,7 +80,6 @@ interface ContractDoc {
    مركّباً، وإنشاء الفهارس ليس بيد حساب الخدمة الذي ينشر القواعد — فكان
    الجدول سيتعطّل عند أول استعمال على الإنتاج. */
 const dayId = (contractId: string, date: string) => `${contractId}_${date}`;
-const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** أيام شهر كاملاً — إحدى وثلاثون قراءة معروفة العناوين، بلا فهرس */
 async function daysOfMonth(db: Firestore, contractId: string, month: string) {
@@ -100,25 +100,16 @@ async function loadContract(db: Firestore, contractId: string) {
    يُقرأ من آخر يوم مسجَّل قبل هذا التاريخ لا من اليوم السابق مباشرةً:
    المقصف يُغلق في العطل، ولو بحثنا عن «أمس» حرفياً لضاع رصيد الخميس
    يوم الأحد. هذا بالضبط ما تفعله ورقة الإكسل حين تُخفي أيام العطلة. */
-async function openingByBarcode(db: Firestore, contractId: string, date: string) {
-  /* يمشي للوراء يوماً تقويمياً بيوم، عشرةً في كل دفعة، ويقف عند أول
-     يوم موجود — فالمعتاد عشر قراءات لا مسحُ تاريخ العقد كله. */
-  const CHUNK = 10, MAX_BACK = 180;
-  const cursor = new Date(`${date}T00:00:00Z`);
-  let prev: FirebaseFirestore.DocumentSnapshot | undefined;
-  for (let done = 0; done < MAX_BACK && !prev; done += CHUNK) {
-    const refs = [];
-    for (let i = 0; i < CHUNK; i++) {
-      cursor.setUTCDate(cursor.getUTCDate() - 1);
-      refs.push(db.collection("contract_days").doc(dayId(contractId, iso(cursor))));
-    }
-    prev = (await db.getAll(...refs)).find((s) => s.exists); // الأقرب أولاً
-  }
-  const map = new Map<string, number>();
-  if (prev) {
-    for (const l of (prev.data()!.lines ?? []) as StoredLine[]) map.set(l.barcode, l.remaining ?? 0);
-  }
-  return { map, hasPrev: !!prev };
+async function contractHistory(db: Firestore, contractId: string) {
+  // استعلام مساواة واحد بلا فهرس مركب، ولا مسح لأيام فارغة أو حد 180 يوماً.
+  return (await db.collection("contract_days").where("contractId", "==", contractId).get()).docs;
+}
+
+function stockFromHistory(docs: FirebaseFirestore.QueryDocumentSnapshot[], date: string, contract: ContractDoc) {
+  return openingStockForDate(
+    docs.map((doc) => doc.data() as CarryDay), date,
+    Object.fromEntries((contract.terms ?? []).map((term) => [term.barcode, term.openingQty ?? 0])),
+  );
 }
 
 /* ── الحفظ ───────────────────────────────────────────────────── */
@@ -153,7 +144,7 @@ export async function svcSaveContractDay(
     ((existing.data()?.lines ?? []) as StoredLine[]).map((l) => [l.barcode, l])
   );
 
-  const { map: opening, hasPrev } = await openingByBarcode(db, d.contractId, d.date);
+  const opening = stockFromHistory(await contractHistory(db, d.contractId), d.date, contract);
 
   /* ١) يُتحقّق من كل السطور قبل لمس المخزون: لا يُصرف نصف يوم ثم يُرفض */
   const seen = new Set<string>();
@@ -168,9 +159,7 @@ export async function svcSaveContractDay(
       if (!Number.isFinite(v) || v < 0) throw new ApiError(`${label} في "${term.itemName}" لا يقبل قيمة سالبة`);
     }
 
-    // بعد وجود أول يوم مسجل لا نعيد إحياء الرصيد الافتتاحي للصنف إذا
-    // غاب من اليوم السابق؛ الغياب من آخر جرد يعني أن رصيده صفر.
-    const openingQty = opening.get(raw.barcode) ?? (hasPrev ? 0 : term.openingQty ?? 0);
+    const openingQty = opening.get(raw.barcode) ?? term.openingQty ?? 0;
     const available = r2(raw.supplied + openingQty);
     /* التالف والمتبقي قد يتجاوزان المتاح أثناء التعبئة التدريجية لليوم —
        لا يُرفض الحفظ لهذا، بل يُحسب «المباع» سالباً فيظهر الخطأ بصرياً
@@ -357,14 +346,9 @@ export async function svcDeleteContractDay(db: Firestore, contractId: string, da
 export async function svcContractMonth(db: Firestore, contractId: string, month: string) {
   if (!/^\d{4}-\d{2}$/.test(month)) throw new ApiError("الشهر بصيغة yyyy-mm");
   const { data: contract } = await loadContract(db, contractId);
-  const docs = await daysOfMonth(db, contractId, month);
-  const beforeMonth = await openingByBarcode(db, contractId, `${month}-01`);
-  const openingStock = Object.fromEntries(
-    (contract.terms ?? []).map((term) => [
-      term.barcode,
-      beforeMonth.map.get(term.barcode) ?? (beforeMonth.hasPrev ? 0 : term.openingQty ?? 0),
-    ])
-  );
+  const history = await contractHistory(db, contractId);
+  const docs = history.filter((doc) => String(doc.data().date).startsWith(`${month}-`));
+  const openingStock = Object.fromEntries(stockFromHistory(history, `${month}-01`, contract));
 
   const days = docs
     .map((x) => x.data() as { date: string; lines: StoredLine[]; totals: Record<string, number>; collections: Record<string, number>; expenses: { key: string; label: string; kind: string; amount: number }[]; custody: number; postedPaymentIds: string[] | null })
@@ -375,7 +359,7 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
     byItem.set(t.barcode, {
       barcode: t.barcode, itemName: t.itemName, unit: t.unit, salePrice: t.unitPrice ?? 0,
       category: t.category ?? null,
-      soldQty: 0, revenue: 0, cost: 0, damaged: 0, supplied: 0, closing: t.openingQty ?? 0,
+      soldQty: 0, revenue: 0, cost: 0, damaged: 0, supplied: 0, closing: openingStock[t.barcode] ?? 0,
     });
   }
   for (const day of days) {
