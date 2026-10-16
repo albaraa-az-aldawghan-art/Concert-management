@@ -33,7 +33,7 @@ import {
 } from "@/lib/firestore/contract-ledger";
 import type { Contract, CostItem, SalesSection, ContractExpenseKind } from "@/types";
 import { draftSnapshot } from "@/lib/draft-snapshot";
-import { carriedDayLines, contractOpeningStockForDate, canCarryContractItem, nextContractDate } from "@/lib/contract-day-carry";
+import { carriedDayLines, contractOpeningStockForDate, nextContractDate } from "@/lib/contract-day-carry";
 import { riyadhDateString } from "@/lib/event-date";
 import {
   FileSignature, ChevronRight, Plus, Trash2, Save, Settings2, Download,
@@ -208,6 +208,11 @@ export default function ContractDetailPage() {
       setItems(its);
       setSections(secs);
       if (c) {
+        const available = secs.filter((section) => !c.ledger?.sectionIds?.length || c.ledger.sectionIds.includes(section.id));
+        let remembered = "";
+        try { remembered = sessionStorage.getItem(`contract-ledger-section:${id}`) ?? ""; } catch { /* التخزين قد يكون محجوباً */ }
+        const preferred = [remembered, c.priceSectionId, available.length === 1 ? available[0].id : ""];
+        setPickSection(preferred.find((sectionId) => available.some((section) => section.id === sectionId)) ?? "");
         setCfgLines(c.ledger?.expenseLines?.length ? c.ledger.expenseLines : DEFAULT_EXPENSES);
         setCfgCustody(String(c.ledger?.defaultCustody ?? 500));
         setCfgSections(c.ledger?.sectionIds ?? []);
@@ -300,12 +305,17 @@ export default function ContractDetailPage() {
       nextNotes = day.notes ?? "";
     } else {
       nextLines = carriedDayLines(orderedBarcodes, openingMap);
-      if (nextDayItems.current?.date === date) {
-        const keep = new Set([...nextDayItems.current.barcodes, ...nextLines.map((line) => line.barcode)]);
-        nextLines = orderedBarcodes.filter((barcode) => keep.has(barcode)).map((barcode) => ({
-          barcode, supplied: "", damaged: "", remaining: String(openingMap.get(barcode) ?? 0),
-        }));
-      }
+      // أسماء الصفوف مستقلة عن الأرصدة: اعرض القسم كاملاً، لكن لا ترحّل
+      // أي كمية إلا للأصناف الثلاثة التي يسمح بها openingMap.
+      const section = sections.find((section) => section.id === pickSection);
+      const sectionBarcodes = section ? itemsOfSection(items, section.id, section.itemOrder).map((item) => item.id) : [];
+      const keep = new Set([
+        ...nextLines.map((line) => line.barcode), ...sectionBarcodes,
+        ...(nextDayItems.current?.date === date ? nextDayItems.current.barcodes : []),
+      ]);
+      nextLines = orderedBarcodes.filter((barcode) => keep.has(barcode)).map((barcode) => ({
+        barcode, supplied: "", damaged: "", remaining: String(openingMap.get(barcode) ?? 0),
+      }));
       nextCollections = {};
       nextExpenses = {};
       nextNotes = "";
@@ -322,7 +332,7 @@ export default function ContractDetailPage() {
       date, lines: nextLines, collections: nextCollections, expenses: nextExpenses,
       custody: nextCustody, notes: nextNotes,
     }));
-  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, openingMap, orderedBarcodes]);
+  }, [date, data, monthLoading, contract?.ledger?.defaultCustody, openingMap, orderedBarcodes, pickSection, sections, items]);
 
   const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
@@ -360,6 +370,10 @@ export default function ContractDetailPage() {
      فيها أرقام لا تُفقَد بضغطة رجوع للقائمة. */
   function selectSection(sectionId: string) {
     setPickSection(sectionId);
+    try {
+      if (sectionId) sessionStorage.setItem(`contract-ledger-section:${id}`, sectionId);
+      else sessionStorage.removeItem(`contract-ledger-section:${id}`);
+    } catch { /* يبقى الاختيار في الذاكرة إذا حُجب التخزين */ }
     if (!sectionId) return;
     const sectionOrder = sections.find((s) => s.id === sectionId)?.itemOrder;
     const secItems = itemsOfSection(items, sectionId, sectionOrder).filter((it) => termOf.has(it.id));
@@ -460,7 +474,7 @@ export default function ContractDetailPage() {
   function changeDate(nextDate: string, keepItems = false) {
     if (saveInFlight.current || monthLoading || monthError) return;
     if (!nextContractDate(nextDate)) return;
-    const barcodes = lines.map((line) => line.barcode).filter(canCarryContractItem);
+    const barcodes = lines.map((line) => line.barcode);
     requestLocal(() => {
       nextDayItems.current = keepItems ? { date: nextDate, barcodes } : null;
       setDate(nextDate);
