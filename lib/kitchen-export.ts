@@ -49,6 +49,7 @@ export function aggregateKitchenOrders(orders: KitchenExportOrder[]) {
   for (const row of rows.values()) names.set(row.name, (names.get(row.name) ?? 0) + 1);
   return [...rows.values()].map(row => ({
     category: row.category,
+    itemName: row.name,
     name: (names.get(row.name) ?? 0) > 1 && row.category ? `${row.name} (${row.category})` : row.name,
     quantity: row.known ? Number(row.quantity.toFixed(9)) : null,
     missingConcertNumbers: [...row.missing],
