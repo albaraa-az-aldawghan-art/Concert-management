@@ -2,6 +2,8 @@
 
 /* إنشاء حفلة: البيانات والموقع والمواد وأصناف الأكل والدفعات في صفحة واحدة، مع عرض المتوفر من الخامات وتكلفتها التقديرية. */
 import { LatinInput } from "@/components/ui/latin-input";
+import { CustomerPicker } from "@/components/ui/customer-picker";
+import { normalizeClientContact } from "@/lib/customer-choices";
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -113,6 +115,7 @@ function NewConcertPageInner() {
   const [vatRate, setVatRate] = useState<number>(15);
 
   const [form, setForm] = useState({
+    customerId: "",
     date: "",
     price: "",
     clientName: "",
@@ -214,7 +217,7 @@ function NewConcertPageInner() {
       if (draftParam) {
         const draft = await getConcertDraft(draftParam).catch(() => null);
         if (draft) {
-          setForm(draft.form);
+          setForm({...draft.form,customerId:draft.form.customerId??""});
           setHallCostType(draft.hallCostType);
           setHallCostValue(draft.hallCostValue);
           setHallCostDate(draft.hallCostDate);
@@ -237,7 +240,7 @@ function NewConcertPageInner() {
           setActiveItemType(restoredType);
           setInitialExpenses(draft.initialExpenses ?? []);
           setSavedSnapshot(draftSnapshot({
-            form: draft.form, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
+            form: {...draft.form,customerId:draft.form.customerId??""}, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
             hallCostDate: draft.hallCostDate, hallCostRecipient: draft.hallCostRecipient,
             location: draft.location, itemCheck: draft.itemCheck, foodCheck: draft.foodCheck,
             foodMetaLite: Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, {
@@ -408,6 +411,7 @@ function NewConcertPageInner() {
     if (!form.clientName.trim())      { showToast("يرجى إدخال اسم العميل", "error"); return; }
     if (!form.clientPhone.trim())     { showToast("يرجى إدخال رقم جوال العميل", "error"); return; }
     if (!form.date)                   { showToast("يرجى تحديد تاريخ الحفلة", "error"); return; }
+    let contact;try{contact=normalizeClientContact(form);}catch(error){showToast((error as Error).message,"error");return;}
     saveLock.current = true;
     setSaving(true);
     try {
@@ -425,9 +429,8 @@ function NewConcertPageInner() {
         venueName: form.venueName.trim() || null,
         peopleCount: form.peopleCount.trim() || null,
         notes: form.notes.trim() || null,
-        clientName: form.clientName || null,
-        clientPhone: form.clientPhone || null,
-        clientPhone2: form.clientPhone2 || null,
+        ...contact,
+        customerId: form.customerId||null,
         supervisorIds: form.supervisorIds,
         employeeIds: form.employeeIds,
         hallCostType,
@@ -624,6 +627,7 @@ function NewConcertPageInner() {
         <Card>
           <h3 className="font-bold text-slate-700 mb-4">معلومات العميل</h3>
           <div className="space-y-4">
+            <CustomerPicker value={form.customerId} onSelect={choice=>setForm(current=>({...current,customerId:choice?.id??"",clientName:choice?.name??"",clientPhone:choice?.primaryPhone??"",clientPhone2:choice?.secondaryPhone??""}))}/>
             <Input
               label="اسم العميل"
               value={form.clientName}
@@ -633,9 +637,9 @@ function NewConcertPageInner() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="رقم الجوال الأول" type="tel" value={form.clientPhone}
-                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })} required placeholder="05xxxxxxxx" maxLength={10} />
+                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })} required placeholder="05xxxxxxxx" maxLength={24} />
               <Input label="رقم الجوال الثاني" type="tel" value={form.clientPhone2}
-                onChange={(e) => setForm({ ...form, clientPhone2: e.target.value })} placeholder="05xxxxxxxx (اختياري)" maxLength={10} />
+                onChange={(e) => setForm({ ...form, clientPhone2: e.target.value })} placeholder="05xxxxxxxx (اختياري)" maxLength={24} />
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">

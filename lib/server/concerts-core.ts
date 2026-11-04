@@ -4,6 +4,8 @@ import { syncDispenseRequest } from "@/lib/server/dispense-requests-core";
 import { svcSettleOutgoing } from "@/lib/server/costs-core";
 import { svcReleaseConcertStock } from "@/lib/server/stock-core";
 import { concertCustomerId, normalizeCustomerPhone } from "@/lib/concert-customers";
+import { normalizeClientContact } from "@/lib/customer-choices";
+import { customerPhoneOwners, listCustomerChoices } from "./customer-choices";
 
 /* ═══════════════════════════════════════════════════════════════
    الحفلات وفواتير مصروفاتها على الخادم.
@@ -34,14 +36,20 @@ function toTimestamp(v: unknown): Timestamp | null {
 /* ── إنشاء وتعديل الحفلة ───────────────────────────────────── */
 
 export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>, uid: string) {
+  d={...d,...normalizeClientContact({clientName:d.clientName??d.name,clientPhone:d.clientPhone,clientPhone2:d.clientPhone2})};
   const counterRef = db.collection("counters").doc("concerts");
   const concertRef = db.collection("concerts").doc();
   const phoneKey = normalizeCustomerPhone(d.clientPhone);
   let customerId = concertCustomerId(d.clientPhone, concertRef.id);
-  if (phoneKey) {
-    const existingCustomer = await db.collection("concert_customers")
-      .where("phoneKeys", "array-contains", phoneKey).limit(1).get();
-    if (!existingCustomer.empty) customerId = existingCustomer.docs[0].id;
+  const owners=await customerPhoneOwners(db,phoneKey);
+  if(owners.length>1)throw new ApiError("رقم الجوال مرتبط بأكثر من عميل؛ راجع سجل العملاء قبل الحفظ");
+  if(owners.length)customerId=owners[0];
+  if(d.customerId){
+    if(typeof d.customerId!=="string"||!/^(phone_|concert_)[A-Za-z0-9_-]+$/.test(d.customerId))throw new ApiError("معرّف العميل غير صحيح");
+    const selected=await db.collection("concert_customers").doc(d.customerId).get();
+    if(!selected.exists&&!(await listCustomerChoices(db)).some(c=>c.id===d.customerId))throw new ApiError("العميل المختار لم يعد موجودًا؛ حدّث قائمة العملاء");
+    if(owners.some(owner=>owner!==d.customerId))throw new ApiError("رقم الجوال يخص عميلًا آخر؛ اختره من القائمة بدل دمج العميلين");
+    customerId=d.customerId;
   }
   const customerRef = db.collection("concert_customers").doc(customerId);
   const initialExpenses = Array.isArray(d.initialExpenses) ? d.initialExpenses as {
@@ -114,7 +122,7 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
       name: typeof d.clientName === "string" && d.clientName.trim() ? d.clientName.trim() : String(d.name ?? "").trim(),
       primaryPhone: typeof d.clientPhone === "string" ? d.clientPhone.trim() : "",
       secondaryPhone: typeof d.clientPhone2 === "string" && d.clientPhone2.trim() ? d.clientPhone2.trim() : null,
-      phoneKeys: [...new Set([...oldPhoneKeys, phoneKey].filter(Boolean))],
+      phoneKeys: [...new Set([...oldPhoneKeys, phoneKey,normalizeCustomerPhone(d.clientPhone2)].filter(Boolean))],
       ...(customerSnap.exists ? {} : {
         source: null, referralName: null, notes: null,
         createdAt: Timestamp.now(), createdBy: uid,
@@ -182,24 +190,32 @@ export async function svcUpdateConcert(db: Firestore, id: string, d: Record<stri
   if (Object.keys(patch).length === 0) throw new ApiError("لا يوجد ما يُعدَّل");
   if (patch.clientPhone !== undefined || patch.clientName !== undefined || patch.clientPhone2 !== undefined) {
     const current = currentSnap.data()!;
-    const nextPhone = patch.clientPhone ?? current.clientPhone;
+    const contact=normalizeClientContact({clientName:patch.clientName??current.clientName??current.name,clientPhone:patch.clientPhone??current.clientPhone,clientPhone2:Object.hasOwn(patch,"clientPhone2")?patch.clientPhone2:current.clientPhone2});
+    Object.assign(patch,contact);
+    const nextPhone = contact.clientPhone;
     const phoneKey = normalizeCustomerPhone(nextPhone);
+    const currentOwners=await customerPhoneOwners(db,normalizeCustomerPhone(current.clientPhone));
+    if(!current.customerId&&currentOwners.length>1)throw new ApiError("سجل العميل مرتبط بأكثر من ملف؛ راجع سجل العملاء أولًا");
     const customerId = typeof current.customerId === "string" && current.customerId
       ? current.customerId
-      : concertCustomerId(nextPhone, id);
+      : currentOwners[0]??concertCustomerId(current.clientPhone, id);
+    const owners=await customerPhoneOwners(db,phoneKey);
+    if(owners.some(owner=>owner!==customerId))throw new ApiError("رقم الجوال مرتبط بعميل آخر؛ لا يمكن دمج السجلات تلقائيًا");
     const customerRef = db.collection("concert_customers").doc(customerId);
     const profile = await customerRef.get();
     const oldKeys = Array.isArray(profile.data()?.phoneKeys) ? profile.data()!.phoneKeys as string[] : [];
-    await customerRef.set({
+    const batch=db.batch();
+    batch.set(customerRef, {
       name: String(patch.clientName ?? current.clientName ?? current.name ?? "").trim(),
       primaryPhone: String(nextPhone ?? "").trim(),
-      secondaryPhone: String(patch.clientPhone2 ?? current.clientPhone2 ?? "").trim() || null,
-      phoneKeys: [...new Set([...oldKeys, phoneKey].filter(Boolean))],
+      secondaryPhone: contact.clientPhone2,
+      phoneKeys: [...new Set([...oldKeys,normalizeCustomerPhone(current.clientPhone),normalizeCustomerPhone(current.clientPhone2),phoneKey,normalizeCustomerPhone(contact.clientPhone2)].filter(Boolean))],
       ...(profile.exists ? {} : { source: null, referralName: null, notes: null, createdAt: Timestamp.now(), createdBy: current.createdBy ?? "" }),
       updatedAt: Timestamp.now(),
       updatedBy: uid || current.createdBy || "",
     }, { merge: true });
     patch.customerId = customerId;
+    batch.update(ref,patch);await batch.commit();return;
   }
   await ref.update(patch);
 }

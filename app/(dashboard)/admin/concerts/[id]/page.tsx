@@ -2,6 +2,7 @@
 
 /* تفاصيل الحفلة: التعديل والمواد والأكل والدفعات والمصروفات وخطوات التنفيذ وسجل التغييرات. */
 import { LatinInput } from "@/components/ui/latin-input";
+import { ConcertClientEditor } from "@/components/ui/concert-client-editor";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -28,7 +29,7 @@ import { sortConcertFoodByCurrentOrder } from "@/lib/concert-food-order";
 import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker";
 import { Actor } from "@/components/ui/actor";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
-import { formatDate, formatDateTime, formatTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime, toLatinDigits } from "@/lib/utils";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, X, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode, Receipt } from "lucide-react";
@@ -1544,11 +1545,16 @@ export default function AdminConcertDetailPage() {
       </div>
 
       {/* Client Info */}
-      {(concert.clientName || concert.clientPhone || concert.clientPhone2) && (
+      {(concert.clientName || concert.clientPhone || concert.clientPhone2 || fx.editVenue) && (
         <Card>
-          <div className="flex items-center gap-2 text-slate-500 mb-3">
+          <div className="flex flex-wrap items-center gap-2 text-slate-500 mb-3">
             <UserRound size={15} />
             <span className="text-sm font-bold text-slate-700">بيانات العميل</span>
+            <ConcertClientEditor name={concert.clientName} phone={concert.clientPhone} phone2={concert.clientPhone2} canEdit={fx.editVenue} onSave={async contact=>{
+              await updateConcert(concert.id,contact);
+              await addConcertLog({concertId:concert.id,description:"تم تعديل بيانات العميل وأرقام الجوال",createdBy:appUser!.uid,field:"clientPhone",oldValue:concert.clientPhone??"",newValue:contact.clientPhone}).catch(()=>{});
+              await loadData({silent:true});
+            }}/>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {concert.clientName && (
@@ -1562,7 +1568,7 @@ export default function AdminConcertDetailPage() {
                 <p className="text-xs text-slate-400 mb-0.5">رقم الجوال</p>
                 <a href={`tel:${concert.clientPhone}`} className="font-semibold text-[#1C2D50] text-sm flex items-center gap-1 hover:underline">
                   <Phone size={13} />
-                  {concert.clientPhone}
+                  {toLatinDigits(concert.clientPhone)}
                 </a>
               </div>
             )}
@@ -1571,7 +1577,7 @@ export default function AdminConcertDetailPage() {
                 <p className="text-xs text-slate-400 mb-0.5">رقم الجوال الثاني</p>
                 <a href={`tel:${concert.clientPhone2}`} className="font-semibold text-[#1C2D50] text-sm flex items-center gap-1 hover:underline">
                   <Phone size={13} />
-                  {concert.clientPhone2}
+                  {toLatinDigits(concert.clientPhone2)}
                 </a>
               </div>
             )}

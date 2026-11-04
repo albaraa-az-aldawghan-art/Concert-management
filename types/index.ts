@@ -197,6 +197,7 @@ export interface ConcertCustomerProfile {
 export interface ConcertDraft {
   id: string;
   form: {
+    customerId?: string;
     date: string; price: string; clientName: string; clientPhone: string; clientPhone2: string;
     notes: string; venueName: string; peopleCount: string;
     supervisorIds: string[]; employeeIds: string[];
