@@ -8,7 +8,14 @@ export interface KitchenExportOrder {
   concertDate: unknown; venueName?: string | null; status: string;
   lines?: { name: string; categoryName?: string; quantity: number | null; notes?: string | null }[];
 }
-export interface KitchenExportFilters { date: DateFilterState; search: string }
+export interface KitchenExportFilters { date: DateFilterState; search: string; categories?: string[] }
+export const kitchenCategory = (value?: string) => toLatinDigits((value ?? "").normalize("NFKC")).trim().replace(/\s+/g, " ") || "أصناف غير مصنفة";
+export interface KitchenExportNotice { id: string; name: string; reason: string; code: string }
+export interface KitchenExportCandidate { id: string; name: string; categories: string[]; notice?: KitchenExportNotice }
+export function kitchenSelectionNotices(candidates: KitchenExportCandidate[], ids: string[], categories?: string[]) {
+  return candidates.filter(candidate => ids.includes(candidate.id)).flatMap(candidate => candidate.notice ? [candidate.notice] :
+    categories && !candidate.categories.some(category => categories.includes(category)) ? [{ id: candidate.id, name: candidate.name, code: "category-filter", reason: "لا تحتوي أصنافًا من الأقسام المحددة (ليست حفلة فارغة)" }] : []);
+}
 export function matchesKitchenExportOrder(order: KitchenExportOrder, filters: KitchenExportFilters, now = new Date()) {
   const q = toLatinDigits(filters.search.trim()).toLowerCase();
   return matchesDate(order.concertDate, filters.date, now) && (!q ||
@@ -22,11 +29,11 @@ export function kitchenConcertName(order: Pick<KitchenExportOrder, "concertName"
 export function kitchenConcertLabel(order: KitchenExportOrder) {
   return [kitchenConcertName(order), eventDateString(order.concertDate), order.venueName].filter(Boolean).join(" | ");
 }
-export function aggregateKitchenOrders(orders: KitchenExportOrder[]) {
+export function aggregateKitchenOrders(orders: KitchenExportOrder[], allowPending = false) {
   const seen = new Set<string>();
   const rows = new Map<string, { name: string; category: string; quantity: number; known: boolean; missing: Set<number>; missingNames: Map<string, string> }>();
   for (const order of orders) {
-    if (order.status !== "received") throw new Error(`الحفلة #${order.concertNumber} لم يُؤكَّد استلامها`);
+    if (order.status !== "received" && !(allowPending && order.status === "sent")) throw new Error(`الحفلة #${order.concertNumber} لم يُؤكَّد استلامها`);
     if (!order.concertId || seen.has(order.concertId)) throw new Error("تكررت الحفلة في اختيار التصدير — أعد تحميل الطلبات");
     seen.add(order.concertId);
     if (!Array.isArray(order.lines) || !order.lines.length) throw new Error(`الحفلة #${order.concertNumber}: لا توجد أصناف محفوظة في الطلب`);

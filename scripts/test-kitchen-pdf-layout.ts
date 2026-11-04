@@ -26,6 +26,10 @@ async function main() {
   const pdf = await renderKitchenSummaryPdf(orders, { date: { mode: "custom", from: "2026-10-01", to: "2026-10-31" }, search: "" });
   await mkdir("tmp/pdfs/kitchen", { recursive: true });
   await writeFile("tmp/pdfs/kitchen/layout.pdf", pdf);
+  const large:KitchenExportOrder[]=[{...orders[0],status:"sent",concertName:"حفلة اختبار التقرير الكبير",lines:Array.from({length:164},(_,index)=>({categoryName:categories[Math.floor(index/55)],name:`صنف اختبار ${index+1} مع وصف توضيحي طويل للصنف`,quantity:index===0?null:index+0.1,notes:index%17===0?"ملاحظة محفوظة طويلة لاختبار التفاف النص داخل الخانة دون تداخل":""}))}];
+  const largePdf=await renderKitchenSummaryPdf(large,{date:{mode:"all",from:"",to:""},search:""});
+  await writeFile("tmp/pdfs/kitchen/layout-large.pdf",largePdf);
+  assert.equal(kitchenPdfRows(large).length,164);
   console.log("PASS: real renderer; 31 names above 3 sections, 30 aggregated items; no dates, correct zero/decimal/partial quantities.");
 }
 void main();

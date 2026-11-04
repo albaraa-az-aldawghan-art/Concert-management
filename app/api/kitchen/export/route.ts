@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, requireCaller, requirePage, require_, withActivityResponse } from "@/lib/server/guard";
-import { matchesKitchenExportOrder, type KitchenExportOrder, type KitchenExportFilters } from "@/lib/kitchen-export";
+import { matchesKitchenExportOrder, kitchenCategory, kitchenSelectionNotices, aggregateKitchenOrders, type KitchenExportOrder, type KitchenExportFilters } from "@/lib/kitchen-export";
+import { prepareKitchenSelection } from "@/lib/server/kitchen-export-selection";
 import { riyadhDateString } from "@/lib/event-date";
 import { renderKitchenSummaryPdf } from "@/lib/server/kitchen-pdf";
 export const dynamic="force-dynamic";
@@ -23,20 +24,20 @@ export async function POST(req: NextRequest) {
         if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==value)throw new ApiError("تاريخ الفلتر غير صحيح");
       }
       if(date.from&&date.to&&date.from>date.to)throw new ApiError("تاريخ البداية يجب أن يسبق النهاية");
-      const filters:KitchenExportFilters={date,search:typeof body.filters?.search==="string"?body.filters.search.slice(0,120):""};
+      const categories=body.filters?.categories;
+      if(categories!==undefined&&(!Array.isArray(categories)||categories.length>200||categories.some((category:unknown)=>typeof category!=="string"||!category.trim()||category.length>200)))throw new ApiError("فلتر الأقسام غير صحيح");
+      const filters:KitchenExportFilters={date,search:typeof body.filters?.search==="string"?body.filters.search.slice(0,120):"",...(categories!==undefined?{categories:[...new Set<string>(categories.map(kitchenCategory))]}:{})};
       const snaps=await caller.db.getAll(...body.orderIds.map((id:string)=>caller.db.collection("kitchen_orders").doc(id)));
       const orders=snaps.map(s=>({id:s.id,...s.data()} as KitchenExportOrder));
-      if(snaps.some(s=>!s.exists)||orders.some(o=>o.status!=="received"||!matchesKitchenExportOrder(o,filters)))throw new ApiError("تغيّرت الطلبات أو يوجد اختيار خارج الفلاتر أو غير مستلم — حدّث الصفحة وأعد الاختيار");
-      const unspecified=orders.reduce((sum,order)=>sum+(order.lines??[]).filter(line=>line.quantity==null).length,0);
-        // أسماء الحفلات من سجلاتها، لا من أرقامها ولا من بيانات المتصفح.
-        for(let start=0;start<orders.length;start+=100){
-          const chunk=orders.slice(start,start+100);
-          if(chunk.some(order=>!order.concertId||order.concertId.includes("/")))throw new ApiError("معرّف الحفلة غير صحيح");
-          const concerts=await caller.db.getAll(...chunk.map(order=>caller.db.collection("concerts").doc(order.concertId)));
-          chunk.forEach((order,index)=>{order.concertName=concerts[index].data()?.name || order.concertName || null;});
-        }
-        const pdf=await renderKitchenSummaryPdf(orders,filters);
-        return new NextResponse(pdf as unknown as BodyInit,{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="kitchen-summary.pdf"; filename*=UTF-8''${encodeURIComponent(`تجميع-المطبخ-${riyadhDateString(new Date())}.pdf`)}`,"Cache-Control":"no-store","X-Kitchen-Unspecified-Lines":String(unspecified)}});
+      if(snaps.some(s=>!s.exists)||orders.some(o=>!["sent","received"].includes(o.status)||!matchesKitchenExportOrder(o,filters)))throw new ApiError("تغيّرت الطلبات أو يوجد اختيار خارج الفلاتر — حدّث الصفحة وأعد الاختيار");
+      const prepared=await prepareKitchenSelection(caller.db,orders,filters.categories);
+      const notices=kitchenSelectionNotices(prepared.candidates,body.orderIds,filters.categories);
+      if(body.preview===true)return NextResponse.json({candidates:prepared.candidates,notices,includedCount:prepared.orders.length},{headers:{"Cache-Control":"no-store"}});
+      if(!prepared.orders.length)return NextResponse.json({error:"لا توجد أصناف قابلة للتصدير بعد تطبيق الاختيار واستبعاد الملغاة والفارغة",notices},{status:400});
+      aggregateKitchenOrders(prepared.orders,true);
+      const unspecified=prepared.orders.reduce((sum,order)=>sum+(order.lines??[]).filter(line=>line.quantity==null).length,0);
+      const pdf=await renderKitchenSummaryPdf(prepared.orders,filters);
+      return new NextResponse(pdf as unknown as BodyInit,{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="kitchen-summary.pdf"; filename*=UTF-8''${encodeURIComponent(`تجميع-المطبخ-${riyadhDateString(new Date())}.pdf`)}`,"Cache-Control":"no-store","X-Kitchen-Unspecified-Lines":String(unspecified),"X-Kitchen-Skipped-Orders":String(notices.length)}});
     } catch(error){return NextResponse.json({error:error instanceof Error?error.message:"تعذر التصدير"},{status:error instanceof ApiError?error.status:400});}
   });
 }

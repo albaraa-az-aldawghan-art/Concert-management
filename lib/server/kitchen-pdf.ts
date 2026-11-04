@@ -12,8 +12,8 @@ export async function renderKitchenSummaryPdf(orders: KitchenExportOrder[], filt
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30_000 });
     await page.evaluate(() => document.fonts.ready);
-    return await page.pdf({ format: "A4", landscape: true, printBackground: true, preferCSSPageSize: true,
-      margin: { top: "10mm", bottom: "14mm", left: "9mm", right: "9mm" }, displayHeaderFooter: true,
+    return await page.pdf({ format: "A4", landscape: false, printBackground: true, preferCSSPageSize: true,
+      margin: { top: "8mm", bottom: "12mm", left: "7mm", right: "7mm" }, displayHeaderFooter: true,
       headerTemplate: "<span></span>", footerTemplate: '<div style="width:100%;text-align:center;color:#64748b;font:8px Arial"><span class="pageNumber"></span> / <span class="totalPages"></span></div>' });
   } finally { await browser.close(); }
 }

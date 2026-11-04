@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildKitchenSummaryPdfHtml, kitchenPdfRows } from "./kitchen-pdf";
-import type { KitchenExportOrder } from "./kitchen-export";
+import {kitchenSelectionNotices, type KitchenExportOrder} from "./kitchen-export";
 const filters = { date: { mode: "custom" as const, from: "2026-10-01", to: "2026-10-31" }, search: "" };
 const order = (id: number): KitchenExportOrder => ({ id: String(id), concertId: String(id), concertNumber: 900000 + id, concertName: `حفلة مسجلة (${id})`, clientName: "اسم العميل المختلف", concertDate: "2026-10-13", venueName: "قاعة لا يجب عرضها", status: "received", lines: [
   { name: "كشري", categoryName: "الأطباق الرئيسية", quantity: 3 },
@@ -47,4 +47,19 @@ test("unknown and partial totals explicit; notes escaped; zero never missing", (
   const html = buildKitchenSummaryPdfHtml([first, second], filters, "");
   assert.ok(html.includes("&lt;script&gt;unsafe&lt;/script&gt;")); assert.ok(!html.includes("<script>"));
   assert.ok(!html.split("</header>")[1].includes("حفلة مسجلة"));
+});
+test("pending PDF quantities included without changing receipt; long sections continue in two portrait columns",()=>{
+  const first=order(1);first.status="sent";
+  first.lines=Array.from({length:29},(_,index)=>({name:`صنف ${index}`,categoryName:"المقبلات الباردة",quantity:index}));
+  assert.equal(kitchenPdfRows([first]).length,29);assert.equal(first.status,"sent");
+  const html=buildKitchenSummaryPdfHtml([first],filters,"");
+  assert.match(html,/A4 portrait/);assert.match(html,/column-count:2/);assert.match(html,/\(تابع\)/);
+  assert.equal((html.match(/<tbody>/g)||[]).length,5);
+  for(const line of first.lines)assert.ok(html.includes(`<td>${line.name}</td>`));
+});
+test("selection notices distinguish empty orders from category mismatch and ignore deselected events",()=>{
+  const candidates=[{id:"1",name:"أ",categories:["بارد"]},{id:"2",name:"ب",categories:[],notice:{id:"2",name:"ب",code:"no-items",reason:"فارغة"}}];
+  assert.deepEqual(kitchenSelectionNotices(candidates,["1"],["بارد"]),[]);
+  assert.equal(kitchenSelectionNotices(candidates,["1","2"],["حلى"])[0].code,"category-filter");
+  assert.equal(kitchenSelectionNotices(candidates,["1","2"],["حلى"])[1].code,"no-items");
 });
