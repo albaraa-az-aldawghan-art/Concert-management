@@ -53,8 +53,8 @@ test("pending PDF quantities included without changing receipt; long sections co
   first.lines=Array.from({length:29},(_,index)=>({name:`صنف ${index}`,categoryName:"المقبلات الباردة",quantity:index}));
   assert.equal(kitchenPdfRows([first]).length,29);assert.equal(first.status,"sent");
   const html=buildKitchenSummaryPdfHtml([first],filters,"");
-  assert.match(html,/A4 portrait/);assert.match(html,/column-count:2/);assert.match(html,/\(تابع\)/);
-  assert.equal((html.match(/<tbody>/g)||[]).length,5);
+  assert.match(html,/A4 portrait/);assert.match(html,/grid-template-columns:1fr 1fr/);assert.ok(!html.includes("column-fill:balance"));
+  assert.equal((html.match(/<tbody>/g)||[]).length,1);
   for(const line of first.lines)assert.ok(html.includes(`<td>${line.name}</td>`));
 });
 test("selection notices distinguish empty orders from category mismatch and ignore deselected events",()=>{

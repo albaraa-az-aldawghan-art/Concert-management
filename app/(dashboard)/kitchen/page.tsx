@@ -36,6 +36,7 @@ export default function KitchenPage() {
   const [exportCandidates, setExportCandidates] = useState<KitchenExportCandidate[]>([]);
   const [exportCategories, setExportCategories] = useState<string[] | null>(null);
   const [exportReport, setExportReport] = useState<KitchenExportNotice[]>([]);
+  const [cardNotices,setCardNotices] = useState<Record<string,KitchenExportNotice|undefined>>({});
   const [exportFilters, setExportFilters] = useState<KitchenExportFilters>({date:emptyDateFilter,search:""});
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,16 @@ export default function KitchenPage() {
   useEffect(() => { setPage(1); }, [search, dateF, statusF]);
 
   useEffect(() => { if(allowed) void load(); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{
+    if(!allowed||!canExport||!orders.length)return;
+    const matching=orders.filter(order=>(!statusF||order.status===statusF)&&matchesKitchenExportOrder(order,{date:dateF,search})).sort((a,b)=>compareDateValues(a.concertDate,b.concertDate));
+    const currentPage=Math.min(page,Math.max(1,Math.ceil(matching.length/PAGE_SIZE)));
+    const ids=matching.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE).map(order=>order.id);
+    if(!ids.length)return;
+    let cancelled=false;
+    void previewExport(ids,{date:dateF,search}).then(result=>{if(!cancelled)rememberNotices(result.candidates);}).catch(()=>{/* Export still shows an actionable error if validation is unavailable. */});
+    return()=>{cancelled=true;};
+  },[allowed,canExport,orders,page,statusF,dateF,search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
@@ -92,6 +103,9 @@ export default function KitchenPage() {
   const eligible = filtered.filter(order=>order.status==="received"||order.status==="sent");
   const availableCategories = [...new Set(exportCandidates.filter(candidate=>!candidate.notice).flatMap(candidate=>candidate.categories))];
   const selectionNotices = kitchenSelectionNotices(exportCandidates,exportIds,exportCategories??undefined);
+  function rememberNotices(candidates:KitchenExportCandidate[]) {
+    setCardNotices(previous=>{const updated={...previous};for(const candidate of candidates)updated[candidate.id]=candidate.notice;return updated;});
+  }
   async function previewExport(ids: string[], filters: KitchenExportFilters) {
     const token=await auth.currentUser?.getIdToken();
     if(!token)throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
@@ -105,7 +119,7 @@ export default function KitchenPage() {
     const filters:KitchenExportFilters={date:dateF.mode==="all"||dateF.mode==="custom"?dateF:{mode:"custom",from,to},search};
     const ids=eligible.map(order=>order.id);
     setExportFilters(filters);setExportIds(ids);setExportCategories(null);setExportCandidates([]);setExportReady(false);setExportOpen(true);setCheckingExport(true);
-    try {const result=await previewExport(ids,filters);setExportCandidates(result.candidates);setExportReport(result.notices);setExportReady(true);}
+    try {const result=await previewExport(ids,filters);setExportCandidates(result.candidates);rememberNotices(result.candidates);setExportReport(result.notices);setExportReady(true);}
     catch(error){showToast(error instanceof Error?error.message:"تعذر فحص الطلبات","error");}
     finally{setCheckingExport(false);}
   }
@@ -117,7 +131,7 @@ export default function KitchenPage() {
       if(!token)throw new Error("انتهت الجلسة — أعد تسجيل الدخول");
       const filters={...exportFilters,...(exportCategories!==null?{categories:exportCategories}:{})};
       const checked=await previewExport(exportIds,filters);
-      setExportCandidates(checked.candidates);setExportReport(checked.notices);
+      setExportCandidates(checked.candidates);rememberNotices(checked.candidates);setExportReport(checked.notices);
       if(!checked.includedCount)throw new Error("لا توجد أصناف مطابقة؛ راجع التنبيهات واختيار الأقسام");
       const response=await fetch("/api/kitchen/export",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({orderIds:exportIds,filters,format:"pdf"})});
       if(!response.ok){const error=await response.json();if(error.notices)setExportReport(error.notices);throw new Error(error.error||"تعذر التصدير");}
@@ -130,8 +144,9 @@ export default function KitchenPage() {
 
   function OrderCard({ order }: { order: KitchenOrder }) {
     const isPending = order.status === "sent";
+    const notice=cardNotices[order.id]??exportReport.find(notice=>notice.id===order.id&&notice.code==="category-filter");
     return (
-      <Card className={isPending ? "border-amber-200" : ""}>
+      <Card data-kitchen-order={order.id} className={isPending ? "border-amber-200" : ""}>
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
             <p className="font-bold text-slate-800 truncate">{order.clientName}</p>
@@ -186,6 +201,7 @@ export default function KitchenPage() {
             {order.note}
           </p>
         )}
+        {canExport&&notice&&<div role="status" data-kitchen-notice={order.id} className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900"><p className="font-bold">تنبيه التصدير</p><p>{notice.reason}</p></div>}
 
         <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
           <Link href={`/kitchen/${order.concertId}`} className="flex-1">
@@ -225,7 +241,6 @@ export default function KitchenPage() {
         <p className="text-xs text-slate-500">التصدير يشمل المستلمة وبانتظار الاستلام ضمن الفلاتر وعبر جميع الصفحات، ويستبعد الملغاة والفارغة مع بيان السبب.</p>
         <Button variant="outline" disabled={loading||!eligible.length||checkingExport} onClick={openExport}><Download size={16}/> تصدير تجميع الأصناف PDF ({eligible.length})</Button>
       </div>}
-      {canExport&&exportReport.length>0&&<div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="mb-2 font-bold">تنبيهات آخر فحص للتصدير ({exportReport.length})</p><ul className="max-h-60 space-y-2 overflow-y-auto">{exportReport.map(notice=><li key={notice.id}><strong>{notice.name}:</strong> {notice.reason}</li>)}</ul></div>}
 
       {/* Status filter */}
       <div className="flex gap-2 flex-wrap">

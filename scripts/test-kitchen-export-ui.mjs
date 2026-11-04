@@ -31,6 +31,11 @@ try{
   if(mode==='blocked'){await page.waitForFunction(()=>document.body.innerText.includes('غير مصرح'));assert.equal(await page.evaluate(()=>window.reads||0),0);continue;}
   await page.waitForFunction(()=>document.body.innerText.includes('عميل 1'));
   if(mode==='viewer'){assert.equal(await page.$$eval('button',els=>els.some(e=>e.textContent.includes('تصدير تجميع'))),false);continue;}
+  await page.waitForSelector('[data-kitchen-order="2"] [data-kitchen-notice="2"]');
+  await fs.mkdir('tmp/kitchen-export',{recursive:true});
+  await (await page.$('[data-kitchen-order="2"]')).screenshot({path:`tmp/kitchen-export/card-notice-${width}.png`});
+  assert.equal(await page.$('[data-kitchen-order="1"] [data-kitchen-notice]'),null);
+  assert.ok(!await page.evaluate(()=>document.body.innerText.includes('تنبيهات آخر فحص')));
   await click('هذا الأسبوع');await click('تصدير تجميع');await page.waitForSelector('[aria-label="قسم المقبلات الباردة"]');
   assert.equal(await page.$$eval('[aria-label^="اختيار الحفلة"]',els=>els.length),26);
   assert.ok(await page.$('[aria-label="اختيار الحفلة 99"]'));assert.equal(await page.$('[aria-label="اختيار الحفلة 50"]'),null);
@@ -43,12 +48,13 @@ try{
   await click('تنزيل PDF');await page.waitForFunction(()=>window.downloadName);
   let data=await page.evaluate(()=>window.payload);assert.deepEqual(data.orderIds,['sent','25','2']);assert.equal(data.format,'pdf');assert.equal(data.preview,undefined);
   assert.deepEqual(data.filters.date,{mode:'custom',from:'2026-10-11',to:'2026-10-17'});assert.match(await page.evaluate(()=>window.downloadName),/\.pdf$/);
-  assert.ok(await page.evaluate(()=>document.body.innerText.includes('تنبيهات آخر فحص')));
+  assert.ok(await page.$('[data-kitchen-order="2"] [data-kitchen-notice="2"]'));
+  assert.ok(!await page.evaluate(()=>document.body.innerText.includes('تنبيهات آخر فحص')));
   await page.evaluate(()=>{window.downloadName=null;window.unknown=2});
   await click('تصدير تجميع');await page.waitForSelector('[aria-label="قسم المقبلات الباردة"]');
   await click('إلغاء اختيار الأقسام');await page.click('[aria-label="قسم المقبلات الباردة"]');await click('تنزيل PDF');await page.waitForFunction(()=>window.downloadName);
   data=await page.evaluate(()=>window.payload);assert.deepEqual(data.filters.categories,['المقبلات الباردة']);assert.equal(await page.evaluate(()=>window.lastToast.type),'warning');
   await click('بانتظار الاستلام');assert.equal(await page.$$eval('button',els=>els.find(e=>e.textContent.includes('تصدير تجميع')).disabled),false);
  }
- assert.deepEqual(errors,[]);console.log('PASS: desktop/mobile permissions; 26 matching events across pages including pending; category multiselect and no-category guard; date+category payload; outside notices; no confirmation or page overflow.');
+ assert.deepEqual(errors,[]);console.log('PASS: desktop/mobile permissions; notices inside the correct card before/after export; no global warning panel; category/date filters and pending selection preserved.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
