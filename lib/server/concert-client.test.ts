@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import { svcCreateConcert,svcUpdateConcert } from "./concerts-core";
 import { listCustomerChoices } from "./customer-choices";
+import { updateConcertCustomer } from "./concert-customers-core";
 type Data=Record<string,unknown>;
 function mock(){
  const records=new Map<string,Data>();let seq=0;
@@ -35,4 +36,13 @@ test("choosing a legacy customer with a corrected phone creates their profile un
  const choice=(await listCustomerChoices(db))[0];
  const saved=await svcCreateConcert(db,{name:choice.name,clientName:choice.name,clientPhone:"0500000009",customerId:choice.id,date:"2026-11-04"},"u");
  assert.equal(records.get(`concerts/${saved.id}`)?.customerId,choice.id);assert.equal((await listCustomerChoices(db)).length,1);assert.equal(records.get("concerts/old")?.clientPhone,"+966 50 000 0001");
+});
+test("customer profile editor rejects a phone already owned by another profile before writing",async()=>{
+ const {db,records}=mock();records.set("concert_customers/phone_0500000001",{name:"أحمد",primaryPhone:"0500000001",phoneKeys:["0500000001"]});records.set("concert_customers/phone_0500000002",{name:"خالد",primaryPhone:"0500000002",phoneKeys:["0500000002"]});
+ const before=JSON.stringify([...records]);
+ await assert.rejects(updateConcertCustomer(db,"phone_0500000001",{name:"أحمد",primaryPhone:"0500000002",secondaryPhone:null,source:null,referralName:null,notes:null},"u"),/مرتبط/);
+ await assert.rejects(updateConcertCustomer(db,"phone_0500000001",{name:"أحمد",primaryPhone:"0500000001",secondaryPhone:"0500000002",source:null,referralName:null,notes:null},"u"),/مرتبط/);
+ await assert.rejects(svcUpdateConcert(db,"missing",{clientPhone:"0500000002"},"u"));
+ await assert.rejects(svcCreateConcert(db,{name:"عميل جديد",clientPhone:"0500000003",clientPhone2:"0500000002",date:"2026-11-05"},"u"),/الثاني/);
+ assert.equal(JSON.stringify([...records]),before);
 });

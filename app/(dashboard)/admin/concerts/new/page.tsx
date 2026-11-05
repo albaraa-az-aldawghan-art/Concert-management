@@ -499,8 +499,8 @@ function NewConcertPageInner() {
 
       showToast("تم إنشاء الحفلة بنجاح");
       leave(() => router.push("/admin/concerts"));
-    } catch {
-      showToast("حدث خطأ أثناء إنشاء الحفلة", "error");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "حدث خطأ أثناء إنشاء الحفلة", "error");
     } finally {
       saveLock.current = false;
       setSaving(false);

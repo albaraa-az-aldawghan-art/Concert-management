@@ -51,6 +51,7 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
     if(owners.some(owner=>owner!==d.customerId))throw new ApiError("رقم الجوال يخص عميلًا آخر؛ اختره من القائمة بدل دمج العميلين");
     customerId=d.customerId;
   }
+  if((await customerPhoneOwners(db,normalizeCustomerPhone(d.clientPhone2))).some(owner=>owner!==customerId))throw new ApiError("رقم الجوال الثاني مرتبط بعميل آخر؛ اختر العميل الصحيح قبل الحفظ");
   const customerRef = db.collection("concert_customers").doc(customerId);
   const initialExpenses = Array.isArray(d.initialExpenses) ? d.initialExpenses as {
     type?: unknown; description?: unknown; amount?: unknown; vatIncluded?: unknown;
@@ -199,7 +200,7 @@ export async function svcUpdateConcert(db: Firestore, id: string, d: Record<stri
     const customerId = typeof current.customerId === "string" && current.customerId
       ? current.customerId
       : currentOwners[0]??concertCustomerId(current.clientPhone, id);
-    const owners=await customerPhoneOwners(db,phoneKey);
+    const owners=[...await customerPhoneOwners(db,phoneKey),...await customerPhoneOwners(db,normalizeCustomerPhone(contact.clientPhone2))];
     if(owners.some(owner=>owner!==customerId))throw new ApiError("رقم الجوال مرتبط بعميل آخر؛ لا يمكن دمج السجلات تلقائيًا");
     const customerRef = db.collection("concert_customers").doc(customerId);
     const profile = await customerRef.get();

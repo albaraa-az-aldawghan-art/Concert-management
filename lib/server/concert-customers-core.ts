@@ -2,6 +2,8 @@ import { FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
 import { concertCustomerId, normalizeCustomerPhone } from "@/lib/concert-customers";
 import { ApiError } from "@/lib/server/guard";
 import type { ConcertCustomerSummary, CustomerPaymentSummary } from "@/lib/firestore/customers";
+import { customerPhoneOwners } from "./customer-choices";
+import { normalizeClientContact } from "../customer-choices";
 
 type DocData = Record<string, unknown>;
 
@@ -178,6 +180,10 @@ export async function updateConcertCustomer(
   if (!id || !/^(phone_|concert_)[A-Za-z0-9_-]+$/.test(id)) throw new ApiError("معرّف العميل غير صحيح");
   const primaryKey = normalizeCustomerPhone(update.primaryPhone);
   if (!primaryKey) throw new ApiError("رقم الجوال الأساسي مطلوب");
+  const contact=normalizeClientContact({clientName:update.name,clientPhone:update.primaryPhone,clientPhone2:update.secondaryPhone});
+  const owners=[...await customerPhoneOwners(db,primaryKey),...await customerPhoneOwners(db,normalizeCustomerPhone(contact.clientPhone2))];
+  if(owners.some(owner=>owner!==id))throw new ApiError("رقم الجوال مرتبط بملف عميل آخر؛ يجب توحيد الملفين بعد التحقق بدل إنشاء ارتباط مكرر");
+  update={...update,name:contact.clientName,primaryPhone:contact.clientPhone,secondaryPhone:contact.clientPhone2};
 
   const [profileSnap, concertsSnap] = await Promise.all([
     db.collection("concert_customers").doc(id).get(),
