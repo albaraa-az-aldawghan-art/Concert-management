@@ -241,6 +241,10 @@ allow write: if false; // الإرسال والتأكيد من الخادم وح
       allow write: if false;
     }
 
+    // Requests and receipts are read/written only through field-filtered APIs.
+    match /cost_material_requests/{id} { allow read, write: if false; }
+    match /cost_material_receipts/{id} { allow read, write: if false; }
+
     // الإنتاج (الخلطات) — يستهلك خاماً ويُنتج صنفاً جاهزاً بتكلفة مدخلاته
     match /cost_production/{entryId} {
       allow read:  if isAdmin() || pageOn('costs') || pageOn('profitability');

@@ -2,6 +2,7 @@ import { Timestamp, Firestore, FieldValue } from "firebase-admin/firestore";
 import { isPurchaseRawItem, purchaseSupplierNames } from "@/lib/purchase-options";
 import { ApiError } from "@/lib/server/guard";
 import { OutgoingChannel } from "@/types";
+import { runMaterialStockTransaction } from "@/lib/server/material-stock-transaction";
 
 /* ═══════════════════════════════════════════════════════════════
    منطق التكاليف على الخادم — المصدر الوحيد لكل رقم يمسّ المخزون.
@@ -74,7 +75,7 @@ export async function svcAddIncoming(
   const itemRef = db.collection("cost_items").doc(d.itemBarcode);
   const entryRef = db.collection("cost_incoming").doc();
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const snap = await tx.get(itemRef);
     if (!snap.exists) throw new ApiError("الصنف غير مسجّل — سجّله أولاً من صفحة أصناف التكاليف");
     const item = snap.data() as ItemDoc;
@@ -125,7 +126,7 @@ export async function svcAddIncomingInvoice(
   const itemRefs = barcodes.map((barcode) => db.collection("cost_items").doc(barcode));
   const entryRefs = d.lines.map(() => db.collection("cost_incoming").doc());
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const itemSnaps = await Promise.all(itemRefs.map((ref) => tx.get(ref)));
     itemSnaps.forEach((snap) => {
       if (!snap.exists) throw new ApiError("إحدى مواد الفاتورة غير مسجلة");
@@ -179,10 +180,11 @@ export async function svcAddIncomingInvoice(
 
 export async function svcDeleteIncoming(db: Firestore, id: string) {
   const entryRef = db.collection("cost_incoming").doc(id);
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("العملية غير موجودة", 404);
-    const e = eSnap.data() as { itemBarcode: string; quantity: number; totalBeforeVat: number };
+    const e = eSnap.data() as { itemBarcode: string; quantity: number; totalBeforeVat: number; materialReceiptId?: string };
+    if (e.materialReceiptId) throw new ApiError("هذا الوارد مرتبط بطلب مواد؛ صحّح دفعة الاستلام من صفحة طلبات المواد حتى تبقى الكميات متطابقة");
     const itemRef = db.collection("cost_items").doc(e.itemBarcode);
     const iSnap = await tx.get(itemRef);
 
@@ -267,7 +269,7 @@ export async function svcAddOutgoing(
   const itemRef = db.collection("cost_items").doc(d.itemBarcode);
   const entryRef = db.collection("cost_outgoing").doc();
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const snap = await tx.get(itemRef);
     if (!snap.exists) throw new ApiError("الصنف غير مسجّل");
     const item = snap.data() as ItemDoc;
@@ -312,7 +314,7 @@ export async function svcAddOutgoing(
 
 export async function svcDeleteOutgoing(db: Firestore, id: string) {
   const entryRef = db.collection("cost_outgoing").doc(id);
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("العملية غير موجودة", 404);
     const e = eSnap.data() as { itemBarcode: string; quantity: number; returnedQty?: number; stockValue?: number };
@@ -342,7 +344,7 @@ export async function svcSettleOutgoing(
   const entryRef = db.collection("cost_outgoing").doc(id);
   const damageRef = db.collection("cost_damage").doc();
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("العملية غير موجودة", 404);
     const e = eSnap.data() as {
@@ -417,7 +419,7 @@ export async function svcAdjustOutgoingQty(db: Firestore, id: string, newQty: nu
   if (newQty < 0) throw new ApiError("الكمية لا تقبل قيمة سالبة");
   const entryRef = db.collection("cost_outgoing").doc(id);
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("عملية الصرف غير موجودة", 404);
     const e = eSnap.data() as {
@@ -480,7 +482,7 @@ export async function svcSetOutgoingDamage(
   const entryRef = db.collection("cost_outgoing").doc(id);
   const damageRef = db.collection("cost_damage").doc(`out_${id}`);
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("عملية الصرف غير موجودة", 404);
     const e = eSnap.data() as {
@@ -556,7 +558,7 @@ export async function svcAddProduction(
   const inputRefs = d.inputs.map((i) => db.collection("cost_items").doc(i.barcode));
   const prodRef = db.collection("cost_production").doc();
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const outSnap = await tx.get(outputRef);
     if (!outSnap.exists) throw new ApiError("الصنف المُنتَج غير مسجّل");
     const inSnaps = await Promise.all(inputRefs.map((r) => tx.get(r)));
@@ -650,7 +652,7 @@ export async function svcUpdateProduction(
 
   const prodRef = db.collection("cost_production").doc(id);
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const pSnap = await tx.get(prodRef);
     if (!pSnap.exists) throw new ApiError("عملية الإنتاج غير موجودة", 404);
     const p = pSnap.data() as {
@@ -747,7 +749,7 @@ export async function svcUpdateProduction(
 
 export async function svcDeleteProduction(db: Firestore, id: string) {
   const prodRef = db.collection("cost_production").doc(id);
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const pSnap = await tx.get(prodRef);
     if (!pSnap.exists) throw new ApiError("عملية الإنتاج غير موجودة", 404);
     const p = pSnap.data() as {
@@ -794,7 +796,7 @@ export async function svcAddStoreDamage(
   const itemRef = db.collection("cost_items").doc(d.itemBarcode);
   const damageRef = db.collection("cost_damage").doc();
 
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const snap = await tx.get(itemRef);
     if (!snap.exists) throw new ApiError("الصنف غير مسجّل");
     const item = snap.data() as ItemDoc;
@@ -832,7 +834,7 @@ export async function svcAddStoreDamage(
 
 export async function svcDeleteDamage(db: Firestore, id: string) {
   const damageRef = db.collection("cost_damage").doc(id);
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const dSnap = await tx.get(damageRef);
     if (!dSnap.exists) throw new ApiError("القيد غير موجود", 404);
     const e = dSnap.data() as {
@@ -915,7 +917,7 @@ export async function svcCreateItem(
     const code = (d.barcode ?? "").trim();
     if (!code) throw new ApiError("أدخل رقم الباركود");
     const ref = db.collection("cost_items").doc(code);
-    await db.runTransaction(async (tx) => {
+    await runMaterialStockTransaction(db, async (tx) => {
       if ((await tx.get(ref)).exists) throw new ApiError("هذا الباركود مسجّل مسبقاً لصنف آخر");
       await validateSections(tx);
       tx.set(ref, { ...base, barcodeSource: "supplier" });
@@ -926,7 +928,7 @@ export async function svcCreateItem(
   // الباركود الداخلي يُولَّد ويُسجَّل في معاملة واحدة فلا يبقى عدّاد يتيم
   const counterRef = db.collection("counters").doc("cost_items");
   let barcode = "";
-  await db.runTransaction(async (tx) => {
+  await runMaterialStockTransaction(db, async (tx) => {
     const cSnap = await tx.get(counterRef);
     const next = (cSnap.data()?.lastNumber ?? 0) + 1;
     barcode = "FRJ" + String(next).padStart(6, "0");
@@ -1085,7 +1087,17 @@ export async function svcUpdateItem(
     }
     patch.sectionPrices = clean;
   }
-  await ref.update(patch);
+  await runMaterialStockTransaction(db, async tx => {
+    const current = await tx.get(ref);
+    if (!current.exists) throw new ApiError("الصنف غير موجود", 404);
+    const live = current.data()!;
+    if (((live.materialOpenQuantity ?? 0) > 0 || (live.materialPendingQuantity ?? 0) > 0) &&
+      ((d.unit !== undefined && d.unit !== live.unit) || (d.kind !== undefined && d.kind !== "raw"))) {
+      throw new ApiError("لا يمكن تغيير نوع أو وحدة مادة مرتبطة بطلبات غير مكتملة");
+    }
+    if (live.materialAutoEnabled && (patch.minimumStock as number ?? live.minimumStock ?? 0) >= (live.materialTargetStock ?? 0)) throw new ApiError("عدّل الرصيد المستهدف من إعداد الطلب التلقائي قبل رفع الحد الأدنى");
+    tx.update(ref, patch);
+  });
 
   const nameChanged = d.name !== undefined && d.name !== item.name;
   const unitChanged = d.unit !== undefined && d.unit !== item.unit;
@@ -1110,6 +1122,7 @@ export async function svcDeleteItem(db: Firestore, barcode: string) {
   if (!item.exists) throw new ApiError("الصنف غير موجود", 404);
 
   const parts: string[] = [];
+  if (item.data()?.materialReferenced) parts.push("طلبات مواد خام؛ يمكن تعطيل الطلب التلقائي بدل حذف السجل التاريخي");
   if (!inc.empty) parts.push("عمليات وارد");
   if (!out.empty) parts.push("عمليات منصرف");
   if (!dmg.empty) parts.push("قيود تالف");

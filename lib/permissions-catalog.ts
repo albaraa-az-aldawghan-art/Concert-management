@@ -404,6 +404,25 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         ],
       },
       {
+        key: "material_requests",
+        label: "طلبات المواد الخام",
+        actions: [
+          { key: "mat_view", label: "عرض طلبات المواد الخاصة به" },
+          { key: "mat_view_all", label: "عرض جميع طلبات المواد" },
+          { key: "mat_create", label: "إنشاء طلب مواد خام" },
+          { key: "mat_edit", label: "تعديل طلب قبل الاستلام" },
+          { key: "mat_receive", label: "تسجيل وصول المواد" },
+          { key: "mat_invoice", label: "تسجيل الفاتورة واعتماد المواد في المخزون", sensitive: true },
+          { key: "mat_overreceive", label: "استلام كمية أكبر من المطلوب", sensitive: true },
+          { key: "mat_cancel", label: "إلغاء الطلب أو المتبقي منه", sensitive: true },
+          { key: "mat_correct", label: "إلغاء استلام مسجل وتصحيح أثره", sensitive: true },
+          { key: "mat_auto", label: "إعداد الطلب التلقائي والحد الأدنى والمستهدف", sensitive: true },
+        ],
+        fields: [
+          { key: "mat_price", label: "عرض أسعار فواتير طلبات المواد", sensitive: true },
+        ],
+      },
+      {
         key: "incoming",
         label: "الوارد",
         actions: [

@@ -351,7 +351,7 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
   const openingStock = Object.fromEntries(stockFromHistory(history, `${month}-01`, contract));
 
   const days = docs
-    .map((x) => x.data() as { date: string; lines: StoredLine[]; totals: Record<string, number>; collections: Record<string, number>; expenses: { key: string; label: string; kind: string; amount: number }[]; custody: number; postedPaymentIds: string[] | null })
+    .map((x) => x.data() as { date: string; lines: StoredLine[]; totals: Record<string, number>; collections: Record<string, number>; expenses: { key: string; label: string; kind: string; amount: number }[]; custody: number; notes: string | null; postedPaymentIds: string[] | null })
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const byItem = new Map<string, { barcode: string; itemName: string; unit: string; salePrice: number; category: string | null; soldQty: number; revenue: number; cost: number; damaged: number; supplied: number; closing: number }>();

@@ -10,9 +10,10 @@ test("cancelled concert Excel rows are red across every exported column", () => 
   styleCancelledConcertRow(row, 4, 3);
 
   for (let column = 1; column <= 4; column++) {
-    assert.equal(row.getCell(column).fill.type, "pattern");
-    if (row.getCell(column).fill.type === "pattern") {
-      assert.equal(row.getCell(column).fill.fgColor?.argb, "FFFEE2E2");
+    const fill = row.getCell(column).fill;
+    assert.equal(fill.type, "pattern");
+    if (fill.type === "pattern") {
+      assert.equal(fill.fgColor?.argb, "FFFEE2E2");
     }
     assert.equal(row.getCell(column).font.color?.argb, column === 3 ? "FF991B1B" : "FFB91C1C");
   }

@@ -82,6 +82,7 @@ const adminNav: NavItem[] = [
     section: "التكاليف",
     children: [
       { label: "المواد الخام", href: "/admin/costs/raw", icon: <Package size={15} /> },
+      { label: "طلبات المواد", href: "/admin/costs/material-requests", icon: <Package size={15} /> },
       { label: "المنتجات والوصفات القياسية", href: "/admin/costs/production", icon: <FlaskConical size={15} /> },
       { label: "رصيد الأصناف", href: "/admin/costs/balance", icon: <Scale size={15} /> },
       { label: "المنصرف", href: "/admin/costs/outgoing", icon: <PackageMinus size={15} /> },
@@ -340,7 +341,9 @@ function filterNavForCustomRole(
     // إعدادات الحساب متاحة للجميع دائماً — تغيير كلمة المرور لا صلاحية له
     const page = item.href === "/settings" ? null : pageKeyFromPath(item.href);
     const feature = NAV_FEATURE[item.href];
-    const visible = page === null ? true : feature ? can(page) && feat(page, feature) : can(page);
+    const visible = item.href === "/admin/costs/material-requests"
+      ? can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto"].some(key => feat("costs", key))
+      : page === null ? true : feature ? can(page) && feat(page, feature) : can(page);
 
     if (visible) {
       result.push(children && children.length > 0 ? { ...item, children } : { label: item.label, href: item.href, icon: item.icon, section: item.section });
@@ -372,7 +375,11 @@ export function Sidebar() {
   const customerNav = can("customers") && !activityNav.some((item) => item.href === "/admin/customers")
     ? [...activityNav, { label: "العملاء", href: "/admin/customers", icon: <UsersRound size={17} />, section: "الأقسام الرئيسية" }]
     : activityNav;
-  const visibleNav = applySystemNav(customerNav, settings.features, settings.labels);
+  const hasMaterialLink = customerNav.some((item: NavItem) => item.href === "/admin/costs/material-requests" || item.children?.some(child => child.href === "/admin/costs/material-requests"));
+  const materialNav = can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto"].some(key => feat("costs", key)) && !hasMaterialLink
+    ? [...customerNav, { label: "طلبات المواد", href: "/admin/costs/material-requests", icon: <Package size={17} />, section: "التكاليف" }]
+    : customerNav;
+  const visibleNav = applySystemNav(materialNav, settings.features, settings.labels);
 
   async function handleSignOut() {
     request(async () => {

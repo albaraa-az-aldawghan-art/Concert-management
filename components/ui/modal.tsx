@@ -23,6 +23,9 @@ const sizes = {
   xl: "max-w-2xl",
 };
 
+let bodyLocks = 0;
+let previousBodyOverflow = "";
+
 export function Modal({ open, onClose, title, children, className, size = "md", confirmClose = false }: ModalProps) {
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const dirtyRef = useRef(false);
@@ -54,13 +57,13 @@ export function Modal({ open, onClose, title, children, className, size = "md", 
     form?.requestSubmit();
   }
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!open) return;
+    if (bodyLocks === 0) previousBodyOverflow = document.body.style.overflow;
+    bodyLocks++;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      bodyLocks--;
+      if (bodyLocks === 0) document.body.style.overflow = previousBodyOverflow;
     };
   }, [open]);
 

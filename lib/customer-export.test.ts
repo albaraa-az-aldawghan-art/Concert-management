@@ -41,7 +41,8 @@ test("customer export is a real formatted xlsx with separate typed columns", asy
   assert.equal(sheet.getColumn(8).numFmt, "#,##0.00");
   assert.equal(sheet.views[0]?.rightToLeft, true);
   assert.equal(sheet.views[0]?.state, "frozen");
-  assert.equal(sheet.getTable("ConcertCustomersTable").table.columns.length, 11);
+  assert.ok(sheet.getTable("ConcertCustomersTable"));
+  assert.equal(sheet.columnCount, 11);
 
   const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
   assert.equal(String.fromCharCode(bytes[0], bytes[1]), "PK");

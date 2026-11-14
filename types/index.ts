@@ -641,6 +641,11 @@ export interface CostItem {
   rawCategory?: string | null;
   /** الحد الذي يظهر عنده الصنف ضمن تنبيهات انخفاض المخزون. */
   minimumStock?: number;
+  materialAutoEnabled?: boolean;
+  materialTargetStock?: number;
+  materialOpenQuantity?: number;
+  materialPendingQuantity?: number;
+  materialReferenced?: boolean;
 }
 
 /** عملية إنتاج: تستهلك مواد خام وتُنتج كمية من صنف جاهز.

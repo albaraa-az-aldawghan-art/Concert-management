@@ -39,7 +39,9 @@ test("تصدير المواد الخام يحافظ على المورد والو
   const reopened = await reopen(workbook);
   const sheet = reopened.worksheets[0];
   assert.equal(sheet.rowCount, 4);
-  assert.deepEqual(sheet.getRow(4).values.slice(1), [
+  const values = sheet.getRow(4).values;
+  assert.ok(Array.isArray(values));
+  assert.deepEqual(values.slice(1), [
     "أرز", "RAW001", "المورد الأول", "كيس", "جم", 25_000, 25_000, 1_000, 0.1, 2_500,
   ]);
 });
@@ -53,7 +55,9 @@ test("تصدير المنتجات يخرج المنتج فقط مع القسم �
   const reopened = await reopen(workbook);
   const sheet = reopened.worksheets[0];
   assert.equal(sheet.rowCount, 4);
-  assert.deepEqual(sheet.getRow(4).values.slice(1), [
+  const values = sheet.getRow(4).values;
+  assert.ok(Array.isArray(values));
+  assert.deepEqual(values.slice(1), [
     "وجبة أرز", "PRD001", "منتج بيع", "المطعم", "الوجبات", 10, "مكتملة",
   ]);
 });

@@ -2,6 +2,7 @@
 
 /* الوارد: تسجيل المشتريات بأسعارها قبل الضريبة — منه يُبنى متوسط سعر التكلفة. */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCostIncoming, addCostIncomingInvoice, deleteCostIncoming, getCostItems, getPurchaseSuppliers, addPurchaseSupplier } from "@/lib/firestore/costs";
 import { isPurchaseRawItem, purchaseSupplierNames } from "@/lib/purchase-options";
@@ -189,6 +190,7 @@ export default function CostsIncomingPage() {
 
   return (
     <div className="space-y-5">
+      {(isAdmin || ["mat_view", "mat_view_all", "mat_receive", "mat_invoice"].some(key => feat("costs", key))) && <Link href="/admin/costs/material-requests" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-[#1C2D50]"><span><strong>طلبات المواد الخام</strong><span className="mt-1 block text-xs">اختر طلبًا لتسجيل الكميات الواصلة أو إضافة فاتورة متأخرة واعتماد المخزون.</span></span><span className="font-bold">فتح الطلبات ←</span></Link>}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800">فواتير الشراء والوارد</h2>
