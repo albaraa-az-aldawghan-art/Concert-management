@@ -26,6 +26,7 @@ const pageTitles: Record<string, string> = {
   "/admin/costs/dashboard": "لوحة التكاليف",
   "/admin/costs/raw": "المواد الخام",
   "/admin/costs/incoming": "المشتريات والوارد",
+  "/admin/costs/material-requests": "طلبات المواد",
   "/admin/costs/production": "المنتجات والوصفات القياسية",
   "/admin/costs/outgoing": "المنصرف",
   "/admin/costs/damage": "التالف",
