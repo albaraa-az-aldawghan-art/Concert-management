@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { ExpensesExportDialog } from "@/components/ui/expenses-export-dialog";
+import { api } from "@/lib/api";
 import { SALES_COLUMNS } from "@/lib/server/export-columns";
 import { salesExportScope } from "@/lib/sales-export-scope";
 import { Concert, Contract, CostOutgoing } from "@/types";
@@ -83,6 +84,8 @@ export default function FinancesPage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [outgoing, setOutgoing] = useState<CostOutgoing[]>([]);
+  const [voucherRows,setVoucherRows]=useState<{date:string;createdAt:string;department:string;net:number;allocations:{id:string;net:number}[]}[]>([]);
+  const [financeError,setFinanceError]=useState("");
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   // null يحترم الرابط القادم من لوحة التحكم، وبعد أول ضغط يصبح القرار للمستخدم.
@@ -105,12 +108,14 @@ export default function FinancesPage() {
       getConcerts(),
       getContracts().catch(() => [] as Contract[]),
       getCostOutgoing().catch(() => [] as CostOutgoing[]),
-    ]).then(([concertData, contractData, outgoingData]) => {
+      api.get<{rows:typeof voucherRows}>("/api/expense-vouchers?report=1"),
+    ]).then(([concertData, contractData, outgoingData, voucherData]) => {
       setConcerts(concertData);
       setContracts(contractData);
       setOutgoing(outgoingData);
+      setVoucherRows(voucherData.rows);
       setLoading(false);
-    });
+    }).catch(e=>{setFinanceError(e.message);setLoading(false)});
   }, []);
 
   function toggleSort(key: SortKey) {
@@ -208,7 +213,10 @@ export default function FinancesPage() {
     .filter((o) => o.channel === "concerts" && !!o.concertId && concertIds.has(o.concertId))
     .reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
   const concertNetRevenue = dashboardConcerts.reduce((sum, c) => sum + ((c.price ?? 0) / (1 + (c.vatRate ?? 15) / 100)), 0);
-  const concertCosts = dashboardConcerts.reduce((sum, c) => sum + metricsOf(c).total, 0) + concertRawCost;
+  const scopedVouchers=voucherRows.filter(v=>passesDateValue(dateField==="createdAt"?eventDateString(v.createdAt):v.date));
+  const cancelledIds=new Set(concerts.filter(c=>c.status==="cancelled"&&passesDateValue(dateField==="createdAt"?eventDateString(c.createdAt):eventDateString(c.date))).map(c=>c.id));
+  const cancelledVoucherCosts=voucherRows.filter(v=>v.department==="concerts").reduce((s,v)=>s+v.allocations.filter(a=>cancelledIds.has(a.id)).reduce((n,a)=>n+a.net,0),0)/100;
+  const concertCosts = dashboardConcerts.reduce((sum, c) => sum + metricsOf(c).total, 0) + concertRawCost + cancelledVoucherCosts;
   const concertCollected = dashboardConcerts.reduce((sum, c) => sum + (c.deposit ?? 0), 0);
 
   const dashboardContracts = contracts.filter((c) => {
@@ -218,7 +226,7 @@ export default function FinancesPage() {
   });
   const contractIds = new Set(dashboardContracts.map((c) => c.id));
   const contractRevenue = dashboardContracts.reduce((sum, c) => sum + ((c.totalValue ?? 0) / (1 + (c.vatRate ?? 15) / 100)), 0);
-  const contractCosts = outgoing
+  const contractCosts = scopedVouchers.filter(v=>v.department==="contracts").reduce((s,v)=>s+v.net,0)/100 + outgoing
     .filter((o) => o.channel === "contracts" && !!o.contractId && contractIds.has(o.contractId))
     .reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
   const contractCollected = dashboardContracts.reduce((sum, c) => sum + (c.paid ?? 0), 0);
@@ -228,14 +236,15 @@ export default function FinancesPage() {
     const date = dateField === "createdAt" ? toLocalDateStr(o.createdAt) : o.dispenseDate;
     return passesDateValue(date);
   });
-  const restaurantCosts = restaurantRows.reduce((sum, o) => sum + (o.totalCost ?? 0), 0);
+  const restaurantCosts = restaurantRows.reduce((sum, o) => sum + (o.totalCost ?? 0), 0)+scopedVouchers.filter(v=>v.department==="restaurant").reduce((s,v)=>s+v.net,0)/100;
+  const generalCosts=scopedVouchers.filter(v=>v.department==="general").reduce((s,v)=>s+v.net,0)/100;
   const divisions = [
     { name: "الحفلات", href: "/admin/profitability", icon: BarChart3, revenue: concertNetRevenue, costs: concertCosts, collected: concertCollected, note: `${dashboardConcerts.length} حفلة` },
     { name: "المطعم", href: "/admin/restaurant", icon: UtensilsCrossed, revenue: 0, costs: restaurantCosts, collected: 0, note: `${restaurantRows.length} عملية صرف · الإيرادات غير مسجلة` },
     { name: "التعاقدات", href: "/admin/contracts", icon: FileText, revenue: contractRevenue, costs: contractCosts, collected: contractCollected, note: `${dashboardContracts.length} عقد` },
   ].map((division) => ({ ...division, profit: division.revenue - division.costs }));
   const siteRevenue = divisions.reduce((sum, division) => sum + division.revenue, 0);
-  const siteCosts = divisions.reduce((sum, division) => sum + division.costs, 0);
+  const siteCosts = divisions.reduce((sum, division) => sum + division.costs, 0)+generalCosts;
   const siteProfit = siteRevenue - siteCosts;
   const siteCollected = divisions.reduce((sum, division) => sum + division.collected, 0);
 
@@ -243,6 +252,7 @@ export default function FinancesPage() {
   const safePage   = Math.min(page, totalPages);
   const paginated  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  if(financeError)return <div role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">تعذر إكمال الأرقام المالية دون سندات الصرف: {financeError}. أعد تحميل الصفحة.</div>;
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -417,8 +427,9 @@ export default function FinancesPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Landmark size={19} className="text-[#1C2D50]" /> اللوحة المالية الشاملة</h3>
+            {feat("finances","expenses_view")&&<Link href="/admin/finances/expenses" className="mt-3 inline-block rounded-xl bg-[#1C2D50] px-4 py-2 text-sm font-bold text-white">المصاريف وسندات الصرف - إنشاء سند صرف</Link>}
             {feat("finances", "expenses_export") && <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowExpensesExport(true)}>تصدير جميع المصاريف إلى Excel</Button>}
-            <p className="text-xs text-slate-500 mt-1">أرقام ما قبل الضريبة حسب الفترة المحددة أعلاه</p>
+            <p className="text-xs text-slate-500 mt-1">أرقام ما قبل الضريبة. مصروفات الحفلات حسب فلترة الحفلات؛ سندات الأقسام الأخرى حسب تاريخ السند. المصروف العام المستقل: {generalCosts.toLocaleString("en-US")} ريال، ومصاريف السندات المستهلكة للحفلات الملغاة ضمن الفترة: {cancelledVoucherCosts.toLocaleString("en-US")} ريال.</p>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -183,8 +183,9 @@ export async function svcDeleteIncoming(db: Firestore, id: string) {
   await runMaterialStockTransaction(db, async (tx) => {
     const eSnap = await tx.get(entryRef);
     if (!eSnap.exists) throw new ApiError("العملية غير موجودة", 404);
-    const e = eSnap.data() as { itemBarcode: string; quantity: number; totalBeforeVat: number; materialReceiptId?: string };
+    const e = eSnap.data() as { itemBarcode: string; quantity: number; totalBeforeVat: number; materialReceiptId?: string;invoiceId?:string };
     if (e.materialReceiptId) throw new ApiError("هذا الوارد مرتبط بطلب مواد؛ صحّح دفعة الاستلام من صفحة طلبات المواد حتى تبقى الكميات متطابقة");
+    if(e.invoiceId){const invoice=await tx.get(db.collection("cost_purchase_invoices").doc(e.invoiceId));if(invoice.data()?.expenseVoucherId)throw new ApiError("الوارد مرتبط بسند صرف؛ صحح السند أولًا قبل حذف الوارد");}
     const itemRef = db.collection("cost_items").doc(e.itemBarcode);
     const iSnap = await tx.get(itemRef);
 

@@ -8,6 +8,7 @@ import { matchesDate, periodBounds } from "@/lib/date-period";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { downloadBlob } from "@/lib/download-file";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -73,6 +74,8 @@ export default function RestaurantPage() {
   const [importResult, setImportResult] = useState<RestaurantImportResult | null>(null);
   const [sections, setSections] = useState<SalesSection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [voucherRows,setVoucherRows]=useState<{date:string;net:number}[]>([]);
+  const [voucherError,setVoucherError]=useState("");
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -83,6 +86,7 @@ export default function RestaurantPage() {
 
   async function load() {
     setLoading(true);
+    try{setVoucherRows((await api.get<{rows:typeof voucherRows}>("/api/expense-vouchers?restaurantCosts=1")).rows);setVoucherError("");}catch(e){setVoucherError(e instanceof Error?e.message:"تعذر جلب سندات الصرف");}
     const [o, s, i, sec] = await Promise.all([
       getCostOutgoing().catch(() => [] as CostOutgoing[]),
       getCostSettings().catch(() => ({ units: [], departments: [] } as CostSettings)),
@@ -169,6 +173,7 @@ export default function RestaurantPage() {
     monthly[t.m].total += o.totalCost ?? 0;
     monthly[t.m].count++;
   }
+  for(const v of voucherRows){const t=ym(v.date);if(t?.y===year)monthly[t.m].total+=v.net/100;}
   const yearTotal = r2(monthly.reduce((s, m) => s + m.total, 0));
 
   /* تفصيل الشهر المختار */
@@ -178,6 +183,7 @@ export default function RestaurantPage() {
     return t && t.y === year && t.m === month;
   });
   const monthTotal = r2(monthRows.reduce((s, o) => s + (o.totalCost ?? 0), 0));
+  const periodVoucherCost=voucherRows.filter(v=>detailPeriod?matchesDate(v.date,{mode:detailPeriod,from:"",to:""}):v.date.startsWith(`${year}-${String(month+1).padStart(2,"0")}-`)).reduce((s,v)=>s+v.net,0)/100;
   const detailLabel = detailPeriod ? `${detailPeriod === "week" ? "هذا الأسبوع" : "الأسبوع القادم"} (${periodBounds(detailPeriod).join(" - ")})` : `${MONTHS[month]} ${year}`;
 
   /* تجميع الشهر حسب الصنف ثم حسب القسم */
@@ -206,6 +212,7 @@ export default function RestaurantPage() {
   const prevMonth = () => { setDetailPeriod(""); if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
   const nextMonth = () => { setDetailPeriod(""); if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
 
+  if(voucherError)return <p role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">تعذر استكمال تكاليف المطعم دون سندات الصرف: {voucherError}. أعد تحميل الصفحة.</p>;
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -312,7 +319,8 @@ export default function RestaurantPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="bg-orange-50 border-orange-100">
               <p className="text-xs text-orange-700 font-semibold">تكلفة الفترة المختارة</p>
-              <p className="text-lg font-bold text-orange-800 tabular-nums-auto mt-1">{money(monthTotal)} ريال</p>
+              <p className="text-lg font-bold text-orange-800 tabular-nums-auto mt-1">{money(monthTotal+periodVoucherCost)} ريال</p>
+              <p className="mt-1 text-xs text-slate-500">منها {money(periodVoucherCost)} ريال سندات صرف مباشرة، و{money(monthTotal)} ريال تكلفة مخزون. تفاصيل الأصناف أدناه تخص المخزون فقط.</p>
             </Card>
             <Card>
               <p className="text-xs text-slate-500 font-semibold">عمليات الصرف</p>

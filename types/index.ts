@@ -565,6 +565,8 @@ export interface ExpenseSettings {
 }
 
 export interface ConcertExpense {
+  voucherId?: string;
+  snapshotNetAmount?: number;
   id: string;
   concertId: string;
   concertNumber: number | null;

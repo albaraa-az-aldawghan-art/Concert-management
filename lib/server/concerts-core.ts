@@ -222,9 +222,11 @@ export async function svcUpdateConcert(db: Firestore, id: string, d: Record<stri
 }
 
 export async function svcDeleteConcert(db: Firestore, id: string) {
+  const vouchers=await db.collection("expense_vouchers").where("targetKeys","array-contains",`concerts:${id}`).get();
+  if(vouchers.docs.some(d=>d.data().state==="posted"))throw new ApiError("الحفلة مرتبطة بسند صرف معتمد؛ استخدم الإلغاء والتسوية لحفظ السجل المالي");
   // يُفرج عن كل ما تحجزه ثم تُحذف — وإلا بقي الحجز معلّقاً للأبد
   await svcReleaseConcertStock(db, id, true);
-  await db.collection("concerts").doc(id).delete();
+  await db.runTransaction(async tx=>{const linked=await tx.get(db.collection("expense_vouchers").where("targetKeys","array-contains",`concerts:${id}`));if(linked.docs.some(d=>d.data().state==="posted"))throw new ApiError("الحفلة مرتبطة بسند صرف؛ لا يمكن حذفها");tx.delete(db.collection("concerts").doc(id));});
 }
 
 export async function svcCancelConcert(
@@ -241,6 +243,9 @@ export async function svcCancelConcert(
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("الحفلة غير موجودة", 404);
   if (snap.data()!.status === "cancelled") throw new ApiError("الحفلة ملغاة أصلاً");
+
+  const vouchers=await db.collection("expense_vouchers").where("targetKeys","array-contains",`concerts:${id}`).get();
+  if(vouchers.docs.some(s=>{const v=s.data();return v.state==="posted"&&v.source==="direct"&&v.allocations.some((a:{id:string;gross:number;settlement?:string})=>a.id===id&&a.gross>0&&!a.settlement)}))throw new ApiError("حدّد مصير سندات الصرف أولًا من المالية ← المصاريف وسندات الصرف ← تسوية مصروف عند إلغاء حفلة");
 
   /* كل عملية صرف عليها كمية لم تُحسم تمنع الإلغاء حتى يُقرَّر مصيرها */
   const outSnap = await db.collection("cost_outgoing").where("concertId", "==", id).get();
@@ -269,22 +274,22 @@ export async function svcCancelConcert(
   }
 
   await svcReleaseConcertStock(db, id); // الملغاة لا تحجز موارد
-  const expenseSnap = await db.collection("concert_expenses").where("concertId", "==", id).get();
-  if (!expenseSnap.empty) {
-    const batch = db.batch();
-    expenseSnap.docs.forEach((expense) => batch.delete(expense.ref));
-    await batch.commit();
-  }
-  await ref.update({
+  await db.runTransaction(async tx=>{
+  const linked=await tx.get(db.collection("expense_vouchers").where("targetKeys","array-contains",`concerts:${id}`));
+  const expenseSnap = await tx.get(db.collection("concert_expenses").where("concertId", "==", id));
+  if(linked.docs.some(s=>{const v=s.data();return v.state==="posted"&&v.source==="direct"&&v.allocations.some((a:{id:string;gross:number;settlement?:string})=>a.id===id&&a.gross>0&&!a.settlement)}))throw new ApiError("أضيف سند صرف قبل الإلغاء؛ حدد مصيره من صفحة المصاريف وسندات الصرف ثم أعد الإلغاء");
+  expenseSnap.docs.filter(e=>!e.data().voucherId).forEach(e=>tx.delete(e.ref));
+  tx.update(ref,{
     status: "cancelled",
     cancelledAt: Timestamp.now(),
     cancellationReason: d.reason || null,
     refundAmount: d.refundAmount || null,
     refundDate: d.refundDate || null,
     refundMethod: d.refundMethod || null,
-    transportCost: null,
-    laborCost: null,
-    otherExpensesCost: null,
+    transportCost: r2(expenseSnap.docs.filter(e=>e.data().voucherId&&e.data().kind==="transport").reduce((sum,e)=>sum+(e.data().snapshotNetAmount??0),0))||null,
+    laborCost: r2(expenseSnap.docs.filter(e=>e.data().voucherId&&e.data().kind==="labor").reduce((sum,e)=>sum+(e.data().snapshotNetAmount??0),0))||null,
+    otherExpensesCost: r2(expenseSnap.docs.filter(e=>e.data().voucherId&&e.data().kind==="other").reduce((sum,e)=>sum+(e.data().snapshotNetAmount??0),0))||null,
+  });
   });
   await syncDispenseRequest(db, id, "system"); // الطلب المعلّق يُحذف مع الإلغاء
 }
@@ -494,10 +499,11 @@ export async function svcSetConcertInvoice(
 /** يعيد كتابة تكاليف الحفلة من فواتيرها — تماماً كما يُشتق المدفوع
  *  من الدفعات. يُستدعى بعد كل إضافة أو حذف فاتورة. */
 async function recalcExpenses(db: Firestore, concertId: string) {
+  return db.runTransaction(async tx=>{
   const [snap, settings, concertSnap] = await Promise.all([
-    db.collection("concert_expenses").where("concertId", "==", concertId).get(),
-    db.collection("expense_settings").doc("config").get(),
-    db.collection("concerts").doc(concertId).get(),
+    tx.get(db.collection("concert_expenses").where("concertId", "==", concertId)),
+    tx.get(db.collection("expense_settings").doc("config")),
+    tx.get(db.collection("concerts").doc(concertId)),
   ]);
 
   const kindByName = new Map<string, string>();
@@ -508,19 +514,20 @@ async function recalcExpenses(db: Firestore, concertId: string) {
 
   let transport = 0, labor = 0, other = 0;
   for (const d of snap.docs) {
-    const e = d.data() as { type: string; amount: number; vatIncluded?: boolean };
+    const e = d.data() as { type: string; amount: number; vatIncluded?: boolean; voucherId?:string;kind?:string;snapshotNetAmount?:number };
     // القيمة شاملة الضريبة تُجرَّد منها كي تتجانس كل التكاليف
-    const net = e.vatIncluded ? r2((e.amount ?? 0) / (1 + vatRate / 100)) : (e.amount ?? 0);
-    const kind = kindByName.get(e.type) ?? "other";
+    const net = typeof e.snapshotNetAmount==="number"?e.snapshotNetAmount:e.vatIncluded ? r2((e.amount ?? 0) / (1 + vatRate / 100)) : (e.amount ?? 0);
+    const kind = (e.voucherId?e.kind:kindByName.get(e.type)) ?? "other";
     if (kind === "transport") transport += net;
     else if (kind === "labor") labor += net;
     else other += net;
   }
 
-  await db.collection("concerts").doc(concertId).update({
+  tx.update(db.collection("concerts").doc(concertId),{
     transportCost: transport > 0 ? r2(transport) : null,
     laborCost: labor > 0 ? r2(labor) : null,
     otherExpensesCost: other > 0 ? r2(other) : null,
+  });
   });
 }
 
@@ -554,6 +561,7 @@ export async function svcDeleteExpense(db: Firestore, id: string) {
   const ref = db.collection("concert_expenses").doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError("الفاتورة غير موجودة", 404);
+  if(snap.data()!.voucherId)throw new ApiError("هذا المصروف مرتبط بسند صرف؛ صحّحه من صفحة المصاريف وسندات الصرف لحفظ التوزيع والسجل المالي");
   const concertId = snap.data()!.concertId as string;
   await ref.delete();
   await recalcExpenses(db, concertId);

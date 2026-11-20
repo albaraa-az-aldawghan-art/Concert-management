@@ -258,6 +258,7 @@ export async function voidMaterialReceipt(db: Firestore, uid: string, all: boole
     if (!eSnap.exists || eSnap.data()!.requestId !== id) throw new ApiError("الاستلام غير موجود", 404);
     const receipt = eSnap.data() as MaterialReceipt;
     if (receipt.state === "void") throw new ApiError("تم إلغاء الاستلام مسبقًا");
+    if(receipt.state==="posted"){const invoice=await tx.get(db.collection("cost_purchase_invoices").doc(receiptId));if(invoice.data()?.expenseVoucherId)throw new ApiError("دفعة الوارد مرتبطة بسند صرف؛ صحّح السند أولًا قبل إلغاء الوارد");}
     if (request.cancelReason) throw new ApiError("لا يمكن إلغاء دفعة بعد إلغاء متبقي الطلب؛ راجع الإدارة");
     const itemRefs = receipt.lines.map(l => db.collection("cost_items").doc(l.barcode));
     const snaps = await Promise.all(itemRefs.map(r => tx.get(r)));

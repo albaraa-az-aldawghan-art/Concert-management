@@ -577,6 +577,7 @@ export default function ContractDetailPage() {
             { l: "الجرد المتبقي", v: data.totals.closingStock, cls: "text-slate-700", show: true, isInt: true },
             { l: "تكلفة ما بيع", v: data.totals.cost, cls: "text-orange-700", show: ff.cost },
             { l: "المصروفات اليومية", v: data.totals.expenses, cls: "text-orange-700", show: ff.cost },
+            { l: "سندات الصرف المركزية", v: data.totals.voucherExpenses??0, cls: "text-orange-700", show: ff.cost },
             { l: "ربح العقد", v: data.totals.profit, cls: data.totals.profit >= 0 ? "text-emerald-700" : "text-red-600", show: ff.cost },
           ].filter((x) => x.show).map((x) => (
             <Card key={x.l}>

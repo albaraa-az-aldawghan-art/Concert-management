@@ -26,8 +26,8 @@ export function ExpensesExportDialog({ onClose }: { onClose: () => void }) {
   }
   return <Modal open title="تصدير جميع المصاريف إلى Excel" onClose={() => { if (!busy) onClose(); }} confirmClose size="xl">
     <div className="space-y-5">
-      <p className="text-sm leading-7 text-slate-600">ملف واحد يحتوي ملخصًا وجميع فواتير مصروفات الحفلات والمصاريف اليومية للتعاقدات، عبر جميع الصفحات. تُفصل الخصومات عن الصرف الفعلي. اترك التاريخين فارغين لتصدير كامل السجل.</p>
-      <div className="rounded-xl bg-amber-50 p-3 text-sm leading-7 text-amber-900">المصاريف العامة والمطعم لا تملك سجلًا مستقلًا حاليًا. لا يشمل هذا التقرير التكاليف التقديرية أو شراء وصرف المخزون، ولا يفترض سداد الفواتير أو ضريبة غير موثقة.</div>
+      <p className="text-sm leading-7 text-slate-600">ملف واحد يحتوي الملخص وجميع سندات الصرف لكل الأقسام والفواتير القديمة والمصاريف اليومية للتعاقدات، وورقة توضح حصص الجهات المستفيدة دون احتسابها مرتين. اترك التاريخين فارغين لتصدير كامل السجل.</p>
+      <div className="rounded-xl bg-amber-50 p-3 text-sm leading-7 text-amber-900">المسودات والقيود الملغاة لا تُجمع ماليًا، والخصم من التحصيل ليس دفعًا. سداد فاتورة وارد لا يضيف تكلفة المخزون مرة ثانية. لا تُفترض ضريبة أو بيانات سداد غير موثقة.</div>
       <p className="text-xs text-slate-500">فترة مستقلة حسب تاريخ فاتورة المصروف / يوم تشغيل العقد، وليست تاريخ الحفلة أو إنشائها.</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="space-y-2 text-sm">من تاريخ<LatinInput type="date" value={from} onChange={e => setFrom(e.target.value)} disabled={busy} className="mt-2 w-full rounded-xl border p-3" /></label>

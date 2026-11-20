@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { ApiError } from "./guard";
 import type { ExpenseExportFilters, ExpenseExportRow } from "../expenses-export";
+import { VOUCHER_METHODS,VOUCHER_STATES,type ExpenseVoucher } from "../expense-vouchers";
 
 const LIMIT = 5000;
 export function exportExpenseDate(value: unknown, label: string): string {
@@ -33,6 +34,7 @@ const status = (value: unknown) => ({ cancelled: "ملغاة", completed: "مك�
 export function normalizeExpenseExport(invoices: Doc[], days: Doc[], concerts: Map<string, Record<string, unknown>>, contracts: Map<string, Record<string, unknown>>): ExpenseExportRow[] {
   const rows: ExpenseExportRow[] = [];
   for (const { id, data: e } of invoices) {
+    if(e.voucherId)continue; // canonical voucher is counted once, not once per beneficiary
     const date = exportExpenseDate(e.invoiceDate, `الفاتورة ${id}`);
     const amount = expenseHalalas(e.amount, `الفاتورة ${id}`);
     const targetId = text(e.concertId), c = concerts.get(targetId);
@@ -91,7 +93,9 @@ export async function readExpenseExport(db: Firestore, filters: ExpenseExportFil
     if (snap.size > LIMIT) throw new ApiError("تجاوز التقرير 5000 سجل في أحد المصادر؛ اختر فترة أقصر. لم يُصدَّر ملف ناقص");
     return snap.docs.map(d => ({ id: d.id, data: d.data() }));
   }
-  const [invoices, days] = await Promise.all([read("concert_expenses", "invoiceDate"), read("contract_days", "date")]);
+  const [invoices, days, vouchers] = await Promise.all([read("concert_expenses", "invoiceDate"), read("contract_days", "date"),read("expense_vouchers","date")]);
+  const voucherIds=new Set(vouchers.map(v=>v.id));
+  if(invoices.some(e=>e.data.voucherId&&!voucherIds.has(String(e.data.voucherId))))throw new ApiError("هناك مصروف مرتبط بسند غير موجود في الفترة؛ راجع ارتباط السند قبل التصدير");
   async function targets(collection: string, ids: string[]) {
     const unique = [...new Set(ids.filter(Boolean))];
     const records = new Map<string, Record<string, unknown>>();
@@ -108,5 +112,11 @@ export async function readExpenseExport(db: Firestore, filters: ExpenseExportFil
     targets("concerts", invoices.map(i => text(i.data.concertId))),
     targets("contracts", days.map(d => text(d.data.contractId))),
   ]);
-  return normalizeExpenseExport(invoices, days, concerts, contracts);
+  const rows=normalizeExpenseExport(invoices, days, concerts, contracts);
+  for(const doc of vouchers){const v=doc.data as unknown as ExpenseVoucher,posted=v.state==="posted",amount=posted?v.gross-v.refunded:0;
+    if(!["draft","posted","void"].includes(v.state)||!Array.isArray(v.allocations)||![v.gross,v.net,v.tax,v.refunded].every(n=>Number.isSafeInteger(n)&&n>=0)||v.net+v.tax!==v.gross||v.refunded>v.gross||v.allocations.some(a=>![a.gross,a.net,a.tax].every(n=>Number.isSafeInteger(n)&&n>=0)||a.net+a.tax!==a.gross))throw new ApiError(`السند ${v.number||v.id}: بيانات مالية غير متطابقة؛ راجع السجل`);
+    if(v.allocations.reduce((s,a)=>s+a.gross,0)!==v.gross-v.refunded)throw new ApiError(`السند ${v.number||v.id}: التوزيع لا يطابق المبلغ`);
+    rows.push({id:`expense_vouchers/${v.id}`,source:"expense_voucher",department:v.department,date:v.date,targetId:v.id,targetName:v.allocations.map(a=>a.name).join("، "),targetNumber:v.number||"مسودة",targetStatus:VOUCHER_STATES[v.state],type:v.type,recipient:v.recipient,description:`${v.description} | الأصل ${v.gross/100} | المسترد ${v.refunded/100}`,amount,cash:amount,deduction:0,taxNote:v.vatMode==="none"?"بدون ضريبة":`صافي الأصل ${v.net/100}؛ الضريبة ${v.tax/100}؛ النسبة ${v.vatRate}%`,paymentNote:posted?VOUCHER_METHODS[v.method]:"غير محتسب؛ مسودة أو قيد ملغى",recordedBy:v.createdBy,warning:v.source==="inventory"?"سداد فاتورة مخزون مسجلة؛ لا يضيف تكلفة مخزون جديدة":"",allocations:v.allocations.map(a=>({name:a.name,gross:posted?a.gross:0,net:posted?a.net:0,tax:posted?a.tax:0})),voucherNumber:v.number||v.id});
+  }
+  return rows.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }

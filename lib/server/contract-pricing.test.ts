@@ -23,13 +23,13 @@ function fixture() {
       delete: async () => { records.delete(path); },
     };
   }
-  function collection(name: string, predicates: [string, unknown][] = [], limit = Infinity) {
+  function collection(name: string, predicates: [string, string, unknown][] = [], limit = Infinity) {
     return {
       doc: (id = `id-${++sequence}`) => ref(`${name}/${id}`),
-      where: (key: string, op: string, value: unknown) => { assert.equal(op, "=="); return collection(name, [...predicates, [key, value]], limit); },
+      where: (key: string, op: string, value: unknown) => { assert.ok(["==","array-contains"].includes(op)); return collection(name, [...predicates, [key, op, value]], limit); },
       limit: (n: number) => collection(name, predicates, n),
       get: async () => {
-        const rows = [...records].filter(([path, data]) => path.startsWith(`${name}/`) && predicates.every(([k, v]) => data[k] === v)).slice(0, limit);
+        const rows = [...records].filter(([path, data]) => path.startsWith(`${name}/`) && predicates.every(([k, op,v]) => op==="array-contains"?Array.isArray(data[k])&&(data[k] as unknown[]).includes(v):data[k] === v)).slice(0, limit);
         const docs = await Promise.all(rows.map(([path]) => ref(path).get()));
         return { docs, empty: docs.length === 0 };
       },

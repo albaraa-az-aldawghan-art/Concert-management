@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   "/admin": "لوحة التحكم",
   "/admin/activity": "سجل النشاطات",
   "/admin/finances": "القائمة المالية",
+  "/admin/finances/expenses": "المصاريف وسندات الصرف",
   "/admin/users": "إدارة المستخدمين",
   "/admin/users/roles": "الأدوار والصلاحيات",
   "/admin/warehouse": "الموارد",

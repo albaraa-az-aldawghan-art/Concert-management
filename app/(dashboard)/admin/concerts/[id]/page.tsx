@@ -2066,7 +2066,7 @@ export default function AdminConcertDetailPage() {
                 )}
                 {expenses.map((e) => (
                   <tr key={e.id} className="border-b border-slate-50 last:border-none">
-                    {ff.expType && <td className="py-2 px-2 font-medium text-slate-800">{e.type}</td>}
+                    {ff.expType && <td className="py-2 px-2 font-medium text-slate-800">{e.type}{e.voucherId&&<a className="block text-xs text-blue-600" href="/admin/finances/expenses">مرتبط بسند صرف - إدارة وتسوية</a>}</td>}
                     {ff.expSupplier && (
                       <td className="py-2 px-2 text-slate-500 text-xs">
                         {[e.supplierName, e.description].filter(Boolean).join(" — ") || "—"}
@@ -2086,9 +2086,9 @@ export default function AdminConcertDetailPage() {
                     )}
                     {fx.expDelete && (
                       <td className="py-2 px-2">
-                        <button onClick={() => setDeleteExpenseTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
+                        {!e.voucherId&&<button onClick={() => setDeleteExpenseTarget(e)} className="text-slate-400 hover:text-red-500 transition-colors">
                           <Trash2 size={13} />
-                        </button>
+                        </button>}
                       </td>
                     )}
                   </tr>

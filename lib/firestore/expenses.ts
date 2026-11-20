@@ -55,6 +55,7 @@ export async function getAllExpenses(): Promise<ConcertExpense[]> {
   const snap = await getDocs(collection(db, "concert_expenses"));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() } as ConcertExpense))
+    .filter(e=>!e.voucherId||e.amount>0)
     .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
@@ -64,6 +65,7 @@ export async function getExpensesByConcert(concertId: string): Promise<ConcertEx
   );
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() } as ConcertExpense))
+    .filter(e=>!e.voucherId||e.amount>0)
     .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 }
 
@@ -99,6 +101,7 @@ export async function deleteConcertExpense(entry: ConcertExpense): Promise<void>
 /** المبلغ الصافي قبل الضريبة — الفواتير الشاملة تُطبَّع حتى تُقارن
  *  بإيراد الحفلة المحسوب قبل الضريبة على الأساس نفسه. */
 export function expenseNetAmount(e: ConcertExpense, vatRate: number): number {
+  if (typeof e.snapshotNetAmount === "number") return e.snapshotNetAmount;
   if (!e.vatIncluded) return e.amount;
   return Math.round((e.amount / (1 + vatRate / 100)) * 100) / 100;
 }

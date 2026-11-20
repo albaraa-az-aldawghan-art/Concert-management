@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import Module,{createRequire} from 'node:module';
+import {build}from'esbuild';
+const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`export{renderVoucherPdf,voucherPdfHtml}from'@/lib/server/expense-voucher-pdf'`},bundle:true,write:false,platform:'node',format:'cjs',external:['puppeteer-core','@sparticuz/chromium-min']});
+const filename=process.cwd()+'/scripts/.voucher-pdf.cjs',m=new Module(filename);m.paths=Module._nodeModulePaths(process.cwd());m._compile(built.outputFiles[0].text,filename);
+const sample={id:'fixture',number:'PV-2026-000001',state:'posted',revision:2,date:'2026-11-21',department:'concerts',recipient:'مستلم تجريبي',type:'أجور عمال',kind:'labor',method:'bank_transfer',description:'4 عمال بمبلغ إجمالي 500 ريال موزع على 3 حفلات.',source:'direct',invoiceId:'',amount:50000,vatMode:'none',vatRate:0,gross:50000,net:50000,tax:0,refunded:0,allocations:['أ','ب','ج'].map((name,i)=>({id:String(i),name:'حفلة '+name,number:'',gross:i<2?16667:16666,net:i<2?16667:16666,tax:0})),targetKeys:[],createdBy:'fixture',createdAt:'2026-11-21T08:00:00Z',updatedAt:'2026-11-21T08:00:00Z',approvedBy:'fixture',events:[]};
+await fs.mkdir('tmp/expense-vouchers',{recursive:true});
+const bytes=await m.exports.renderVoucherPdf(sample);await fs.writeFile('tmp/expense-vouchers/voucher.pdf',bytes);await fs.writeFile('tmp/expense-vouchers/voucher.html',await m.exports.voucherPdfHtml(sample));
+const require=createRequire(import.meta.url),{createCanvas,DOMMatrix,ImageData,Path2D}=require('../tmp/pdf-render/node_modules/@napi-rs/canvas');Object.assign(globalThis,{DOMMatrix,ImageData,Path2D});
+const {getDocument}=await import('../tmp/pdf-render/node_modules/pdfjs-dist/legacy/build/pdf.mjs');const task=getDocument({data:new Uint8Array(bytes),useSystemFonts:false}),pdf=await task.promise;
+assert.equal(pdf.numPages,1);const page=await pdf.getPage(1),view=page.getViewport({scale:1});assert.ok(Math.abs(view.width/72*25.4-148.5)<0.5);assert.ok(Math.abs(view.height/72*25.4-105)<0.5);
+const text=(await page.getTextContent()).items.map(t=>t.str).join(' ');for(const value of['500.00','2026-11-21','PV-2026-000001','310290987900003'])assert.ok(text.includes(value),value);assert.equal(/[٠-٩۰-۹]/.test(text),false);
+const viewport=page.getViewport({scale:2.5}),canvas=createCanvas(Math.ceil(viewport.width),Math.ceil(viewport.height));await page.render({canvasContext:canvas.getContext('2d'),canvas,viewport}).promise;await fs.writeFile('tmp/expense-vouchers/voucher.png',canvas.toBuffer('image/png'));await task.destroy();
+console.log('Actual PDF passed: one quarter-A4 page, embedded Cairo/logo, exact amount/reference/date/VAT identity and Latin digits.');
+const max={...sample,recipient:'مستلم '.repeat(24).slice(0,120),type:'مصروف طويل '.repeat(12).slice(0,120),description:'بيان تفصيلي طويل '.repeat(40).slice(0,500),allocations:Array.from({length:40},(_,i)=>({id:String(i),name:'اسم حفلة طويل '.repeat(12).slice(0,120),number:'',gross:1250,net:1250,tax:0}))};
+const maxBytes=await m.exports.renderVoucherPdf(max),maxTask=getDocument({data:new Uint8Array(maxBytes),useSystemFonts:false}),maxPdf=await maxTask.promise;assert.equal(maxPdf.numPages,1);await maxTask.destroy();console.log('Maximum recipient/type/description and 40 beneficiaries also fit one page without clipping the recipient.');

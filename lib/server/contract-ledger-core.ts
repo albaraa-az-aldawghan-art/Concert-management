@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/server/guard";
 import { svcAddOutgoing, svcAdjustOutgoingQty, svcSetOutgoingDamage, svcDeleteOutgoing } from "@/lib/server/costs-core";
 import { svcAddContractPayment, svcDeleteContractPayment } from "@/lib/server/contracts-core";
 import type { ContractExpenseKind, ContractType } from "@/types";
+import { voucherCosts } from "./expense-vouchers-core";
 import { contractOpeningStockForDate, type CarryDay } from "@/lib/contract-day-carry";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -394,6 +395,7 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
   const sales = sum((t) => t.sales);
   const cost = sum((t) => t.cost);
   const expenses = sum((t) => t.expenses);
+  const voucherExpenses=(await voucherCosts(db,`contracts:${contractId}`)).filter(v=>v.date.startsWith(month+"-")).reduce((s,v)=>s+v.allocations.filter(a=>a.id===contractId).reduce((n,a)=>n+a.net,0),0)/100;
   return {
     month,
     openingStock,
@@ -408,8 +410,8 @@ export async function svcContractMonth(db: Firestore, contractId: string, month:
       sales,                                   // FB — الإجمالي
       closingStock: r2(items.reduce((s, i) => s + i.closing, 0)), // FC — الجرد المتبقي
       soldQty: r2(items.reduce((s, i) => s + i.soldQty, 0)),      // FD — الاستهلاك
-      cost, expenses,
-      profit: r2(sales - cost - expenses),
+      cost, expenses, voucherExpenses,
+      profit: r2(sales - cost - expenses - voucherExpenses),
       collected: sum((t) => t.collected),
       variance: sum((t) => t.variance),
     },

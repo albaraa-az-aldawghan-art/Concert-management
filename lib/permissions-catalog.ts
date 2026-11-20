@@ -92,8 +92,16 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
     key: "finances",
     label: "القائمة المالية",
     href: "/admin/finances",
-    hint: "الملخّص المالي لكل الحفلات",
+    hint: "الملخص المالي والمصاريف وسندات الصرف",
     groups: [
+      { key: "expense_vouchers", label: "المصاريف وسندات الصرف", actions: [
+        { key: "expenses_view", label: "عرض جميع المصاريف وسندات الصرف", sensitive: true },
+        { key: "expenses_create", label: "إنشاء وتعديل مسودة سند صرف" },
+        { key: "expenses_approve", label: "اعتماد صرف مدفوع وإصدار السند", sensitive: true },
+        { key: "expenses_print", label: "تنزيل سند صرف PDF" },
+        { key: "expenses_void", label: "إلغاء قيد سند خاطئ مع حفظ السبب", sensitive: true },
+        { key: "expenses_settle", label: "تسوية مصروفات الحفلات عند الإلغاء", sensitive: true },
+      ] },
       {
         key: "summary",
         label: "الإجماليات",
@@ -110,7 +118,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         label: "الجدول التفصيلي",
         actions: [
           { key: "table_view", label: "عرض جدول الحفلات المالي" },
-          { key: "expenses_export", label: "تصدير جميع المصاريف إلى Excel", hint: "يكشف جميع فواتير مصروفات الحفلات ومصاريف أيام التعاقدات بأسمائها ومبالغها عبر كامل السجل", sensitive: true },
+          { key: "expenses_export", label: "تصدير جميع المصاريف إلى Excel", hint: "يكشف سندات جميع الأقسام والفواتير القديمة ومصاريف أيام التعاقدات وأسماء المستفيدين والمبالغ والتوزيع عبر كامل السجل", sensitive: true },
         ],
         fields: [
           { key: "f_client",  label: "اسم العميل" },
@@ -134,7 +142,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         label: "الحفلة نفسها",
         actions: [
           { key: "create",    label: "إنشاء حفلة جديدة" },
-          { key: "cancel",    label: "إلغاء الحفلة", hint: "يُحرّر موادها ويوقف تكاليفها" },
+          { key: "cancel",    label: "إلغاء الحفلة", hint: "يحرر المواد ويتطلب تحديد مصير المصروفات المرتبطة بسند صرف؛ يحفظ المصروف المستهلك" },
           { key: "mark_paid", label: "تعليم الحفلة مدفوعة بالكامل" },
           { key: "delete",    label: "حذف الحفلة نهائياً", sensitive: true },
           { key: "export",    label: "تصدير المبيعات إلى إكسل", sensitive: true },

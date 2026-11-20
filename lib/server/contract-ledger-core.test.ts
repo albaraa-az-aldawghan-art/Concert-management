@@ -18,7 +18,7 @@ function fixture() {
     doc: (id: string) => collection === "contracts"
       ? { get: async () => ({ exists: true, data: () => ({ name: "Test", status: "active", terms }) }) }
       : { id, get: async () => snap(id), set: async (value: Record<string, unknown>) => { days.set(id, value); } },
-    where: (_field: string, _op: string, contractId: string) => ({ get: async () => ({ docs: [...days.values()].filter((day) => day.contractId === contractId).map((day) => ({ data: () => day })) }) }),
+    where: (_field: string, _op: string, contractId: string) => {const q={limit:(_n:number)=>q,get:async()=>({size:0,docs:collection==="expense_vouchers"?[]:[...days.values()].filter((day)=>day.contractId===contractId).map(day=>({data:()=>day}))})};return q;},
   }) } as unknown as Firestore;
   return { db, days };
 }

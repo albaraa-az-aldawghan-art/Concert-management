@@ -110,7 +110,7 @@ test("all pages read with date boundaries, only referenced targets, no cached to
   assert.equal((await readExpenseExport(db, { from: "2026-11-20", to: "2026-11-20" })).length, 3);
   assert.ok(refs.every(p => p.startsWith("concerts/")));
   assert.equal((await readExpenseExport(db, { from: "", to: "" })).length, 5);
-  assert.deepEqual([...new Set(reads)].sort(), ["concert_expenses", "contract_days"]);
+  assert.deepEqual([...new Set(reads)].sort(), ["concert_expenses", "contract_days", "expense_vouchers"]);
   fixture.concert_expenses = Array.from({ length: 5001 }, (_, i) => ({ ...invoices[0], id: String(i) }));
   await assert.rejects(readExpenseExport(db, { from: "", to: "" }), /لم يُصدَّر ملف ناقص/);
 });

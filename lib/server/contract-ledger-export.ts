@@ -192,6 +192,7 @@ export async function buildContractMonthWorkbook(db: Firestore, contractId: stri
     ["الاستهلاك (الكمية المباعة)", m.totals.soldQty, INT],
     ["تكلفة ما بيع", m.totals.cost, MONEY],
     ["المصروفات اليومية", m.totals.expenses, MONEY],
+    ["سندات الصرف المركزية", m.totals.voucherExpenses??0, MONEY],
     ["ربح العقد", m.totals.profit, MONEY],
     ["المحصَّل", m.totals.collected, MONEY],
     ["فرق المطابقة", m.totals.variance, MONEY],

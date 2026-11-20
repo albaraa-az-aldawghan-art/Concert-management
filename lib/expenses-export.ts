@@ -3,8 +3,8 @@
 export interface ExpenseExportFilters { from: string; to: string }
 export interface ExpenseExportRow {
   id: string;
-  source: "concert_invoice" | "contract_day";
-  department: "concerts" | "contracts";
+  source: "concert_invoice" | "contract_day" | "expense_voucher";
+  department: "concerts" | "contracts" | "general" | "restaurant";
   date: string;
   targetId: string;
   targetName: string;
@@ -20,9 +20,11 @@ export interface ExpenseExportRow {
   paymentNote: string;
   recordedBy: string;
   warning: string;
+  allocations?: {name:string;gross:number;net:number;tax:number}[];
+  voucherNumber?: string;
 }
-export const EXPENSE_DEPARTMENTS = { concerts: "الحفلات", contracts: "التعاقدات" };
-export const EXPENSE_SOURCES = { concert_invoice: "فاتورة مصروف حفلة", contract_day: "مصروف يوم تشغيل عقد" };
+export const EXPENSE_DEPARTMENTS = { concerts: "الحفلات", contracts: "التعاقدات", general:"عام",restaurant:"المطعم" };
+export const EXPENSE_SOURCES = { concert_invoice: "فاتورة مصروف حفلة", contract_day: "مصروف يوم تشغيل عقد",expense_voucher:"سند صرف" };
 
 export function expenseExportTotals(rows: ExpenseExportRow[]) {
   return rows.reduce((t, r) => ({

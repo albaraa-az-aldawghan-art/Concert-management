@@ -94,6 +94,7 @@ const adminNav: NavItem[] = [
     icon: <BarChart3 size={17} />,
     section: "المالية",
     children: [
+      { label: "المصاريف وسندات الصرف", href: "/admin/finances/expenses", icon: <FileSignature size={15} /> },
       { label: "ربحية الحفلات", href: "/admin/profitability", icon: <TrendingUp size={15} /> },
       { label: "الخسائر", href: "/admin/missing-items", icon: <AlertTriangle size={15} /> },
       { label: "التالف", href: "/admin/costs/damage", icon: <AlertTriangle size={15} /> },

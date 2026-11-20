@@ -22,7 +22,7 @@ export interface ContractMonth {
   collections: Record<string, number>;
   totals: {
     sales: number; closingStock: number; soldQty: number;
-    cost: number; expenses: number; profit: number; collected: number; variance: number;
+    cost: number; expenses: number; voucherExpenses?: number; profit: number; collected: number; variance: number;
   };
   posted: boolean;
 }
