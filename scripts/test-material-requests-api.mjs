@@ -23,9 +23,9 @@ globalThis.materialFixtureDb={collection:name=>query(name),getAll:async(...refs)
   const tx={get:async r=>{assert.equal(writing,false);return r.path.split('/').length===2?snap(r.path):r.get()},set:(r,data,options)=>{writing=true;writes.push(()=>records.set(r.path,options?.merge?{...records.get(r.path),...data}:data))},create:(r,data)=>{writing=true;writes.push(()=>{assert.equal(records.has(r.path),false);records.set(r.path,data)})},update:(r,data)=>{writing=true;writes.push(()=>records.set(r.path,{...records.get(r.path),...data}))},delete:r=>{writing=true;writes.push(()=>records.delete(r.path))}};
   const result=await fn(tx);writes.forEach(w=>w());return result;
 }};
-const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`export {GET,POST} from '@/app/api/costs/material-requests/route';`},bundle:true,write:false,platform:'node',format:'cjs',external:['firebase-admin/*','next/*'],plugins:[{name:'fixture',setup(b){b.onLoad({filter:/firebase-admin\.ts$/},()=>({loader:'ts',contents:`export const getAdminAuth=()=>({verifyIdToken:async t=>{if(t!=='TEST')throw Error('invalid');return{uid:'tester'}}});export const getAdminDb=()=>globalThis.materialFixtureDb;`}))}}]});
+const built=await build({stdin:{resolveDir:process.cwd(),loader:'ts',contents:`export {GET,POST} from '@/app/api/costs/material-requests/route';export {POST as PRINT} from '@/app/api/costs/material-requests/print/route';`},bundle:true,write:false,platform:'node',format:'cjs',external:['firebase-admin/*','next/*'],plugins:[{name:'fixture',setup(b){b.onLoad({filter:/firebase-admin\.ts$/},()=>({loader:'ts',contents:`export const getAdminAuth=()=>({verifyIdToken:async t=>{if(t!=='TEST')throw Error('invalid');return{uid:'tester'}}});export const getAdminDb=()=>globalThis.materialFixtureDb;`}));b.onLoad({filter:/server[\\/]material-request-pdf\.ts$/},()=>({loader:'ts',contents:`export async function renderMaterialRequestPdf(request,lines,section,assignee){globalThis.printFixture={request,lines,section,assignee};return Buffer.from('%PDF-1.4 fixture');}`}));}}]});
 const compiled=new Module(process.cwd()+'/scripts/.material-api.cjs');compiled.paths=Module._nodeModulePaths(process.cwd());compiled._compile(built.outputFiles[0].text,process.cwd()+'/scripts/.material-api.cjs');
-const call=(method,body,search='',token='TEST')=>compiled.exports[method](new NextRequest('http://localhost/api/costs/material-requests'+search,{method,headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})}));
+const call=(method,body,search='',token='TEST')=>compiled.exports[method](new NextRequest('http://localhost/api/costs/material-requests'+(method==='PRINT'?'/print':'')+search,{method:method==='PRINT'?'POST':method,headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})}));
 function reset(features=[],role='custom'){
   records.clear();transactions=0;records.set('users/tester',{role,customRoleId:'fixture',name:'موظف'});records.set('custom_roles/fixture',{permissions:{costs:features}});
   records.set('cost_items/RICE',{kind:'raw',name:'أرز',unit:'كجم',purchaseUnit:'كيس',purchaseToIssue:10,totalIn:20,totalOut:0,totalInValue:200,minimumStock:5});
@@ -33,7 +33,7 @@ function reset(features=[],role='custom'){
 }
 const input={operationId:'req_1',requestDate:'2026-11-14',lines:[{barcode:'RICE',quantity:10,enteredUnit:'stock'}]};
 for(const token of['','INVALID']){reset(['mat_create']);assert.equal((await call('POST',{action:'create',input},'',token)).status,401);assert.equal(transactions,0)}
-for(const action of['create','edit','receive','invoice','void','cancel','policy']){reset([]);assert.equal((await call('POST',{action,input,id:'req_1'})).status,403);assert.equal(transactions,0)}
+for(const action of['create','edit','receive','invoice','void','cancel','policy','classify','assign']){reset([]);assert.equal((await call('POST',{action,input,id:'req_1'})).status,403);assert.equal(transactions,0)}
 reset(['mat_receive']);assert.equal((await call('POST',{action:'receive',id:'req_1',input:{invoice:{}}})).status,403);assert.equal(transactions,0);
 reset(['mat_create']);assert.equal((await call('POST',{action:'create',input})).status,200);assert.equal(records.get('cost_items/RICE').totalIn,20);assert.equal(records.get('cost_items/RICE').materialOpenQuantity,10);
 assert.equal((await call('POST',{action:'create',input})).status,200);assert.equal(records.get('cost_items/RICE').materialOpenQuantity,10);
@@ -47,4 +47,25 @@ assert.equal(seen.length,45);assert.equal(new Set(seen).size,45);
 const filtered=await(await call('GET',null,'?'+new URLSearchParams({q:'ارز',state:'partial',from:'2026-11-14',to:'2026-11-14'}))).json();assert.deepEqual(filtered.rows.map(r=>r.id),['req_003']);
 records.set('custom_roles/fixture',{permissions:{costs:['mat_view']}});const owned=await(await call('GET',null)).json();assert.ok(owned.rows.every(r=>r.createdBy==='tester'));
 assert.equal((await call('GET',null,'?from=2026-02-30')).status,400);
+// A mixed owner/assignee feed must paginate all matches once, never expose other staff requests.
+for (const [path, row] of records) if (path.startsWith('cost_material_requests/')) { row.assignedTo = Number(path.slice(-3)) % 3 === 0 ? 'tester' : 'someone'; }
+const scoped=[];cursor='';do{const result=await(await call('GET',null,'?'+new URLSearchParams({cursor}))).json();assert.ok(result.rows.every(r=>r.createdBy==='tester'||r.assignedTo==='tester'));scoped.push(...result.rows.map(r=>r.id));cursor=result.nextCursor??'';}while(cursor);
+assert.equal(scoped.length,30);assert.equal(new Set(scoped).size,30);
+assert.equal((await call('GET',null,'?employees=1')).status,403);
+reset(['mat_create','mat_assign','mat_classify','mat_view','mat_print']);
+records.set('users/worker',{name:'أحمد',email:'private@example.test',role:'employee'});
+records.set('users/disabled',{name:'غير متاح',disabled:true});
+const staff=await(await call('GET',null,'?employees=1')).json();assert.ok(staff.employees.some(e=>e.id==='worker'));assert.ok(staff.employees.every(e=>!('email'in e)&&e.id!=='disabled'));
+assert.equal((await call('POST',{action:'classify',barcode:'RICE',sections:['restaurant','concerts']})).status,200);
+assert.equal((await call('POST',{action:'create',input:{...input,section:'contracts',assignedTo:'worker'}})).status,400);
+assert.equal((await call('POST',{action:'create',input:{...input,section:'general',assignedTo:'worker'}})).status,200);
+assert.equal(records.get('cost_material_requests/req_1').assignedToName,'أحمد');
+response=await call('PRINT',{id:'req_1',section:'restaurant'});assert.equal(response.status,200);assert.equal(response.headers.get('Content-Type'),'application/pdf');assert.equal(globalThis.printFixture.lines.length,1);assert.equal(globalThis.printFixture.assignee,'أحمد');
+assert.equal((await call('PRINT',{id:'req_1',section:'contracts'})).status,400);
+assert.equal((await call('PRINT',{id:'req_1',section:'general'},'','')).status,401);
+records.set('custom_roles/fixture',{permissions:{costs:['mat_view']}});assert.equal((await call('PRINT',{id:'req_1',section:'general'})).status,403);
+records.set('custom_roles/fixture',{permissions:{costs:['mat_view','mat_print','mat_assign']}});
+records.get('cost_material_requests/req_1').createdBy='stranger';assert.equal((await call('PRINT',{id:'req_1',section:'general'})).status,403);
+assert.equal((await call('POST',{action:'assign',id:'req_1',assignedTo:'tester',revision:records.get('cost_material_requests/req_1').updatedAt})).status,403);
+records.get('cost_material_requests/req_1').assignedTo='tester';assert.equal((await call('PRINT',{id:'req_1',section:'general'})).status,200);
 console.log('PASS: actual API guards, auth 401, independent actions 403, no unauthorized stock writes, ownership scope, contact-free/price-free raw choices, idempotent create, filters across all pages, and cursor pagination without duplicates.');

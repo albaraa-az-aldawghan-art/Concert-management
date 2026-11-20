@@ -1,5 +1,5 @@
 import type { Firestore, Transaction, DocumentReference } from "firebase-admin/firestore";
-import { automaticMaterialQuantity, materialRound, materialSearchKey, type MaterialRequestLine } from "@/lib/material-requests";
+import { automaticMaterialQuantity, materialRound, materialSearchKey, materialSections, type MaterialRequestLine } from "@/lib/material-requests";
 
 export function materialSearchKeys(number: string, lines: { name: string; barcode: string }[]): string[] {
   const keys = new Set<string>();
@@ -65,10 +65,11 @@ export function runMaterialStockTransaction<T>(db: Firestore, work: (tx: Transac
         purchaseUnit: String(item.purchaseUnit || item.unit || ""), purchaseToIssue: Number(item.purchaseToIssue) > 0 ? Number(item.purchaseToIssue) : 1,
         enteredUnit: "stock", enteredQuantity: quantity, requested: quantity, received: 0, posted: 0, cancelled: 0,
         balanceAtRequest: materialRound(Number(item.totalIn ?? 0) - Number(item.totalOut ?? 0)), minimumAtRequest: Number(item.minimumStock ?? 0),
+        sections: materialSections(item.materialSections),
       };
       writes.push(() => actual.set(ref, {
         number, source: "automatic", state: "open", createdBy: "system:auto-material", requestDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()),
-        createdAt: now, updatedAt: now, lastReceivedAt: null, notes: "طلب تلقائي عند انخفاض الرصيد إلى الحد الأدنى", lines: [line], searchKeys: materialSearchKeys(number, [line]),
+        createdAt: now, updatedAt: now, lastReceivedAt: null, section: "general", assignedTo: null, assignedToName: null, notes: "طلب تلقائي عند انخفاض الرصيد إلى الحد الأدنى", lines: [line], searchKeys: materialSearchKeys(number, [line]),
       }));
       const outstanding = materialRound(Number(item.materialOpenQuantity ?? 0) + quantity);
       writes.push(() => actual.update(entry.ref, { materialOpenQuantity: outstanding, materialReferenced: true }));

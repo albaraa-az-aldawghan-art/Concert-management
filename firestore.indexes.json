@@ -1,5 +1,9 @@
 {
   "indexes": [
+    { "collectionGroup": "cost_material_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "assignedTo", "order": "ASCENDING" }, { "fieldPath": "requestDate", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }] },
+    { "collectionGroup": "cost_material_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "assignedTo", "order": "ASCENDING" }, { "fieldPath": "state", "order": "ASCENDING" }, { "fieldPath": "requestDate", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }] },
+    { "collectionGroup": "cost_material_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "assignedTo", "order": "ASCENDING" }, { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" }, { "fieldPath": "requestDate", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }] },
+    { "collectionGroup": "cost_material_requests", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "assignedTo", "order": "ASCENDING" }, { "fieldPath": "state", "order": "ASCENDING" }, { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" }, { "fieldPath": "requestDate", "order": "DESCENDING" }, { "fieldPath": "__name__", "order": "DESCENDING" }] },
     {
       "collectionGroup": "cost_material_requests",
       "queryScope": "COLLECTION",

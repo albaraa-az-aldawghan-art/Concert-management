@@ -1,6 +1,15 @@
 /** Quantities are stored in the stock unit; purchase conversions are snapshotted. */
 export type MaterialRequestState = "open" | "partial" | "awaiting_invoice" | "completed" | "cancelled";
 export type MaterialReceiptState = "awaiting_invoice" | "posted" | "void";
+export const MATERIAL_SECTIONS = { general: "عام — جميع الأقسام", restaurant: "المطعم", concerts: "الحفلات", contracts: "التعاقدات" } as const;
+export type MaterialSection = keyof typeof MATERIAL_SECTIONS;
+export type MaterialDepartment = Exclude<MaterialSection, "general">;
+export function materialSections(value: unknown): MaterialDepartment[] {
+  return Array.isArray(value) ? [...new Set(value.filter((s): s is MaterialDepartment => s === "restaurant" || s === "concerts" || s === "contracts"))] : [];
+}
+export function materialMatchesSection(sections: unknown, section: MaterialSection) {
+  return section === "general" || materialSections(sections).includes(section);
+}
 
 export interface MaterialRequestLine {
   barcode: string;
@@ -16,6 +25,7 @@ export interface MaterialRequestLine {
   cancelled: number;
   balanceAtRequest: number;
   minimumAtRequest: number;
+  sections?: MaterialDepartment[];
 }
 export interface MaterialRequest {
   id: string;
@@ -29,6 +39,9 @@ export interface MaterialRequest {
   lastReceivedAt: string | null;
   notes: string;
   cancelReason?: string;
+  section?: MaterialSection;
+  assignedTo?: string | null;
+  assignedToName?: string | null;
   lines: MaterialRequestLine[];
 }
 export interface MaterialReceiptLine {
@@ -66,6 +79,7 @@ export interface MaterialChoice {
   pendingInvoiceQuantity: number;
   autoEnabled: boolean;
   targetStock: number;
+  sections?: MaterialDepartment[];
 }
 export const MATERIAL_STATES: Record<MaterialRequestState, string> = {
   open: "بانتظار التوريد", partial: "مستلم جزئيًا", awaiting_invoice: "بانتظار الفاتورة",

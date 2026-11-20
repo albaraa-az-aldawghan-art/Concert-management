@@ -2,11 +2,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
-import { createMaterialRequest, editMaterialRequest, receiveMaterialRequest, postMaterialInvoice, voidMaterialReceipt, cancelMaterialRequest, setMaterialPolicy, requireMaterialOwner, getMaterialRequest, materialDate, materialNumber } from "./material-requests-core";
+import { createMaterialRequest, editMaterialRequest, receiveMaterialRequest, postMaterialInvoice, voidMaterialReceipt, cancelMaterialRequest, setMaterialPolicy, requireMaterialOwner, getMaterialRequest, materialDate, materialNumber, classifyMaterial, assignMaterialRequest, materialRequestPrintData } from "./material-requests-core";
 import { svcAddStoreDamage, svcDeleteIncoming } from "./costs-core";
 import { automaticMaterialQuantity, materialState, type MaterialRequestLine } from "../material-requests";
 
 type Data = Record<string, any>;
+test("department classification is explicit and many-to-many, request validation is server-side, and assignments grant scoped access only", async () => {
+  const f = fixture();
+  f.records.set("users/worker", { name: "أحمد" });
+  const input = { ...f.requestInput(), section: "restaurant" as const, assignedTo: "worker" };
+  await assert.rejects(createMaterialRequest(f.db, "owner", input), /صلاحية/);
+  await assert.rejects(createMaterialRequest(f.db, "owner", input, true), /لا تتبع/);
+  await classifyMaterial(f.db, "owner", "RICE", ["restaurant", "concerts"]);
+  assert.equal(f.item().totalIn, 20); assert.equal(f.item().totalInValue, 200);
+  await createMaterialRequest(f.db, "owner", input, true);
+  const request = f.records.get("cost_material_requests/request_1")!;
+  assert.equal(request.assignedToName, "أحمد");
+  assert.deepEqual(request.lines[0].sections, ["restaurant", "concerts"]);
+  assert.doesNotThrow(() => requireMaterialOwner({ createdBy: request.createdBy, assignedTo: request.assignedTo }, "worker", false));
+  assert.throws(() => requireMaterialOwner({ createdBy: request.createdBy, assignedTo: request.assignedTo }, "stranger", false));
+  assert.equal((await getMaterialRequest(f.db, "worker", false, false, "request_1")).request.assignedTo, "worker");
+  assert.equal((await materialRequestPrintData(f.db, "worker", false, "request_1", "restaurant")).lines.length, 1);
+  await assert.rejects(materialRequestPrintData(f.db, "stranger", false, "request_1", "general"), /صلاحية/);
+  await assert.rejects(materialRequestPrintData(f.db, "worker", false, "request_1", "contracts"), /قسم/);
+  await assert.rejects(assignMaterialRequest(f.db, "owner", false, "request_1", "missing", request.updatedAt), /الموظف/);
+  await assert.rejects(assignMaterialRequest(f.db, "owner", false, "request_1", null, "stale"), /تغيّر/);
+  f.records.set("users/second", { name: "محمد" });
+  await assignMaterialRequest(f.db, "owner", false, "request_1", "second", request.updatedAt);
+  await assert.rejects(getMaterialRequest(f.db, "worker", false, false, "request_1"), /صلاحية/);
+  assert.equal((await getMaterialRequest(f.db, "second", false, false, "request_1")).request.assignedToName, "محمد");
+});
+test("PDF general contains all materials; specific department filters mixed requests and supports legacy classifications without inventing ownership", async () => {
+  const f = fixture();
+  await createMaterialRequest(f.db, "owner", f.requestInput());
+  await assert.rejects(materialRequestPrintData(f.db, "owner", false, "request_1", "restaurant"), /لا توجد مواد/);
+  assert.equal((await materialRequestPrintData(f.db, "owner", false, "request_1", "general")).lines.length, 1);
+  await classifyMaterial(f.db, "owner", "RICE", ["restaurant"]);
+  // Classification can be added later, including requests created before departments existed.
+  assert.equal((await materialRequestPrintData(f.db, "owner", false, "request_1", "restaurant")).lines.length, 1);
+  delete f.records.get("cost_material_requests/request_1")!.lines[0].sections;
+  assert.equal((await materialRequestPrintData(f.db, "owner", false, "request_1", "restaurant")).lines.length, 1);
+  await assert.rejects(classifyMaterial(f.db, "owner", "RICE", ["unknown"]), /أقسام/);
+  await assert.rejects(classifyMaterial(f.db, "owner", "SALE", ["restaurant"]), /المواد الخام/);
+  assert.equal(f.item().totalIn, 20); assert.equal(f.item().materialOpenQuantity, 10);
+});
 function fixture() {
   const records = new Map<string, Data>([["cost_items/RICE", { name:"أرز",kind:"raw",unit:"كجم",purchaseUnit:"كيس",purchaseToIssue:10,totalIn:20,totalOut:0,totalInValue:200,minimumStock:5 }], ["cost_items/SALE",{name:"منتج",kind:"sale",unit:"حبة",totalIn:0,totalOut:0}]]);
   let sequence = 0, reads = 0, wrote = false;

@@ -25,7 +25,7 @@ const actions: Record<string, string> = {
   invoice: "تعديل الفاتورة", flag: "تعديل العلامة", food: "أصناف الأكل",
   items: "الأصناف", incoming: "الوارد", outgoing: "المنصرف", damage: "التالف",
   production: "الإنتاج", settle: "التسوية", channel: "قناة الصرف",
-  "material-requests": "طلبات المواد الخام",
+  "material-requests": "طلبات المواد الخام", print: "طباعة PDF",
   status: "تغيير الحالة", "post-collections": "ترحيل التحصيلات",
   "ledger-config": "إعدادات السجل", "ledger-item-order": "ترتيب السجل",
   "item-order": "ترتيب الأصناف", days: "الجدول اليومي", import: "الاستيراد",
@@ -40,7 +40,7 @@ export function describeActivity(method: string, pathname: string, body?: Record
   const verb = ({ POST: "إضافة / تنفيذ", PATCH: "تعديل", PUT: "تحديث", DELETE: "حذف", GET: "عرض / تصدير" } as Record<string, string>)[effectiveMethod] ?? "تنفيذ";
   const details = parts.slice(1).filter((p) => actions[p]).map((p) => actions[p]);
   if (parts[0] === "costs" && parts[1] === "material-requests" && typeof body?.action === "string") {
-    const materialActions: Record<string, string> = { create: "إنشاء طلب", edit: "تعديل طلب", receive: "تسجيل وصول المواد", invoice: "اعتماد فاتورة الاستلام", cancel: "إلغاء المتبقي", void: "تصحيح دفعة الاستلام", policy: "إعداد الطلب التلقائي" };
+    const materialActions: Record<string, string> = { create: "إنشاء طلب", edit: "تعديل طلب", receive: "تسجيل وصول المواد", invoice: "اعتماد فاتورة الاستلام", cancel: "إلغاء المتبقي", void: "تصحيح دفعة الاستلام", policy: "إعداد الطلب التلقائي", classify: "تصنيف أقسام المادة", assign: "توجيه الطلب إلى موظف" };
     if (materialActions[body.action]) details.push(materialActions[body.action]);
   }
   if (parts[0] === "concerts" && parts.includes("flag")) {

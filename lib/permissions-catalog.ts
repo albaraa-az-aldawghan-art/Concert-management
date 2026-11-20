@@ -407,9 +407,12 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         key: "material_requests",
         label: "طلبات المواد الخام",
         actions: [
-          { key: "mat_view", label: "عرض طلبات المواد الخاصة به" },
+          { key: "mat_view", label: "عرض طلبات المواد الخاصة به والموجّهة إليه" },
           { key: "mat_view_all", label: "عرض جميع طلبات المواد" },
           { key: "mat_create", label: "إنشاء طلب مواد خام" },
+          { key: "mat_print", label: "طباعة طلب المواد PDF" },
+          { key: "mat_assign", label: "توجيه طلب المواد إلى موظف" },
+          { key: "mat_classify", label: "تحديد أقسام المواد الخام للطلبات" },
           { key: "mat_edit", label: "تعديل طلب قبل الاستلام" },
           { key: "mat_receive", label: "تسجيل وصول المواد" },
           { key: "mat_invoice", label: "تسجيل الفاتورة واعتماد المواد في المخزون", sensitive: true },

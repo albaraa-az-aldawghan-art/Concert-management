@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, handle, requireCaller, require_, requirePage } from "@/lib/server/guard";
-import { createMaterialRequest, editMaterialRequest, cancelMaterialRequest, receiveMaterialRequest, postMaterialInvoice, voidMaterialReceipt, setMaterialPolicy, listMaterialRequests, listMaterialChoices, getMaterialRequest, materialId } from "@/lib/server/material-requests-core";
+import { createMaterialRequest, editMaterialRequest, cancelMaterialRequest, receiveMaterialRequest, postMaterialInvoice, voidMaterialReceipt, setMaterialPolicy, listMaterialRequests, listMaterialChoices, getMaterialRequest, materialId, classifyMaterial, assignMaterialRequest, listMaterialEmployees } from "@/lib/server/material-requests-core";
 
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
@@ -8,13 +8,17 @@ export async function GET(req: NextRequest) {
     const caller = await requireCaller(req); requirePage(caller, "costs", "طلبات المواد");
     const p = req.nextUrl.searchParams;
     const can = (key: string) => caller.feat("costs", key);
+    if (p.get("employees") === "1") {
+      require_(caller, "costs", "mat_assign", "اختيار الموظف الموجّه إليه طلب المواد");
+      return { employees: await listMaterialEmployees(caller.db) };
+    }
     if (p.get("suppliers") === "1") {
       if (!can("mat_receive") && !can("mat_invoice")) throw new ApiError("لا تملك صلاحية اختيار المورد", 403);
       const saved = await caller.db.collection("cost_settings").doc("suppliers").get();
       return { names: Array.isArray(saved.data()?.names) ? saved.data()!.names : [] };
     }
     if (p.get("choices") === "1") {
-      if (!["mat_view","mat_view_all","mat_create","mat_receive","mat_auto"].some(can)) throw new ApiError("لا تملك صلاحية عرض مواد الطلب", 403);
+      if (!["mat_view","mat_view_all","mat_create","mat_receive","mat_auto","mat_classify"].some(can)) throw new ApiError("لا تملك صلاحية عرض مواد الطلب", 403);
       return { items: await listMaterialChoices(caller.db) };
     }
     if (!["mat_view","mat_view_all","mat_create"].some(can)) throw new ApiError("لا تملك صلاحية عرض طلبات المواد", 403);
@@ -28,12 +32,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const caller = await requireCaller(req, body); requirePage(caller, "costs", "طلبات المواد");
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError("بيانات غير صحيحة");
-    const features: Record<string, string> = { create: "mat_create", edit: "mat_edit", cancel: "mat_cancel", receive: "mat_receive", invoice: "mat_invoice", void: "mat_correct", policy: "mat_auto" };
+    const features: Record<string, string> = { create: "mat_create", edit: "mat_edit", cancel: "mat_cancel", receive: "mat_receive", invoice: "mat_invoice", void: "mat_correct", policy: "mat_auto", classify: "mat_classify", assign: "mat_assign" };
     if (!features[body.action]) throw new ApiError("إجراء غير معروف");
     require_(caller, "costs", features[body.action], "تنفيذ هذا الإجراء على طلبات المواد");
     const all = caller.feat("costs", "mat_view_all");
     switch (body.action) {
-      case "create": return createMaterialRequest(caller.db, caller.uid, body.input);
+      case "create": return createMaterialRequest(caller.db, caller.uid, body.input, caller.feat("costs", "mat_assign"));
+      case "classify": return classifyMaterial(caller.db, caller.uid, body.barcode, body.sections);
+      case "assign": return assignMaterialRequest(caller.db, caller.uid, all, body.id, body.assignedTo, body.revision);
       case "edit": return editMaterialRequest(caller.db, caller.uid, all, body.id, body.input, body.revision);
       case "cancel": return cancelMaterialRequest(caller.db, caller.uid, all, body.id, body.reason);
       case "receive":

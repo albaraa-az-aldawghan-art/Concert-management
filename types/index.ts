@@ -646,6 +646,8 @@ export interface CostItem {
   materialOpenQuantity?: number;
   materialPendingQuantity?: number;
   materialReferenced?: boolean;
+  /** Raw-material request departments, independent of sales channels and stock. */
+  materialSections?: ("restaurant" | "concerts" | "contracts")[];
 }
 
 /** عملية إنتاج: تستهلك مواد خام وتُنتج كمية من صنف جاهز.

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldPath, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { ApiError } from "@/lib/server/guard";
 import { isPurchaseRawItem } from "@/lib/purchase-options";
-import { materialRemaining, materialRound as r2, materialSearchKey, materialState, type MaterialRequest, type MaterialRequestLine, type MaterialReceipt, type MaterialReceiptLine, type MaterialChoice } from "@/lib/material-requests";
+import { MATERIAL_SECTIONS, materialSections, materialMatchesSection, materialRemaining, materialRound as r2, materialSearchKey, materialState, type MaterialSection, type MaterialRequest, type MaterialRequestLine, type MaterialReceipt, type MaterialReceiptLine, type MaterialChoice } from "@/lib/material-requests";
 import { materialSearchKeys, runMaterialStockTransaction } from "@/lib/server/material-stock-transaction";
 
 type Row = FirebaseFirestore.DocumentData; // Validated at the service boundary.
@@ -31,8 +31,17 @@ function readRequest(snap: { exists: boolean; id: string; data: () => unknown })
   if (!snap.exists) throw new ApiError("طلب المواد غير موجود", 404);
   return { id: snap.id, ...(snap.data() as Row) } as MaterialRequest & Row;
 }
-export function requireMaterialOwner(request: { createdBy: string }, uid: string, all: boolean) {
-  if (!all && request.createdBy !== uid) throw new ApiError("لا تملك صلاحية الوصول إلى هذا الطلب", 403);
+export function requireMaterialOwner(request: { createdBy: string; assignedTo?: string | null }, uid: string, all: boolean) {
+  if (!all && request.createdBy !== uid && request.assignedTo !== uid) throw new ApiError("لا تملك صلاحية الوصول إلى هذا الطلب", 403);
+}
+export function materialSection(value: unknown): MaterialSection {
+  if (typeof value !== "string" || !Object.hasOwn(MATERIAL_SECTIONS, value)) throw new ApiError("قسم طلب المواد غير صحيح");
+  return value as MaterialSection;
+}
+function employeeName(snap: { exists: boolean; data: () => Row | undefined }) {
+  const employee = snap.data();
+  if (!snap.exists || !employee || employee.disabled === true || employee.active === false || typeof employee.name !== "string" || !employee.name.trim()) throw new ApiError("الموظف المحدد غير موجود أو غير متاح");
+  return employee.name.trim().slice(0, 200);
 }
 function assertRaw(item: Row | undefined): asserts item is Row {
   if (!item || !isPurchaseRawItem(item)) throw new ApiError("يمكن طلب المواد الخام المسجلة فقط");
@@ -49,8 +58,9 @@ function counter(item: Row, field: string, delta: number) {
   return Math.max(0, next);
 }
 const hash = (input: unknown) => createHash("sha256").update(JSON.stringify(input)).digest("hex");
-export type RequestInput = { operationId: string; requestDate: string; notes?: string; lines: { barcode: string; quantity: number; enteredUnit: "stock" | "purchase" }[] };
+export type RequestInput = { operationId: string; requestDate: string; notes?: string; section?: MaterialSection; assignedTo?: string | null; lines: { barcode: string; quantity: number; enteredUnit: "stock" | "purchase" }[] };
 function cleanRequest(input: RequestInput) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new ApiError("بيانات الطلب غير صحيحة");
   const id = materialId(input.operationId);
   const requestDate = materialDate(input.requestDate, "تاريخ الطلب");
   if (!Array.isArray(input.lines) || input.lines.length < 1 || input.lines.length > 30) throw new ApiError("أضف من 1 إلى 30 مادة في الطلب");
@@ -59,7 +69,8 @@ function cleanRequest(input: RequestInput) {
     return { barcode: materialId(line.barcode, "باركود المادة"), quantity: materialNumber(line.quantity, "الكمية"), enteredUnit: line.enteredUnit };
   });
   if (new Set(lines.map(l => l.barcode)).size !== lines.length) throw new ApiError("المادة مكررة في الطلب");
-  return { id, requestDate, notes: text(input.notes), lines };
+  if (input.assignedTo !== undefined && input.assignedTo !== null && input.assignedTo !== "" && typeof input.assignedTo !== "string") throw new ApiError("الموظف غير صحيح");
+  return { id, requestDate, notes: text(input.notes), section: materialSection(input.section === undefined ? "general" : input.section), assignedTo: input.assignedTo ? materialId(input.assignedTo, "الموظف") : null, lines };
 }
 function makeLine(input: RequestInput["lines"][number], item: Row | undefined): MaterialRequestLine {
   assertRaw(item);
@@ -67,10 +78,11 @@ function makeLine(input: RequestInput["lines"][number], item: Row | undefined): 
   const requested = r2(input.quantity * (input.enteredUnit === "purchase" ? factor : 1));
   materialNumber(requested, "الكمية بعد التحويل");
   return { barcode: input.barcode, name: item.name, unit: item.unit, purchaseUnit: item.purchaseUnit || item.unit, purchaseToIssue: factor,
-    enteredUnit: input.enteredUnit, enteredQuantity: input.quantity, requested, received: 0, posted: 0, cancelled: 0, balanceAtRequest: balance(item), minimumAtRequest: item.minimumStock ?? 0 };
+    enteredUnit: input.enteredUnit, enteredQuantity: input.quantity, requested, received: 0, posted: 0, cancelled: 0, balanceAtRequest: balance(item), minimumAtRequest: item.minimumStock ?? 0, sections: materialSections(item.materialSections) };
 }
-export async function createMaterialRequest(db: Firestore, uid: string, input: RequestInput) {
+export async function createMaterialRequest(db: Firestore, uid: string, input: RequestInput, canAssign = false) {
   const clean = cleanRequest(input), ref = db.collection(requests).doc(clean.id), fingerprint = hash(clean);
+  if (clean.assignedTo && !canAssign) throw new ApiError("توجيه الطلب يحتاج صلاحية مستقلة", 403);
   await db.runTransaction(async tx => {
     const existing = await tx.get(ref);
     if (existing.exists) {
@@ -80,8 +92,10 @@ export async function createMaterialRequest(db: Firestore, uid: string, input: R
     const itemRefs = clean.lines.map(l => db.collection("cost_items").doc(l.barcode));
     const snaps = await Promise.all(itemRefs.map(r => tx.get(r)));
     const lines = clean.lines.map((l, i) => makeLine(l, snaps[i].data()));
+    if (lines.some(l => !materialMatchesSection(l.sections, clean.section))) throw new ApiError("إحدى المواد لا تتبع القسم المختار؛ حدّث قائمة المواد");
+    const assignedToName = clean.assignedTo ? employeeName(await tx.get(db.collection("users").doc(clean.assignedTo))) : null;
     const number = `MR-${ref.id}`, stamp = now();
-    tx.create(ref, { number, source: "manual", state: "open", createdBy: uid, requestDate: clean.requestDate, notes: clean.notes, createdAt: stamp, updatedAt: stamp, lastReceivedAt: null, lines, operationHash: fingerprint, searchKeys: materialSearchKeys(number, lines) });
+    tx.create(ref, { number, source: "manual", state: "open", createdBy: uid, requestDate: clean.requestDate, notes: clean.notes, section: clean.section, assignedTo: clean.assignedTo, assignedToName, createdAt: stamp, updatedAt: stamp, lastReceivedAt: null, lines, operationHash: fingerprint, searchKeys: materialSearchKeys(number, lines) });
     lines.forEach((l, i) => tx.update(itemRefs[i], { materialOpenQuantity: counter(snaps[i].data()!, "materialOpenQuantity", l.requested), materialReferenced: true }));
   });
   return { id: ref.id };
@@ -98,12 +112,15 @@ export async function editMaterialRequest(db: Firestore, uid: string, all: boole
     const snaps = await Promise.all(refs.map(r => tx.get(r)));
     const items = new Map(barcodes.map((b, i) => [b, snaps[i].data()]));
     const lines = clean.lines.map(l => makeLine(l, items.get(l.barcode)!));
+    const section = input.section === undefined ? (old.section ?? "general") : clean.section;
+    if (input.assignedTo !== undefined && clean.assignedTo !== (old.assignedTo ?? null)) throw new ApiError("استخدم توجيه الطلب لتغيير الموظف");
+    if (lines.some(l => !materialMatchesSection(l.sections, section))) throw new ApiError("إحدى المواد لا تتبع القسم المختار");
     barcodes.forEach((b, i) => {
       if (!snaps[i].exists) throw new ApiError("إحدى المواد غير موجودة");
       const delta = (lines.find(l => l.barcode === b)?.requested ?? 0) - (old.lines.find(l => l.barcode === b)?.requested ?? 0);
       tx.update(refs[i], { materialOpenQuantity: counter(items.get(b)!, "materialOpenQuantity", delta) });
     });
-    tx.update(ref, { requestDate: clean.requestDate, notes: clean.notes, lines, updatedAt: revisionTime(old.updatedAt), searchKeys: materialSearchKeys(old.number, lines), operationHash: null });
+    tx.update(ref, { requestDate: clean.requestDate, notes: clean.notes, section, lines, updatedAt: revisionTime(old.updatedAt), searchKeys: materialSearchKeys(old.number, lines), operationHash: null });
   });
   return { id };
 }
@@ -288,17 +305,58 @@ export async function setMaterialPolicy(db: Firestore, uid: string, barcode: str
   return { id: barcode };
 }
 
+export async function classifyMaterial(db: Firestore, uid: string, barcode: string, input: unknown) {
+  if (!Array.isArray(input) || input.length > 3 || input.some(s => s !== "restaurant" && s !== "concerts" && s !== "contracts")) throw new ApiError("اختر أقسام المادة الصحيحة");
+  const sections = materialSections(input), ref = db.collection("cost_items").doc(materialId(barcode));
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref); assertRaw(snap.data());
+    tx.update(ref, { materialSections: sections, materialSectionsBy: uid, materialSectionsAt: now() });
+  });
+  return { id: barcode };
+}
+export async function listMaterialEmployees(db: Firestore) {
+  const snap = await db.collection("users").select("name", "disabled", "active").get();
+  return snap.docs.filter(s => s.data().disabled !== true && s.data().active !== false && typeof s.data().name === "string" && s.data().name.trim())
+    .map(s => ({ id: s.id, name: String(s.data().name).trim() })).sort((a,b) => a.name.localeCompare(b.name, "ar"));
+}
+export async function assignMaterialRequest(db: Firestore, uid: string, all: boolean, id: string, assignedTo: unknown, revision: string) {
+  const ref = db.collection(requests).doc(materialId(id));
+  const employee = assignedTo === null || assignedTo === "" ? null : materialId(assignedTo, "الموظف");
+  await db.runTransaction(async tx => {
+    const request = readRequest(await tx.get(ref)); requireMaterialOwner(request, uid, all);
+    if (request.updatedAt !== revision) throw new ApiError("تغيّر الطلب؛ حدّثه قبل توجيهه", 409);
+    const name = employee ? employeeName(await tx.get(db.collection("users").doc(employee))) : null;
+    tx.update(ref, { assignedTo: employee, assignedToName: name, assignedBy: uid, assignedAt: now(), updatedAt: revisionTime(request.updatedAt) });
+  });
+  return { id };
+}
+
+/** Read only this request, then apply the department filter before rendering. */
+export async function materialRequestPrintData(db: Firestore, uid: string, all: boolean, id: string, sectionInput: unknown) {
+  const section = materialSection(sectionInput);
+  const request = readRequest(await db.collection(requests).doc(materialId(id)).get()); requireMaterialOwner(request, uid, all);
+  if (section !== "general" && request.section && request.section !== "general" && request.section !== section) throw new ApiError("الطلب يتبع قسمًا مختلفًا عن قسم الطباعة المختار");
+  // Classification applies to old and new requests. Quantities/names still come
+  // from the saved request, never from current inventory or prices.
+  const snaps = request.lines.length && section !== "general" ? await db.getAll(...request.lines.map(line => db.collection("cost_items").doc(line.barcode))) : [];
+  const departments = new Map(snaps.filter(s => s.exists).map(s => [s.id, materialSections(s.data()?.materialSections)]));
+  const lines = request.lines.filter(line => materialMatchesSection(departments.get(line.barcode) ?? line.sections, section));
+  if (!lines.length) throw new ApiError("لا توجد مواد تابعة للقسم المختار في هذا الطلب؛ راجع تصنيف المواد أو اختر عام");
+  return { request, lines, section: MATERIAL_SECTIONS[section], assignee: request.assignedToName ?? "غير موجّه" };
+}
+
 export function materialChoice(id: string, item: Row): MaterialChoice {
   return { id, name: item.name, unit: item.unit, purchaseUnit: item.purchaseUnit || item.unit, purchaseToIssue: Number(item.purchaseToIssue) > 0 ? Number(item.purchaseToIssue) : 1,
-    balance: balance(item), minimumStock: item.minimumStock ?? 0, openQuantity: item.materialOpenQuantity ?? 0, pendingInvoiceQuantity: item.materialPendingQuantity ?? 0, autoEnabled: item.materialAutoEnabled === true, targetStock: item.materialTargetStock ?? 0 };
+    balance: balance(item), minimumStock: item.minimumStock ?? 0, openQuantity: item.materialOpenQuantity ?? 0, pendingInvoiceQuantity: item.materialPendingQuantity ?? 0, autoEnabled: item.materialAutoEnabled === true, targetStock: item.materialTargetStock ?? 0, sections: materialSections(item.materialSections) };
 }
 export async function listMaterialChoices(db: Firestore) {
-  const snap = await db.collection("cost_items").select("name","kind","unit","purchaseUnit","purchaseToIssue","totalIn","totalOut","minimumStock","materialOpenQuantity","materialPendingQuantity","materialAutoEnabled","materialTargetStock").get();
+  const snap = await db.collection("cost_items").select("name","kind","unit","purchaseUnit","purchaseToIssue","totalIn","totalOut","minimumStock","materialOpenQuantity","materialPendingQuantity","materialAutoEnabled","materialTargetStock","materialSections").get();
   return snap.docs.filter(d => isPurchaseRawItem(d.data())).map(d => materialChoice(d.id, d.data())).sort((a,b) => a.name.localeCompare(b.name, "ar"));
 }
 export async function listMaterialRequests(db: Firestore, uid: string, all: boolean, filters: { state?: string; q?: string; from?: string; to?: string; cursor?: string }) {
+  // Two bounded queries preserve old owner-only documents without a live migration.
+  // Each branch applies every filter and the same cursor, then a stable union is paginated.
   let query = db.collection(requests) as FirebaseFirestore.Query;
-  if (!all) query = query.where("createdBy", "==", uid);
   if (filters.state) {
     if (!["open","partial","awaiting_invoice","completed","cancelled"].includes(filters.state)) throw new ApiError("حالة غير صحيحة");
     query = query.where("state", "==", filters.state);
@@ -313,13 +371,20 @@ export async function listMaterialRequests(db: Firestore, uid: string, all: bool
     let cursor: Row; try { cursor = JSON.parse(Buffer.from(filters.cursor, "base64url").toString()); } catch { throw new ApiError("مؤشر الصفحة غير صحيح"); }
     query = query.startAfter(materialDate(cursor.date, "مؤشر التاريخ"), materialId(cursor.id));
   }
-  const snap = await query.limit(21).get(), page = snap.docs.slice(0, 20);
+  const snapshots = all ? [await query.limit(21).get()] : await Promise.all([
+    query.where("createdBy", "==", uid).limit(21).get(), query.where("assignedTo", "==", uid).limit(21).get(),
+  ]);
+  const merged = [...new Map(snapshots.flatMap(s => s.docs).map(doc => [doc.id, doc])).values()].sort((a,b) => {
+    const x = String(a.data().requestDate), y = String(b.data().requestDate);
+    return x === y ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : x < y ? 1 : -1;
+  });
+  const page = merged.slice(0, 20);
   const rows = page.map(d => {
     const data = { ...d.data() }; delete data.searchKeys; delete data.operationHash;
     return { id: d.id, ...data };
   });
   const last = page.at(-1);
-  return { rows, nextCursor: snap.size > 20 && last ? Buffer.from(JSON.stringify({ date: last.data().requestDate, id: last.id })).toString("base64url") : null };
+  return { rows, nextCursor: merged.length > 20 && last ? Buffer.from(JSON.stringify({ date: last.data().requestDate, id: last.id })).toString("base64url") : null };
 }
 
 export async function getMaterialRequest(db: Firestore, uid: string, all: boolean, prices: boolean, id: string, cursor?: string) {

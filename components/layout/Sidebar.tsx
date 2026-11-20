@@ -342,7 +342,7 @@ function filterNavForCustomRole(
     const page = item.href === "/settings" ? null : pageKeyFromPath(item.href);
     const feature = NAV_FEATURE[item.href];
     const visible = item.href === "/admin/costs/material-requests"
-      ? can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto"].some(key => feat("costs", key))
+      ? can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto", "mat_classify"].some(key => feat("costs", key))
       : page === null ? true : feature ? can(page) && feat(page, feature) : can(page);
 
     if (visible) {
@@ -376,7 +376,7 @@ export function Sidebar() {
     ? [...activityNav, { label: "العملاء", href: "/admin/customers", icon: <UsersRound size={17} />, section: "الأقسام الرئيسية" }]
     : activityNav;
   const hasMaterialLink = customerNav.some((item: NavItem) => item.href === "/admin/costs/material-requests" || item.children?.some(child => child.href === "/admin/costs/material-requests"));
-  const materialNav = can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto"].some(key => feat("costs", key)) && !hasMaterialLink
+  const materialNav = can("costs") && ["mat_view", "mat_view_all", "mat_create", "mat_auto", "mat_classify"].some(key => feat("costs", key)) && !hasMaterialLink
     ? [...customerNav, { label: "طلبات المواد", href: "/admin/costs/material-requests", icon: <Package size={17} />, section: "التكاليف" }]
     : customerNav;
   const visibleNav = applySystemNav(materialNav, settings.features, settings.labels);
