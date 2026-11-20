@@ -46,6 +46,8 @@ test("integer halalas reconcile across 1..40 beneficiaries and all VAT modes",()
 test("bad financial inputs rejected and dates/VAT snapshot validated",()=>{
   for(const change of[{amount:0},{amount:-10},{amount:1.001},{date:"2026-02-30"},{department:"invalid"},{method:"hack"},{vatMode:"auto"},{recipient:""},{targetIds:["a","a"]},{source:"inventory",invoiceId:"../x"}])assert.throws(()=>cleanVoucher({...input,...change}));
   assert.equal(cleanVoucher({...input,vatMode:"inclusive",amount:115}).net,10000);
+  assert.equal(cleanVoucher({...input,recipient:"مستلم ١٢٣",description:"عدد ٤ عمال"}).recipient,"مستلم 123");
+  assert.equal(cleanVoucher({...input,description:"عدد ٤ عمال"}).description,"عدد 4 عمال");
 });
 test("drafts have no cost effect; approval is atomic, unique, idempotent and snapshot based",async()=>{
   const f=voucherFixture(),draft=await saveVoucher(f.db,"user","v",input,null);

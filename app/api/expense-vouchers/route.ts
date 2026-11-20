@@ -4,6 +4,7 @@ import { ApiError,handle,requireCaller,require_,requirePage } from "@/lib/server
 import { approveVoucher,saveVoucher,settleVoucher,voidVoucher,voucherId,voucherList,voucherCosts } from "@/lib/server/expense-vouchers-core";
 import { expenseExportFilters } from "@/lib/server/expenses-export";
 import { eventDateString } from "@/lib/event-date";
+import { toLatinDigits } from "@/lib/utils";
 export const dynamic="force-dynamic";
 export async function GET(req:NextRequest){return handle(async()=>{
   const caller=await requireCaller(req),q=req.nextUrl.searchParams;
@@ -17,7 +18,7 @@ export async function GET(req:NextRequest){return handle(async()=>{
     const department=q.get("choices"),filters=expenseExportFilters({from:q.get("from")||"",to:q.get("to")||""});
     if(department==="invoices"){
       const s=await caller.db.collection("cost_purchase_invoices").orderBy("invoiceDate","desc").limit(101).get();
-      return{rows:s.docs.filter(d=>!d.data().expenseVoucherId).map(d=>({id:d.id,name:`${d.data().supplierName||"مورد"} - ${d.data().invoiceNumber||"بلا رقم"}`,date:d.data().invoiceDate,amount:d.data().totalBeforeVat})),limited:s.size>100};
+      return{rows:s.docs.slice(0,100).filter(d=>!d.data().expenseVoucherId).map(d=>({id:d.id,name:toLatinDigits(`${d.data().supplierName||"مورد"} - ${d.data().invoiceNumber||"بلا رقم"}`),date:d.data().invoiceDate,amount:d.data().totalBeforeVat})),limited:s.size>100};
     }
     if(department!=="concerts"&&department!=="contracts")throw new ApiError("القسم غير صحيح");
     let query:FirebaseFirestore.Query=caller.db.collection(department);
@@ -26,7 +27,7 @@ export async function GET(req:NextRequest){return handle(async()=>{
       if(filters.to)query=query.where("date","<",Timestamp.fromDate(new Date(new Date(filters.to+"T00:00:00+03:00").getTime()+86400000)));
     }
     const s=await query.limit(501).get();if(s.size>500)throw new ApiError("تجاوزت القائمة 500 جهة؛ حدد فترة أقصر للحفلات");
-    return{rows:s.docs.filter(d=>department==="concerts"?["confirmed","completed"].includes(d.data().status):d.data().status!=="cancelled").map(d=>({id:d.id,name:d.data().name||d.data().clientName||d.id,number:d.data().concertNumber??d.data().contractNumber??"",date:department==="concerts"?eventDateString(d.data().date):d.data().startDate||""})).sort((a,b)=>a.date.localeCompare(b.date))};
+    return{rows:s.docs.filter(d=>department==="concerts"?["confirmed","completed"].includes(d.data().status):d.data().status!=="cancelled").map(d=>({id:d.id,name:toLatinDigits(String(d.data().name||d.data().clientName||d.id)),number:toLatinDigits(String(d.data().concertNumber??d.data().contractNumber??"")),date:department==="concerts"?eventDateString(d.data().date):d.data().startDate||""})).sort((a,b)=>a.date.localeCompare(b.date))};
   }
   return voucherList(caller.db,q.get("from")||"",q.get("to")||"",q.get("cursor")||"");
 });}

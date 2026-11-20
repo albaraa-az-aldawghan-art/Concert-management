@@ -3,11 +3,12 @@ import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { ApiError } from "./guard";
 import { expenseHalalas, exportExpenseDate } from "./expenses-export";
 import { splitVoucher, voucherTotals, VOUCHER_DEPARTMENTS, VOUCHER_METHODS, type ExpenseVoucher, type VoucherAllocation } from "../expense-vouchers";
+import { toLatinDigits } from "../utils";
 
 export function voucherId(value: unknown): string {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(value)) throw new ApiError("معرف السند أو الجهة غير صحيح"); return value;
 }
-const short = (v: unknown, label: string, max=120, required=true) => { if (typeof v !== "string" || v.trim().length > max || required && !v.trim()) throw new ApiError(`${label}: مطلوب أو أطول من المسموح`); return v.trim(); };
+const short = (v: unknown, label: string, max=120, required=true) => { if (typeof v !== "string" || v.trim().length > max || required && !v.trim()) throw new ApiError(`${label}: مطلوب أو أطول من المسموح`); return toLatinDigits(v.trim()); };
 export function cleanVoucher(body: Record<string,unknown>) {
   if (typeof body.department !== "string" || !Object.hasOwn(VOUCHER_DEPARTMENTS,body.department)) throw new ApiError("اختر قسم المصروف");
   if (typeof body.method !== "string" || !Object.hasOwn(VOUCHER_METHODS,body.method)) throw new ApiError("اختر طريقة الدفع");
@@ -31,7 +32,7 @@ async function loadTargets(db: Firestore, tx: Transaction, department: ExpenseVo
   return snaps.map(s => {
     if(!s.exists) throw new ApiError("إحدى الجهات المستفيدة غير موجودة"); const d=s.data()!;
     if(d.status==="cancelled" || department==="concerts" && !["confirmed","completed"].includes(d.status)) throw new ApiError("اختر حفلات مؤكدة أو مكتملة وعقودًا غير ملغاة");
-    return {id:s.id,name:String(d.name||d.clientName||s.id),number:String(d.concertNumber??d.contractNumber??"")};
+    return {id:s.id,name:toLatinDigits(String(d.name||d.clientName||s.id)),number:toLatinDigits(String(d.concertNumber??d.contractNumber??""))};
   });
 }
 /** Recompute the same cached concert fields used by financial exports. All reads

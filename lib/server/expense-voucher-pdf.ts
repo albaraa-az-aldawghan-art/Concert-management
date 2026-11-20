@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { launchPdfBrowser } from "./pdf-browser";
+import { toLatinDigits } from "../utils";
 import { VOUCHER_DEPARTMENTS,VOUCHER_METHODS,voucherAmountWords,type ExpenseVoucher } from "../expense-vouchers";
-const escape=(v:unknown)=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+const escape=(v:unknown)=>toLatinDigits(String(v??"")).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const money=(n:number)=>(n/100).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 export async function voucherPdfHtml(v:ExpenseVoucher){
   const [font,logo]=await Promise.all([fs.readFile(path.join(process.cwd(),"node_modules/@fontsource/cairo/files/cairo-arabic-400-normal.woff2")),fs.readFile(path.join(process.cwd(),"public/logo.jpg"))]);
