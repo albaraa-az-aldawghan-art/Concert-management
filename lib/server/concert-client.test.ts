@@ -46,3 +46,28 @@ test("customer profile editor rejects a phone already owned by another profile b
  await assert.rejects(svcCreateConcert(db,{name:"عميل جديد",clientPhone:"0500000003",clientPhone2:"0500000002",date:"2026-11-05"},"u"),/الثاني/);
  assert.equal(JSON.stringify([...records]),before);
 });
+
+test("purchase order references are optional, editable and specific to each concert", async () => {
+  const { db, records } = mock();
+  const data = { name: "حفلة", clientPhone: "0500000001", date: "2026-11-04" };
+  const first = await svcCreateConcert(db, { ...data, purchaseOrderNumber: " PO-٠٠٠١/A " }, "u");
+  const second = await svcCreateConcert(db, data, "u");
+  assert.equal(records.get(`concerts/${first.id}`)?.purchaseOrderNumber, "PO-0001/A");
+  assert.equal(records.get(`concerts/${second.id}`)?.purchaseOrderNumber, null);
+
+  records.set("concerts/legacy", { clientName: "حفلة قديمة", clientPhone: data.clientPhone });
+  const profile = records.get("concert_customers/phone_0500000001");
+  assert.ok(profile);
+  const before = JSON.stringify([...records]);
+  await assert.rejects(svcCreateConcert(db, { ...data, purchaseOrderNumber: 123 }, "u"), /أمر الشراء/);
+  await assert.rejects(svcUpdateConcert(db, "legacy", { purchaseOrderNumber: "X".repeat(101) }, "u"), /أمر الشراء/);
+  assert.equal(JSON.stringify([...records]), before);
+
+  await svcUpdateConcert(db, "legacy", { purchaseOrderNumber: "0002-B" }, "u");
+  await svcUpdateConcert(db, "legacy", { notes: "اختبار" }, "u");
+  assert.equal(records.get("concerts/legacy")?.purchaseOrderNumber, "0002-B");
+  await svcUpdateConcert(db, "legacy", { purchaseOrderNumber: "   " }, "u");
+  assert.equal(records.get("concerts/legacy")?.purchaseOrderNumber, null);
+  assert.equal(records.get(`concerts/${first.id}`)?.purchaseOrderNumber, "PO-0001/A");
+  assert.strictEqual(records.get("concert_customers/phone_0500000001"), profile);
+});

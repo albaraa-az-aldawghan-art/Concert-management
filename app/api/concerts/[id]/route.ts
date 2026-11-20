@@ -14,6 +14,7 @@ const FEATURE_BY_FIELD: Record<string, string> = {
   clientName: "edit_venue",
   clientPhone: "edit_venue",
   clientPhone2: "edit_venue",
+  purchaseOrderNumber: "edit_venue",
   peopleCount: "edit_people",
   location: "edit_location",
   notes: "edit_notes",

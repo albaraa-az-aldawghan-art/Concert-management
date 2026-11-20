@@ -5,6 +5,7 @@ import { svcSettleOutgoing } from "@/lib/server/costs-core";
 import { svcReleaseConcertStock } from "@/lib/server/stock-core";
 import { concertCustomerId, normalizeCustomerPhone } from "@/lib/concert-customers";
 import { normalizeClientContact } from "@/lib/customer-choices";
+import { normalizePurchaseOrderNumber } from "@/lib/concert-purchase-order";
 import { customerPhoneOwners, listCustomerChoices } from "./customer-choices";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -36,6 +37,7 @@ function toTimestamp(v: unknown): Timestamp | null {
 /* ── إنشاء وتعديل الحفلة ───────────────────────────────────── */
 
 export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>, uid: string) {
+  const purchaseOrderNumber = normalizePurchaseOrderNumber(d.purchaseOrderNumber);
   d={...d,...normalizeClientContact({clientName:d.clientName??d.name,clientPhone:d.clientPhone,clientPhone2:d.clientPhone2})};
   const counterRef = db.collection("counters").doc("concerts");
   const concertRef = db.collection("concerts").doc();
@@ -92,6 +94,7 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
     let otherExpensesCost = 0;
     tx.set(concertRef, {
       ...concertData,
+      purchaseOrderNumber,
       date,
       concertNumber,
       customerId,
@@ -171,7 +174,7 @@ export async function svcCreateConcert(db: Firestore, d: Record<string, unknown>
  *  التشغيلية لها مساراتها الخاصة فلا تُقبل هنا. */
 const EDITABLE = new Set([
   "name", "date", "venueName", "peopleCount", "location", "price", "clientName",
-  "clientPhone", "clientPhone2", "supervisorIds", "employeeIds", "notes",
+  "clientPhone", "clientPhone2", "purchaseOrderNumber", "supervisorIds", "employeeIds", "notes",
   "hallCostType", "hallCostValue", "hallCostDate", "hallCostRecipient", "vatRate",
 ]);
 
@@ -182,6 +185,9 @@ export async function svcUpdateConcert(db: Firestore, id: string, d: Record<stri
 
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(d)) if (EDITABLE.has(k)) patch[k] = v;
+  if (Object.hasOwn(patch, "purchaseOrderNumber")) {
+    patch.purchaseOrderNumber = normalizePurchaseOrderNumber(patch.purchaseOrderNumber);
+  }
   // التاريخ يُعاد إلى Timestamp مهما وصل نصاً أو خريطة
   if (patch.date !== undefined) {
     const ts = toTimestamp(patch.date);

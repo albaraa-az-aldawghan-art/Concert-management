@@ -111,6 +111,8 @@ export interface Concert {
   clientName: string | null;
   clientPhone: string | null;
   clientPhone2: string | null;
+  /** رقم أمر الشراء الذي يدخله المستخدم لهذه الحفلة. */
+  purchaseOrderNumber?: string | null;
   /** ملف عميل الحفلات الثابت — اختياري للحفلات القديمة وتُجمع بالجوال عند غيابه. */
   customerId?: string | null;
   supervisorIds: string[];
@@ -198,6 +200,7 @@ export interface ConcertDraft {
   id: string;
   form: {
     customerId?: string;
+    purchaseOrderNumber?: string;
     date: string; price: string; clientName: string; clientPhone: string; clientPhone2: string;
     notes: string; venueName: string; peopleCount: string;
     supervisorIds: string[]; employeeIds: string[];

@@ -824,6 +824,12 @@ export default function ContractPage() {
                     <span style={{ ...S.fv, direction: "ltr", display: "inline-block" }}>{concert.clientPhone2}</span>
                   </div>
                 )}
+                {concert.purchaseOrderNumber && (
+                  <div style={S.fld}>
+                    <span style={S.fl}>رقم أمر الشراء</span>
+                    <bdi style={{ ...S.fv, minWidth: 0, overflowWrap: "anywhere" }}>{concert.purchaseOrderNumber}</bdi>
+                  </div>
+                )}
               </div>
               {/* Left: serial, date, venue */}
               <div style={S.infoCol}>

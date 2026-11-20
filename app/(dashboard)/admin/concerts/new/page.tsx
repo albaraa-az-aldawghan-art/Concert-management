@@ -4,6 +4,7 @@
 import { LatinInput } from "@/components/ui/latin-input";
 import { CustomerPicker } from "@/components/ui/customer-picker";
 import { normalizeClientContact } from "@/lib/customer-choices";
+import { PURCHASE_ORDER_NUMBER_MAX_LENGTH } from "@/lib/concert-purchase-order";
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -121,6 +122,7 @@ function NewConcertPageInner() {
     clientName: "",
     clientPhone: "",
     clientPhone2: "",
+    purchaseOrderNumber: "",
     notes: "",
     venueName: "",
     peopleCount: "",
@@ -217,7 +219,8 @@ function NewConcertPageInner() {
       if (draftParam) {
         const draft = await getConcertDraft(draftParam).catch(() => null);
         if (draft) {
-          setForm({...draft.form,customerId:draft.form.customerId??""});
+          const restoredForm = { ...draft.form, customerId: draft.form.customerId ?? "", purchaseOrderNumber: draft.form.purchaseOrderNumber ?? "" };
+          setForm(restoredForm);
           setHallCostType(draft.hallCostType);
           setHallCostValue(draft.hallCostValue);
           setHallCostDate(draft.hallCostDate);
@@ -240,7 +243,7 @@ function NewConcertPageInner() {
           setActiveItemType(restoredType);
           setInitialExpenses(draft.initialExpenses ?? []);
           setSavedSnapshot(draftSnapshot({
-            form: {...draft.form,customerId:draft.form.customerId??""}, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
+            form: restoredForm, hallCostType: draft.hallCostType, hallCostValue: draft.hallCostValue,
             hallCostDate: draft.hallCostDate, hallCostRecipient: draft.hallCostRecipient,
             location: draft.location, itemCheck: draft.itemCheck, foodCheck: draft.foodCheck,
             foodMetaLite: Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, {
@@ -429,6 +432,7 @@ function NewConcertPageInner() {
         venueName: form.venueName.trim() || null,
         peopleCount: form.peopleCount.trim() || null,
         notes: form.notes.trim() || null,
+        purchaseOrderNumber: form.purchaseOrderNumber,
         ...contact,
         customerId: form.customerId||null,
         supervisorIds: form.supervisorIds,
@@ -641,6 +645,9 @@ function NewConcertPageInner() {
               <Input label="رقم الجوال الثاني" type="tel" value={form.clientPhone2}
                 onChange={(e) => setForm({ ...form, clientPhone2: e.target.value })} placeholder="05xxxxxxxx (اختياري)" maxLength={24} />
             </div>
+            <Input label="رقم أمر الشراء (PO Number)" value={form.purchaseOrderNumber}
+              onChange={(e) => setForm({ ...form, purchaseOrderNumber: e.target.value })}
+              placeholder="اختياري" dir="auto" maxLength={PURCHASE_ORDER_NUMBER_MAX_LENGTH} />
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-1.5">
                 الملاحظات <span className="text-slate-400 font-normal">(اختياري)</span>

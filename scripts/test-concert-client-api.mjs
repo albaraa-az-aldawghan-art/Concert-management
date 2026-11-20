@@ -10,4 +10,18 @@ globalThis.clientPerms={concerts:['create']};const ok=await get();assert.equal(o
 const patch=()=>compiled.exports.PATCH(new Request('http://localhost/api/concerts/c',{method:'PATCH',headers:{Authorization:'Bearer TEST','Content-Type':'application/json'},body:JSON.stringify({clientName:'أحمد',clientPhone:'0500000001',clientPhone2:null})}),{params:Promise.resolve({id:'c'})});
 for(const perms of [{concerts:['create']},{concerts:['edit_notes']},{customers:['edit']}]){globalThis.clientPerms=perms;assert.equal((await patch()).status,403);}assert.equal(globalThis.clientUpdates.length,0);
 globalThis.clientPerms={concerts:['edit_venue']};assert.equal((await patch()).status,200);assert.equal(globalThis.clientUpdates.length,1);
-console.log('PASS: contact lookup requires concert-create permission, exposes no finances; phone edits require the existing edit-basic-data permission; unauthorized requests make no domain reads/writes.');
+const patchPurchaseOrder = () => compiled.exports.PATCH(
+  new Request('http://localhost/api/concerts/c', {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer TEST', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purchaseOrderNumber: 'PO-0001/A' }),
+  }),
+  { params: Promise.resolve({ id: 'c' }) },
+);
+globalThis.clientPerms = { concerts: ['edit_notes'] };
+assert.equal((await patchPurchaseOrder()).status, 403);
+assert.equal(globalThis.clientUpdates.length, 1);
+globalThis.clientPerms = { concerts: ['edit_venue'] };
+assert.equal((await patchPurchaseOrder()).status, 200);
+assert.deepEqual(globalThis.clientUpdates.at(-1), { id: 'c', data: { purchaseOrderNumber: 'PO-0001/A' } });
+console.log('PASS: customer lookup requires concert-create permission; phone and purchase order edits require the existing edit-basic-data permission.');

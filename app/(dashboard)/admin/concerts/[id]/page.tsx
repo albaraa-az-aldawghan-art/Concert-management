@@ -30,6 +30,7 @@ import { SalesFoodPicker, foodPickKey } from "@/components/ui/sales-food-picker"
 import { Actor } from "@/components/ui/actor";
 import { getExpensesByConcert, getExpenseSettings, addConcertExpense, deleteConcertExpense } from "@/lib/firestore/expenses";
 import { formatDate, formatDateTime, formatTime, toLatinDigits } from "@/lib/utils";
+import { normalizePurchaseOrderNumber, PURCHASE_ORDER_NUMBER_MAX_LENGTH } from "@/lib/concert-purchase-order";
 import { normalizeStatus, operationalStage } from "@/lib/concert-status";
 import { thumbUrl } from "@/lib/cloudinary";
 import { Calendar, MapPin, Users, Package, AlertTriangle, Pencil, Trash2, ChevronRight, Phone, UserRound, BadgeDollarSign, UtensilsCrossed, Plus, Banknote, CreditCard, Landmark, CalendarDays, Building2, Hash, CheckCircle2, Circle, Check, X, Banknote as BanknoteIcon, FileText, XCircle, Search, Navigation, UsersRound, Barcode, Receipt } from "lucide-react";
@@ -88,6 +89,7 @@ export default function AdminConcertDetailPage() {
   const [editHallCostRecipient, setEditHallCostRecipient] = useState("");
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [editNotes, setEditNotes] = useState("");
+  const [editPurchaseOrder, setEditPurchaseOrder] = useState<string | null>(null);
   /* ── فواتير مصروفات الحفلة ── */
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [costUnits, setCostUnits] = useState<string[]>([]);
@@ -699,6 +701,34 @@ export default function AdminConcertDetailPage() {
       loadData({ silent: true });
     } catch {
       showToast("حدث خطأ", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSavePurchaseOrder(event: React.FormEvent) {
+    event.preventDefault();
+    if (!concert || !appUser || saving || editPurchaseOrder === null) return;
+    setSaving(true);
+    try {
+      const purchaseOrderNumber = normalizePurchaseOrderNumber(editPurchaseOrder);
+      const previous = concert.purchaseOrderNumber ?? null;
+      if (purchaseOrderNumber !== previous) {
+        await updateConcert(concert.id, { purchaseOrderNumber });
+        setConcert(current => current?.id === concert.id ? { ...current, purchaseOrderNumber } : current);
+        await addConcertLog({
+          concertId: concert.id,
+          description: purchaseOrderNumber ? "تم حفظ رقم أمر الشراء" : "تمت إزالة رقم أمر الشراء",
+          createdBy: appUser.uid,
+          field: "purchaseOrderNumber",
+          oldValue: previous ?? "",
+          newValue: purchaseOrderNumber ?? "",
+        }).catch(() => {});
+        showToast("تم حفظ رقم أمر الشراء");
+      }
+      setEditPurchaseOrder(null);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "تعذّر حفظ رقم أمر الشراء", "error");
     } finally {
       setSaving(false);
     }
@@ -1545,7 +1575,7 @@ export default function AdminConcertDetailPage() {
       </div>
 
       {/* Client Info */}
-      {(concert.clientName || concert.clientPhone || concert.clientPhone2 || fx.editVenue) && (
+      {(concert.clientName || concert.clientPhone || concert.clientPhone2 || concert.purchaseOrderNumber || fx.editVenue) && (
         <Card>
           <div className="flex flex-wrap items-center gap-2 text-slate-500 mb-3">
             <UserRound size={15} />
@@ -1581,9 +1611,33 @@ export default function AdminConcertDetailPage() {
                 </a>
               </div>
             )}
+            {(concert.purchaseOrderNumber || fx.editVenue) && (
+              <div className="min-w-0">
+                <p className="mb-0.5 text-xs text-slate-400">رقم أمر الشراء (PO Number)</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {concert.purchaseOrderNumber && <bdi className="min-w-0 break-all text-sm font-semibold text-slate-800">{concert.purchaseOrderNumber}</bdi>}
+                  {fx.editVenue && <Button type="button" variant="secondary" size="sm" aria-label="تعديل رقم أمر الشراء"
+                    onClick={() => setEditPurchaseOrder(concert.purchaseOrderNumber ?? "")}>
+                    <Pencil size={13} /> {concert.purchaseOrderNumber ? "تعديل" : "إضافة رقم أمر شراء"}
+                  </Button>}
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       )}
+
+      <Modal open={fx.editVenue && editPurchaseOrder !== null} onClose={() => { if (!saving) setEditPurchaseOrder(null); }} title="تعديل رقم أمر الشراء">
+        <form onSubmit={handleSavePurchaseOrder} className="space-y-4">
+          <Input label="رقم أمر الشراء (PO Number)" value={editPurchaseOrder ?? ""}
+            onChange={(e) => setEditPurchaseOrder(e.target.value)} dir="auto" maxLength={PURCHASE_ORDER_NUMBER_MAX_LENGTH}
+            disabled={saving} helperText="اترك الحقل فارغًا لإزالة الرقم من الاتفاقية." autoFocus />
+          <div className="flex gap-2">
+            <Button type="submit" loading={saving}>حفظ</Button>
+            <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditPurchaseOrder(null)}>إلغاء</Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Notes */}
       <Card>

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { ApiError, handle, requireCaller, requirePage, str } from "@/lib/server/guard";
+import { normalizePurchaseOrderNumber } from "@/lib/concert-purchase-order";
 
 export async function POST(req: NextRequest) {
   return handle(async () => {
@@ -13,6 +14,9 @@ export async function POST(req: NextRequest) {
     if (!data || typeof data !== "object" || !data.form) throw new ApiError("المسودة غير صحيحة");
     const allowed = ["form", "hallCostType", "hallCostValue", "hallCostDate", "hallCostRecipient", "location", "itemCheck", "foodCheck", "foodMetaLite", "paymentEntries", "paymentForm", "invoice", "activeItemType", "initialExpenses"];
     const clean = Object.fromEntries(Object.entries(data).filter(([key]) => allowed.includes(key)));
+    if (Object.hasOwn(data.form, "purchaseOrderNumber")) {
+      clean.form = { ...data.form, purchaseOrderNumber: normalizePurchaseOrderNumber(data.form.purchaseOrderNumber) ?? "" };
+    }
     const ref = id ? caller.db.collection("concert_drafts").doc(id) : caller.db.collection("concert_drafts").doc();
     const actor = (await caller.db.collection("users").doc(caller.uid).get()).data()!;
     if (id) await ref.update({ ...clean, updatedAt: FieldValue.serverTimestamp() });

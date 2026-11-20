@@ -154,7 +154,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         hint: "الحقول التي تُعدَّل من صفحة التفاصيل",
         actions: [
           { key: "edit_date",      label: "تعديل التاريخ والوقت" },
-          { key: "edit_venue",     label: "تعديل اسم المكان" },
+          { key: "edit_venue",     label: "تعديل اسم المكان وبيانات العميل ورقم أمر الشراء" },
           { key: "edit_location",  label: "تعديل الموقع على الخريطة" },
           { key: "edit_people",    label: "تعديل عدد الأشخاص" },
           { key: "edit_notes",     label: "تعديل الملاحظات" },
