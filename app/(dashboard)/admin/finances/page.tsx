@@ -14,6 +14,7 @@ import { getCostOutgoing } from "@/lib/firestore/costs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExportDialog } from "@/components/ui/export-dialog";
+import { ExpensesExportDialog } from "@/components/ui/expenses-export-dialog";
 import { SALES_COLUMNS } from "@/lib/server/export-columns";
 import { salesExportScope } from "@/lib/sales-export-scope";
 import { Concert, Contract, CostOutgoing } from "@/types";
@@ -65,6 +66,7 @@ export default function FinancesPage() {
   const { can, feat } = useAuth();
   const canExport = feat("concerts", "export");
   const [showExport, setShowExport] = useState(false);
+  const [showExpensesExport, setShowExpensesExport] = useState(false);
   const searchParams = useSearchParams();
   const requestedOverdue = searchParams.get("filter") === "overdue";
   /* كل رقم بحقله: دور قد يتابع الحفلات ولا يرى أسعارها */
@@ -410,10 +412,12 @@ export default function FinancesPage() {
       </div>
 
       {/* Summary Cards */}
+      {showExpensesExport && <ExpensesExportDialog onClose={() => setShowExpensesExport(false)} />}
       {can("finances") && <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Landmark size={19} className="text-[#1C2D50]" /> اللوحة المالية الشاملة</h3>
+            {feat("finances", "expenses_export") && <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowExpensesExport(true)}>تصدير جميع المصاريف إلى Excel</Button>}
             <p className="text-xs text-slate-500 mt-1">أرقام ما قبل الضريبة حسب الفترة المحددة أعلاه</p>
           </div>
         </div>

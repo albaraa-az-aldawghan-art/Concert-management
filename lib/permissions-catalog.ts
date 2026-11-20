@@ -108,7 +108,10 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
       {
         key: "table",
         label: "الجدول التفصيلي",
-        actions: [{ key: "table_view", label: "عرض جدول الحفلات المالي" }],
+        actions: [
+          { key: "table_view", label: "عرض جدول الحفلات المالي" },
+          { key: "expenses_export", label: "تصدير جميع المصاريف إلى Excel", hint: "يكشف جميع فواتير مصروفات الحفلات ومصاريف أيام التعاقدات بأسمائها ومبالغها عبر كامل السجل", sensitive: true },
+        ],
         fields: [
           { key: "f_client",  label: "اسم العميل" },
           { key: "f_price",   label: "سعر الحفلة" },
