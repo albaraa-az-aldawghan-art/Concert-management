@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
 import { approveVoucher,cleanVoucher,saveVoucher,settleVoucher,voidVoucher,voucherCosts,voucherList } from "./expense-vouchers-core";
-import { splitVoucher,voucherTotals,voucherAmountWords,type ExpenseVoucher } from "../expense-vouchers";
+import { splitVoucher,voucherTotals,voucherRatio,voucherAmountWords,type ExpenseVoucher } from "../expense-vouchers";
 import { readExpenseExport } from "./expenses-export";
 import { expenseExportTotals } from "../expenses-export";
 import { buildExpensesWorkbook } from "./expenses-workbook";
@@ -48,6 +48,13 @@ test("bad financial inputs rejected and dates/VAT snapshot validated",()=>{
   assert.equal(cleanVoucher({...input,vatMode:"inclusive",amount:115}).net,10000);
   assert.equal(cleanVoucher({...input,recipient:"مستلم ١٢٣",description:"عدد ٤ عمال"}).recipient,"مستلم 123");
   assert.equal(cleanVoucher({...input,description:"عدد ٤ عمال"}).description,"عدد 4 عمال");
+});
+test("fractional VAT and large refund ratios round exact half-halala boundaries",()=>{
+  assert.equal(voucherTotals(1500,"exclusive",17.9).tax,269);
+  assert.equal(voucherTotals(1500,"exclusive",17.9).gross,1769);
+  assert.equal(voucherTotals(3,"inclusive",20).net,3);
+  assert.equal(voucherRatio(10_000_000_001,2_000_000_001,20_000_000_002),1_000_000_001);
+  assert.equal(voucherRatio(1,1,2),1);assert.equal(voucherRatio(1,1,3),0);
 });
 test("drafts have no cost effect; approval is atomic, unique, idempotent and snapshot based",async()=>{
   const f=voucherFixture(),draft=await saveVoucher(f.db,"user","v",input,null);

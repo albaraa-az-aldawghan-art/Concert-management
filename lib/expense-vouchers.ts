@@ -12,6 +12,12 @@ export interface ExpenseVoucher {
   allocations: VoucherAllocation[]; targetKeys: string[]; createdBy: string; createdAt: string; updatedAt: string; approvedBy?: string;
   events: { at: string; by: string; action: string; reason: string; target?: string; amount?: number }[];
 }
+/** Exact positive half-up rounding; even large amounts and fractional VAT rates
+ * never pass through an imprecise floating-point multiplication. */
+export function voucherRatio(a:number,b:number,divisor:number):number {
+  if(![a,b,divisor].every(Number.isSafeInteger)||a<0||b<0||divisor<=0)throw new Error("نسبة مالية غير صحيحة");
+  return Number((BigInt(a)*BigInt(b)*BigInt(2)+BigInt(divisor))/(BigInt(divisor)*BigInt(2)));
+}
 export function splitVoucher(gross: number, tax: number, targets: { id: string; name: string; number: string }[]): VoucherAllocation[] {
   if (!Number.isSafeInteger(gross) || !Number.isSafeInteger(tax) || tax < 0 || gross < tax || !targets.length || targets.length > 40 || new Set(targets.map(t => t.id)).size !== targets.length) throw new Error("توزيع غير صحيح");
   return [...targets].sort((a,b) => a.id.localeCompare(b.id)).map((t,i) => {
@@ -22,8 +28,10 @@ export function splitVoucher(gross: number, tax: number, targets: { id: string; 
 }
 export function voucherTotals(amount: number, mode: ExpenseVoucher["vatMode"], rate: number) {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100_000_000_000 || !Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error("المبلغ أو الضريبة غير صحيح");
-  const gross = mode === "exclusive" ? amount + Math.round(amount * rate / 100) : amount;
-  const net = mode === "inclusive" ? Math.round(gross / (1 + rate / 100)) : amount;
+  const basisPoints=Math.round(rate*100);
+  if(Math.abs(basisPoints-rate*100)>0.0001)throw new Error("نسبة الضريبة تحتوي أكثر من منزلتين عشريتين");
+  const gross = mode === "exclusive" ? amount + voucherRatio(amount,basisPoints,10000) : amount;
+  const net = mode === "inclusive" ? voucherRatio(gross,10000,10000+basisPoints) : amount;
   return { gross, net: mode === "none" ? gross : net, tax: mode === "none" ? 0 : gross - net };
 }
 const units = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"];

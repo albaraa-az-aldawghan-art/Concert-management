@@ -2,7 +2,7 @@ import { FieldPath, Timestamp } from "firebase-admin/firestore";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { ApiError } from "./guard";
 import { expenseHalalas, exportExpenseDate } from "./expenses-export";
-import { splitVoucher, voucherTotals, VOUCHER_DEPARTMENTS, VOUCHER_METHODS, type ExpenseVoucher, type VoucherAllocation } from "../expense-vouchers";
+import { splitVoucher, voucherTotals, voucherRatio, VOUCHER_DEPARTMENTS, VOUCHER_METHODS, type ExpenseVoucher, type VoucherAllocation } from "../expense-vouchers";
 import { toLatinDigits } from "../utils";
 
 export function voucherId(value: unknown): string {
@@ -123,7 +123,7 @@ export async function settleVoucher(db:Firestore,uid:string,id:string,input:Reco
       refund=expenseHalalas(input.amount,"المبلغ المسترد فعليًا");if(refund<=0||refund>a.gross)throw new ApiError("المسترد يجب أن يكون أكبر من صفر وألا يتجاوز الحصة");
       exportExpenseDate(input.refundDate,"تاريخ الاسترداد");short(input.refundMethod,"طريقة الاسترداد");
       if(!Object.values(VOUCHER_METHODS).includes(input.refundMethod as typeof VOUCHER_METHODS[keyof typeof VOUCHER_METHODS]))throw new ApiError("طريقة الاسترداد غير صحيحة");
-      const tax=Math.round(a.tax*refund/a.gross);
+      const tax=voucherRatio(a.tax,refund,a.gross);
       allocations=allocations.map(b=>b.id===target?{...b,gross:b.gross-refund,tax:b.tax-tax,net:b.net-refund+tax,settlement:"refunded"}:b);
     }else allocations=allocations.map(b=>b.id===target?{...b,settlement:"consumed"}:b);
     const at=new Date().toISOString(),next:ExpenseVoucher={...v,allocations,refunded:v.refunded+refund,revision:v.revision+1,updatedAt:at,events:[...v.events,{at,by:uid,action:"settle",target,amount:refund,reason:`${mode}: ${why}${refund?` | ${input.refundDate} | ${input.refundMethod}`:""}`}]};
