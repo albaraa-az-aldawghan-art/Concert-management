@@ -355,7 +355,8 @@ export async function listMaterialChoices(db: Firestore) {
   const snap = await db.collection("cost_items").select("name","kind","unit","purchaseUnit","purchaseToIssue","totalIn","totalOut","minimumStock","materialOpenQuantity","materialPendingQuantity","materialAutoEnabled","materialTargetStock","materialSections").get();
   return snap.docs.filter(d => isPurchaseRawItem(d.data())).map(d => materialChoice(d.id, d.data())).sort((a,b) => a.name.localeCompare(b.name, "ar"));
 }
-export async function listMaterialRequests(db: Firestore, uid: string, all: boolean, filters: { state?: string; q?: string; from?: string; to?: string; cursor?: string }) {
+export async function listMaterialRequests(db: Firestore, uid: string, all: boolean, filters: { state?: string; q?: string; from?: string; to?: string; cursor?: string }, pageSize = 20) {
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200) throw new ApiError("حجم القائمة غير صحيح");
   // Two bounded queries preserve old owner-only documents without a live migration.
   // Each branch applies every filter and the same cursor, then a stable union is paginated.
   let query = db.collection(requests) as FirebaseFirestore.Query;
@@ -373,20 +374,20 @@ export async function listMaterialRequests(db: Firestore, uid: string, all: bool
     let cursor: Row; try { cursor = JSON.parse(Buffer.from(filters.cursor, "base64url").toString()); } catch { throw new ApiError("مؤشر الصفحة غير صحيح"); }
     query = query.startAfter(materialDate(cursor.date, "مؤشر التاريخ"), materialId(cursor.id));
   }
-  const snapshots = all ? [await query.limit(21).get()] : await Promise.all([
-    query.where("createdBy", "==", uid).limit(21).get(), query.where("assignedTo", "==", uid).limit(21).get(),
+  const snapshots = all ? [await query.limit(pageSize + 1).get()] : await Promise.all([
+    query.where("createdBy", "==", uid).limit(pageSize + 1).get(), query.where("assignedTo", "==", uid).limit(pageSize + 1).get(),
   ]);
   const merged = [...new Map(snapshots.flatMap(s => s.docs).map(doc => [doc.id, doc])).values()].sort((a,b) => {
     const x = String(a.data().requestDate), y = String(b.data().requestDate);
     return x === y ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : x < y ? 1 : -1;
   });
-  const page = merged.slice(0, 20);
+  const page = merged.slice(0, pageSize);
   const rows = page.map(d => {
     const data = { ...d.data() }; delete data.searchKeys; delete data.operationHash;
     return { id: d.id, ...data };
   });
   const last = page.at(-1);
-  return { rows, nextCursor: merged.length > 20 && last ? Buffer.from(JSON.stringify({ date: last.data().requestDate, id: last.id })).toString("base64url") : null };
+  return { rows, nextCursor: merged.length > pageSize && last ? Buffer.from(JSON.stringify({ date: last.data().requestDate, id: last.id })).toString("base64url") : null };
 }
 
 export async function getMaterialRequest(db: Firestore, uid: string, all: boolean, prices: boolean, id: string, cursor?: string) {

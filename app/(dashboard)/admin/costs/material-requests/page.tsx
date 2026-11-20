@@ -11,6 +11,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { MATERIAL_SECTIONS, MATERIAL_STATES, materialSections, materialRemaining, materialRound, materialSearchKey, type MaterialSection, type MaterialDepartment, type MaterialChoice, type MaterialRequest, type MaterialReceipt } from "@/lib/material-requests";
 import { MaterialChoicePicker } from "@/components/ui/material-choice-picker";
+import { MaterialRequestsExportDialog } from "@/components/ui/material-requests-export-dialog";
 import { toLatinDigits } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
 import { downloadBlob } from "@/lib/download-file";
@@ -80,6 +81,7 @@ export default function MaterialRequestsPage() {
   const [printRequest, setPrintRequest] = useState<MaterialRequest | null>(null);
   const [printSection, setPrintSection] = useState<MaterialSection>("general");
   const [printing, setPrinting] = useState(false);
+  const [excelOpen,setExcelOpen] = useState(false);
 
   useEffect(() => { const timer = setTimeout(() => setFilters(f => f.q === search.trim() ? f : { ...f, q: search.trim() }), 350); return () => clearTimeout(timer); }, [search]);
   useEffect(() => {
@@ -206,6 +208,7 @@ export default function MaterialRequestsPage() {
   const titles: Record<NonNullable<FormKind>, string> = { create: "طلب مواد جديد", edit: "تعديل الطلب قبل الاستلام", receive: "تسجيل المواد الواصلة", invoice: "تسجيل الفاتورة واعتماد الاستلام", cancel: "إلغاء المتبقي من الطلب", void: "تصحيح دفعة الاستلام", policy: "الطلب التلقائي للمواد", classify: "تصنيف المواد حسب الأقسام", assign: "توجيه الطلب إلى موظف" };
   if (appUser && !canOpen) return <p className="py-12 text-center text-slate-500">لا تملك صلاحية الوصول إلى طلبات المواد.</p>;
   return <div className="space-y-5" dir="rtl">
+    {excelOpen&&<MaterialRequestsExportDialog initial={filters} onClose={()=>setExcelOpen(false)}/>}
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex items-center gap-3"><span className="rounded-2xl bg-[#EEF1F7] p-3 text-[#1C2D50]"><ClipboardList size={25}/></span><div><p className="text-xs text-slate-500">التكاليف / متابعة التوريد</p><h1 className="text-2xl font-extrabold text-[#1C2D50]">طلبات المواد</h1><p className="mt-1 text-sm text-slate-500">من الطلب إلى الوصول والفاتورة، مع تتبع الكميات لكل مادة.</p></div></div>
       <div className="flex flex-wrap gap-2">{allowed("mat_classify") && <Button variant="outline" onClick={() => openForm("classify")}><Tags size={16}/> أقسام المواد</Button>}{allowed("mat_auto") && <Button variant="outline" onClick={() => openForm("policy")}><Settings2 size={16}/> الطلب التلقائي</Button>}{allowed("mat_create") && <Button onClick={() => openForm("create")}><Plus size={16}/> طلب مواد جديد</Button>}</div>
@@ -219,7 +222,7 @@ export default function MaterialRequestsPage() {
         <div className="flex items-end gap-2"><Button variant="outline" disabled={busy} onClick={() => void load(cursor)} aria-label="تحديث الطلبات"><RefreshCw size={16}/></Button><Button variant="ghost" onClick={() => { setSearch(""); setFilters({ q:"",state:"",from:"",to:"" }); }}>مسح الفلاتر</Button></div>
       </div>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 p-4"><h2 className="font-bold text-[#1C2D50]">متابعة الطلبات</h2><span className="text-xs text-slate-500">{allowed("mat_view_all") ? "جميع الطلبات" : "طلباتي والموجّهة إليّ"} · صفحة {number(history.length + 1)}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="font-bold text-[#1C2D50]">متابعة الطلبات</h2>{allowed("mat_export")&&<Button variant="outline" size="sm" onClick={()=>setExcelOpen(true)}>تصدير Excel</Button>}<span className="text-xs text-slate-500">{allowed("mat_view_all") ? "جميع الطلبات" : "طلباتي والموجّهة إليّ"} · صفحة {number(history.length + 1)}</span></div>
         {busy ? <p className="p-10 text-center text-slate-500" role="status">جارٍ تحميل الطلبات…</p> : error ? <p className="p-6 text-red-700" role="alert">{error}</p> : !rows.length ? <div className="p-10 text-center text-slate-500"><ClipboardList className="mx-auto mb-3 text-slate-300" size={35}/><p>لا توجد طلبات مطابقة للفلاتر.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm">
           <thead className="bg-slate-50 text-xs text-slate-500"><tr>{["الطلب / المواد","القسم / الموظف","تاريخ الطلب","المصدر","الحالة","آخر وصول","الإجراءات"].map(t => <th key={t} className="px-4 py-3" style={{textAlign:t==="الطلب / المواد"?"right":"center"}}>{t}</th>)}</tr></thead>
           <tbody className="divide-y divide-slate-100">{rows.map(row => <tr key={row.id} className="hover:bg-slate-50/80">
