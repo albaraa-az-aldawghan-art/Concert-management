@@ -2,9 +2,14 @@ import type { NextRequest } from "next/server";
 import { ApiError, handle, requireCaller, requirePage } from "@/lib/server/guard";
 import { validCalendarValue } from "@/lib/latin-fields";
 import type { FinancePayment, FinancePaymentReport } from "@/lib/finance-payments";
+import { toLatinDigits } from "@/lib/utils";
 
 const MAX_PAYMENTS = 10_000;
 const roundMoney = new Intl.NumberFormat("en-US", { useGrouping: false, maximumFractionDigits: 2 });
+
+function paymentText(value: unknown): string | null {
+  return typeof value === "string" ? toLatinDigits(value.trim()) || null : null;
+}
 
 export async function GET(request: NextRequest) {
   const response = await handle(async (): Promise<FinancePaymentReport> => {
@@ -12,6 +17,7 @@ export async function GET(request: NextRequest) {
     requirePage(caller, "finances", "عرض القائمة المالية");
 
     const showDetails = caller.feat("finances", "table_view") && caller.feat("finances", "f_paid");
+    const showBankDetails = showDetails && caller.feat("concerts", "pay_view") && caller.feat("concerts", "pf_bank");
     if (!showDetails && !caller.feat("finances", "f_collected")) {
       throw new ApiError("لا تملك صلاحية عرض المحصّل", 403);
     }
@@ -26,7 +32,10 @@ export async function GET(request: NextRequest) {
     let query: FirebaseFirestore.Query = caller.db.collection("concert_payments");
     if (from) query = query.where("date", ">=", from);
     if (to) query = query.where("date", "<=", to);
-    const snapshot = await query.select("concertId", "date", "amount").limit(MAX_PAYMENTS + 1).get();
+    const fields = ["date", "amount"];
+    if (showDetails) fields.push("concertId", "method", "cardType");
+    if (showBankDetails) fields.push("bankName", "senderName", "receiverName");
+    const snapshot = await query.select(...fields).limit(MAX_PAYMENTS + 1).get();
     if (snapshot.size > MAX_PAYMENTS) throw new ApiError("عدد الدفعات كبير. اختر فترة أقصر لعرض الإجمالي كاملًا.", 422);
 
     const payments: FinancePayment[] | null = showDetails ? [] : null;
@@ -42,7 +51,21 @@ export async function GET(request: NextRequest) {
       }
       totalHalalas += amountHalalas;
       count++;
-      payments?.push({ id: doc.id, concertId: typeof data.concertId === "string" ? data.concertId : "", date, amountHalalas });
+      if (payments) {
+        const method = data.method === "card" || data.method === "cash" || data.method === "bank_transfer"
+          ? data.method : null;
+        payments.push({
+          id: doc.id,
+          concertId: typeof data.concertId === "string" ? data.concertId : "",
+          date,
+          amountHalalas,
+          method,
+          cardType: method === "card" && (data.cardType === "mada" || data.cardType === "visa") ? data.cardType : null,
+          bankName: showBankDetails && method === "bank_transfer" ? paymentText(data.bankName) : null,
+          senderName: showBankDetails && method === "bank_transfer" ? paymentText(data.senderName) : null,
+          receiverName: showBankDetails && method === "cash" ? paymentText(data.receiverName) : null,
+        });
+      }
     }
     payments?.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.id.localeCompare(b.id));
     return { count, totalHalalas, payments };

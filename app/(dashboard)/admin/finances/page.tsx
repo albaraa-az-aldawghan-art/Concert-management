@@ -394,7 +394,8 @@ export default function FinancesPage() {
 
       {paymentMode ? (
         <PaymentPeriod key={`${dateFilter}:${paymentFrom}:${paymentTo}`} from={paymentFrom} to={paymentTo}
-          custom={dateFilter === "custom"} concerts={concerts} showClient={ff.client} showTotal={ff.collected} canOpenConcerts={can("concerts")} />
+          custom={dateFilter === "custom"} concerts={concerts} showClient={ff.client} showTotal={ff.collected}
+          showBankDetails={feat("concerts", "pay_view") && feat("concerts", "pf_bank")} canOpenConcerts={can("concerts")} />
       ) : financeError ? (
         <div role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">تعذر إكمال الأرقام المالية: {financeError}. أعد تحميل الصفحة.</div>
       ) : <>

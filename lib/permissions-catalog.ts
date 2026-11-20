@@ -123,7 +123,7 @@ export const PERMISSION_CATALOG: PermissionPageDef[] = [
         fields: [
           { key: "f_client",  label: "اسم العميل" },
           { key: "f_price",   label: "سعر الحفلة" },
-          { key: "f_paid",    label: "المدفوع والمتبقي" },
+          { key: "f_paid",    label: "المدفوع والمتبقي ووسيلة الدفع" },
           { key: "f_costs",   label: "التكاليف (القاعة والنقل والعمالة)" },
         ],
       },
