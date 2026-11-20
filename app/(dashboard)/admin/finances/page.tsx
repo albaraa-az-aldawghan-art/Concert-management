@@ -2,7 +2,7 @@
 
 /* القائمة المالية: المحصَّل والمتبقي وتكاليف الحفلات، وضبط نسبة الضريبة. */
 import { LatinInput } from "@/components/ui/latin-input";
-import { DATE_PERIOD_OPTIONS, getWeekBounds, getMonthBounds, matchesDate, type DateMode } from "@/lib/date-period";
+import { DATE_PERIOD_OPTIONS, getWeekBounds, getMonthBounds, matchesDate, periodBounds, type DateMode } from "@/lib/date-period";
 import { eventDateString, riyadhDateString } from "@/lib/event-date";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -23,6 +23,7 @@ import { formatDate } from "@/lib/utils";
 import { STATUS_FILTERS, ConcertStatus4, normalizeStatus, statusLabel, statusColor } from "@/lib/concert-status";
 import { SortHeader, RangeFilter, inRange, ClearFiltersButton } from "@/components/ui/list-filters";
 import { isOverdueConcert } from "@/lib/overdue-concerts";
+import { PaymentPeriod } from "./payment-period";
 import styles from "./finances.module.css";
 import { TrendingUp, Wallet, Clock, BarChart3, ChevronRight, Building2, Truck, CheckCircle2, AlertCircle, CalendarDays, Search, ChevronLeft, Package, Users, Receipt, UtensilsCrossed, FileText, Landmark } from "lucide-react";
 
@@ -61,7 +62,12 @@ const toLocalDateStr = eventDateString;
 
 type StatusFilter = ConcertStatus4 | "all";
 type DateFilter = DateMode;
-type DateField    = "createdAt" | "date";
+type DateField = "createdAt" | "date" | "payment";
+const DATE_FIELDS: { key: DateField; label: string }[] = [
+  { key: "createdAt", label: "تاريخ الإنشاء" },
+  { key: "date", label: "تاريخ الحفلة" },
+  { key: "payment", label: "تاريخ الدفعة" },
+];
 
 export default function FinancesPage() {
   const { can, feat } = useAuth();
@@ -102,13 +108,19 @@ export default function FinancesPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+  const canViewPayments = ff.collected || (ff.paid && feat("finances", "table_view"));
+  const paymentMode = canViewPayments && dateField === "payment";
+  const [paymentFrom, paymentTo] = dateFilter === "custom" ? [dateFrom, dateTo] : periodBounds(dateFilter);
 
   useEffect(() => {
     Promise.all([
       getConcerts(),
       getContracts().catch(() => [] as Contract[]),
       getCostOutgoing().catch(() => [] as CostOutgoing[]),
-      api.get<{rows:typeof voucherRows}>("/api/expense-vouchers?report=1"),
+      api.get<{rows:typeof voucherRows}>("/api/expense-vouchers?report=1").catch(error => {
+        setFinanceError(error.message);
+        return { rows: [] };
+      }),
     ]).then(([concertData, contractData, outgoingData, voucherData]) => {
       setConcerts(concertData);
       setContracts(contractData);
@@ -252,7 +264,6 @@ export default function FinancesPage() {
   const safePage   = Math.min(page, totalPages);
   const paginated  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  if(financeError)return <div role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">تعذر إكمال الأرقام المالية دون سندات الصرف: {financeError}. أعد تحميل الصفحة.</div>;
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -271,23 +282,23 @@ export default function FinancesPage() {
             القائمة المالية
           </h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {filtered.length} من {concerts.length} حفلة
+            {paymentMode ? "دفعات الحفلات حسب تاريخ السداد" : `${filtered.length} من ${concerts.length} حفلة`}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-        {canExport && <Button variant="outline" disabled={loading || filtered.length === 0} onClick={() => setShowExport(true)}>تصدير حفلات الفترة</Button>}
+        {canExport && !paymentMode && !financeError && <Button variant="outline" disabled={filtered.length === 0} onClick={() => setShowExport(true)}>تصدير حفلات الفترة</Button>}
         <Link href="/admin" className="text-sm text-slate-500 hover:text-[#1C2D50] flex items-center gap-1">
           لوحة التحكم <ChevronRight size={14} />
         </Link>
         </div>
       </div>
 
-      <ExportDialog open={showExport && canExport} onClose={() => setShowExport(false)} kind="sales"
+      {!paymentMode && !financeError && <ExportDialog open={showExport && canExport} onClose={() => setShowExport(false)} kind="sales"
         columns={SALES_COLUMNS} title="تصدير حفلات الفترة المالية"
-        scope={salesExportScope(filtered, dateFilter, dateFrom, dateTo, dateField, true)} />
+        scope={salesExportScope(filtered, dateFilter, dateFrom, dateTo, dateField === "createdAt" ? "createdAt" : "date", true)} />}
 
       {/* Search */}
-      <div className="relative">
+      {!paymentMode && !financeError && <><div className="relative">
         <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
           type="text"
@@ -301,28 +312,23 @@ export default function FinancesPage() {
         )}
       </div>
 
-      <ClearFiltersButton show={hasActiveFilters} onClear={clearRangeFilters} />
+      <ClearFiltersButton show={hasActiveFilters} onClear={clearRangeFilters} /></>}
 
       {/* Date Filter */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-semibold">
             <CalendarDays size={15} className="text-[#1C2D50]" />
-            {dateField === "createdAt" ? "فلتر بتاريخ الإنشاء" : "فلتر بتاريخ الحفلة"}
+            الفترة
           </div>
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
-            <button
-              onClick={() => setDateField("createdAt")}
-              className={`px-3 py-1.5 transition-colors ${dateField === "createdAt" ? "bg-[#1C2D50] text-white" : "text-slate-500 hover:bg-slate-50"}`}
-            >
-              تاريخ الإنشاء
-            </button>
-            <button
-              onClick={() => setDateField("date")}
-              className={`px-3 py-1.5 border-r border-slate-200 transition-colors ${dateField === "date" ? "bg-[#1C2D50] text-white" : "text-slate-500 hover:bg-slate-50"}`}
-            >
-              تاريخ الحفلة
-            </button>
+          <div role="group" aria-label="الفلترة حسب تاريخ" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 p-1 text-xs font-semibold">
+            {DATE_FIELDS.filter(field => field.key !== "payment" || canViewPayments).map(field => (
+              <button key={field.key} type="button" aria-pressed={dateField === field.key}
+                onClick={() => { setDateField(field.key); setPage(1); }}
+                className={`rounded-md px-2.5 py-2 transition-colors ${dateField === field.key ? "bg-[#1C2D50] text-white" : "text-slate-600 hover:bg-slate-50"}`}>
+                {field.label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -347,6 +353,7 @@ export default function FinancesPage() {
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">من:</label>
               <LatinInput
                 type="date"
+                aria-label="من تاريخ"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
@@ -356,6 +363,7 @@ export default function FinancesPage() {
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">إلى:</label>
               <LatinInput
                 type="date"
+                aria-label="إلى تاريخ"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1C2D50] bg-white"
@@ -378,13 +386,18 @@ export default function FinancesPage() {
             {dateFilter === "week"   && `الأسبوع: ${weekStart} — ${weekEnd}`}
             {dateFilter === "next-week" && `الأسبوع القادم: ${nextWeekStart} — ${nextWeekEnd}`}
             {dateFilter === "month"  && `الشهر: ${monthStart} — ${monthEnd}`}
-            {dateFilter === "custom" && dateFrom && dateTo && `النطاق: ${dateFrom} — ${dateTo}`}
-            {" · "}
-            <span className="font-semibold text-[#1C2D50]">{dateFiltered.length} حفلة</span>
+            {dateFilter === "custom" && (dateFrom || dateTo) && `النطاق: ${dateFrom || "البداية"} — ${dateTo || "النهاية"}`}
+            {!paymentMode && <> · <span className="font-semibold text-[#1C2D50]">{dateFiltered.length} حفلة</span></>}
           </p>
         )}
       </div>
 
+      {paymentMode ? (
+        <PaymentPeriod key={`${dateFilter}:${paymentFrom}:${paymentTo}`} from={paymentFrom} to={paymentTo}
+          custom={dateFilter === "custom"} concerts={concerts} showClient={ff.client} showTotal={ff.collected} canOpenConcerts={can("concerts")} />
+      ) : financeError ? (
+        <div role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">تعذر إكمال الأرقام المالية: {financeError}. أعد تحميل الصفحة.</div>
+      ) : <>
       {/* Status Filter — counts reflect current date filter */}
       <div className="flex gap-2 flex-wrap">
         <button
@@ -850,6 +863,7 @@ export default function FinancesPage() {
           </>
         )}
       </Card>}
+      </>}
     </div>
   );
 }
