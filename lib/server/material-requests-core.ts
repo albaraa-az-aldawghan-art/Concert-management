@@ -92,7 +92,6 @@ export async function createMaterialRequest(db: Firestore, uid: string, input: R
     const itemRefs = clean.lines.map(l => db.collection("cost_items").doc(l.barcode));
     const snaps = await Promise.all(itemRefs.map(r => tx.get(r)));
     const lines = clean.lines.map((l, i) => makeLine(l, snaps[i].data()));
-    if (lines.some(l => !materialMatchesSection(l.sections, clean.section))) throw new ApiError("إحدى المواد لا تتبع القسم المختار؛ حدّث قائمة المواد");
     const assignedToName = clean.assignedTo ? employeeName(await tx.get(db.collection("users").doc(clean.assignedTo))) : null;
     const number = `MR-${ref.id}`, stamp = now();
     tx.create(ref, { number, source: "manual", state: "open", createdBy: uid, requestDate: clean.requestDate, notes: clean.notes, section: clean.section, assignedTo: clean.assignedTo, assignedToName, createdAt: stamp, updatedAt: stamp, lastReceivedAt: null, lines, operationHash: fingerprint, searchKeys: materialSearchKeys(number, lines) });
@@ -114,7 +113,6 @@ export async function editMaterialRequest(db: Firestore, uid: string, all: boole
     const lines = clean.lines.map(l => makeLine(l, items.get(l.barcode)!));
     const section = input.section === undefined ? (old.section ?? "general") : clean.section;
     if (input.assignedTo !== undefined && clean.assignedTo !== (old.assignedTo ?? null)) throw new ApiError("استخدم توجيه الطلب لتغيير الموظف");
-    if (lines.some(l => !materialMatchesSection(l.sections, section))) throw new ApiError("إحدى المواد لا تتبع القسم المختار");
     barcodes.forEach((b, i) => {
       if (!snaps[i].exists) throw new ApiError("إحدى المواد غير موجودة");
       const delta = (lines.find(l => l.barcode === b)?.requested ?? 0) - (old.lines.find(l => l.barcode === b)?.requested ?? 0);
@@ -335,10 +333,14 @@ export async function assignMaterialRequest(db: Firestore, uid: string, all: boo
 export async function materialRequestPrintData(db: Firestore, uid: string, all: boolean, id: string, sectionInput: unknown) {
   const section = materialSection(sectionInput);
   const request = readRequest(await db.collection(requests).doc(materialId(id)).get()); requireMaterialOwner(request, uid, all);
+  if (!request.lines.length) throw new ApiError("لا توجد مواد محفوظة في الطلب للطباعة");
   if (section !== "general" && request.section && request.section !== "general" && request.section !== section) throw new ApiError("الطلب يتبع قسمًا مختلفًا عن قسم الطباعة المختار");
+  // The request department is the requesting destination, so every saved line
+  // belongs in its own department's printout regardless of catalog classification.
+  if (section === "general" || request.section === section) return { request, lines: request.lines, section: MATERIAL_SECTIONS[section], assignee: request.assignedToName ?? "غير موجّه" };
   // Classification applies to old and new requests. Quantities/names still come
   // from the saved request, never from current inventory or prices.
-  const snaps = request.lines.length && section !== "general" ? await db.getAll(...request.lines.map(line => db.collection("cost_items").doc(line.barcode))) : [];
+  const snaps = await db.getAll(...request.lines.map(line => db.collection("cost_items").doc(line.barcode)));
   const departments = new Map(snaps.filter(s => s.exists).map(s => [s.id, materialSections(s.data()?.materialSections)]));
   const lines = request.lines.filter(line => materialMatchesSection(departments.get(line.barcode) ?? line.sections, section));
   if (!lines.length) throw new ApiError("لا توجد مواد تابعة للقسم المختار في هذا الطلب؛ راجع تصنيف المواد أو اختر عام");

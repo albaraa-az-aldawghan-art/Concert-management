@@ -7,12 +7,11 @@ import { svcAddStoreDamage, svcDeleteIncoming } from "./costs-core";
 import { automaticMaterialQuantity, materialState, type MaterialRequestLine } from "../material-requests";
 
 type Data = Record<string, any>;
-test("department classification is explicit and many-to-many, request validation is server-side, and assignments grant scoped access only", async () => {
+test("department classification is explicit and many-to-many, and assignments grant scoped access only", async () => {
   const f = fixture();
   f.records.set("users/worker", { name: "أحمد" });
   const input = { ...f.requestInput(), section: "restaurant" as const, assignedTo: "worker" };
   await assert.rejects(createMaterialRequest(f.db, "owner", input), /صلاحية/);
-  await assert.rejects(createMaterialRequest(f.db, "owner", input, true), /لا تتبع/);
   await classifyMaterial(f.db, "owner", "RICE", ["restaurant", "concerts"]);
   assert.equal(f.item().totalIn, 20); assert.equal(f.item().totalInValue, 200);
   await createMaterialRequest(f.db, "owner", input, true);
@@ -31,6 +30,23 @@ test("department classification is explicit and many-to-many, request validation
   await assignMaterialRequest(f.db, "owner", false, "request_1", "second", request.updatedAt);
   await assert.rejects(getMaterialRequest(f.db, "worker", false, false, "request_1"), /صلاحية/);
   assert.equal((await getMaterialRequest(f.db, "second", false, false, "request_1")).request.assignedToName, "محمد");
+});
+test("every request department accepts all raw materials and department edits preserve quantities, stock and assignment", async () => {
+  const f = fixture();
+  f.records.set("users/worker", { name: "أحمد" });
+  await classifyMaterial(f.db, "owner", "RICE", ["restaurant"]);
+  for (const section of ["restaurant", "concerts", "contracts", "general"] as const) {
+    const input = { ...f.requestInput(`request_${section}`, 2), section, assignedTo: "worker" };
+    await createMaterialRequest(f.db, "owner", input, true);
+    assert.equal(f.records.get(`cost_material_requests/request_${section}`)!.section, section);
+    if (section !== "general") assert.equal((await materialRequestPrintData(f.db, "owner", false, `request_${section}`, section)).lines[0].requested, 2);
+  }
+  const ref = "cost_material_requests/request_contracts", before = f.records.get(ref)!;
+  await editMaterialRequest(f.db, "owner", false, "request_contracts", { ...f.requestInput("edit", 2), section: "concerts" }, before.updatedAt);
+  assert.equal(f.records.get(ref)!.section, "concerts");
+  assert.equal(f.records.get(ref)!.lines[0].requested, 2);
+  assert.equal(f.records.get(ref)!.assignedTo, "worker");
+  assert.equal(f.item().materialOpenQuantity, 8); assert.equal(f.item().totalIn, 20); assert.equal(f.item().totalInValue, 200);
 });
 test("PDF general contains all materials; specific department filters mixed requests and supports legacy classifications without inventing ownership", async () => {
   const f = fixture();

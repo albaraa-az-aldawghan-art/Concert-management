@@ -57,9 +57,11 @@ records.set('users/worker',{name:'أحمد',email:'private@example.test',role:'e
 records.set('users/disabled',{name:'غير متاح',disabled:true});
 const staff=await(await call('GET',null,'?employees=1')).json();assert.ok(staff.employees.some(e=>e.id==='worker'));assert.ok(staff.employees.every(e=>!('email'in e)&&e.id!=='disabled'));
 assert.equal((await call('POST',{action:'classify',barcode:'RICE',sections:['restaurant','concerts']})).status,200);
-assert.equal((await call('POST',{action:'create',input:{...input,section:'contracts',assignedTo:'worker'}})).status,400);
+assert.equal((await call('POST',{action:'create',input:{...input,section:'unknown',assignedTo:'worker'}})).status,400);
 assert.equal((await call('POST',{action:'create',input:{...input,section:'general',assignedTo:'worker'}})).status,200);
 assert.equal(records.get('cost_material_requests/req_1').assignedToName,'أحمد');
+assert.equal((await call('POST',{action:'create',input:{...input,operationId:'cross_department',section:'contracts',assignedTo:'worker'}})).status,200);
+assert.equal((await call('PRINT',{id:'cross_department',section:'contracts'})).status,200);assert.equal(globalThis.printFixture.lines[0].barcode,'RICE');
 response=await call('PRINT',{id:'req_1',section:'restaurant'});assert.equal(response.status,200);assert.equal(response.headers.get('Content-Type'),'application/pdf');assert.equal(globalThis.printFixture.lines.length,1);assert.equal(globalThis.printFixture.assignee,'أحمد');
 assert.equal((await call('PRINT',{id:'req_1',section:'contracts'})).status,400);
 assert.equal((await call('PRINT',{id:'req_1',section:'general'},'','')).status,401);
